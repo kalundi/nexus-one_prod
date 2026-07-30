@@ -1,0 +1,130 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><meta name="theme-color" content="#082f49"/><meta name="description" content="Nexus Medical Transit — accessible medical transportation across the Washington Metropolitan Area."/><title>Nexus Medical Transit | Access Drives Equity</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="./trustedsite.js" defer></script>
+  <script src="./i18n.js" defer></script>
+  <script type="module" crossorigin src="./assets/index-DRVoTLB1.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-C3k5qCch.css">
+</head><body><div id="root"></div><script>
+(function(){
+  const BOOK_SIGN_STYLE_ID='bookRideSignStyle';
+  const KNOWN_SERVICES=[
+    {key:'facility_transfer_critical',test:/\b(high\s*acuity|critical\s*ift|critical\s*care\s*transfer)\b/i},
+    {key:'als2',test:/\b(als\s*ii|als\s*2|advanced\s*life\s*support\s*ii)\b/i},
+    {key:'als1',test:/\b(als\s*i|als\s*1|advanced\s*life\s*support\s*i)\b/i},
+    {key:'bls',test:/\b(bls|basic\s*life\s*support|ambulance)\b/i},
+    {key:'bariatric',test:/\bbariatric\b/i},
+    {key:'stretcher',test:/\bstretcher\b/i},
+    {key:'broda',test:/\bbroda\b/i},
+    {key:'wheelchair',test:/\bwheel\s*chair|wheelchair\b/i},
+    {key:'facility_transfer',test:/\b(facility\s*(to|-)\s*facility|inter\s*facility|\bift\b|routine\s*ift)\b/i},
+    {key:'ambulatory',test:/\bambulatory|walking\b/i}
+  ];
+
+  function ensureBookSignStyles(){
+    if(document.getElementById(BOOK_SIGN_STYLE_ID))return;
+    const style=document.createElement('style');
+    style.id=BOOK_SIGN_STYLE_ID;
+    style.textContent=' .bookRideSign{position:relative;isolation:isolate;display:inline-flex!important;align-items:center;justify-content:center;gap:0;min-height:54px;padding:12px 28px!important;border-radius:20px!important;border:2px solid #cf1f1f!important;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 33%),radial-gradient(130% 95% at 50% 0,#9f0f0f 0,#7f0707 52%,#690505 100%)!important;color:#fff!important;text-decoration:none!important;text-transform:uppercase;letter-spacing:.02em;font-family:Manrope,sans-serif!important;font-weight:900!important;line-height:1.05;box-shadow:0 20px 38px rgba(70,0,0,.32),inset 0 1px 0 rgba(255,255,255,.25),inset 0 -7px 14px rgba(18,0,0,.34)!important;overflow:hidden;white-space:nowrap}.bookRideSign:before{content:"";position:absolute;pointer-events:none}.bookRideSign:before{inset:4px;border-radius:16px;border:1px solid rgba(255,74,74,.48)}.bookRideSign span[aria-hidden="true"]{display:none!important}@media(max-width:620px){.bookRideSign{min-height:50px;padding:11px 17px!important;border-radius:16px!important;font-size:13px}}';
+    document.head.appendChild(style);
+  }
+
+  function isBookCta(el){
+    if(!el)return false;
+    const text=(el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+    const href=(el.getAttribute('href')||'').toLowerCase();
+    return text.includes('book a ride') || text.includes('book transportation') || el.classList.contains('bookRideCta') || el.getAttribute('data-book-ride') !== null || href.includes('book=1');
+  }
+
+  function normalizeService(value){
+    const raw=String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+    if(!raw)return '';
+    if(raw==='wheel_chair')return 'wheelchair';
+    if(raw==='routine_ift'||raw==='ift_routine'||raw==='interfacility'||raw==='inter_facility')return 'facility_transfer';
+    if(raw==='critical_ift'||raw==='high_acuity_ift'||raw==='critical_care_transfer')return 'facility_transfer_critical';
+    if(raw==='als_ii'||raw==='als2')return 'als2';
+    if(raw==='als_i'||raw==='als1')return 'als1';
+    return raw;
+  }
+
+  function parseServiceFromText(text){
+    for(const rule of KNOWN_SERVICES){
+      if(rule.test.test(text)) return rule.key;
+    }
+    return '';
+  }
+
+  function inferServiceFromElement(el){
+    if(!el)return '';
+    const attrs=[
+      el.getAttribute('data-service'),
+      el.getAttribute('data-book-service'),
+      el.getAttribute('data-transport'),
+      el.getAttribute('data-service-type'),
+      el.getAttribute('data-ride-type'),
+      el.getAttribute('href'),
+      el.getAttribute('aria-label'),
+      el.getAttribute('title'),
+      el.className,
+      el.id,
+      el.textContent
+    ].map(function(v){return String(v||'');}).filter(Boolean);
+
+    for(const candidate of attrs){
+      const normalized=normalizeService(candidate);
+      if(normalized&&KNOWN_SERVICES.some(function(rule){return rule.key===normalized;}))return normalized;
+      const parsed=parseServiceFromText(candidate);
+      if(parsed)return parsed;
+    }
+
+    const scope=el.closest('[data-service],[data-transport],article,section,.card,.serviceCard,.roleCard,.moduleHero,.heroPanel');
+    const scopeText=String(scope&&scope.textContent||'').replace(/\s+/g,' ').slice(0,900);
+    return parseServiceFromText(scopeText);
+  }
+
+  function buildBookingUrl(el){
+    const service=inferServiceFromElement(el);
+    if(!service)return '/booking-app.html';
+    return '/booking-app.html?service='+encodeURIComponent(service);
+  }
+
+  function applyBookRideSign(root){
+    (root||document).querySelectorAll('a, button, [role="button"]').forEach(function(el){
+      if(isBookCta(el)){
+        el.classList.add('bookRideSign');
+        if(el.tagName==='A')el.setAttribute('href',buildBookingUrl(el));
+      }
+    });
+  }
+
+  function redirectBookCta(event){
+    const el=event.target.closest('a, button, [role="button"]');
+    if(!isBookCta(el))return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    window.location.assign(buildBookingUrl(el));
+  }
+
+  document.addEventListener('pointerdown', redirectBookCta, true);
+  document.addEventListener('mousedown', redirectBookCta, true);
+  document.addEventListener('keydown', function(event){
+    if(event.key!=='Enter'&&event.key!==' '){return;}
+    const el=event.target.closest('a, button, [role="button"]');
+    if(isBookCta(el))redirectBookCta(event);
+  }, true);
+  document.addEventListener('click', redirectBookCta, true);
+
+  ensureBookSignStyles();
+  applyBookRideSign(document);
+
+  const observer=new MutationObserver(function(records){
+    records.forEach(function(record){
+      record.addedNodes.forEach(function(node){
+        if(node.nodeType!==1)return;
+        if(node.matches&&node.matches('a, button, [role="button"]')&&isBookCta(node))node.classList.add('bookRideSign');
+        if(node.querySelectorAll)applyBookRideSign(node);
+      });
+    });
+  });
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script></body></html>

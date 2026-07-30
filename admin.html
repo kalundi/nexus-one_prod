@@ -1,0 +1,254 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#082f49"><meta name="description" content="Manage users, roles, services, coverage, security settings and organization-wide audit records."><title>Administration | NEXUS ONE</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet"><style>html{visibility:hidden}body{visibility:hidden}
+.adminHero{position:relative;overflow:hidden;background:linear-gradient(126deg,#071f37 0%,#0d365b 56%,#0e5c8c 100%);color:#fff;padding:0}
+.adminHeroInner{display:grid;grid-template-columns:1fr 1fr;min-height:420px;gap:0}
+.adminStoryPanel{padding:48px 40px 48px 0;display:flex;flex-direction:column;gap:24px;position:relative;z-index:1}
+.adminStoryPanel:before{content:"";position:absolute;width:540px;height:540px;right:-180px;top:-280px;border-radius:50%;background:radial-gradient(circle,rgba(69,213,223,.25),transparent 66%);pointer-events:none;z-index:0}
+.adminStoryPanel>*{position:relative;z-index:1}
+.adminStoryPanel h1{font-size:clamp(34px,4vw,56px);line-height:1.05;letter-spacing:-.04em;margin:8px 0;font-family:Manrope,sans-serif;font-weight:800}
+.adminStoryPanel p{color:#d5e7f0;font-size:18px;margin:0;max-width:580px}
+.adminShortcuts{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.adminShortcut{min-height:44px;padding:10px 16px;border:1px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.1);color:#fff;font-weight:800;font-family:Manrope,sans-serif;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px;font-size:14px;transition:background .15s,border-color .15s}
+.adminShortcut:hover,.adminShortcut:focus-visible{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.6)}
+.adminShortcut.primary{background:linear-gradient(135deg,#db2839,#b91c2c);border-color:transparent;box-shadow:0 8px 20px rgba(219,40,57,.3)}
+.adminShortcut.primary:hover{background:linear-gradient(135deg,#c12030,#a0161e)}
+.adminStatPanel{background:rgba(255,255,255,.07);border-left:1px solid rgba(255,255,255,.12);padding:36px;display:flex;flex-direction:column;gap:14px}
+.adminStatPanel h2{margin:0 0 6px;font-size:14px;text-transform:uppercase;letter-spacing:.12em;color:#9de7ec;font-family:Manrope,sans-serif;font-weight:900}
+.adminStatGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1}
+.adminStat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px}
+.adminStat strong{display:block;font-size:28px;font-family:Manrope,sans-serif;font-weight:800}
+.adminStat small{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#9fc2d8;font-weight:800;margin-top:4px}
+.adminStatusRow{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:13px}
+.adminStatusRow i{width:8px;height:8px;border-radius:50%;background:#16a36a;flex-shrink:0}
+.adminStatusRow i.warn{background:#d98218}
+.sectionTitle{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
+.sectionTitle h2{margin:0;font-family:Manrope,sans-serif}
+.sectionTitle p{margin:4px 0 0;color:var(--muted)}
+.userTable{width:100%;border-collapse:collapse}
+.userTable th{background:#eef5f9;padding:11px 14px;text-align:left;font-weight:800;font-family:Manrope,sans-serif;font-size:13px;border-bottom:2px solid var(--line)}
+.userTable td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+.userTable tr:last-child td{border-bottom:0}
+.userTable tr:hover td{background:#f8fbfd}
+.pill{display:inline-flex;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800;font-family:Manrope,sans-serif;text-transform:uppercase;letter-spacing:.04em}
+.pill.green{background:#d9f4e8;color:#0b644a}
+.pill.muted{background:#e8eef3;color:#52677c}
+.pill.blue{background:#dcf0ff;color:var(--blue)}
+.pill.red{background:#ffe5e8;color:var(--red)}
+.pill.amber{background:#fef3c7;color:var(--amber)}
+.formRow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.formRow.triple{grid-template-columns:1fr 1fr 1fr}
+.formField{display:grid;gap:6px}
+.formField label{font-weight:750;font-size:14px;color:var(--navy)}
+.formField input,.formField select{width:100%;padding:10px 12px;border:1px solid #c5d3dd;border-radius:9px;font:inherit;background:#fff}
+.formField input:focus,.formField select:focus{outline:3px solid rgba(3,105,161,.25);border-color:var(--blue)}
+.formField.wide{grid-column:1/-1}
+.createUserForm{background:#f8fbfd;border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:24px}
+.createUserForm h3{margin:0 0 16px;font-family:Manrope,sans-serif;font-size:16px}
+.auditRow{padding:13px 16px;border:1px solid var(--line);border-radius:10px;background:#fff;display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start}
+.auditRow .auditIcon{width:34px;height:34px;border-radius:9px;background:#eef5f9;display:grid;place-items:center;font-size:16px;flex-shrink:0}
+.auditRow .auditInfo strong{display:block;font-size:14px;font-family:Manrope,sans-serif}
+.auditRow .auditInfo small{color:var(--muted);font-size:12px}
+.auditRow .auditTime{font-size:11px;color:var(--muted);white-space:nowrap;text-align:right}
+.auditFilter{display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
+.auditFilter input{padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:inherit;min-width:160px}
+.msgBox{padding:10px 14px;border-radius:8px;font-weight:700;font-size:14px;margin-top:10px}
+.msgBox.ok{background:#d9f4e8;color:#0b644a;border:1px solid #a7dfc5}
+.msgBox.err{background:#ffe5e8;color:var(--red);border:1px solid #f5b8bf}
+.sectionTab{scroll-margin-top:100px}
+@media(max-width:900px){.adminHeroInner{grid-template-columns:1fr}.adminStatPanel{display:none}.formRow,.formRow.triple{grid-template-columns:1fr}.adminShortcuts{gap:8px}}
+</style>
+  <link rel="stylesheet" href="./platform.css">
+  <script src="/trustedsite.js" defer></script>
+  <script src="/i18n.js" defer></script>
+<script src="./auth-guard.js"></script><script src="./nexus-data.js"></script>
+</head><body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="adminNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/#services">Services</a><a href="/#experience">Experience</a><a href="/#coverage">Coverage</a><a href="/#facilities">Facilities</a><a href="/#safety-and-quality">Assurance</a><a href="/livecare.html">Livecare</a><a aria-current="page" href="/admin.html">Admin</a></nav><div class="globalActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18887604990"><small>Call Nexus</small><strong>(888) 760-4990</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true">→</span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="adminNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header>
+
+<section class="adminHero"><div class="shell adminHeroInner"><div class="adminStoryPanel">
+  <div><div class="eyebrow"><span class="liveDot" aria-hidden="true"></span>NEXUS Administration</div>
+  <h1>Platform control center.</h1>
+  <p>Manage users, configure pricing, review audit records and maintain organization settings from one secure workspace.</p></div>
+  <div class="adminShortcuts">
+    <a class="adminShortcut primary" href="#userSection">Manage users</a>
+    <a class="adminShortcut" href="#pricingSection">Pricing config</a>
+    <a class="adminShortcut" href="#manageTripSection">Manage trip</a>
+    <a class="adminShortcut" href="#settingsSection">Settings</a>
+    <a class="adminShortcut" href="#auditSection">Audit log</a>
+  </div>
+</div>
+<aside class="adminStatPanel" aria-label="Platform statistics">
+  <h2>Platform overview</h2>
+  <div class="adminStatGrid">
+    <div class="adminStat"><strong id="statUsers">—</strong><small>Total users</small></div>
+    <div class="adminStat"><strong id="statActiveUsers">—</strong><small>Active users</small></div>
+    <div class="adminStat"><strong id="statTrips">—</strong><small>Total trips</small></div>
+    <div class="adminStat"><strong id="statPricing">—</strong><small>Services priced</small></div>
+  </div>
+  <div class="adminStatusRow"><i></i>API connected</div>
+  <div class="adminStatusRow"><i></i>Database ready</div>
+</aside>
+</div></section>
+
+<main id="main" class="shell moduleMain" tabindex="-1">
+
+<!-- User Management -->
+<section class="sectionTab" id="userSection">
+  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">User Administration</div><h2>User management</h2><p>Create accounts, manage roles, and activate or deactivate access across the platform.</p></div><button class="button" id="refreshUsers">Refresh list</button></div>
+  <div class="createUserForm">
+    <h3>Create new user</h3>
+    <div class="formRow triple">
+      <div class="formField"><label for="newEmail">Email address *</label><input id="newEmail" type="email" placeholder="user@example.com" autocomplete="off"></div>
+      <div class="formField"><label for="newName">Full name *</label><input id="newName" type="text" placeholder="Full name"></div>
+      <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a role…</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option></select></div>
+    </div>
+    <div class="formRow" style="margin-top:14px">
+      <div class="formField"><label for="newPassword">Password (min 8 chars) *</label><input id="newPassword" type="password" placeholder="Temporary password" autocomplete="new-password"></div>
+      <div class="formField" style="align-self:end"><button class="button primary" id="createUserBtn" style="width:100%">Create user</button></div>
+    </div>
+    <div id="createUserMsg" hidden></div>
+  </div>
+  <div class="tableWrap"><table class="userTable" aria-label="User list">
+    <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+    <tbody id="userTableBody"><tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted)">Loading users…</td></tr></tbody>
+  </table></div>
+</section>
+
+<!-- Pricing Manager -->
+<section class="sectionTab card" id="pricingSection" style="margin-top:32px">
+  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">Configuration Center</div><h2>NIPE Pricing Manager</h2><p>Edit rates once and apply across Booking, Dispatch and Billing.</p></div><div style="display:flex;gap:10px;align-items:center"><button class="button" id="resetPricing">Restore defaults</button><button class="button primary" id="savePricing">Save configuration</button></div></div>
+  <div id="pricingSavedMsg" hidden></div>
+  <div class="tableWrap"><table class="table configTable" aria-label="Pricing configuration"><thead><tr><th>Service</th><th>Base fare ($)</th><th>Included miles</th><th>Per mile ($)</th><th>Wait / 15 min ($)</th></tr></thead><tbody id="pricingRows"></tbody></table></div>
+</section>
+
+<!-- Manage Trip -->
+<section class="sectionTab card" id="manageTripSection" style="margin-top:32px">
+  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">Operations</div><h2>Manage Trip</h2><p>Lookup an existing trip and apply a fare adjustment from Admin.</p></div></div>
+  <div class="formRow" style="margin-bottom:14px">
+    <div class="formField"><label for="manageTripRef">Trip reference</label><input id="manageTripRef" type="text" placeholder="NMT-YYYYMMDD-1234"></div>
+    <div class="formField" style="align-self:end"><button class="button" id="manageTripLookup" type="button" style="width:100%">Lookup trip</button></div>
+  </div>
+  <div id="manageTripMsg" hidden></div>
+  <div id="manageTripEditor" style="display:none;margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:14px;background:#f8fbfd">
+    <div class="formRow">
+      <div class="formField"><label>Service</label><input id="manageTripService" type="text" readonly></div>
+      <div class="formField"><label>Status</label><input id="manageTripStatus" type="text" readonly></div>
+    </div>
+    <div class="formRow" style="margin-top:12px">
+      <div class="formField"><label>Current estimated fare ($)</label><input id="manageTripCurrentFare" type="text" readonly></div>
+      <div class="formField"><label for="manageTripNewFare">New estimated fare ($)</label><input id="manageTripNewFare" type="number" min="0" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="formField" style="margin-top:12px"><label for="manageTripNote">Adjustment note</label><input id="manageTripNote" type="text" placeholder="Reason for fare adjustment"></div>
+    <div class="formField" style="margin-top:12px"><label>Route</label><input id="manageTripRoute" type="text" readonly></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end"><button class="button primary" id="manageTripSaveFare" type="button">Save fare adjustment</button></div>
+  </div>
+</section>
+
+<!-- Organization Settings -->
+<section class="sectionTab card" id="settingsSection" style="margin-top:32px;margin-bottom:40px">
+  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">System</div><h2>Organization Settings</h2><p>Platform-wide configuration, branding and contact details.</p></div></div>
+  <div class="formRow">
+    <div class="formField"><label for="orgName">Organization name</label><input id="orgName" type="text" value="Nexus Medical Transit"></div>
+    <div class="formField"><label for="orgPhone">Support phone</label><input id="orgPhone" type="tel" value="(888) 760-4990"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="orgEmail">Support email</label><input id="orgEmail" type="email" value="contact@nexusmt.com"></div>
+    <div class="formField"><label for="orgWebsite">Website</label><input id="orgWebsite" type="url" value="https://nexusmt.com"></div>
+  </div>
+  <div style="margin-top:18px"><p style="margin:0 0 10px;font-weight:750">Active services</p>
+  <div style="display:flex;flex-wrap:wrap;gap:14px" id="activeServicesGroup">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="AMBULANCE" checked> Ambulance</label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="WHEELCHAIR" checked> Wheelchair</label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="STRETCHER" checked> Stretcher</label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="HOSPITAL_DISCHARGE" checked> Hospital discharge</label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="FACILITY_TRANSFER" checked> IFT routine transfer</label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="FACILITY_TRANSFER_CRITICAL" checked> IFT high-acuity transfer</label>
+  </div></div>
+  <div class="formRow" style="margin-top:18px">
+    <div class="formField"><label for="minimumFare">Minimum fare ($)</label><input id="minimumFare" type="number" min="0" step="0.01" value="0"></div>
+    <div class="formField"><label for="fuelSurchargePerMile">Fuel surcharge ($/mile)</label><input id="fuelSurchargePerMile" type="number" min="0" step="0.01" value="0"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="fuelPricingMode">Fuel pricing mode</label><select id="fuelPricingMode"><option value="MANUAL">Manual override</option><option value="AUTO">Auto weekly update</option></select></div>
+    <div class="formField"><label for="fuelIndexPricePerGallon">Fuel index price ($/gallon)</label><input id="fuelIndexPricePerGallon" type="number" min="0" step="0.001" value="0"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="fuelBaselinePricePerGallon">Baseline fuel price ($/gallon)</label><input id="fuelBaselinePricePerGallon" type="number" min="0" step="0.001" value="3.25"></div>
+    <div class="formField"><label for="fuelEfficiencyMpg">Fleet fuel efficiency (MPG)</label><input id="fuelEfficiencyMpg" type="number" min="1" max="50" step="0.1" value="10"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="fuelOperationalBufferPct">Fuel ops buffer (%)</label><input id="fuelOperationalBufferPct" type="number" min="0" max="200" step="0.1" value="20"></div>
+    <div class="formField"><label for="fuelLastUpdatedAt">Fuel index last updated</label><input id="fuelLastUpdatedAt" type="text" value="Not updated" readonly></div>
+  </div>
+  <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+    <button class="button" id="refreshFuelIndexBtn" type="button">Refresh fuel index now</button>
+    <small id="refreshFuelIndexMsg" style="color:var(--muted)"></small>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="afterHoursSurchargePct">After-hours surcharge (%) (7:01 PM - 6:59 AM)</label><input id="afterHoursSurchargePct" type="number" min="0" max="100" step="0.1" value="0"></div>
+    <div class="formField"><label for="weekendSurchargePct">Weekend surcharge (%)</label><input id="weekendSurchargePct" type="number" min="0" max="100" step="0.1" value="0"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="holidaySurchargePct">Holiday surcharge (%)</label><input id="holidaySurchargePct" type="number" min="0" max="100" step="0.1" value="10"></div>
+    <div class="formField"><label for="cancellationFee">Cancellation fee ($)</label><input id="cancellationFee" type="number" min="0" step="0.01" value="30"></div>
+  </div>
+  <p style="margin:8px 0 0;color:var(--muted);font-size:12px">Holidays: New Year, MLK Day, President's Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus / Indigenous Peoples' Day, Veterans Day, Thanksgiving Day, Christmas Day.</p>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="cancellationWindowHours">Cancellation window (hours before trip)</label><input id="cancellationWindowHours" type="number" min="0" max="240" step="1" value="24"></div>
+    <div class="formField"><label for="cancellationLeadHours">Minimum booking lead (hours before trip)</label><input id="cancellationLeadHours" type="number" min="0" max="720" step="1" value="72"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="noShowFee">No-show fee ($)</label><input id="noShowFee" type="number" min="0" step="0.01" value="50"></div>
+    <div class="formField"><label for="freeWaitMinutes">Free wait minutes</label><input id="freeWaitMinutes" type="number" min="0" max="180" step="1" value="15"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="mileageRoundingRule">Mileage rounding rule</label><select id="mileageRoundingRule"><option value="EXACT">Exact</option><option value="TENTH_MILE" selected>Tenth mile</option><option value="WHOLE_MILE">Whole mile</option></select></div>
+    <div class="formField"><label for="telemetryRefreshSeconds">Telemetry refresh (seconds)</label><input id="telemetryRefreshSeconds" type="number" min="5" max="120" step="1" value="20"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="maxBookingDistanceMiles">Max booking distance (miles)</label><input id="maxBookingDistanceMiles" type="number" min="5" max="500" step="1" value="125"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="returnMilesThreshold">Return-mile threshold (miles)</label><input id="returnMilesThreshold" type="number" min="0" max="500" step="0.1" value="10"></div>
+    <div class="formField"><label for="returnMilesInclusionPct">Return-mile inclusion (%)</label><input id="returnMilesInclusionPct" type="number" min="0" max="100" step="1" value="100"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="trafficOverageFeePerHour">Traffic overage fee ($/hour)</label><input id="trafficOverageFeePerHour" type="number" min="0" max="1000" step="0.01" value="0"></div>
+    <div class="formField"><label for="trafficOverageGraceMinutes">Traffic overage grace (minutes)</label><input id="trafficOverageGraceMinutes" type="number" min="0" max="180" step="1" value="0"></div>
+  </div>
+  <div style="margin-top:18px">
+    <p style="margin:0 0 10px;font-weight:750">Per-service policy overrides</p>
+    <p style="margin:0 0 10px;color:var(--muted);font-size:12px">Industry baseline: split interfacility into Routine IFT and High-Acuity IFT. Keep higher cancellation/no-show for High-Acuity, include handoff wait/documentation time in both, and keep return-mile plus traffic-overage charges enabled.</p>
+    <div class="tableWrap">
+      <table class="table configTable" aria-label="Per-service policy overrides">
+        <thead><tr><th>Service</th><th>Cancellation ($)</th><th>No-show ($)</th><th>Traffic ($/hour)</th><th>Return miles (%)</th><th>After-hours (%)</th><th>Weekend (%)</th><th>Holiday (%)</th></tr></thead>
+        <tbody id="servicePolicyRows"></tbody>
+      </table>
+    </div>
+  </div>
+  <div style="margin-top:22px"><button class="button primary" id="saveSettings">Save settings</button><span id="settingsSavedMsg" style="margin-left:12px;color:var(--green);font-weight:700;display:none">Settings saved.</span></div>
+</section>
+
+<!-- Audit Log -->
+<section class="sectionTab" id="auditSection" style="margin-top:32px;margin-bottom:40px">
+  <details id="auditDetails">
+    <summary style="list-style:none;cursor:pointer">
+      <div class="sectionTitle" style="margin-bottom:0"><div><div class="eyebrow" style="color:var(--blue)">Compliance & Security</div><h2>Audit Log</h2><p>Review all system changes and user actions.</p></div></div>
+    </summary>
+    <div style="margin-top:16px">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="button" id="refreshAudit">Refresh</button></div>
+      <div class="auditFilter">
+        <input type="date" id="auditSince" aria-label="Filter from date">
+        <select id="auditType" style="padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:inherit"><option value="">All actions</option><option value="LOGIN">Logins</option><option value="CREATED">Created</option><option value="UPDATED">Updated</option><option value="ACTIVATED">Activated</option><option value="DEACTIVATED">Deactivated</option></select>
+        <button class="button" id="applyAuditFilter">Filter</button>
+      </div>
+      <div id="auditList" style="display:grid;gap:10px"><p style="color:var(--muted)">Loading audit records…</p></div>
+    </div>
+  </details>
+</section>
+
+</main>
+<footer class="footer"><div class="shell footerGrid"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Platform</strong><a href="/livecare.html">Livecare</a><a href="/facility.html">Facilities</a><a href="/dispatch.html">Dispatch</a></div><div><strong>Operations</strong><a href="/fleet.html">Fleet</a><a href="/driver.html">Driver</a><a href="/qa.html">QA & Compliance</a></div><div><strong>Contact</strong><a href="tel:+18887604990">(888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer>
+<div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">♿</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div>
+<script src="./nexus-core.js"></script><script src="./platform.js"></script>
+<script src="./admin-app.js"></script></body></html>
+

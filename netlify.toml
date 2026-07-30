@@ -1,0 +1,42 @@
+[build]
+  command = "npm run db:migrate || echo 'Migration skipped'; npm run admin:create-test || echo 'Admin init skipped'; npm run test:create-users || echo 'Test users skipped'; npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20.20.2"
+  NPM_VERSION = "10.9.2"
+  SECRETS_SCAN_SMART_DETECTION_OMIT_KEYS = "DATABASE_URL"
+  NEXUS_ADMIN_EMAIL = "admin@nexusmt.com"
+  NEXUS_ADMIN_PASSWORD = "NexusAdmin042!"
+
+# Scheduled function: send ride reminders 1 hour before trip
+[functions.ride-reminders]
+  schedule = "*/15 * * * *"
+
+# Scheduled function: refresh fuel index weekly (Monday 6:00 AM UTC)
+[functions.fuel-index-refresh]
+  schedule = "0 6 * * 1"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+# Exclude dist files from SPA redirect
+[[redirects]]
+  from = "/dist/*"
+  to = "/dist/:splat"
+  status = 200
+  force = false
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com https://cdn.ywxi.net; img-src 'self' https://maps.googleapis.com https://maps.gstatic.com data: https://cdn.ywxi.net https://example.com https://existing-url.com https://new-allowed-domain.com; connect-src 'self' https://maps.googleapis.com https://s3-us-west-2.amazonaws.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src https://www.google.com"

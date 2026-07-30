@@ -1,0 +1,23 @@
+{
+  "name": "nexus-one-build-042",
+  "version": "0.42.0",
+  "private": true,
+  "description": "Nexus ONE unified booking and real-time integrations",
+  "engines": {
+    "node": ">=20.20.0"
+  },
+  "scripts": {
+    "build": "node scripts/build-static.mjs",
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "db:check": "node scripts/db-check.mjs",
+    "verify": "node scripts/verify-build042.mjs",
+    "start": "netlify dev --dir dist",
+    "admin:create-test": "node scripts/create-test-admin.mjs",
+    "test:create-users": "node scripts/create-test-users.mjs",
+    "seed:demo": "node scripts/seed-demo-bookings.mjs",
+    "debug:admin": "node scripts/debug-admin.mjs"
+  },
+  "dependencies": {
+    "pg": "8.16.3"
+  }
+}

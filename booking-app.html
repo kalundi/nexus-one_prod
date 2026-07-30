@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="Mobile-first booking app connected to the Nexus production database.">
+  <title>Booking App | Nexus Medical Transit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#06162d;
+      --sheet:#f8fbff;
+      --ink:#08111f;
+      --muted:#5a6c7b;
+      --line:#c8d8e6;
+      --brand:#d61f1f;
+      --brand-2:#0b1d47;
+      --brand-3:#0a6b99;
+      --ok:#0f766e;
+      --err:#be123c;
+      --safe-bottom:max(14px, env(safe-area-inset-bottom));
+    }
+    *{box-sizing:border-box}
+    [hidden]{display:none !important}
+    body{
+      margin:0;
+      font-family:'Source Sans 3',system-ui,sans-serif;
+      background:#fff;
+      color:var(--ink);
+    }
+    .phone{
+      max-width:460px;
+      margin:0 auto;
+      min-height:100svh;
+      display:flex;
+      flex-direction:column;
+      padding:14px 12px calc(104px + var(--safe-bottom));
+    }
+    .top{
+      position:relative;
+      background:
+        radial-gradient(circle at 8% 20%,rgba(255,255,255,.08) 0,transparent 28%),
+        linear-gradient(140deg,#07142c,#0b1d47 48%,#d61f1f 120%);
+      color:#fff;
+      border-radius:20px;
+      padding:18px 16px;
+      box-shadow:0 14px 34px rgba(7,42,63,.26);
+      margin-bottom:12px;
+    }
+    .topAuthAction{
+      position:absolute;
+      top:12px;
+      right:12px;
+      border:1px solid rgba(255,255,255,.78);
+      background:linear-gradient(135deg,#ffffff 0%,#f2f8ff 100%);
+      color:#0b1d47;
+      min-width:132px;
+      padding:12px 16px;
+      border-radius:13px;
+      font:900 14px Manrope,sans-serif;
+      line-height:1;
+      letter-spacing:.02em;
+      box-shadow:0 10px 24px rgba(1,9,21,.34);
+      z-index:5;
+    }
+    .topAuthAction:hover{transform:translateY(-1px);filter:brightness(1.02)}
+    .topAuthAction:active{transform:translateY(0)}
+    .brandLockup{display:flex;align-items:center;gap:10px;padding-right:168px}
+    .brandMark{
+      width:46px;
+      height:46px;
+      border-radius:14px;
+      background:linear-gradient(145deg,#fff 0%,#d9e4f0 100%);
+      color:#0b1d47;
+      display:grid;
+      place-items:center;
+      font:900 20px/1 Manrope,sans-serif;
+      box-shadow:0 10px 18px rgba(0,0,0,.18);
+      flex:0 0 auto;
+    }
+    .brandText{display:grid;gap:2px}
+    .brandText strong{font:900 clamp(24px,7vw,38px)/.92 Manrope,sans-serif;letter-spacing:-.04em}
+    .brandText span{font:700 12px/1.1 Manrope,sans-serif;letter-spacing:.34em;text-transform:uppercase;color:#f1f5f9}
+    .pill{
+      display:inline-flex;
+      padding:5px 10px;
+      border-radius:999px;
+      font:800 11px Manrope,sans-serif;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      background:rgba(255,255,255,.18);
+    }
+    .top h1{
+      margin:8px 0 4px;
+      font:800 clamp(28px,7vw,40px)/1.02 Manrope,sans-serif;
+      letter-spacing:-.03em;
+    }
+    .top p{margin:0;color:#dbeef7;font-size:15px;max-width:30ch}
+    .section{
+      background:var(--sheet);
+      border:1px solid var(--line);
+      border-radius:16px;
+      box-shadow:0 10px 24px rgba(19,41,55,.08);
+      padding:14px;
+      margin-bottom:10px;
+      animation:slideIn .3s ease-out;
+    }
+    @keyframes slideIn{
+      from{opacity:0;transform:translateY(12px)}
+      to{opacity:1;transform:translateY(0)}
+    }
+    .sectionProgressive{display:none}
+    .sectionProgressive.unlocked{display:block;animation:slideIn .3s ease-out}
+    .sectionCollapsed > :not(h2):not(.sectionEditBtn):not(.sectionSummary){display:none}
+    .sectionSummary{
+      display:none;
+      margin:6px 0 0;
+      font:700 13px/1.35 Manrope,sans-serif;
+      color:#18445e;
+      background:#edf7fd;
+      border:1px solid #cce6f5;
+      border-radius:10px;
+      padding:8px 10px;
+      white-space:pre-line;
+    }
+    .sectionCollapsed .sectionSummary{display:block}
+    .sectionEditBtn{
+      display:none;
+      margin-top:8px;
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid #c7d7e2;
+      background:#f3f8fb;
+      color:#1b3e53;
+      font:700 12px Manrope,sans-serif;
+      cursor:pointer;
+    }
+    .sectionCollapsed .sectionEditBtn{display:inline-flex}
+    .completedSectionsToggle{display:none;margin:0 0 10px}
+    .completedSectionsToggle button{width:100%;padding:10px 12px;font:700 13px Manrope,sans-serif}
+    body.bookingFinalView .completedSectionsToggle{display:block}
+    body.bookingFinalView:not(.showCompletedSections) .sectionHiddenInFinal{display:none}
+    .section h2{
+      margin:0 0 8px;
+      font:800 16px Manrope,sans-serif;
+      letter-spacing:-.02em;
+    }
+    .field{display:grid;gap:6px;margin-bottom:10px}
+    .field:last-child{margin-bottom:0}
+    .field.autocompleteField{position:relative}
+    .field label{font-size:13px;font-weight:700;color:#15364b}
+    .field input,.field textarea{
+      width:100%;
+      border:1px solid #c6d5df;
+      border-radius:12px;
+      padding:13px 12px;
+      font-size:16px;
+      background:#fff;
+    }
+    .field textarea{min-height:76px;resize:vertical}
+    .field input:focus,.field textarea:focus{outline:3px solid rgba(10,107,153,.18);border-color:var(--brand)}
+    .suggestions{position:absolute;left:0;right:0;top:100%;margin-top:6px;background:#fff;border:1px solid #c6d5df;border-radius:12px;box-shadow:0 16px 32px rgba(15,23,42,.12);max-height:240px;overflow:auto;z-index:30}
+    .suggestionButton{display:block;width:100%;padding:11px 12px;border:0;border-bottom:1px solid #edf2f7;background:#fff;color:#0f172a;text-align:left;font:500 14px/1.35 'Source Sans 3',sans-serif;cursor:pointer}
+    .suggestionButton:last-child{border-bottom:0;border-radius:0 0 12px 12px}
+    .suggestionButton:hover,.suggestionButton:focus-visible{background:#eaf5fb;outline:none}
+    .multiStopsRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      margin:0 0 10px;
+      padding:10px 12px;
+      border:1px solid #d7e3ec;
+      border-radius:12px;
+      background:#f7fbfe;
+    }
+    .multiStopsToggle{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font:700 13px Manrope,sans-serif;
+      color:#15364b;
+    }
+    .multiStopsToggle input{width:18px;height:18px;margin:0}
+    .multiStopsControl{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-left:auto;
+      font:700 13px Manrope,sans-serif;
+      color:#38556b;
+    }
+    .multiStopsControl select{
+      border:1px solid #c6d5df;
+      border-radius:10px;
+      padding:8px 10px;
+      background:#fff;
+      color:#0f172a;
+      font:700 14px Manrope,sans-serif;
+    }
+    .destinationRows{display:grid;gap:10px;margin-top:10px}
+    .serviceChips{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+      overflow:visible;
+      padding-bottom:0;
+    }
+    @media (min-width:420px){
+      .serviceChips{grid-template-columns:repeat(3,minmax(0,1fr));}
+    }
+    .chip{
+      white-space:normal;
+      border:1px solid #c8d6df;
+      border-radius:12px;
+      padding:9px 10px;
+      background:#fff;
+      color:#18445e;
+      font:700 13px/1.2 Manrope,sans-serif;
+      text-align:center;
+      min-height:44px;
+      cursor:pointer;
+    }
+    .chip.active{background:#fbe2e2;border-color:#d61f1f;color:#7f1010}
+    .metaRow{display:flex;gap:10px}
+    .metaRow .field{flex:1}
+    .estimate{
+      margin-top:2px;
+      background:#eff6ff;
+      border:1px solid #bfd6f8;
+      border-radius:12px;
+      padding:11px 12px;
+      display:grid;
+      gap:8px;
+    }
+    .line{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .line b{font:700 14px Manrope,sans-serif;color:#0b2f4a}
+    .line span{font-weight:700;color:#0d4f78}
+    .line.total{padding-top:8px;border-top:1px solid #bfd6f8}
+    .line.total span{font-size:20px;color:#075985}
+    .fareSummaryCard{
+      display:grid;
+      gap:6px;
+      padding:12px;
+      border:1px solid #bfd6f8;
+      border-radius:12px;
+      background:#eff6ff;
+    }
+    .fareSummaryLine{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      font:700 14px Manrope,sans-serif;
+      color:#0b2f4a;
+    }
+    .fareSummaryLine span{color:#0d4f78}
+    .fareSummaryAmount{
+      font:800 28px/1 Manrope,sans-serif;
+      color:#d61f1f;
+      letter-spacing:-.02em;
+      text-align:right;
+    }
+    .subtle{margin:8px 0 0;color:var(--muted);font-size:12px}
+    .authGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .authGrid.loginCredentials{grid-template-columns:1fr 1fr;align-items:start}
+    .authGrid.loginCredentials .field{margin-bottom:0}
+    .loginPasswordToggleRow{display:flex;justify-content:flex-end;margin-top:6px}
+    .toggleSwitch{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      margin-top:4px;
+      cursor:pointer;
+      user-select:none;
+      color:#38556b;
+      font-size:12px;
+      font-weight:700;
+    }
+    .toggleSwitch input{
+      position:absolute;
+      opacity:0;
+      width:0;
+      height:0;
+    }
+    .toggleTrack{
+      position:relative;
+      width:38px;
+      height:22px;
+      border-radius:999px;
+      background:#d5e3ec;
+      border:1px solid #bfd2df;
+      transition:background .2s ease,border-color .2s ease;
+      flex:0 0 auto;
+    }
+    .toggleThumb{
+      position:absolute;
+      top:2px;
+      left:2px;
+      width:16px;
+      height:16px;
+      border-radius:999px;
+      background:#fff;
+      box-shadow:0 1px 3px rgba(15,23,42,.25);
+      transition:transform .2s ease;
+    }
+    .toggleSwitch input:checked + .toggleTrack{
+      background:#d61f1f;
+      border-color:#d61f1f;
+    }
+    .toggleSwitch input:checked + .toggleTrack .toggleThumb{transform:translateX(16px)}
+    .toggleSwitch input:focus-visible + .toggleTrack{outline:3px solid rgba(10,107,153,.18);outline-offset:2px}
+    .authActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .authUtilityButton{border:0;background:transparent;padding:0;color:#0a6b99;font:800 12px/1.2 Manrope,sans-serif;letter-spacing:.01em;cursor:pointer}
+    .authUtilityButton:hover{text-decoration:underline}
+    .forgotPasswordPanel{margin-top:8px;padding:10px;border:1px solid #d5e2ec;border-radius:12px;background:#f8fcff;display:grid;gap:8px}
+    .forgotPasswordPanel[hidden]{display:none}
+    .forgotPasswordLink{font:800 12px/1.2 Manrope,sans-serif;color:#0a6b99;text-decoration:none}
+    .forgotPasswordLink:hover{text-decoration:underline}
+    .authBadge{display:inline-flex;padding:5px 10px;border-radius:999px;background:#e0f2fe;color:#075985;font:800 11px Manrope,sans-serif;letter-spacing:.05em;text-transform:uppercase}
+    .authMeta{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+    .msg{
+      display:none;
+      margin:8px 0 0;
+      padding:10px 12px;
+      border-radius:10px;
+      font-weight:700;
+      font-size:14px;
+    }
+    .msg.ok{display:block;background:#def7ec;color:var(--ok);border:1px solid #b7e6d5}
+    .msg.err{display:block;background:#ffe4ec;color:var(--err);border:1px solid #ffc7d6}
+    .rateGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .telemetryMap{min-height:230px;border:1px solid #c6d5df;border-radius:12px;background:#f2f6f9;overflow:hidden;padding:0;display:block}
+    .telemetryControls{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px}
+    .telemetryControls label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#18445e;cursor:pointer}
+    .telemetryList{display:none!important}
+    .telemetryList.dimmed{opacity:.45;filter:grayscale(1)}
+    .telemetryItem{padding:9px 10px;border:1px solid #d9e5ec;border-radius:10px;background:#fff;display:flex;justify-content:space-between;gap:8px;font-size:13px}
+    .telemetryItem b{font-family:Manrope,sans-serif;font-size:12px;color:#1d4a63}
+    .telemetryFallbackMap{
+      position:relative;
+      min-height:230px;
+      background:linear-gradient(180deg,#cde4f5 0%,#dbeaf7 45%,#e9f1f8 100%);
+      isolation:isolate;
+    }
+    .telemetryFallbackMap::before{
+      content:'';
+      position:absolute;
+      inset:0;
+      background:
+        radial-gradient(circle at 16% 12%,rgba(255,255,255,.56),transparent 34%),
+        radial-gradient(circle at 88% 18%,rgba(255,255,255,.42),transparent 32%);
+      z-index:0;
+    }
+    .telemetryFallbackMap svg{display:block;width:100%;height:230px;position:relative;z-index:1}
+    .telemetryFallbackOverlay{position:absolute;left:10px;right:10px;top:10px;display:flex;justify-content:space-between;gap:10px;pointer-events:none;z-index:3}
+    .telemetryFallbackBadge{background:rgba(255,255,255,.94);border:1px solid #b8d1e4;border-radius:999px;padding:6px 11px;font:800 11px Manrope,sans-serif;color:#0f3047;backdrop-filter:blur(2px);box-shadow:0 6px 18px rgba(15,23,42,.12)}
+    .telemetryFallbackBottom{
+      position:absolute;
+      left:10px;
+      right:10px;
+      bottom:10px;
+      z-index:3;
+      border-radius:14px;
+      border:1px solid #c6d9e8;
+      background:rgba(255,255,255,.96);
+      box-shadow:0 16px 28px rgba(15,23,42,.17);
+      padding:10px 11px;
+      display:grid;
+      gap:8px;
+    }
+    .telemetryFallbackTripTitle{font:900 13px/1 Manrope,sans-serif;color:#0f3047;letter-spacing:.01em}
+    .telemetryFallbackStats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .telemetryFallbackStat{border:1px solid #d8e4ee;border-radius:10px;background:#f8fcff;padding:8px}
+    .telemetryFallbackStat b{display:block;font:900 12px/1 Manrope,sans-serif;color:#10324a;margin-bottom:3px}
+    .telemetryFallbackStat span{display:block;font:700 12px/1.15 Manrope,sans-serif;color:#486174}
+    .telemetrySpotlight{
+      display:grid;
+      gap:10px;
+      margin-bottom:10px;
+      padding:12px;
+      border:1px solid #d3e4ef;
+      border-radius:14px;
+      background:linear-gradient(180deg,#fbfdff 0%,#eef7fc 100%);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.7);
+    }
+    .telemetrySpotlightHeader{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+    .telemetrySpotlightHeader b{display:block;font:900 13px/1.1 Manrope,sans-serif;color:#10324a}
+    .telemetrySpotlightHeader span{display:block;font:700 11px/1.35 Manrope,sans-serif;color:#4b6678}
+    .telemetrySpotlightPill{display:inline-flex;align-items:center;justify-content:center;padding:6px 10px;border-radius:999px;background:#e2f0f8;color:#0c4a6e;font:800 10px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+    .telemetrySpotlightGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .telemetryIdentityCard{padding:10px;border:1px solid #d7e6f0;border-radius:12px;background:rgba(255,255,255,.9)}
+    .telemetryIdentityCard small{display:block;margin-bottom:4px;font:800 10px/1.1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#608096}
+    .telemetryIdentityCard strong{display:block;font:800 14px/1.2 Manrope,sans-serif;color:#123a52}
+    .telemetryMission{margin:0;font:700 11px/1.45 Manrope,sans-serif;color:#35556b}
+    .paymentActions{display:grid;gap:8px}
+    .paymentActions button{width:100%}
+    .paymentActions .secondaryPay{background:#111827;color:#fff}
+    .manageTripWrap{margin-top:12px;border-top:1px solid #dbe7f0;padding-top:10px}
+    .manageTripToggle{width:100%;padding:10px 12px;font:700 13px Manrope,sans-serif}
+    .manageTripPanel{margin-top:8px;padding:10px;border:1px solid #d5e2ec;border-radius:12px;background:#f8fcff;display:grid;gap:8px}
+    .manageTripPanel[hidden]{display:none}
+    .signupPanel{margin-top:8px;padding:10px;border:1px solid #d5e2ec;border-radius:12px;background:#f8fcff;display:grid;gap:8px}
+    .signupPanel[hidden]{display:none}
+    .passwordStrength{display:grid;gap:5px;margin:0}
+    .passwordStrengthTrack{height:7px;border-radius:999px;background:#dbe7f1;overflow:hidden}
+    .passwordStrengthFill{height:100%;width:0%;background:#c53030;transition:width .2s ease,background-color .2s ease}
+    .passwordStrength[data-tone="fair"] .passwordStrengthFill{background:#b7791f}
+    .passwordStrength[data-tone="strong"] .passwordStrengthFill{background:#2f855a}
+    .passwordStrength[data-tone="excellent"] .passwordStrengthFill{background:#1f6feb}
+    .passwordStrengthText{font:700 11px/1.2 Manrope,sans-serif;color:#35556b}
+    .passwordChecklist{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+    .passwordChecklist li{font:700 11px/1.25 Manrope,sans-serif;color:#5f7383;display:flex;align-items:center;gap:6px}
+    .passwordChecklist li::before{content:'\25CB';color:#8da4b6;font-size:10px}
+    .passwordChecklist li.met{color:#1f6a44}
+    .passwordChecklist li.met::before{content:'\2713';color:#1f6a44;font-size:11px}
+    .manageTripSummary{margin:0;padding:9px 10px;border:1px solid #cfe2f1;border-radius:10px;background:#edf7fd;color:#0b3954;font:700 12px/1.35 Manrope,sans-serif;white-space:pre-line}
+    .manageTripActions{display:flex;gap:8px;flex-wrap:wrap}
+    .manageTripActions button{flex:1 1 140px;padding:10px 12px;font:700 13px Manrope,sans-serif}
+    .memberNote{margin:8px 0 0;color:#20506a;font:700 12px/1.35 Manrope,sans-serif}
+    .bottomBar{
+      position:fixed;
+      left:0;
+      right:0;
+      bottom:0;
+      z-index:40;
+      background:rgba(255,255,255,.98);
+      border-top:1px solid var(--line);
+      box-shadow:0 -8px 30px rgba(15,23,42,.08);
+      padding:10px 12px calc(var(--safe-bottom));
+    }
+    .bottomInner{max-width:460px;margin:0 auto;display:grid;gap:8px}
+    .inlineBtns{display:flex;justify-content:flex-end;gap:8px}
+    .inlineBtns .primary{min-width:220px}
+    body.bookingFinalView .inlineBtns{display:flex;justify-content:flex-end}
+    body.bookingFinalView .inlineBtns .primary{max-width:260px;width:100%}
+    .bookingOutcome{
+      display:none;
+      text-align:center;
+      padding:10px 12px;
+      border-radius:12px;
+      font:800 13px Manrope,sans-serif;
+      letter-spacing:.02em;
+    }
+    .bookingOutcome.show{display:block}
+    .bookingOutcome.confirmed{background:#def7ec;border:1px solid #b7e6d5;color:var(--ok)}
+    .bookingOutcome.pending{background:#fff7db;border:1px solid #f6dc95;color:#8a6116}
+    button{border:0;border-radius:12px;padding:13px 14px;font:700 15px Manrope,sans-serif;cursor:pointer}
+    .ghost{background:#eaf1f5;color:#1b3e53}
+    .primary{background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;box-shadow:0 10px 22px rgba(11,29,71,.22)}
+    .primary:hover{filter:brightness(1.02)}
+    @media (min-width:780px){
+      .phone{max-width:760px;padding-bottom:26px}
+      .bottomBar{position:static;border:none;background:transparent;box-shadow:none;padding:0}
+      .bottomInner{max-width:760px}
+    }
+    @media (max-width:420px){
+      .authGrid{grid-template-columns:1fr}
+      .authGrid.loginCredentials{grid-template-columns:1fr 1fr}
+    }
+  </style>
+</head>
+<body>
+  <main class="phone">
+    <header class="top">
+      <button type="button" class="topAuthAction" id="authActionBtn">Sign In</button>
+      <div class="brandLockup" aria-label="Nexus Medical Transit">
+        <div class="brandMark">N</div>
+        <div class="brandText">
+          <strong>NEXUS</strong>
+          <span>Medical Transit</span>
+        </div>
+      </div>
+      <h1>Book a Ride</h1>
+      <p>Please view ride status before exiting. We will follow up with a text and email.</p>
+    </header>
+
+    <form id="bookingForm" novalidate>
+      <div class="completedSectionsToggle" id="completedSectionsToggleWrap">
+        <button type="button" class="ghost" id="toggleCompletedSectionsBtn">Show completed sections</button>
+      </div>
+
+      <section class="section" id="bookingLoginSection">
+        <h2>Login</h2>
+        <div class="authMeta" style="margin-bottom:8px">
+          <p class="subtle" id="authStatusText" style="margin:0">Signed in as Customer. Customer access includes Ambulatory, Wheelchair, Stretcher, and Bariatric.</p>
+          <span id="authRoleBadge" class="authBadge">Customer</span>
+        </div>
+        <div class="authGrid loginCredentials">
+          <div class="field">
+            <label for="loginEmail">User email</label>
+            <input id="loginEmail" type="email" placeholder="dispatcher@nexusmt.com" autocomplete="username">
+          </div>
+          <div class="field">
+            <label for="loginPassword">Password</label>
+            <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password">
+          </div>
+        </div>
+        <div class="loginPasswordToggleRow">
+          <label class="toggleSwitch" for="showPasswordToggle">
+            <input type="checkbox" id="showPasswordToggle">
+            <span class="toggleTrack" aria-hidden="true"><span class="toggleThumb"></span></span>
+            <span>Show password</span>
+          </label>
+        </div>
+        <div class="authActions" style="margin-top:6px">
+          <button type="button" class="authUtilityButton" id="forgotPasswordBtn">Forgot password?</button>
+        </div>
+        <div class="forgotPasswordPanel" id="forgotPasswordPanel" hidden>
+          <div class="field" style="margin-bottom:0">
+            <label for="forgotPasswordEmail">Reset email</label>
+            <input id="forgotPasswordEmail" type="email" placeholder="name@example.com" autocomplete="email">
+          </div>
+          <div class="authActions" style="margin-top:2px">
+            <button type="button" class="ghost" id="sendResetPasswordBtn">Send Reset Link</button>
+          </div>
+          <small class="subtle" id="forgotPasswordMessage">Enter the email on your rider or staff account and we will send a secure reset link if the account exists.</small>
+          <a class="forgotPasswordLink" id="forgotPasswordResetLink" href="#" hidden target="_blank" rel="noopener noreferrer">Open secure reset link</a>
+        </div>
+        <div class="authActions" style="margin-top:8px">
+          <button type="button" class="ghost" id="signUpBtn">Sign Up &amp; Save 5%</button>
+        </div>
+        <div class="signupPanel" id="signUpPanel" hidden>
+          <div class="authGrid loginCredentials">
+            <div class="field">
+              <label for="signupName">Full name</label>
+              <input id="signupName" type="text" placeholder="Jane Rider" autocomplete="name">
+            </div>
+            <div class="field">
+              <label for="signupPhone">Phone</label>
+              <input id="signupPhone" type="tel" placeholder="(240) 555-0101" autocomplete="tel">
+            </div>
+          </div>
+          <div class="authGrid loginCredentials">
+            <div class="field">
+              <label for="signupEmail">Email</label>
+              <input id="signupEmail" type="email" placeholder="name@example.com" autocomplete="email">
+            </div>
+            <div class="field">
+              <label for="signupPassword">Create password</label>
+              <input id="signupPassword" type="password" placeholder="Create password" autocomplete="new-password">
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label for="signupPasswordConfirm">Confirm password</label>
+            <input id="signupPasswordConfirm" type="password" placeholder="Confirm password" autocomplete="new-password">
+          </div>
+          <div class="passwordStrength" id="signupPasswordStrength" data-tone="weak" aria-live="polite">
+            <div class="passwordStrengthTrack"><div class="passwordStrengthFill" id="signupPasswordStrengthFill"></div></div>
+            <small class="passwordStrengthText" id="signupPasswordStrengthText">Strength: Enter a password to see strength</small>
+          </div>
+          <ul class="passwordChecklist" id="signupPasswordChecklist" aria-live="polite">
+            <li data-rule="length">At least 12 characters</li>
+            <li data-rule="upper">At least one uppercase letter</li>
+            <li data-rule="lower">At least one lowercase letter</li>
+            <li data-rule="digit">At least one number</li>
+            <li data-rule="symbol">At least one symbol</li>
+            <li data-rule="noSpaces">No spaces</li>
+            <li data-rule="noEmail">Does not include email name</li>
+            <li data-rule="noName">Does not include your name</li>
+          </ul>
+          <small class="subtle" style="margin:0">Password standard: at least 12 characters with uppercase, lowercase, number, and symbol.</small>
+          <div class="authActions" style="margin-top:4px">
+            <button type="button" class="primary" id="createAccountBtn">Create Account &amp; Save 5%</button>
+          </div>
+        </div>
+        <small class="subtle" id="loginMessage" style="margin:8px 0 0">Use the top-right Sign In button after entering your email and password.</small>
+        <small class="subtle" style="margin:6px 0 0">Book as a guest anytime, or create your rider account to lock in 5% off every ride.</small>
+
+        <div class="manageTripWrap">
+          <button type="button" class="ghost manageTripToggle" id="toggleManageTripBtn">Manage an existing trip</button>
+          <div class="manageTripPanel" id="manageTripPanel" hidden>
+            <div class="authGrid loginCredentials">
+              <div class="field">
+                <label for="manageReference">Reference or Name</label>
+                <input id="manageReference" type="text" placeholder="NMT-20260721-1234">
+              </div>
+              <div class="field">
+                <label for="managePhone">Phone</label>
+                <input id="managePhone" type="tel" placeholder="(240) 555-0101">
+              </div>
+            </div>
+            <button type="button" class="primary" id="manageLookupBtn">Find Trip</button>
+            <p class="manageTripSummary" id="manageTripSummary" hidden></p>
+            <div class="authGrid loginCredentials" id="manageRescheduleFields" hidden>
+              <div class="field">
+                <label for="manageDate">New Date</label>
+                <input id="manageDate" type="date">
+              </div>
+              <div class="field">
+                <label for="manageTime">New Time</label>
+                <input id="manageTime" type="time">
+              </div>
+            </div>
+            <div class="manageTripActions" id="manageTripActions" hidden>
+              <button type="button" class="ghost" id="manageRescheduleBtn">Reschedule</button>
+              <button type="button" class="ghost" id="manageCancelBtn">Cancel Trip</button>
+            </div>
+            <small class="subtle" id="manageTripMessage"></small>
+          </div>
+        </div>
+      </section>
+
+      <section class="section sectionProgressive" id="riderDetailsSection">
+        <h2>Rider Details</h2>
+        <p class="sectionSummary" id="bookingLoginSummary">Passenger: -</p>
+        <p class="subtle" style="margin:8px 0 10px">Enter the passenger details below.</p>
+
+        <div class="field">
+          <label for="name">Passenger name</label>
+          <input id="name" name="name" placeholder="Full name" autocomplete="name" required>
+        </div>
+        <div class="field">
+          <label for="phone">Phone</label>
+          <input id="phone" name="phone" type="tel" placeholder="(240) 555-0101" autocomplete="tel" required>
+        </div>
+        <div class="field">
+          <label for="email">Email (optional)</label>
+          <input id="email" name="email" type="email" placeholder="name@example.com" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="notes">Notes (optional)</label>
+          <textarea id="notes" name="notes" placeholder="Gate code, mobility info, or pickup instructions"></textarea>
+        </div>
+        <div class="authActions" style="margin-top:8px">
+          <button type="button" class="primary" id="confirmRiderBtn">Confirm Details</button>
+        </div>
+        <div class="msg" id="statusMsg"></div>
+        <p class="subtle">This app submits directly to <strong>/api/bookings</strong>.</p>
+      </section>
+
+      <section class="section sectionProgressive" id="pickupDropoffSection">
+        <h2>Rider Pickup and Destination</h2>
+        <div class="multiStopsRow">
+          <label class="multiStopsToggle" for="multipleStopsToggle">
+            <input type="checkbox" id="multipleStopsToggle">
+            <span>Multiple Stops</span>
+          </label>
+          <label class="multiStopsControl" for="stopCountSelect">
+            <span>Stops</span>
+            <select id="stopCountSelect" disabled>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+        </div>
+        <p class="sectionSummary" id="pickupDropoffSummary">Pickup: -
+Destination: -</p>
+        <div class="field autocompleteField">
+          <label for="pickup">Pickup</label>
+          <input id="pickup" name="pickup" placeholder="Pickup address" autocomplete="off" required>
+          <div id="pickupSuggestionsPanel" class="suggestions" hidden></div>
+        </div>
+        <div class="field autocompleteField">
+          <label for="destination">Destination</label>
+          <input id="destination" name="destination" placeholder="Destination address" autocomplete="off" required>
+          <div id="destinationSuggestionsPanel" class="suggestions" hidden></div>
+        </div>
+        <div class="destinationRows" id="destinationRows"></div>
+        <p class="subtle" style="margin-top:-2px">Start typing to see address suggestions.</p>
+        <div class="authActions" style="margin-top:8px">
+          <button type="button" class="primary" id="confirmPickupDropoffBtn">Confirm Details</button>
+        </div>
+      </section>
+
+      <section class="section sectionProgressive" id="rideTypeSection">
+        <h2>Type of Ride</h2>
+        <p class="sectionSummary" id="rideTypeSummary">Service: Ambulatory | Date: - | Time: -</p>
+        <div class="serviceChips" id="serviceChips" role="radiogroup" aria-label="Service type">
+          <button class="chip active" type="button" data-service="ambulatory">Ambulatory</button>
+          <button class="chip" type="button" data-service="facility_transfer">IFT Routine</button>
+          <button class="chip" type="button" data-service="facility_transfer_critical">IFT High-Acuity</button>
+          <button class="chip" type="button" data-service="wheelchair">Wheelchair</button>
+          <button class="chip" type="button" data-service="stretcher">Stretcher</button>
+          <button class="chip" type="button" data-service="broda">Broda</button>
+          <button class="chip" type="button" data-service="bariatric">Bariatric</button>
+          <button class="chip" type="button" data-service="bls">BLS</button>
+          <button class="chip" type="button" data-service="als1">ALS 1</button>
+          <button class="chip" type="button" data-service="als2">ALS 2</button>
+        </div>
+        <input id="service" name="service" type="hidden" value="ambulatory">
+
+        <div class="metaRow" style="margin-top:12px">
+          <div class="field">
+            <label for="tripDate">Date</label>
+            <input id="tripDate" name="tripDate" type="date" required>
+          </div>
+          <div class="field">
+            <label for="tripTime">Time</label>
+            <input id="tripTime" name="tripTime" type="time" required>
+          </div>
+        </div>
+
+        <div class="estimate" aria-live="polite">
+          <div class="line"><b>Distance</b><span id="estMiles">-</span></div>
+          <div class="line"><b>ETA</b><span id="estDuration">-</span></div>
+          <div class="line"><b>Subtotal</b><span id="estSubtotal">-</span></div>
+          <div class="line"><b>Tax</b><span id="estTax">-</span></div>
+          <div class="line" id="estMemberSavingsRow" hidden><b>Member Savings (5%)</b><span id="estMemberSavings">-</span></div>
+          <div class="line total"><b>Fare Estimate</b><span id="estFare">-</span></div>
+        </div>
+        <p class="subtle" id="rateSourceLabel">Estimate uses current service rate profile.</p>
+        <p class="memberNote" id="memberDiscountNote">Unlock 5% savings on every ride when you sign in or sign up.</p>
+      </section>
+
+      <section class="section" id="rateSettingsSection" hidden>
+        <h2>Rate Settings</h2>
+        <div class="rateGrid">
+          <div class="field">
+            <label for="rateBase">Base ($)</label>
+            <input id="rateBase" type="number" min="0" step="0.01">
+          </div>
+          <div class="field">
+            <label for="rateIncluded">Included miles</label>
+            <input id="rateIncluded" type="number" min="0" step="1">
+          </div>
+          <div class="field">
+            <label for="ratePerMile">Per mile ($)</label>
+            <input id="ratePerMile" type="number" min="0" step="0.01">
+          </div>
+          <div class="field">
+            <label for="rateWait">Wait / 15 min ($)</label>
+            <input id="rateWait" type="number" min="0" step="0.01">
+          </div>
+        </div>
+        <div class="metaRow" style="margin-top:8px">
+          <button type="button" class="ghost" id="saveRateBtn">Save Rate</button>
+          <button type="button" class="ghost" id="resetRateBtn">Reset Service Rate</button>
+        </div>
+        <p class="subtle">Saved rates are applied immediately to fare estimates on this app.</p>
+      </section>
+
+      <section class="section sectionProgressive" id="telemetrySection">
+        <h2>Live Route + Fleet Telemetry</h2>
+        <div class="telemetrySpotlight" id="telemetrySpotlight" aria-live="polite">
+          <div class="telemetrySpotlightHeader">
+            <div>
+              <b>Ride Visibility</b>
+              <span>Clear, equitable access for every rider, family, and care coordinator.</span>
+            </div>
+            <span class="telemetrySpotlightPill">Access First</span>
+          </div>
+          <div class="telemetrySpotlightGrid">
+            <div class="telemetryIdentityCard">
+              <small>Rider</small>
+              <strong id="telemetryRiderName">-</strong>
+            </div>
+            <div class="telemetryIdentityCard">
+              <small>Driver</small>
+              <strong id="telemetryDriverName">Dispatch assigning your driver</strong>
+            </div>
+          </div>
+          <p class="telemetryMission" id="telemetryMission">Nexus coordinates each journey so visibility and support stay accessible from request through arrival.</p>
+        </div>
+        <div id="telemetryMap" class="telemetryMap" role="img" aria-label="Live map of nearby fleet"></div>
+        <div class="telemetryControls">
+          <label><input type="checkbox" id="focusMyRouteOnly"> Focus on my route only</label>
+          <small class="subtle" style="margin:0">Blur other network vehicles</small>
+        </div>
+        <p class="subtle" id="telemetryStatus" hidden>Loading live telemetry...</p>
+        <p class="subtle" id="telemetryRouteHint" style="margin-top:8px">Default route preview will appear after pickup and destination are set.</p>
+        <div class="telemetryList" id="telemetryList" hidden></div>
+      </section>
+
+      <section class="section sectionProgressive" id="fareSummarySection">
+        <h2>Fare Estimate</h2>
+        <div class="fareSummaryCard" aria-live="polite">
+          <div class="fareSummaryLine"><b>Distance</b><span id="fareSummaryDistance">-</span></div>
+          <div class="fareSummaryLine"><b>ETA</b><span id="fareSummaryEta">-</span></div>
+          <div class="fareSummaryLine" id="fareMemberSavingsRow" hidden><b>Member Savings (5%)</b><span id="fareMemberSavings">-</span></div>
+          <div class="subtle" style="margin:0">Fare Estimate</div>
+          <div class="fareSummaryAmount" id="fareSummaryAmount">-</div>
+        </div>
+      </section>
+
+      <section class="section" id="paymentSection" hidden>
+        <h2>Complete Payment</h2>
+        <p class="subtle" id="paymentSummary">Choose how you want to pay for this booking.</p>
+        <div class="paymentActions">
+          <button type="button" class="primary" id="payStripeBtn">Pay with Stripe</button>
+          <button type="button" class="secondaryPay" id="paySquareBtn">Pay with Square</button>
+        </div>
+        <p class="subtle" id="paymentStatusMsg"></p>
+      </section>
+
+      <div class="bottomBar">
+        <div class="bottomInner">
+          <div class="inlineBtns">
+            <button type="submit" class="primary" id="submitBtn">Book My Ride</button>
+          </div>
+          <div class="bookingOutcome" id="bookingOutcomeStatus" aria-live="polite"></div>
+        </div>
+      </div>
+    </form>
+  </main>
+  <script src="./nexus-core.js"></script>
+  <script src="./booking-app.js"></script>
+</body>
+</html>

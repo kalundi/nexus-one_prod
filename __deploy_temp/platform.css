@@ -1,0 +1,645 @@
+:root{--navy:#082f49;--blue:#0369a1;--cyan:#0e7490;--red:#b42335;--green:#087f5b;--amber:#a16207;--ink:#102236;--muted:#52677c;--line:#cbd8e2;--soft:#f3f7fa;--white:#fff;--focus:#f59e0b;--shadow:0 24px 65px rgba(8,47,73,.14)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--soft);color:var(--ink);font:17px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}.shell{width:min(1180px,calc(100% - 36px));margin:auto}.skip{position:fixed;left:16px;top:-80px;z-index:999;background:#fff;color:var(--navy);padding:12px 16px;border:3px solid var(--focus);border-radius:8px;font-weight:800}.skip:focus{top:16px}.top{position:sticky;top:0;z-index:90;background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}.nav{min-height:82px;display:flex;align-items:center;gap:24px}.logo{width:225px;display:block}.links{display:flex;gap:18px;margin-left:auto;align-items:center}.links a{color:var(--navy);font-weight:750;text-decoration:none}.links a[aria-current=page]{color:var(--red)}.navCta{min-height:48px;border-radius:12px;padding:12px 18px;background:linear-gradient(135deg,#db2839,#b91c2c);color:#fff!important;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 12px 28px rgba(219,40,57,.22)}.hero{position:relative;overflow:hidden;background:linear-gradient(126deg,#071f37 0%,#0d365b 56%,#0e5c8c 100%);color:#fff}.hero:before,.hero:after{content:"";position:absolute;border-radius:50%;pointer-events:none}.hero:before{width:540px;height:540px;right:-180px;top:-280px;background:radial-gradient(circle,rgba(69,213,223,.25),transparent 66%)}.hero:after{width:360px;height:360px;left:-210px;bottom:-240px;background:radial-gradient(circle,rgba(219,40,57,.18),transparent 68%)}.heroGrid{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;padding:68px 0 58px}.eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:12px;font-weight:900;color:#9de7ec}.hero h1{font-size:clamp(44px,5.5vw,72px);line-height:1.03;letter-spacing:-.045em;margin:12px 0}.hero p{max-width:720px;color:#d5e7f0;font-size:19px}.heroPanel{background:#fff;border-radius:24px;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.28);min-height:390px;color:var(--ink)}.heroPanel img{display:block;width:100%;height:390px;object-fit:cover}.heroPanelBody{padding:25px}.heroPanelBody h2{margin:0 0 8px}.heroPanelBody p{color:var(--muted);font-size:15px;margin:0}.moduleMain{padding:54px 0 90px}.grid{display:grid;gap:20px}.cols4{grid-template-columns:repeat(4,1fr)}.cols3{grid-template-columns:repeat(3,1fr)}.cols2{grid-template-columns:repeat(2,1fr)}.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:24px;box-shadow:0 12px 35px rgba(8,47,73,.07)}.card h2,.card h3{margin-top:0}.metric strong{display:block;font-size:30px;color:var(--navy)}.metric span{color:var(--muted)}.status{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:800}.status.green{background:#dff5e9;color:#087f5b}.status.blue{background:#e4f0fa;color:#075985}.status.amber{background:#fff1dc;color:#8d5b00}.status.red{background:#ffeaed;color:#9b1d2c}.tableWrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:13px;border-top:1px solid var(--line);text-align:left}.table th{background:#eef5f9;font-size:12px}.button{min-height:46px;border:0;border-radius:11px;padding:11px 15px;background:var(--blue);color:#fff;font-weight:800;cursor:pointer}.button.secondary{background:#fff;color:var(--navy);border:1px solid var(--line)}.button.danger{background:var(--red)}.formGrid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.field{display:grid;gap:7px;font-weight:750}.field input,.field select,.field textarea{width:100%;min-height:46px;border:1px solid #aebfcb;border-radius:10px;padding:11px 13px;font:inherit}.wide{grid-column:1/-1}.timeline{list-style:none;padding:0}.timeline li{display:grid;grid-template-columns:36px 1fr;gap:12px;padding-bottom:22px;position:relative}.timeline li:not(:last-child):after{content:"";position:absolute;left:17px;top:35px;bottom:2px;border-left:2px solid var(--line)}.node{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#e9eff3;font-weight:900}.timeline li.done .node{background:#dff5e9;color:var(--green)}.timeline li.current .node{background:var(--blue);color:#fff}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 20px}.notice{padding:14px;border-radius:12px;background:#eef6fb;border-left:5px solid var(--blue)}.footer{background:#071c30;color:#d3e1eb;padding:50px 0 22px}.footerGrid{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:34px}.footer a{color:#d3e1eb;text-decoration:none;display:block;margin:7px 0}.footer small{color:#8ba4b5}.access{position:fixed;right:18px;bottom:18px;z-index:120}.access>button{width:54px;height:54px;border-radius:50%;border:0;background:var(--navy);color:#fff;font-weight:900}.accessPanel{display:none;position:absolute;right:0;bottom:64px;width:190px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px;box-shadow:var(--shadow)}.accessPanel.open{display:grid;gap:8px}.accessPanel button{min-height:44px;border:1px solid var(--line);background:#fff;border-radius:9px}.large{font-size:20px}.contrast{--navy:#000;--blue:#003cff;--ink:#000;--muted:#222;--soft:#fff;--line:#000}.reduce *{animation:none!important;transition:none!important;scroll-behavior:auto!important}:where(a,button,input,textarea,select,[tabindex]):focus-visible{outline:4px solid var(--focus);outline-offset:3px}.sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0,0,0,0)}
+@media(max-width:950px){.links a:not(.navCta){display:none}.heroGrid,.cols4,.cols3,.cols2,.footerGrid{grid-template-columns:1fr}.heroPanel img{height:auto}.formGrid{grid-template-columns:1fr}.wide{grid-column:auto}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation:none!important;transition:none!important}}
+
+.footerLogo{width:min(100%,300px);height:auto;object-fit:contain;object-position:left center;background:transparent}
+
+.fleetGalleryCard>p{color:var(--muted)}.fleetGallery{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.fleetGallery figure{margin:0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--soft)}.fleetGallery img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}.fleetGallery figcaption{padding:12px 14px;font-weight:750;color:var(--navy)}@media(max-width:850px){.fleetGallery{grid-template-columns:1fr}}
+
+/* Build 003 operations core */
+.configTable input{width:120px;max-width:100%;padding:9px;border:1px solid #c8d8e5;border-radius:8px}.button.compact{min-height:36px;padding:7px 10px;font-size:.82rem}.toolbar>div h2{margin:.25rem 0}.toolbar>div p{margin:0;color:var(--muted)}
+
+/* Build 004: Driver + Fleet operations */
+.compactHero{padding-block:48px}.build4Grid{align-items:start}.sectionHead{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:16px}.sectionHead h2{margin:0}.checklistForm{display:grid;gap:14px}.checklistForm label{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--line,#d9e2ea);border-radius:12px;background:#f8fbfd}.checklistForm input{margin-top:4px}.stackList{display:grid;gap:10px}.manifestItem{width:100%;border:1px solid #d9e2ea;background:#fff;border-radius:14px;padding:14px;display:flex;justify-content:space-between;gap:14px;text-align:left;align-items:center}.manifestItem span:first-child{display:grid;gap:4px}.manifestItem small{color:#566472}.notice{min-height:24px;margin-top:14px;font-weight:700;color:#135f50}.fleetMap{position:relative;min-height:360px;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,#e9f2f7,#f8fbfd);border:1px solid #d5e0e8;background-image:linear-gradient(rgba(25,78,110,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(25,78,110,.08) 1px,transparent 1px);background-size:32px 32px}.vehiclePin{position:absolute;transform:translate(-50%,-50%);border:0;border-radius:999px;padding:9px 11px;font-weight:800;box-shadow:0 5px 18px rgba(18,48,70,.22);z-index:2}.vehiclePin.green{background:#d9f4e8;color:#0b644a}.vehiclePin.blue{background:#dcecff;color:#174e8c}.vehiclePin.amber{background:#fff0cd;color:#805600}.mapLegend{position:absolute;left:14px;bottom:14px;background:rgba(255,255,255,.92);padding:8px 10px;border-radius:10px;font-size:.85rem;color:#4c5b66}.field{display:grid;gap:7px;margin-bottom:14px}.field label{font-weight:750}.field input,.field select{width:100%;padding:12px;border:1px solid #bdcbd5;border-radius:10px;background:#fff;font:inherit}.muted{color:#5d6972}@media(max-width:760px){.sectionHead{align-items:stretch;flex-direction:column}.fleetMap{min-height:300px}.manifestItem{align-items:flex-start;flex-direction:column}.build4Grid{grid-template-columns:1fr!important}}
+
+/* Build 005: Facility Portal Enterprise */
+.lightButton{background:#fff!important;color:var(--navy)!important}.facilitySummary{margin-top:22px}.sectionSpace{margin-top:22px}.detailList{display:grid;gap:0;margin:0}.detailList div{display:flex;justify-content:space-between;gap:18px;padding:11px 0;border-bottom:1px solid var(--line)}.detailList dt{color:var(--muted)}.detailList dd{margin:0;font-weight:800;text-align:right}.stackActions{display:grid;gap:10px}.stackActions .button{text-decoration:none;text-align:center}.portalDialog{width:min(760px,calc(100% - 28px));max-height:90vh;overflow:auto;border:0;border-radius:22px;padding:28px;box-shadow:0 30px 90px rgba(0,0,0,.32)}.portalDialog::backdrop{background:rgba(4,22,38,.72)}.portalDialog h2{margin-top:0}.dialogClose{float:right;border:0;background:#eef3f6;width:42px;height:42px;border-radius:50%;font-size:25px;cursor:pointer}.weekdaySet{border:1px solid var(--line);border-radius:12px;padding:13px}.weekdaySet legend{font-weight:800;padding:0 6px}.weekdaySet label{display:inline-flex;gap:5px;margin:6px 12px 6px 0}.portalDialog textarea{width:100%;border:1px solid #aebfcb;border-radius:10px;padding:11px 13px;font:inherit}.table small{color:var(--muted)}@media(max-width:760px){.portalDialog{padding:20px}.detailList div{display:grid;gap:3px}.detailList dd{text-align:left}}
+
+/* Build 006: Patient Portal 2.0 + LiveCare 2.0 */
+.checkField{display:flex!important;align-items:center;gap:10px;margin-top:28px}.checkField input{width:auto!important;min-height:auto!important}.statusHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding-bottom:20px;border-bottom:1px solid var(--line)}.statusKicker{display:flex;align-items:center;gap:10px;color:var(--green);font-weight:900}.pulse{width:12px;height:12px;border-radius:50%;background:#18a873;box-shadow:0 0 0 7px rgba(24,168,115,.13)}.eta{text-align:right;background:#edf7f2;color:#075a40;border-radius:16px;padding:15px 20px}.eta small,.eta strong{display:block}.eta strong{font-size:24px}.panel{border:1px solid var(--line);border-radius:18px;padding:22px}.summary{display:grid;grid-template-columns:1fr 1fr;gap:13px}.summary span{background:var(--soft);padding:14px;border-radius:12px}.summary b,.summary small{display:block}.summary small{color:var(--muted)}.messages{max-height:330px;overflow:auto;display:grid;gap:10px;margin:15px 0}.message{background:var(--soft);padding:13px;border-radius:13px}.message.dispatch{border-left:5px solid var(--blue)}.message.client{border-left:5px solid var(--green)}.message p{margin:.35rem 0}.message small{display:block;color:var(--muted)}.shareResult{padding:13px;background:#eef6fb;border-radius:12px;margin-top:12px;word-break:break-all}.liveMap{position:relative;min-height:260px;margin:20px 0;border:1px solid var(--line);border-radius:18px;overflow:hidden;background-color:#eef5f8;background-image:linear-gradient(rgba(8,47,73,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(8,47,73,.07) 1px,transparent 1px);background-size:28px 28px}.routeLine{position:absolute;left:15%;right:15%;top:48%;height:7px;border-radius:999px;background:linear-gradient(90deg,var(--green),var(--blue),var(--red));transform:rotate(-8deg)}.mapPoint{position:absolute;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:900;box-shadow:0 8px 20px rgba(0,0,0,.2)}.pickupPoint{left:13%;top:56%;background:var(--green)}.vehiclePoint{left:49%;top:38%;background:var(--blue);animation:vehiclePulse 2s infinite}.destinationPoint{right:12%;top:29%;background:var(--red)}.mapCaption{position:absolute;left:14px;right:14px;bottom:8px;background:rgba(255,255,255,.9);padding:8px 10px;border-radius:9px;font-size:.85rem}.timeline li.done .node{background:#dff5e9;color:var(--green)}@keyframes vehiclePulse{50%{box-shadow:0 0 0 10px rgba(3,105,161,.16)}}@media(max-width:760px){.statusHeader{display:grid}.eta{text-align:left}.summary{grid-template-columns:1fr}.checkField{margin-top:0}}
+
+/* Build 007: Revenue Cycle Management */
+.compactList{margin:0;padding-left:20px;display:grid;gap:10px}.stackActions a{display:block;text-decoration:none}.table select{min-height:38px;max-width:170px;border:1px solid var(--line);border-radius:9px;padding:7px;background:#fff}.revenueBadge{display:inline-flex;padding:5px 9px;border-radius:999px;background:#eef6fb;color:var(--navy);font-weight:800;font-size:.78rem}@media(max-width:760px){.table select{min-width:150px}}
+
+/* Build 008: AI Operations and Dispatch Intelligence */
+.aiScore{display:flex;align-items:center;gap:10px}.riskMeter{height:10px;min-width:110px;background:#e7eef3;border-radius:999px;overflow:hidden}.riskMeter span{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--amber),var(--red));border-radius:inherit}.insightList{display:grid;gap:12px}.insight{border:1px solid var(--line);border-left:5px solid var(--blue);border-radius:14px;padding:15px;background:#fff}.insight.high{border-left-color:var(--red)}.insight.medium{border-left-color:var(--amber)}.insight.low{border-left-color:var(--green)}.insight h3{margin:0 0 5px}.insight p{margin:0;color:var(--muted)}.forecastBars{display:grid;gap:13px}.forecastRow{display:grid;grid-template-columns:100px 1fr 58px;gap:12px;align-items:center}.forecastTrack{height:18px;background:#e7eef3;border-radius:999px;overflow:hidden}.forecastTrack span{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--blue));border-radius:inherit}.confidence{font-weight:900;color:var(--green)}.aiDisclosure{font-size:.88rem;color:var(--muted);border-top:1px solid var(--line);padding-top:13px;margin-top:16px}@media(max-width:760px){.forecastRow{grid-template-columns:82px 1fr 45px}.riskMeter{min-width:75px}}
+/* Nexus multilingual language selector */
+.nexusLanguageControl{position:fixed;right:1rem;bottom:1rem;z-index:9999;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:.35rem;box-shadow:0 8px 28px rgba(15,23,42,.18)}
+.nexusLanguageControl select{border:0;background:transparent;color:#0f2744;font:600 .9rem/1.2 system-ui,sans-serif;padding:.45rem .7rem;cursor:pointer;min-width:155px}
+.nexusLanguageControl select:focus{outline:3px solid #0ea5e9;outline-offset:2px;border-radius:999px}
+@media(max-width:640px){.nexusLanguageControl{right:.55rem;bottom:.55rem}.nexusLanguageControl select{min-width:135px;font-size:.8rem}}
+@media print{.nexusLanguageControl{display:none!important}}
+
+/* Multilingual + Section 508 controls remain visible without overlap */
+.nexusLanguageControl{right:18px!important;bottom:82px!important;z-index:151!important}
+.access{position:fixed;right:18px;bottom:18px;z-index:152}
+.section508Button{min-width:64px!important;height:52px!important;border-radius:999px!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:5px!important;font-weight:800!important;letter-spacing:.02em!important}
+.section508Button span:first-child{font-size:1.25rem;line-height:1}
+.section508Button span:last-child{font-size:.76rem;line-height:1}
+@media(max-width:640px){.nexusLanguageControl{right:10px!important;bottom:78px!important}.access{right:10px;bottom:10px}}
+
+
+/* Build 010 global navigation language control */
+header .nexusLanguageControl.headerLanguageGlobal{position:static!important;right:auto!important;bottom:auto!important;display:inline-flex;align-items:center;margin-left:auto;background:#fff;border:1px solid #d5e1ea;border-radius:12px;padding:3px 6px;box-shadow:none;z-index:auto}
+header .nexusLanguageControl.headerLanguageGlobal select{min-width:118px;min-height:38px;border:0;background:transparent;color:#0f2744;font-weight:800;padding:4px 6px}
+header .nav{gap:14px}
+header .nav .navCta,header .nav .bookRide{background:linear-gradient(135deg,#ef3159,#c51640);color:#fff;border-radius:13px;padding:11px 17px;font-weight:900;box-shadow:0 10px 24px rgba(197,22,64,.25)}
+@media(max-width:760px){header .nexusLanguageControl.headerLanguageGlobal select{min-width:82px}header .nav{flex-wrap:wrap;height:auto;padding:12px 0}}
+/* Build 012 secure global Livecare navigation */
+.globalNav{min-height:88px;gap:16px}.globalBrand{display:flex;flex:0 0 auto}.globalBrand .logo{width:190px}.globalLinks{gap:14px}.globalLinks a{font-size:14px;white-space:nowrap;position:relative}.globalLinks a:after{content:"";position:absolute;left:0;right:100%;bottom:-8px;height:3px;background:var(--red);border-radius:3px;transition:right .2s}.globalLinks a:hover:after,.globalLinks a[aria-current=page]:after{right:0}.globalActions{display:flex;align-items:center;gap:9px;margin-left:auto}.globalPhone{display:grid;text-decoration:none;color:var(--navy);line-height:1.1;padding:8px 11px;border:1px solid var(--line);border-radius:12px;background:#fff;white-space:nowrap}.globalPhone small{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:800}.globalPhone strong{font-size:14px}.headerLanguageGlobal select{min-height:46px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--navy);font-weight:850;padding:0 8px}.mobileNavToggle{display:none}.securityPills{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}.securityPills span{padding:7px 11px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(255,255,255,.08);font-size:12px;font-weight:800}.sectionHeading{text-align:center;max-width:750px;margin:0 auto 28px}.sectionHeading h2{font-size:clamp(32px,4vw,48px);margin:8px 0}.darkEyebrow{color:var(--blue)}.roleCards{align-items:stretch}.roleCard{display:flex;flex-direction:column}.roleCard p{color:var(--muted);flex:1}.roleCard small{display:block;margin-top:12px;color:var(--muted)}.roleIcon{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:950;font-size:20px}.patientRole{border-top:5px solid var(--red)}.securePanel{max-width:850px;margin:38px auto}.panelHeader{display:flex;justify-content:space-between;gap:20px}.textClose{border:0;background:transparent;color:var(--muted);font-size:34px;cursor:pointer}.privacyNotice{background:#eef6fb;border-left:4px solid var(--blue);padding:13px;border-radius:10px}.checkField{display:flex;align-items:center;gap:10px}.checkField input{width:20px;height:20px}.formMessage{color:#9b1d2c;font-weight:750;min-height:24px}
+@media(max-width:1200px){.globalLinks a:nth-child(3),.globalLinks a:nth-child(4),.globalPhone{display:none}.globalBrand .logo{width:175px}}
+@media(max-width:950px){.globalNav{flex-wrap:wrap;padding:10px 0}.mobileNavToggle{display:inline-flex;margin-left:auto;min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:0 14px;font-weight:800}.globalLinks{display:none!important;order:3;width:100%;flex-direction:column;align-items:stretch;padding:12px 0}.globalLinks.open{display:flex!important}.globalLinks a{padding:10px}.globalActions{margin-left:0}.globalActions .navCta{padding:10px 12px}.roleCards{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.globalBrand .logo{width:150px}.headerLanguageGlobal select{min-width:72px}.globalActions .navCta{font-size:0}.globalActions .navCta:before{content:"Book";font-size:14px}.roleCards{grid-template-columns:1fr}.globalNav{gap:9px}}
+
+/* Build 013 Livecare navigation and working preview access */
+.mobileNavToggle{width:46px;height:46px;padding:0;border:1px solid var(--line);border-radius:12px;background:#fff;align-items:center;justify-content:center;flex-direction:column;gap:5px;box-shadow:0 8px 20px rgba(16,43,68,.08)}
+.mobileNavToggle span{display:block;width:20px;height:2px;background:var(--navy);border-radius:2px;transition:transform .2s,opacity .2s}
+.mobileNavToggle[aria-expanded=true] span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.mobileNavToggle[aria-expanded=true] span:nth-child(2){opacity:0}
+.mobileNavToggle[aria-expanded=true] span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.previewAccess{margin:18px 0;padding:16px;border:1px solid #b9d7e8;border-radius:14px;background:#eef7fc}
+.previewAccess p{margin:6px 0;color:var(--muted)}
+.previewCredentialGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.previewCredentialGrid button{border:1px solid var(--line);border-radius:11px;background:#fff;padding:10px;text-align:left;cursor:pointer;color:var(--navy)}
+.previewCredentialGrid button:hover,.previewCredentialGrid button:focus-visible{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,117,176,.12)}
+.previewCredentialGrid span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:800}
+.previewCredentialGrid b{display:block;margin-top:3px;font-size:13px}
+.previewAccess code{padding:3px 7px;border-radius:6px;background:#fff;font-weight:850;color:var(--navy)}
+@media(max-width:950px){.globalNav{position:relative}.mobileNavToggle{display:inline-flex;order:2}.globalLinks{order:4}.globalActions{order:3}.globalLinks.open{margin-top:6px;border-top:1px solid var(--line)}}
+@media(max-width:700px){.previewCredentialGrid{grid-template-columns:1fr}.globalActions .globalPhone{display:none}}
+
+.secureSessionBar{position:relative;z-index:1001;display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:7px max(18px,calc((100% - 1180px)/2));background:#071f36;color:#fff;font-size:12px}.secureSessionBar>div{display:flex;align-items:center;gap:8px}.secureSessionBar span{color:#a9c4d8;text-transform:uppercase;letter-spacing:.08em;font-size:10px;font-weight:850}.secureSessionBar small{padding:3px 7px;border:1px solid rgba(255,255,255,.25);border-radius:999px}.secureSessionBar button{border:1px solid rgba(255,255,255,.35);border-radius:8px;background:transparent;color:#fff;padding:6px 10px;font-weight:800;cursor:pointer}.secureSessionBar button:hover,.secureSessionBar button:focus-visible{background:#fff;color:#071f36}@media(max-width:620px){.secureSessionBar{justify-content:space-between}.secureSessionBar span{display:none}.secureSessionBar>div{min-width:0}.secureSessionBar strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}}
+
+/* Build 014: focused authenticated facility navigation */
+.facilityPortalHeader{position:sticky;top:0;z-index:1000;background:rgba(255,255,255,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--line);box-shadow:0 8px 28px rgba(15,39,68,.06)}
+.facilityPortalNav{min-height:84px;display:flex;align-items:center;gap:28px}
+.facilityPortalBrand{display:flex;align-items:center;flex:0 0 auto}.facilityPortalBrand .logo{width:186px;height:auto}
+.facilityPortalLinks{display:flex;align-items:center;gap:24px}.facilityPortalLinks a{position:relative;color:var(--navy);font-weight:850;text-decoration:none;padding:12px 0}.facilityPortalLinks a:after{content:"";position:absolute;left:0;right:100%;bottom:4px;height:3px;border-radius:999px;background:var(--red);transition:right .2s ease}.facilityPortalLinks a:hover:after,.facilityPortalLinks a:focus-visible:after,.facilityPortalLinks a[aria-current=page]:after{right:0}
+.facilityPortalActions{display:flex;align-items:center;gap:10px;margin-left:auto}
+.facilityLanguageSlot{display:flex;align-items:center}.facilityLanguageSlot .nexusLanguageControl{position:static!important;right:auto!important;bottom:auto!important;margin:0!important;padding:3px 5px!important;border-radius:12px!important;box-shadow:none!important}.facilityLanguageSlot .nexusLanguageControl select{min-width:122px;min-height:44px;padding:0 8px!important}
+.facilityCall{display:grid;gap:2px;min-width:158px;padding:7px 12px;border:1px solid var(--line);border-radius:13px;background:#fff;color:var(--navy);text-decoration:none;line-height:1.05;white-space:nowrap}.facilityCall span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:850}.facilityCall strong{font-size:14px}.facilityCall:hover,.facilityCall:focus-visible{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,117,176,.12)}
+.facilityBookRide{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 18px!important;white-space:nowrap}
+@media(max-width:900px){.facilityPortalNav{gap:14px;flex-wrap:wrap;padding:10px 0}.facilityPortalBrand .logo{width:160px}.facilityPortalLinks{order:3;width:100%;justify-content:center;border-top:1px solid var(--line);padding-top:5px}.facilityPortalActions{gap:7px}.facilityCall{min-width:auto}.facilityCall span{display:none}.facilityCall strong{font-size:13px}}
+@media(max-width:650px){.facilityPortalBrand .logo{width:145px}.facilityPortalNav{gap:8px}.facilityPortalActions{width:100%;justify-content:space-between}.facilityLanguageSlot .nexusLanguageControl select{min-width:92px}.facilityCall{padding:7px 9px}.facilityCall strong{font-size:12px}.facilityBookRide{min-height:42px;padding:0 12px!important}.facilityPortalLinks{gap:40px}}
+
+/* Build 015: Livecare real-time ride operations board */
+.liveRidePanel{min-height:430px;display:flex;flex-direction:column;background:#fff}.liveRideHead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:22px 22px 12px}.liveRideHead small{display:block;color:var(--muted);font-weight:850;text-transform:uppercase;letter-spacing:.08em}.liveRideHead h2{margin:4px 0 0;font-size:23px}.liveDot{display:inline-block;width:10px;height:10px;margin-right:7px;border-radius:50%;background:#16a36a;box-shadow:0 0 0 6px rgba(22,163,106,.12)}.boardRefresh{min-height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--navy);font-weight:850;padding:0 13px;cursor:pointer}.liveRideMetrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 22px 14px}.liveRideMetrics span{padding:11px;border-radius:12px;background:#eef6fb;border:1px solid #d8e7f0}.liveRideMetrics small,.liveRideMetrics strong{display:block}.liveRideMetrics small{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:800}.liveRideMetrics strong{font-size:24px;color:var(--navy)}.liveRideBoard{display:grid;gap:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);max-height:270px;overflow:auto}.rideBoardRow{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:13px 22px;border-top:1px solid var(--line)}.rideBoardRow:first-child{border-top:0}.rideBoardRow>div{display:grid;gap:3px}.rideBoardRow>div:last-child{justify-items:end}.rideBoardRow small{font-size:12px;color:var(--muted)}.rideBoardLoading{padding:28px 22px;color:var(--muted);text-align:center}.liveRidePanel .heroPanelBody{padding:16px 22px 20px}.liveRidePanel .heroPanelBody p{margin:0}@media(max-width:620px){.liveRideMetrics{grid-template-columns:1fr 1fr}.liveRideMetrics span:last-child{grid-column:1/-1}.rideBoardRow{grid-template-columns:1fr}.rideBoardRow>div:last-child{justify-items:start}}
+
+/* Build 016: world-class facility header + system-wide fleet movement */
+.facilityWorldHeader{position:sticky;top:0;z-index:1000;background:rgba(255,255,255,.96);backdrop-filter:blur(18px);border-bottom:1px solid rgba(10,48,76,.1);box-shadow:0 12px 36px rgba(7,31,54,.08)}
+.facilityWorldNav{min-height:88px}.facilityWorldLinks{margin-left:18px}.facilityWorldLinks a{font-size:15px}.facilityWorldActions{margin-left:auto}.facilityLanguageControl{position:static!important;right:auto!important;bottom:auto!important;z-index:auto!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}.facilityLanguageControl select{min-width:88px!important;min-height:46px!important;border:1px solid var(--line)!important;border-radius:12px!important;padding:0 10px!important;background:#fff!important;color:var(--navy)!important;font-weight:850!important}.facilityBookRide{min-height:48px;padding-inline:19px!important;box-shadow:0 10px 24px rgba(183,32,63,.18)}
+@media(max-width:950px){.facilityWorldActions{order:3}.facilityWorldLinks{order:4;margin-left:0}.facilityWorldNav .mobileNavToggle{order:2}.facilityWorldActions .globalPhone{display:grid}}
+@media(max-width:720px){.facilityWorldNav{gap:8px}.facilityWorldActions{width:100%;justify-content:flex-end;border-top:1px solid var(--line);padding-top:10px}.facilityWorldActions .globalPhone{display:grid}.facilityWorldActions .navCta{font-size:14px}.facilityWorldActions .navCta:before{content:none}.facilityWorldLinks{width:100%}}
+@media(max-width:520px){.facilityWorldActions{justify-content:space-between}.facilityWorldActions .globalPhone small{display:none}.facilityWorldActions .globalPhone{padding:8px 9px}.facilityWorldActions .globalPhone strong{font-size:12px}.facilityLanguageControl select{min-width:75px!important}.facilityBookRide{padding-inline:12px!important}}
+
+.fleetCommandPanel{min-height:590px;background:#061f35;color:#fff;overflow:hidden;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 70px rgba(2,23,40,.3)}
+.fleetCommandHead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:22px 22px 14px}.fleetCommandHead small{display:block;color:#9fc2d8;text-transform:uppercase;letter-spacing:.1em;font-weight:850}.fleetCommandHead h2{margin:5px 0 0;color:#fff;font-size:24px}.fleetHeadActions{display:flex;align-items:center;gap:10px}.fleetUpdated{font-size:11px;color:#9fc2d8;white-space:nowrap}.fleetCommandPanel .boardRefresh{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2);color:#fff}.fleetCommandPanel .boardRefresh:hover{background:#fff;color:var(--navy)}
+.fleetMetrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 22px 14px}.fleetMetrics span{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:13px;padding:11px}.fleetMetrics small,.fleetMetrics strong{display:block}.fleetMetrics small{font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em;font-weight:800}.fleetMetrics strong{font-size:25px;color:#fff;margin-top:2px}
+.operationsMap{position:relative;height:280px;margin:0 22px 14px;border:1px solid rgba(255,255,255,.12);border-radius:18px;overflow:hidden;background:radial-gradient(circle at 50% 45%,rgba(29,164,202,.18),transparent 36%),linear-gradient(145deg,#092b47,#061a2d)}.opsGrid{position:absolute;inset:0;background-image:linear-gradient(rgba(124,198,226,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(124,198,226,.08) 1px,transparent 1px);background-size:34px 34px}.opsCorridor{position:absolute;height:5px;border-radius:999px;background:linear-gradient(90deg,rgba(49,211,209,.18),rgba(49,211,209,.85),rgba(104,175,255,.28));box-shadow:0 0 16px rgba(49,211,209,.3)}.corridorA{left:7%;right:8%;top:39%;transform:rotate(-9deg)}.corridorB{left:12%;right:14%;top:62%;transform:rotate(11deg)}.corridorC{left:28%;width:55%;top:49%;transform:rotate(66deg)}.fleetVehicleLayer{position:absolute;inset:0}.fleetVehicle{position:absolute;left:var(--x);top:var(--y);transform:translate(-50%,-50%);border:0;background:none;color:#fff;display:grid;justify-items:center;gap:1px;cursor:pointer;animation:fleetDrift 4.2s ease-in-out infinite alternate;animation-delay:var(--delay)}.fleetVehicle>b{position:relative;z-index:2;display:grid;place-items:center;min-width:48px;height:31px;padding:0 8px;border-radius:10px;background:#0f8bb7;border:2px solid rgba(255,255,255,.9);font-size:10px;box-shadow:0 7px 20px rgba(0,0,0,.28)}.fleetVehicle small{font-size:9px;padding:3px 6px;border-radius:999px;background:rgba(2,19,32,.82);white-space:nowrap}.fleetVehicle.onboard>b{background:#16a36a}.fleetVehicle.available>b{background:#75899a}.fleetVehicle.attention>b{background:#d98218}.vehiclePulseRing{position:absolute;top:3px;width:42px;height:42px;border:2px solid currentColor;border-radius:50%;opacity:.4;animation:opsPulse 2s infinite}.fleetVehicle.attention .vehiclePulseRing{color:#ffb14b}.fleetVehicle.onboard .vehiclePulseRing{color:#55d8a6}.fleetVehicle.available .vehiclePulseRing{display:none}@keyframes fleetDrift{to{transform:translate(calc(-50% + 8px),calc(-50% - 4px))}}@keyframes opsPulse{to{transform:scale(1.7);opacity:0}}
+.opsLegend{position:absolute;left:10px;right:10px;bottom:9px;display:flex;flex-wrap:wrap;gap:8px;padding:7px 9px;border-radius:10px;background:rgba(2,18,31,.82);font-size:10px;color:#cce1ed}.opsLegend span{display:flex;align-items:center;gap:5px}.opsLegend i{width:8px;height:8px;border-radius:50%;background:#0f8bb7}.opsLegend i.onboard{background:#16a36a}.opsLegend i.available{background:#75899a}.opsLegend i.attention{background:#d98218}
+.fleetMovementList{display:grid;border-top:1px solid rgba(255,255,255,.1);max-height:205px;overflow:auto}.movementRow{display:grid;grid-template-columns:1.05fr 1.2fr .85fr;gap:12px;align-items:center;padding:11px 22px;border-bottom:1px solid rgba(255,255,255,.08)}.movementUnit{display:flex;align-items:center;gap:9px}.movementUnit span:last-child,.movementState{display:grid;gap:2px}.movementUnit small,.movementState small,.movementProgress small{font-size:10px;color:#9fc2d8}.movementIcon{width:30px;height:30px;border-radius:9px;display:grid!important;place-items:center;background:#0f8bb7;font-weight:900}.movementIcon.onboard{background:#16a36a}.movementIcon.available{background:#75899a}.movementIcon.attention{background:#d98218}.movementProgress>span{display:block;height:7px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}.movementProgress i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#31d3d1,#3d9ee8)}.movementState{text-align:right}.fleetCommandPanel .heroPanelBody{padding:14px 22px 18px;background:rgba(255,255,255,.04)}.fleetCommandPanel .heroPanelBody p{margin:0;color:#b9d0dd;font-size:12px}
+@media(max-width:720px){.fleetMetrics{grid-template-columns:1fr 1fr}.operationsMap{height:260px}.movementRow{grid-template-columns:1fr}.movementState{text-align:left}.fleetHeadActions{display:grid;justify-items:end}.fleetUpdated{font-size:10px}}
+
+/* Build 019 — Live moving street map */
+.liveFleetMapShell{position:relative;margin-top:1rem;border:1px solid rgba(15,35,62,.14);border-radius:24px;overflow:hidden;background:#e9eef5;box-shadow:inset 0 1px 0 rgba(255,255,255,.75)}
+.liveFleetMap{height:440px;width:100%;background:#dfe7ef;z-index:1}
+.fleetMapStatus{position:absolute;z-index:600;top:14px;left:50%;transform:translateX(-50%);padding:.5rem .85rem;border-radius:999px;background:rgba(8,28,51,.9);color:#fff;font-size:.75rem;font-weight:800;letter-spacing:.02em;box-shadow:0 8px 24px rgba(5,22,40,.2);white-space:nowrap}
+.mapLegend{position:absolute;z-index:600;left:14px;bottom:14px;margin:0;padding:.55rem .7rem;border-radius:14px;background:rgba(255,255,255,.94);box-shadow:0 8px 24px rgba(5,22,40,.18);backdrop-filter:blur(12px)}
+.nexusMapMarkerWrap{background:transparent;border:0}
+.nexusMapMarker{width:46px;height:46px;border-radius:50%;border:3px solid #fff;display:grid;place-items:center;position:relative;color:#fff;background:#0866c6;box-shadow:0 8px 20px rgba(4,32,61,.3);cursor:pointer}
+.nexusMapMarker .mapVehicleGlyph{font-size:.72rem;font-weight:900;line-height:1}.nexusMapMarker b{position:absolute;right:-8px;bottom:-7px;background:#fff;color:#0b223d;border:1px solid rgba(11,34,61,.15);border-radius:999px;min-width:24px;padding:2px 5px;font-size:.62rem;box-shadow:0 3px 9px rgba(5,22,40,.18)}
+.nexusMapMarker.onboard{background:#7c3aed}.nexusMapMarker.available{background:#138a58}.nexusMapMarker.attention{background:#c2410c}.nexusMapMarker.moving:after,.nexusMapMarker.onboard:after{content:"";position:absolute;inset:-8px;border-radius:50%;border:2px solid currentColor;opacity:.35;animation:nexusMapPulse 1.8s infinite}
+@keyframes nexusMapPulse{0%{transform:scale(.75);opacity:.55}100%{transform:scale(1.35);opacity:0}}
+.fleetPopup{display:grid;gap:.24rem;min-width:190px}.fleetPopup strong{font-size:1rem;color:#0b223d}.fleetPopup span,.fleetPopup small{color:#526579}.fleetPopup b{color:#075fae}
+.mapVehicleRow{width:100%;text-align:left;border:0;font:inherit;cursor:pointer}.mapVehicleRow:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(8,34,61,.09)}
+.mapUnavailable{height:100%;display:grid;place-content:center;text-align:center;gap:.4rem;padding:2rem;color:#0b223d}.mapUnavailable span{color:#5f7082;max-width:34rem}
+.leaflet-container{font-family:inherit}.leaflet-control-attribution{font-size:9px}
+@media(max-width:720px){.liveFleetMap{height:380px}.fleetMapStatus{top:10px;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis}.mapLegend{left:10px;right:10px;bottom:10px;justify-content:center;flex-wrap:wrap}.movementRow.mapVehicleRow{grid-template-columns:1fr}.movementState{text-align:left}}
+
+
+/* Build 020 — production fleet map presentation and local Leaflet runtime */
+.compactHero .heroGrid{grid-template-columns:1fr;gap:28px;padding-top:42px}
+.compactHero .heroGrid>div:first-child{max-width:920px}
+.compactHero .heroGrid>div:first-child h1{font-size:clamp(38px,5vw,62px)}
+.fleetCommandPanel{min-height:0;border-radius:28px;background:linear-gradient(145deg,#041525,#082943);box-shadow:0 32px 90px rgba(0,0,0,.36)}
+.fleetCommandHead{padding:24px 26px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.fleetCommandHead h2{font-size:clamp(24px,3vw,36px);letter-spacing:-.025em}
+.fleetMetrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:18px 26px}
+.fleetMetrics span{min-height:92px;padding:15px 16px;background:linear-gradient(145deg,rgba(255,255,255,.095),rgba(255,255,255,.045));border-color:rgba(255,255,255,.13)}
+.fleetMetrics small{font-size:11px}.fleetMetrics strong{font-size:32px;margin-top:7px}
+.liveFleetMapShell{margin:0 26px 18px;border-radius:22px;border-color:rgba(125,201,255,.22);background:#0a1a29;box-shadow:0 22px 50px rgba(0,0,0,.28)}
+.liveFleetMap{height:clamp(480px,58vw,690px);min-height:480px;background:#cbd5df}
+.fleetMapStatus{top:16px;background:rgba(3,20,36,.9);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px)}
+.mapLegend{display:flex;gap:12px;color:#0b223d}
+.fleetMovementList{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-height:none;overflow:visible;border-top:0;padding:0 26px 20px}
+.movementRow.mapVehicleRow{display:grid;grid-template-columns:1fr;gap:10px;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:15px;background:rgba(255,255,255,.055);color:#fff;transition:.2s ease}
+.movementRow.mapVehicleRow:hover{background:rgba(255,255,255,.1);border-color:rgba(75,184,255,.5)}
+.movementRow.mapVehicleRow .movementState{text-align:left;display:flex;justify-content:space-between;gap:12px}
+.movementRow.mapVehicleRow .movementUnit small,.movementRow.mapVehicleRow .movementState small,.movementRow.mapVehicleRow .movementProgress small{color:#a9c3d5}
+.movementRow.mapVehicleRow .movementProgress>span{height:8px}
+.fleetCommandPanel .heroPanelBody{padding:16px 26px 22px}
+.leaflet-container{background:#c8d4df}
+.leaflet-tile-pane{filter:saturate(.78) contrast(1.03)}
+.leaflet-control-zoom a{background:#071d31!important;color:#fff!important;border-color:rgba(255,255,255,.16)!important}
+.leaflet-control-scale-line{background:rgba(255,255,255,.88);border-color:#1c3d59;color:#0b223d}
+@media(max-width:980px){.fleetMovementList{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.compactHero .heroGrid{padding-top:28px}.fleetCommandHead{padding:18px}.fleetMetrics{padding:14px 18px;grid-template-columns:1fr 1fr}.liveFleetMapShell{margin:0 12px 14px}.liveFleetMap{height:520px;min-height:420px}.fleetMovementList{grid-template-columns:1fr;padding:0 12px 16px}.fleetCommandPanel .heroPanelBody{padding-inline:18px}.mapLegend{left:8px;right:8px;gap:7px;font-size:10px}}
+
+/* Build 021 native fleet map: no Leaflet or additional npm map package required */
+.liveFleetMap{position:relative;overflow:hidden;min-height:520px;background:linear-gradient(145deg,#dbe7ef,#c7d6e1);touch-action:none;cursor:grab}.liveFleetMap:active{cursor:grabbing}.nativeMapTiles,.nativeMapMarkers,.nativeMapRoutes{position:absolute;inset:0}.nativeMapTiles{overflow:hidden;background:radial-gradient(circle at 40% 35%,#e8f0f5,#cbd9e2)}.nativeMapTiles img{position:absolute;width:256px;height:256px;max-width:none;user-select:none}.nativeMapRoutes{width:100%;height:100%;pointer-events:none;z-index:2}.nativeRoute{fill:none;stroke:#087fa9;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;opacity:.78;filter:drop-shadow(0 2px 2px rgba(3,26,48,.18))}.nativeRoute.onboard{stroke:#7656d6}.nativeRoute.available{stroke:#16a06b;stroke-dasharray:10 9}.nativeRoute.attention{stroke:#da7b16}.nativeMapMarkers{z-index:3;pointer-events:none}.nativeVehicleMarker{position:absolute;pointer-events:auto;width:48px;height:48px;border:3px solid #fff;border-radius:16px;background:#087fa9;color:#fff;box-shadow:0 8px 22px rgba(3,26,48,.32);display:grid;place-content:center;line-height:1;transition:box-shadow .2s;z-index:2}.nativeVehicleMarker:hover,.nativeVehicleMarker:focus-visible{box-shadow:0 0 0 5px rgba(8,127,169,.2),0 12px 28px rgba(3,26,48,.4)}.nativeVehicleMarker span{font-size:15px;font-weight:900}.nativeVehicleMarker b{font-size:10px;margin-top:2px}.nativeVehicleMarker.onboard{background:#7656d6}.nativeVehicleMarker.available{background:#16a06b}.nativeVehicleMarker.attention{background:#da7b16}.nativeMapControls{position:absolute;z-index:6;top:16px;left:16px;display:grid;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(3,26,48,.22)}.nativeMapControls button{width:42px;height:42px;border:0;border-bottom:1px solid #d7e0e7;background:#fff;color:#09243d;font-size:23px;font-weight:800}.nativeMapControls button:last-child{border-bottom:0;font-size:18px}.nativeMapControls button:hover{background:#eef6fa}.nativeMapAttribution{position:absolute;right:8px;bottom:6px;z-index:5;background:rgba(255,255,255,.88);padding:3px 7px;border-radius:6px;font-size:10px;color:#304b61}.nativeMapPopup{position:absolute;z-index:7;transform:translate(-50%,-100%);min-width:220px;background:#071d31;color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:14px;box-shadow:0 16px 38px rgba(0,0,0,.3);display:grid;gap:4px}.nativeMapPopup strong{font-size:16px}.nativeMapPopup span,.nativeMapPopup small{color:#c8dae8}.nativeMapPopup b{color:#6ce0ff}.nativeMapPopup[hidden]{display:none}@media(max-width:700px){.liveFleetMap{min-height:420px}.nativeVehicleMarker{width:42px;height:42px;border-radius:14px}}
+
+/* Build 022 — personalized map-only Livecare */
+.livecareMapHero{background:linear-gradient(135deg,#06213a 0%,#0b3657 58%,#0d456a 100%);padding:0}.livecareExperience{display:grid;grid-template-columns:minmax(300px,32%) minmax(0,68%);min-height:720px;padding:0;overflow:hidden;border-radius:0 0 30px 30px}.livecareStoryPanel{color:#fff;padding:clamp(38px,5vw,76px) clamp(26px,4vw,58px);display:flex;flex-direction:column;justify-content:space-between;gap:30px;background:linear-gradient(160deg,rgba(4,28,50,.98),rgba(4,42,70,.96));border-right:1px solid rgba(255,255,255,.12)}.livecareStoryPanel .eyebrow{display:flex;align-items:center;gap:9px;color:#72e6f4}.livecareStoryPanel h1{font-size:clamp(42px,5vw,76px);line-height:.98;letter-spacing:-.045em;margin:20px 0 24px;max-width:620px}.livecareStoryPanel>div>p{font-size:clamp(17px,1.5vw,22px);line-height:1.55;color:#d3e5f2;max-width:600px}.livecareCompactMetrics{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid rgba(126,205,245,.35);border-radius:18px;background:rgba(4,24,43,.5);overflow:hidden}.livecareCompactMetrics span{text-align:center;padding:15px 8px;border-right:1px solid rgba(255,255,255,.14)}.livecareCompactMetrics span:last-child{border-right:0}.livecareCompactMetrics small{display:block;color:#b9d3e5;font-size:11px}.livecareCompactMetrics strong{display:block;font-size:28px;margin-top:3px}.livecareStoryActions{display:flex;gap:12px;flex-wrap:wrap}.lightButton{background:#fff!important;color:#082943!important}.outlineLight{background:transparent!important;border:1px solid #56bce7!important;color:#fff!important}.privacyStory{border-top:1px solid rgba(255,255,255,.14);padding-top:24px}.privacyStory strong{display:block;font-size:16px;margin-bottom:8px}.privacyStory p{margin:0;color:#bcd4e5;line-height:1.5}.livecareMapPanel{position:relative;background:#dbe6ee;min-width:0;display:flex;flex-direction:column}.mapTopBar{position:absolute;z-index:10;top:24px;left:24px;right:24px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}.mapTopBar>div,.mapRefresh{pointer-events:auto}.mapTopBar>div{background:rgba(4,28,49,.93);color:#fff;border-radius:14px;padding:11px 14px;box-shadow:0 12px 30px rgba(5,27,45,.25);display:grid;gap:3px}.mapTopBar small{color:#bcd3e2}.mapLiveBadge{font-weight:800;color:#47dc8d}.mapRefresh{border:0;background:#fff;color:#082943;border-radius:12px;padding:11px 16px;font-weight:800;box-shadow:0 10px 26px rgba(5,27,45,.2)}.mapOnlyShell{margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;flex:1;min-height:650px}.mapOnlyShell .liveFleetMap{height:100%;min-height:650px}.mapServiceStrip{display:flex;gap:0;background:#fff;color:#0a2943;margin:0 24px 22px;border-radius:16px;box-shadow:0 12px 30px rgba(8,35,57,.14);overflow:hidden}.mapServiceStrip span{flex:1;text-align:center;padding:18px 10px;border-right:1px solid #d9e3ea;font-size:13px;font-weight:800}.mapServiceStrip span:first-child{flex:1.4}.mapServiceStrip span:last-child{border-right:0}.livecareMapPanel .mapLegend{left:24px;bottom:100px}.livecareMapPanel .nativeMapControls{left:auto;right:22px;top:92px}.livecareMapPanel .nativeMapPopup{max-width:280px}
+@media(max-width:980px){.livecareExperience{grid-template-columns:1fr}.livecareStoryPanel{min-height:auto}.livecareStoryPanel h1{font-size:clamp(42px,9vw,66px)}.mapOnlyShell,.mapOnlyShell .liveFleetMap{min-height:560px}.mapServiceStrip{flex-wrap:wrap}.mapServiceStrip span{flex:1 1 33%}.livecareMapPanel .mapLegend{bottom:125px}}
+@media(max-width:620px){.livecareExperience{border-radius:0}.livecareStoryPanel{padding:34px 20px}.livecareCompactMetrics{grid-template-columns:1fr 1fr}.livecareCompactMetrics span:nth-child(2){border-right:0}.livecareCompactMetrics span:nth-child(-n+2){border-bottom:1px solid rgba(255,255,255,.14)}.mapTopBar{top:12px;left:12px;right:12px}.mapOnlyShell,.mapOnlyShell .liveFleetMap{min-height:500px}.mapServiceStrip{margin:0 12px 12px}.mapServiceStrip span{flex:1 1 50%;padding:13px 7px}.livecareMapPanel .mapLegend{left:12px;right:12px;bottom:120px}.livecareMapPanel .nativeMapControls{right:12px;top:90px}}
+
+/* Build 023: restore role login and standardize Livecare to the homepage hero scale */
+.livecareMapHero{padding:72px 0 0;background:linear-gradient(128deg,#06263f 0%,#0a3b61 57%,#0c628d 100%)}
+.livecareExperience{width:min(1380px,calc(100% - 40px));margin:0 auto;min-height:615px;grid-template-columns:minmax(340px,.82fr) minmax(0,1.48fr);border-radius:28px 28px 0 0;box-shadow:0 34px 90px rgba(0,0,0,.24)}
+.livecareStoryPanel{padding:clamp(34px,4vw,58px);gap:22px}
+.livecareStoryPanel h1{font-size:clamp(48px,5.5vw,76px);margin:14px 0 18px}
+.livecareStoryPanel>div>p{font-size:19px;line-height:1.5}
+.livecareCompactMetrics{border-radius:15px}
+.livecareCompactMetrics span{padding:12px 6px}
+.livecareCompactMetrics strong{font-size:24px}
+.livecareLoginBlock{display:grid;gap:14px}
+.livecareLoginHeading{display:flex;align-items:end;justify-content:space-between;gap:14px}
+.livecareLoginHeading strong{font-size:16px}
+.livecareLoginHeading span{font-size:12px;color:#a9c9dc;text-align:right}
+.livecareRoleButtons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.livecareRoleButton{min-width:0;text-align:left;border:1px solid rgba(151,210,239,.28);background:rgba(255,255,255,.075);color:#fff;border-radius:13px;padding:11px 12px;transition:.2s}
+.livecareRoleButton:hover,.livecareRoleButton:focus-visible{background:rgba(255,255,255,.15);border-color:#70d8ef;transform:translateY(-1px)}
+.livecareRoleButton b,.livecareRoleButton small{display:block}
+.livecareRoleButton b{font-size:14px}
+.livecareRoleButton small{font-size:11px;color:#bcd6e6;margin-top:2px}
+.livecareStoryActions{margin-top:0}
+.livecareStoryActions .button{padding:11px 14px;font-size:14px}
+.mapOnlyShell,.mapOnlyShell .liveFleetMap{min-height:545px}
+.mapServiceStrip{margin:0 18px 18px}
+.moduleMain{padding-top:72px}
+.accessGateway{scroll-margin-top:110px}
+@media(max-width:1100px){.livecareExperience{grid-template-columns:minmax(320px,.9fr) minmax(0,1.1fr)}.livecareStoryPanel h1{font-size:clamp(44px,5.6vw,64px)}.mapServiceStrip span{font-size:11px;padding:14px 7px}}
+@media(max-width:980px){.livecareMapHero{padding-top:40px}.livecareExperience{width:min(760px,calc(100% - 28px));grid-template-columns:1fr;border-radius:24px 24px 0 0}.mapOnlyShell,.mapOnlyShell .liveFleetMap{min-height:520px}}
+@media(max-width:620px){.livecareMapHero{padding-top:18px}.livecareExperience{width:100%;border-radius:0}.livecareRoleButtons{grid-template-columns:1fr 1fr}.livecareLoginHeading{align-items:flex-start;flex-direction:column}.livecareLoginHeading span{text-align:left}.livecareStoryActions .button,.livecareStoryActions a{width:100%}.mapOnlyShell,.mapOnlyShell .liveFleetMap{min-height:480px}.moduleMain{padding-top:48px}}
+
+/* Build 025: permanent global page-hero standard and facility-scoped Livecare workspace */
+:root{
+  --nexus-page-hero-bg:linear-gradient(128deg,#06263f 0%,#0a3b61 57%,#0c628d 100%);
+  --nexus-page-hero-min-height:615px;
+  --nexus-page-hero-title:clamp(48px,5.2vw,72px);
+  --nexus-page-hero-copy:19px;
+  --nexus-page-hero-radius:28px;
+  --nexus-page-shell:min(1180px,calc(100% - 40px));
+}
+.livecareMapHero{background:var(--nexus-page-hero-bg);padding:72px 0 0}
+.livecareExperience{width:var(--nexus-page-shell);min-height:var(--nexus-page-hero-min-height);border-radius:var(--nexus-page-hero-radius) var(--nexus-page-hero-radius) 0 0}
+.livecareStoryPanel{min-width:0}
+.livecareStoryPanel h1{font-size:var(--nexus-page-hero-title);line-height:1.02;overflow-wrap:anywhere;text-wrap:balance;max-width:100%}
+.livecareStoryPanel>div>p{font-size:var(--nexus-page-hero-copy);max-width:100%;overflow-wrap:anywhere}
+.moduleMain{width:var(--nexus-page-shell)}
+.facilityWorkspace{padding:72px 0 24px;display:grid;gap:24px}
+.facilityWorkspace[hidden]{display:none}
+.facilityWorkspaceHeader{display:flex;justify-content:space-between;align-items:end;gap:28px}
+.facilityWorkspaceHeader h2{font-size:clamp(34px,4vw,52px);margin:10px 0 8px;line-height:1.08;letter-spacing:-.035em}
+.facilityWorkspaceHeader p{max-width:760px;color:#617489;font-size:18px;margin:0}
+.facilityWorkspaceActions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.facilityKpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.facilityKpis article{border:1px solid #dbe6ed;border-radius:18px;padding:20px;background:#fff;box-shadow:0 12px 35px rgba(8,47,73,.07)}
+.facilityKpis small,.facilityKpis span{display:block;color:#667a8e}
+.facilityKpis strong{display:block;font-size:34px;color:#082f49;margin:5px 0 2px;line-height:1}
+.facilityKpis span{font-size:12px}
+.facilityDashboardGrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,.72fr);gap:18px;align-items:start}
+.facilityPanel{border:1px solid #dbe6ed;border-radius:22px;background:#fff;box-shadow:0 16px 44px rgba(8,47,73,.08);overflow:hidden}
+.facilityPanelHeader{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:22px 24px;border-bottom:1px solid #e4ebf0}
+.facilityPanelHeader h3{margin:6px 0 0;font-size:21px;color:#102f48}
+.facilityPanelHeader p{margin:5px 0 0;color:#6a7d8f}
+.facilityCount{padding:7px 10px;border-radius:9px;background:#e9f4fa;color:#075f8a;font-weight:800;font-size:12px;white-space:nowrap}
+.facilityTableWrap{overflow:auto}
+.facilityTable{width:100%;border-collapse:collapse;min-width:830px}
+.facilityTable th{text-align:left;padding:12px 16px;background:#f2f7fa;color:#607387;font-size:11px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.facilityTable td{padding:15px 16px;border-top:1px solid #e7edf2;vertical-align:top;font-size:14px;color:#20394f}
+.facilityTable td strong,.facilityTable td b,.facilityTable td small{display:block}
+.facilityTable td small{color:#77899a;font-size:11px;margin-top:3px}
+.facilityRoute{display:grid;grid-template-columns:minmax(110px,1fr) auto minmax(110px,1fr);gap:7px;align-items:center;max-width:340px}
+.facilityRoute b{font-weight:600!important}.facilityRoute i{font-style:normal;color:#0783b8}
+.facilityAttentionList{padding:10px 20px 20px;display:grid;gap:0}
+.facilityAttentionList article{padding:16px 2px;border-bottom:1px solid #e8eef2}
+.facilityAttentionList article:last-child{border-bottom:0}
+.facilityAttentionList strong{display:block;margin:9px 0 4px;color:#17364e}.facilityAttentionList p,.facilityAttentionList small{margin:0;color:#6b7f91;font-size:13px}
+.facilityEmpty,.facilityEmptyCard{text-align:center!important;padding:34px!important;color:#667b8e}
+.facilityEmptyCard strong{color:#0b6548;display:block;font-size:18px}.facilityEmptyCard p{margin:6px 0 0}
+.facilityHistoryPanel{margin-top:2px}.facilitySearch{font-size:12px;font-weight:800;color:#526a7e;min-width:280px}.facilitySearch input{display:block;width:100%;margin-top:6px;border:1px solid #c7d6df;border-radius:11px;padding:10px 12px;font:inherit;font-weight:400;background:#fff}
+@media(max-width:1050px){.facilityKpis{grid-template-columns:1fr 1fr}.facilityDashboardGrid{grid-template-columns:1fr}.facilityWorkspaceHeader{align-items:flex-start;flex-direction:column}.facilityWorkspaceActions{justify-content:flex-start}.livecareStoryPanel h1{font-size:clamp(44px,6vw,62px)}}
+@media(max-width:700px){:root{--nexus-page-shell:calc(100% - 28px);--nexus-page-hero-min-height:auto;--nexus-page-hero-title:clamp(40px,12vw,52px);--nexus-page-hero-copy:17px}.livecareMapHero{padding-top:24px}.livecareExperience{border-radius:22px 22px 0 0}.facilityWorkspace{padding-top:50px}.facilityKpis{grid-template-columns:1fr 1fr}.facilityPanelHeader{align-items:flex-start;flex-direction:column}.facilitySearch{min-width:0;width:100%}.facilityWorkspaceActions .button{width:100%}}
+@media(max-width:430px){.facilityKpis{grid-template-columns:1fr}.livecareRoleButtons{grid-template-columns:1fr}.livecareStoryPanel h1{font-size:40px}}
+
+/* Build 026 — shared role-personalized Livecare workspaces */
+.roleWorkspace{padding-top:72px}
+.roleWorkspace[hidden]{display:none}
+.roleWorkspace .facilityPanelWide{min-width:0}
+.roleWorkspace .facilityTable td{vertical-align:top}
+.roleWorkspace .facilityTable td small{display:block;margin-top:5px;color:#718497;line-height:1.35}
+.roleErrorPanel{padding:30px}
+@media(max-width:700px){.roleWorkspace{padding-top:50px}}
+
+
+/* Build 027: compact homepage-aligned Livecare hero */
+:root{
+  --nexus-page-hero-min-height:520px;
+  --nexus-page-hero-title:clamp(42px,4.4vw,60px);
+  --nexus-page-hero-copy:17px;
+}
+.livecareMapHero{padding:38px 0 0}
+.livecareExperience{min-height:520px;max-height:560px}
+.livecareStoryPanel{padding:32px 38px;gap:16px}
+.livecareStoryPanel h1{margin:10px 0 13px;line-height:1.03}
+.livecareStoryPanel>div>p{line-height:1.42;margin-bottom:0}
+.livecareCompactMetrics span{padding:10px 6px}
+.livecareCompactMetrics strong{font-size:22px}
+.livecareLoginBlock{padding:14px}
+.livecareRoleButton{padding:10px 9px}
+.privacyStory{padding-top:14px}
+.mapOnlyShell,.mapOnlyShell .liveFleetMap{min-height:520px}
+.mapServiceStrip{margin:0 18px 16px}
+.mapServiceStrip span{padding:13px 8px}
+.livecareMapPanel .mapLegend{bottom:82px}
+@media(max-width:980px){
+  .livecareMapHero{padding-top:28px}
+  .livecareExperience{max-height:none;min-height:auto}
+  .livecareStoryPanel{padding:30px}
+  .mapOnlyShell,.mapOnlyShell .liveFleetMap{min-height:480px}
+}
+@media(max-width:620px){
+  :root{--nexus-page-hero-title:clamp(36px,10vw,46px);--nexus-page-hero-copy:16px}
+  .livecareMapHero{padding-top:14px}
+  .livecareStoryPanel{padding:26px 20px;gap:14px}
+  .mapOnlyShell,.mapOnlyShell .liveFleetMap{min-height:430px}
+}
+
+/* Build 028: contain all Livecare hero content inside the defined homepage-sized frame */
+@media(min-width:981px){
+  .livecareExperience{
+    height:520px;
+    min-height:520px;
+    max-height:520px;
+    align-items:stretch;
+  }
+  .livecareStoryPanel{
+    height:520px;
+    min-height:0;
+    box-sizing:border-box;
+    padding:24px 30px;
+    gap:11px;
+    justify-content:flex-start;
+    overflow:hidden;
+  }
+  .livecareStoryPanel h1{
+    font-size:clamp(38px,3.55vw,52px);
+    line-height:1.01;
+    margin:7px 0 9px;
+  }
+  .livecareStoryPanel>div>p{
+    font-size:15.5px;
+    line-height:1.36;
+    display:-webkit-box;
+    -webkit-line-clamp:3;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+  .livecareStoryPanel .eyebrow{font-size:12px}
+  .livecareCompactMetrics{flex:0 0 auto}
+  .livecareCompactMetrics span{padding:7px 4px}
+  .livecareCompactMetrics small{font-size:9.5px}
+  .livecareCompactMetrics strong{font-size:19px;margin-top:1px}
+  .livecareLoginBlock{gap:8px;padding:10px 11px}
+  .livecareLoginHeading strong{font-size:13px}
+  .livecareLoginHeading span{font-size:11px}
+  .livecareRoleButtons{gap:7px}
+  .livecareRoleButton{padding:7px 7px;min-height:48px}
+  .livecareRoleButton b{font-size:12px}
+  .livecareRoleButton small{font-size:9.5px;margin-top:2px}
+  .livecareStoryActions{gap:7px}
+  .livecareStoryActions .button{padding:8px 10px;font-size:11px;min-height:34px}
+  .privacyStory{padding-top:9px;margin-top:auto}
+  .privacyStory strong{font-size:12px;margin-bottom:3px}
+  .privacyStory p{font-size:10.5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+  .livecareMapPanel{
+    height:520px;
+    min-height:0;
+    overflow:hidden;
+  }
+  .mapOnlyShell{
+    flex:1 1 auto;
+    height:auto!important;
+    min-height:0!important;
+    overflow:hidden;
+  }
+  .mapOnlyShell .liveFleetMap{
+    height:100%!important;
+    min-height:0!important;
+  }
+  .mapServiceStrip{
+    flex:0 0 48px;
+    min-height:48px;
+    margin:0 14px 12px;
+  }
+  .mapServiceStrip span{padding:10px 6px;font-size:10.5px;display:grid;place-items:center}
+  .mapTopBar{top:14px;left:14px;right:14px}
+  .mapTopBar>div{padding:8px 11px;border-radius:11px}
+  .mapTopBar small{font-size:10px}
+  .mapLiveBadge{font-size:12px}
+  .mapRefresh{padding:8px 12px;font-size:11px}
+  .livecareMapPanel .nativeMapControls{right:14px;top:70px}
+  .nativeMapControls button{width:36px;height:36px;font-size:20px}
+  .livecareMapPanel .mapLegend{left:14px;bottom:70px;padding:7px 9px;gap:8px;font-size:9.5px}
+}
+
+/* Build 029: compact, functional Livecare map controls */
+@media (min-width:981px){
+  .livecareExperience[data-role="FACILITY"] .livecareStoryPanel{padding:20px 24px;gap:8px}
+  .livecareExperience[data-role="FACILITY"] .livecareStoryPanel h1{font-size:clamp(31px,2.65vw,42px);line-height:1.03;margin:5px 0 7px;letter-spacing:-.035em}
+  .livecareExperience[data-role="FACILITY"] .livecareStoryPanel>div>p{font-size:13.5px;line-height:1.28;-webkit-line-clamp:2}
+  .livecareExperience[data-role="FACILITY"] .livecareLoginBlock{padding:8px 9px;gap:6px}
+  .livecareExperience[data-role="FACILITY"] .livecareRoleButton{min-height:42px;padding:5px 6px}
+  .livecareExperience[data-role="FACILITY"] .privacyStory{padding-top:6px}
+}
+.livecareCompactMetrics.mapStatusFilters{display:grid}
+.livecareCompactMetrics.mapStatusFilters button{appearance:none;border:0;border-right:1px solid rgba(255,255,255,.14);background:transparent;color:inherit;text-align:center;padding:7px 4px;cursor:pointer;min-width:0}
+.livecareCompactMetrics.mapStatusFilters button:last-child{border-right:0}
+.livecareCompactMetrics.mapStatusFilters button:hover,.livecareCompactMetrics.mapStatusFilters button.active{background:rgba(96,211,239,.18)}
+.livecareCompactMetrics.mapStatusFilters button:focus-visible{outline:2px solid #fff;outline-offset:-3px}
+.livecareCompactMetrics.mapStatusFilters small,.livecareCompactMetrics.mapStatusFilters strong{pointer-events:none}
+.mapServiceStrip{gap:4px;padding:4px;background:rgba(255,255,255,.96);box-shadow:0 8px 20px rgba(8,35,57,.12)}
+.mapServiceStrip button{appearance:none;flex:1;border:0;border-radius:9px;background:transparent;color:#27465e;text-align:center;padding:7px 5px;font-size:10px;font-weight:800;line-height:1.15;cursor:pointer;min-width:0}
+.mapServiceStrip button:hover,.mapServiceStrip button.active{background:#0b4168;color:#fff}
+.mapServiceStrip button:focus-visible{outline:2px solid #0b4168;outline-offset:2px}
+.livecareMapPanel .mapLegend{left:auto;right:58px;bottom:68px;width:auto;display:grid;grid-template-columns:repeat(4,auto);gap:6px;padding:5px 7px;background:rgba(2,18,31,.76);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(5px)}
+.livecareMapPanel .mapLegend span{gap:4px;white-space:nowrap}
+.livecareMapPanel .mapLegend b{font-size:8.5px;font-weight:700}
+.livecareMapPanel .mapLegend i{width:6px;height:6px}
+@media(max-width:620px){
+  .livecareMapPanel .mapLegend{right:10px;left:auto;bottom:116px;grid-template-columns:repeat(2,auto)}
+  .mapServiceStrip button{flex:1 1 30%;font-size:9.5px;padding:6px 4px}
+}
+
+/* Build 030: highly visible vertical Livecare status filter */
+.livecareMapPanel .mapLegend.verticalStatusPanel{
+  left:auto!important;
+  right:14px!important;
+  top:50%!important;
+  bottom:auto!important;
+  transform:translateY(-50%);
+  width:118px!important;
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:7px!important;
+  padding:9px!important;
+  border-radius:15px!important;
+  background:rgba(255,255,255,.97)!important;
+  border:1px solid rgba(7,35,61,.18)!important;
+  box-shadow:0 12px 32px rgba(3,22,39,.28)!important;
+  color:#082943!important;
+  backdrop-filter:blur(12px);
+  z-index:750!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel button{
+  appearance:none;
+  width:100%;
+  min-height:34px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 9px;
+  border:1px solid rgba(8,41,67,.12);
+  border-radius:10px;
+  background:#f7fafc;
+  color:#082943;
+  font:inherit;
+  text-align:left;
+  cursor:pointer;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel button:hover{background:#edf5fa;border-color:rgba(8,41,67,.28)}
+.livecareMapPanel .mapLegend.verticalStatusPanel button:focus-visible{outline:3px solid #69c7e8;outline-offset:2px}
+.livecareMapPanel .mapLegend.verticalStatusPanel button.active,
+.livecareMapPanel .mapLegend.verticalStatusPanel button[aria-pressed="true"]{
+  background:#082943;
+  border-color:#082943;
+  color:#fff;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel button b{font-size:11px!important;font-weight:800!important;line-height:1.1}
+.livecareMapPanel .mapLegend.verticalStatusPanel button i{width:9px!important;height:9px!important;flex:0 0 9px;border-radius:50%}
+@media(max-width:720px){
+  .livecareMapPanel .mapLegend.verticalStatusPanel{
+    right:8px!important;
+    top:50%!important;
+    bottom:auto!important;
+    width:104px!important;
+    padding:7px!important;
+    gap:5px!important;
+  }
+  .livecareMapPanel .mapLegend.verticalStatusPanel button{min-height:31px;padding:6px 7px;gap:6px}
+  .livecareMapPanel .mapLegend.verticalStatusPanel button b{font-size:10px!important}
+}
+
+/* Build 031: modern far-right vertical status rail */
+.livecareMapPanel .mapLegend.verticalStatusPanel{
+  position:absolute!important;
+  left:auto!important;
+  right:10px!important;
+  top:50%!important;
+  bottom:auto!important;
+  transform:translateY(-50%)!important;
+  width:112px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch!important;
+  justify-content:center!important;
+  grid-template-columns:none!important;
+  gap:6px!important;
+  padding:7px!important;
+  border-radius:18px!important;
+  background:rgba(8,31,51,.82)!important;
+  border:1px solid rgba(255,255,255,.18)!important;
+  box-shadow:0 16px 40px rgba(3,18,31,.30)!important;
+  backdrop-filter:blur(18px) saturate(135%)!important;
+  -webkit-backdrop-filter:blur(18px) saturate(135%)!important;
+  z-index:900!important;
+  overflow:visible!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel button{
+  width:100%!important;
+  min-height:38px!important;
+  display:grid!important;
+  grid-template-columns:10px 1fr!important;
+  align-items:center!important;
+  gap:8px!important;
+  padding:8px 9px!important;
+  border:1px solid transparent!important;
+  border-radius:12px!important;
+  background:rgba(255,255,255,.08)!important;
+  color:#f5fbff!important;
+  box-shadow:none!important;
+  text-align:left!important;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel button:hover{
+  background:rgba(255,255,255,.15)!important;
+  border-color:rgba(255,255,255,.20)!important;
+  transform:translateX(-2px)!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel button.active,
+.livecareMapPanel .mapLegend.verticalStatusPanel button[aria-pressed="true"]{
+  background:#ffffff!important;
+  border-color:#ffffff!important;
+  color:#082943!important;
+  box-shadow:0 8px 20px rgba(0,0,0,.18)!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel button b{
+  display:block!important;
+  font-size:10.5px!important;
+  font-weight:750!important;
+  line-height:1.15!important;
+  white-space:nowrap!important;
+  letter-spacing:.01em!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel button i{
+  display:block!important;
+  width:8px!important;
+  height:8px!important;
+  min-width:8px!important;
+  border-radius:999px!important;
+  box-shadow:0 0 0 3px rgba(255,255,255,.10)!important;
+}
+@media(max-width:720px){
+  .livecareMapPanel .mapLegend.verticalStatusPanel{
+    right:6px!important;
+    width:96px!important;
+    padding:6px!important;
+    gap:5px!important;
+  }
+  .livecareMapPanel .mapLegend.verticalStatusPanel button{
+    min-height:34px!important;
+    padding:7px!important;
+    grid-template-columns:8px 1fr!important;
+    gap:6px!important;
+  }
+  .livecareMapPanel .mapLegend.verticalStatusPanel button b{font-size:9.5px!important}
+}
+
+/* Build 032: single true vertical status rail at the map's far-right edge */
+.livecareStoryPanel .livecareCompactMetrics.mapStatusFilters{
+  display:none!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel{
+  position:absolute!important;
+  left:auto!important;
+  right:0!important;
+  top:50%!important;
+  bottom:auto!important;
+  transform:translateY(-50%)!important;
+  width:106px!important;
+  display:flex!important;
+  flex-flow:column nowrap!important;
+  align-items:stretch!important;
+  justify-content:flex-start!important;
+  gap:5px!important;
+  padding:7px 6px!important;
+  margin:0!important;
+  border-radius:16px 0 0 16px!important;
+  z-index:1200!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel > button{
+  display:flex!important;
+  flex:0 0 auto!important;
+  width:100%!important;
+  min-width:0!important;
+  min-height:36px!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:7px!important;
+  margin:0!important;
+  padding:7px 8px!important;
+  white-space:nowrap!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel > button b{
+  display:block!important;
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+@media(max-width:720px){
+  .livecareMapPanel .mapLegend.verticalStatusPanel{
+    right:0!important;
+    width:94px!important;
+    border-radius:14px 0 0 14px!important;
+  }
+}
+
+/* Build 033: draggable, map-constrained Livecare status panel */
+.livecareMapPanel .mapLegend.verticalStatusPanel{
+  touch-action:none!important;
+  user-select:none!important;
+  cursor:default!important;
+  right:auto!important;
+  bottom:auto!important;
+  transform:none!important;
+  border-radius:16px!important;
+  transition:box-shadow .18s ease,background .18s ease!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel.isDragging{
+  cursor:grabbing!important;
+  box-shadow:0 22px 52px rgba(3,18,31,.42)!important;
+  background:rgba(8,31,51,.94)!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel .statusDragHandle{
+  width:100%!important;
+  min-height:24px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:5px!important;
+  padding:3px 7px!important;
+  border:0!important;
+  border-radius:10px!important;
+  background:rgba(255,255,255,.06)!important;
+  color:rgba(245,251,255,.82)!important;
+  cursor:grab!important;
+  touch-action:none!important;
+  letter-spacing:.02em!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel .statusDragHandle:hover{
+  background:rgba(255,255,255,.14)!important;
+  transform:none!important;
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel .statusDragHandle:active{cursor:grabbing!important}
+.livecareMapPanel .mapLegend.verticalStatusPanel .statusDragHandle span{
+  font-size:15px!important;
+  line-height:1!important;
+  letter-spacing:-3px!important;
+  transform:rotate(90deg);
+}
+.livecareMapPanel .mapLegend.verticalStatusPanel .statusDragHandle small{
+  font-size:9px!important;
+  font-weight:800!important;
+  text-transform:uppercase!important;
+  letter-spacing:.12em!important;
+}
+@media(max-width:720px){
+ .livecareMapPanel .mapLegend.verticalStatusPanel{border-radius:14px!important}
+ .livecareMapPanel .mapLegend.verticalStatusPanel .statusDragHandle small{display:none}
+}
+
+/* Build 035: reliable draggable status panel interaction */
+.livecareStatusDragging,
+.livecareStatusDragging *{cursor:grabbing!important;user-select:none!important}
+.livecareMapPanel .verticalStatusPanel[data-drag-ready="true"] .statusDragHandle{
+  pointer-events:auto!important;
+  cursor:grab!important;
+  touch-action:none!important;
+  -webkit-user-drag:none!important;
+}
+.livecareMapPanel .verticalStatusPanel[data-drag-ready="true"] .statusDragHandle *{
+  pointer-events:none!important;
+}

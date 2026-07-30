@@ -1,0 +1,180 @@
+/* Booking Route Map Display Fixes */
+
+/* Ensure map container has proper dimensions */
+[data-testid="map-container"],
+[id*="map"],
+.mapContainer,
+div[style*="mapDiv"],
+div[style*="google.maps"] {
+  width: 100% !important;
+  height: 400px !important;
+  min-height: 300px !important;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 15px 0;
+  background: #f0f0f0;
+  border: 1px solid var(--line, #dce6ee);
+}
+
+/* Trip route section styling */
+.tripRouteSection,
+[data-testid="trip-route"],
+.routeMetrics,
+.routeEstimate {
+  margin-top: 20px;
+  padding: 15px;
+  background: var(--soft, #f3f8fb);
+  border-radius: 12px;
+  border: 1px solid var(--line, #dce6ee);
+}
+
+.tripRouteSection h3,
+[data-testid="trip-route"] h3 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink, #102338);
+}
+
+/* Distance and duration display */
+.routeMetrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.routeMetric {
+  text-align: center;
+  padding: 10px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid var(--line, #dce6ee);
+}
+
+.routeMetric strong {
+  display: block;
+  font-size: 18px;
+  color: var(--blue, #0369a1);
+  margin: 5px 0;
+}
+
+.routeMetric span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted, #62758a);
+}
+
+/* Fare estimate display */
+.fareEstimate {
+  text-align: center;
+  padding: 12px;
+  background: linear-gradient(135deg, var(--red, #e11d48), #be123c);
+  color: white;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.fareEstimate strong {
+  display: block;
+  font-size: 24px;
+  margin-top: 5px;
+}
+
+/* Calculate route button styling */
+.calculateRouteBtn,
+[data-testid="calculate-route"],
+button[data-calculate-route] {
+  background: linear-gradient(135deg, var(--blue, #0369a1), #0284c7);
+  color: white;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  margin-top: 10px;
+}
+
+.calculateRouteBtn:hover,
+[data-testid="calculate-route"]:hover,
+button[data-calculate-route]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(3, 105, 161, 0.3);
+}
+
+.calculateRouteBtn:active,
+[data-testid="calculate-route"]:active,
+button[data-calculate-route]:active {
+  transform: translateY(0);
+}
+
+/* Loading state for map */
+.map-loading,
+.mapLoading {
+  position: relative;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Responsive map sizing */
+@media (max-width: 768px) {
+  [data-testid="map-container"],
+  [id*="map"],
+  .mapContainer,
+  div[style*="mapDiv"] {
+    height: 300px !important;
+    min-height: 250px !important;
+  }
+  
+  .routeMetrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  [data-testid="map-container"],
+  [id*="map"],
+  .mapContainer,
+  div[style*="mapDiv"] {
+    height: 250px !important;
+    min-height: 200px !important;
+  }
+  
+  .routeMetrics {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+/* Google Maps controls styling */
+.gm-style-cc,
+.gmnoprint {
+  font-size: 11px !important;
+}
+
+.gm-control-active {
+  box-shadow: 0 2px 4px rgba(0,0,0,.2);
+}
+
+/* Ensure map is visible in modal/dialog */
+[role="dialog"] [data-testid="map-container"],
+[role="dialog"] [id*="map"],
+[role="dialog"] .mapContainer,
+.modalContent [data-testid="map-container"],
+.modalContent [id*="map"],
+.modalContent .mapContainer {
+  width: 100% !important;
+  height: 350px !important;
+  position: relative;
+  z-index: 1;
+}

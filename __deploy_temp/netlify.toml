@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20.20.2"
+  NPM_VERSION = "10.9.2"
+  NPM_FLAGS = "--registry=https://registry.npmjs.org/"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

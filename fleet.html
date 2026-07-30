@@ -1,0 +1,60 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#082f49"><meta name="description" content="NEXUS ONE fleet readiness, inspections, maintenance and live operational status."><title>Fleet Management | NEXUS ONE</title><style>html{visibility:hidden}body{visibility:hidden}</style>
+  <link rel="stylesheet" href="./platform.css">  <script src="/trustedsite.js" defer></script>
+  <script src="/i18n.js" defer></script>
+<script src="./auth-guard.js"></script><script src="./nexus-data.js"></script>
+<script src="./universal-booking.js" defer></script></head><body><a class="skip" href="#main">Skip to main content</a><header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="fleetNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/#services">Services</a><a href="/#experience">Experience</a><a href="/#coverage">Coverage</a><a href="/#facilities">Facilities</a><a href="/#safety-and-quality">Assurance</a><a href="/livecare.html">Livecare</a><a aria-current="page" href="/fleet.html">Fleet</a></nav><div class="globalActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18887604990"><small>Call Nexus</small><strong>(888) 760-4990</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true">→</span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="fleetNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header>
+<section class="hero livecareMapHero"><div class="shell livecareExperience">
+<div class="livecareStoryPanel">
+  <div><div class="eyebrow"><span class="liveDot" aria-hidden="true"></span>NEXUS Fleet</div>
+  <h1>Know which vehicles are ready before dispatch assigns them.</h1>
+  <p>Manage inspections, maintenance, equipment, fuel and operational availability from one fleet control center.</p></div>
+  <div class="livecareCompactMetrics" aria-label="Fleet overview" aria-live="polite">
+    <span><small>Fleet units</small><strong id="fleetTotal">—</strong></span>
+    <span><small>Ready</small><strong id="fleetReady">—</strong></span>
+    <span><small>In service</small><strong id="fleetActive">—</strong></span>
+    <span><small>Maintenance due</small><strong id="fleetDue">—</strong></span>
+  </div>
+  <div class="livecareStoryActions">
+    <a class="button lightButton" href="#vehicleStatus">Vehicle status</a>
+    <a class="button outlineLight" href="/dispatch.html">Dispatch</a>
+    <a class="button outlineLight" href="tel:+18887604990">Call support</a>
+  </div>
+</div>
+<aside class="livecareMapPanel" aria-label="Fleet location board">
+  <div class="mapTopBar"><div><span class="mapLiveBadge">Live fleet</span><small id="fleetUpdated">Operational status loading…</small></div><button id="refreshLocations" type="button" class="mapRefresh">Refresh</button></div>
+  <div class="liveFleetMapShell mapOnlyShell" style="background:#dbe6ee;position:relative">
+    <div id="fleetMap" class="liveFleetMap" aria-label="Live fleet location map" style="position:absolute;inset:0;min-height:100%"></div>
+  </div>
+  <div class="mapServiceStrip" aria-label="Filter by status">
+    <button type="button" class="active" id="filterAll">All vehicles</button>
+    <button type="button" id="filterReady">Ready</button>
+    <button type="button" id="filterInService">In service</button>
+    <button type="button" id="filterMaintenance">Maintenance</button>
+  </div>
+</aside>
+</div></section>
+<main id="main" class="shell moduleMain" tabindex="-1">
+<section class="grid cols2 build4Grid" id="vehicleStatus" style="margin-top:22px"><article class="card"><h2>Readiness controls</h2><form id="fleetForm"><div class="field"><label for="fleetVehicle">Vehicle</label><select id="fleetVehicle"></select></div><div class="field"><label for="fleetStatus">Operational status</label><select id="fleetStatus"><option value="ready">Ready</option><option value="assigned">Assigned</option><option value="in-service">In service</option><option value="maintenance">Maintenance</option><option value="out-of-service">Out of service</option></select></div><div class="field"><label for="fleetFuel">Fuel level (%)</label><input id="fleetFuel" type="number" min="0" max="100"></div><div class="field"><label><input id="fleetInspection" type="checkbox"> Daily inspection complete</label></div><button class="button" type="submit">Save vehicle status</button></form><div id="fleetNotice" class="notice" role="status" aria-live="polite"></div></article><article class="card"><h2>Maintenance schedule</h2><div id="maintenanceList" style="display:grid;gap:10px"></div></article></section>
+<section class="card" style="margin-top:22px"><div class="sectionHead"><div><p class="eyebrow">Readiness</p><h2>Vehicle status</h2></div><button id="resetFleet" class="button secondary">Reset fleet data</button></div><div class="tableWrap"><table class="table"><thead><tr><th>Unit</th><th>Type</th><th>Status</th><th>Driver</th><th>Fuel</th><th>Inspection</th><th>Maintenance</th></tr></thead><tbody id="fleetRows"></tbody></table></div></section>
+<section class="card fleetGalleryCard" style="margin-top:22px"><h2>Nexus fleet gallery</h2><div class="fleetGallery"><figure><img src="./assets/nexus-shuttle-side.webp" alt="Side view of a Nexus accessible shuttle"><figcaption>Accessible shuttle and patient transport</figcaption></figure><figure><img src="./assets/nexus-ambulance-exterior.webp" alt="Nexus Medical Transit ambulance"><figcaption>Scheduled ambulance and medical transport</figcaption></figure><figure><img src="./assets/nexus-ambulance-interior.webp" alt="Interior of a Nexus ambulance"><figcaption>Patient-ready clinical transport interior</figcaption></figure></div></section></main>
+<footer class="footer"><div class="shell footerGrid"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Operations</strong><a href="/dispatch.html">Dispatch</a><a href="/fleet.html">Fleet</a><a href="/driver.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18887604990">(888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">♿</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-core.js"></script><script src="./build4-operations.js"></script><script src="./platform.js"></script><script>
+(function(){const $=s=>document.querySelector(s);let fleet=NexusOps.loadFleet();
+ const cls=s=>s==='ready'?'green':s==='maintenance'||s==='out-of-service'?'amber':'blue';
+ function render(){fleet=NexusOps.loadFleet();$('#fleetTotal').textContent=fleet.length;$('#fleetReady').textContent=fleet.filter(v=>v.status==='ready').length;$('#fleetActive').textContent=fleet.filter(v=>['assigned','in-service'].includes(v.status)).length;$('#fleetDue').textContent=fleet.filter(v=>v.maintenanceDueMiles<=0||v.status==='maintenance').length;$('#fleetUpdated').textContent='Last synchronized '+new Date(Math.max(...fleet.map(v=>Date.parse(v.lastUpdate)||0))).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+ $('#fleetRows').innerHTML=fleet.map(v=>`<tr><td><strong>${v.id}</strong></td><td>${v.type}</td><td><span class="status ${cls(v.status)}">${NexusOps.statusLabel(v.status)}</span></td><td>${v.driver||'Unassigned'}</td><td>${v.fuel}%</td><td>${v.inspection?'Complete':'Required'}</td><td>${v.maintenanceDueMiles<=0?'Due now':`Due in ${Number(v.maintenanceDueMiles).toLocaleString()} mi`}</td></tr>`).join('');
+ $('#fleetVehicle').innerHTML=fleet.map(v=>`<option value="${v.id}">${v.id} · ${v.type}</option>`).join(''); renderMap(); renderMaintenance(); loadSelected();}
+ function renderMap(){
+  const minLat=Math.min(...fleet.map(v=>v.lat)),maxLat=Math.max(...fleet.map(v=>v.lat));
+  const minLng=Math.min(...fleet.map(v=>v.lng)),maxLng=Math.max(...fleet.map(v=>v.lng));
+  const statusCls=s=>s==='ready'?'available':s==='assigned'||s==='in-service'?'onboard':s==='maintenance'||s==='out-of-service'?'attention':'available';
+  $('#fleetMap').innerHTML=`<div class="nativeMapTiles" style="background:radial-gradient(circle at 40% 35%,#e8f0f5,#cbd9e2)"></div><div class="opsGrid" style="position:absolute;inset:0;background-image:linear-gradient(rgba(8,47,73,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(8,47,73,.07) 1px,transparent 1px);background-size:30px 30px"></div><div class="nativeMapMarkers">${fleet.map(v=>{const x=8+84*((v.lng-minLng)/(maxLng-minLng||1));const y=8+80*(1-(v.lat-minLat)/(maxLat-minLat||1));return `<button class="nativeVehicleMarker ${statusCls(v.status)}" style="left:${x}%;top:${y}%;transform:translate(-50%,-50%)" title="${v.id}: ${NexusOps.statusLabel(v.status)}" onclick="document.getElementById('fleetVehicle').value='${v.id}';loadSelected()"><span style="font-size:11px;font-weight:900">${v.id}</span><b style="font-size:9px">${v.type.split(' ')[0]}</b></button>`}).join('')}</div><div class="opsLegend mapLegend" aria-label="Fleet status legend"><span><i class="onboard"></i>In service</span><span><i class="available"></i>Ready</span><span><i class="attention"></i>Maintenance</span></div>`;
+ }
+ function renderMaintenance(){
+  const sorted=[...fleet].sort((a,b)=>a.maintenanceDueMiles-b.maintenanceDueMiles);
+  $('#maintenanceList').innerHTML=sorted.map(v=>{const due=v.maintenanceDueMiles<=0;const pct=Math.min(100,Math.max(0,100-v.maintenanceDueMiles/50));return `<div style="padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><strong style="font-size:13px">${v.id} · ${v.type}</strong><span class="status ${due?'red':'green'}" style="font-size:10px">${due?'Due now':`${Number(v.maintenanceDueMiles).toLocaleString()} mi`}</span></div><div style="height:6px;background:#e8eef3;border-radius:999px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${due?'var(--red)':pct>70?'var(--amber)':'var(--green)'};border-radius:inherit"></div></div></div>`}).join('');
+ }
+ function loadSelected(){const v=fleet.find(x=>x.id===$('#fleetVehicle').value)||fleet[0];if(!v)return;$('#fleetStatus').value=v.status;$('#fleetFuel').value=v.fuel;$('#fleetInspection').checked=v.inspection;}
+ $('#fleetVehicle').addEventListener('change',loadSelected);$('#fleetForm').addEventListener('submit',e=>{e.preventDefault();fleet=fleet.map(v=>v.id===$('#fleetVehicle').value?{...v,status:$('#fleetStatus').value,fuel:Number($('#fleetFuel').value),inspection:$('#fleetInspection').checked,lastUpdate:NexusOps.nowIso()}:v);NexusOps.saveFleet(fleet);render();$('#fleetNotice').textContent='Vehicle readiness updated for Dispatch and Driver.';});
+ $('#refreshLocations').addEventListener('click',()=>{fleet=fleet.map(v=>({...v,lat:v.lat+(Math.random()-.5)*.012,lng:v.lng+(Math.random()-.5)*.012,lastUpdate:NexusOps.nowIso()}));NexusOps.saveFleet(fleet);render();});
+ $('#resetFleet').addEventListener('click',()=>{localStorage.removeItem('nexusFleet');fleet=NexusOps.loadFleet();render();$('#fleetNotice').textContent='Fleet data reset.';});render();})();</script></body></html>
+
