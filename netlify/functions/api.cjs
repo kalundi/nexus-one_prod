@@ -460,7 +460,14 @@ async function handler(event){
    const u=await requireUser(bearer(event),['DRIVER','ADMIN','DISPATCHER']);const b=parseBody(event);required(b,['vehicleUnit','latitude','longitude']);
    const lat=Number(b.latitude),lng=Number(b.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180)return json(400,{error:'Invalid coordinates'});
    await query(`INSERT INTO gps_positions(vehicle_unit,driver_scope_id,booking_reference,latitude,longitude,heading,speed_mph,accuracy_m,recorded_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,now()))`,[b.vehicleUnit,u.scope_id||null,b.bookingReference||null,lat,lng,b.heading||null,b.speedMph||null,b.accuracyM||null,b.recordedAt||null]);
-   await query(`UPDATE vehicles SET latitude=$2,longitude=$3,heading=$4,speed_mph=$5,last_seen_at=now(),updated_at=now() WHERE unit_number=$1`,[b.vehicleUnit,lat,lng,b.heading||null,b.speedMph||null]);return json(202,{accepted:true});
+    const unit=clean(b.vehicleUnit);
+    const vehicleType=clean(b.vehicleType)||'wheelchair';
+    const status=clean(b.status).toUpperCase().replaceAll('-','_')||'EN_ROUTE';
+    const updated=await query(`UPDATE vehicles SET latitude=$2,longitude=$3,heading=$4,speed_mph=$5,last_seen_at=now(),updated_at=now() WHERE unit_number=$1`,[unit,lat,lng,b.heading||null,b.speedMph||null]);
+    if(updated.rowCount===0){
+     await query(`INSERT INTO vehicles(unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,now(),now())`,[unit,vehicleType,status,lat,lng,b.heading||null,b.speedMph||null]);
+    }
+    return json(202,{accepted:true});
   }
   if(p[0]==='auth'&&p[1]==='me'&&method==='GET'){const u=await requireUser(bearer(event));return json(200,{user:safeUser(u)})}
   if(p[0]==='auth'&&p[1]==='logout'&&method==='POST'){const token=bearer(event);if(token)await query('UPDATE sessions SET revoked_at=now() WHERE token_digest=$1',[digest(token)]);return json(200,{ok:true})}
