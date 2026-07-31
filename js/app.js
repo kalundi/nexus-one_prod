@@ -9,7 +9,7 @@
  }
  const navToggle=$('.mobileNavToggle');
  navToggle?.addEventListener('click',e=>{const nav=$('#livecareNav'),open=!nav.classList.contains('open');nav.classList.toggle('open',open);e.currentTarget.setAttribute('aria-expanded',String(open));e.currentTarget.setAttribute('aria-label',open?'Close navigation':'Open navigation')});
- $('#livecareNav')?.addEventListener('click',()=>{if(innerWidth<=950){$('#livecareNav').classList.remove('open');navToggle?.setAttribute('aria-expanded','false');navToggle?.setAttribute('aria-label','Open navigation')}});
+ $('#livecareNav')?.addEventListener('click',e=>{if(window.innerWidth<=950&&e.target&&e.target.closest('a')){$('#livecareNav').classList.remove('open');navToggle?.setAttribute('aria-expanded','false');navToggle?.setAttribute('aria-label','Open navigation')}});
  document.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.securePanel').forEach(x=>x.hidden=true);if(b.classList.contains('livecareRoleButton')){document.querySelectorAll('.livecareRoleButton').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')}const panel=$('#'+b.dataset.open);panel.hidden=false;if(b.dataset.role){$('#expectedRole').value=b.dataset.role;$('#staffRoleLabel').textContent=b.dataset.role==='FACILITY'?'Facility administrator':b.dataset.role==='DRIVER'?'Driver access':'Dispatch access';$('#staffHelp').textContent=b.dataset.role==='FACILITY'?'Use the facility account number issued by Nexus.':'Use your individual Nexus username. Never use a shared account.'}panel.scrollIntoView({behavior:'smooth',block:'center'});panel.querySelector('input:not([type=hidden])')?.focus()}));
  document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>b.closest('.securePanel').hidden=true));
  $('#switchLivecareUser')?.addEventListener('click',()=>{const gateway=$('#accessTitle')?.closest('.accessGateway');gateway?.scrollIntoView({behavior:'smooth',block:'start'});});
@@ -235,7 +235,10 @@ function renderFleet(data,role,mode){
    console.warn('Preview access not available:',err.message);
   }
  }
- $('#togglePassword').addEventListener('click',e=>{e.preventDefault();const input=$('#password'),toggle=$('#togglePassword'),isPassword=input.type==='password';input.type=isPassword?'text':'password';toggle.textContent=isPassword?'🙈':'👁';toggle.setAttribute('aria-label',isPassword?'Hide password':'Show password');input.focus()});
+ const togglePassword=$('#togglePassword');
+ if(togglePassword){
+  togglePassword.addEventListener('click',e=>{e.preventDefault();const input=$('#password'),toggle=$('#togglePassword'),isPassword=input&&input.type==='password';if(!input||!toggle)return;input.type=isPassword?'text':'password';toggle.textContent=isPassword?'🙈':'👁';toggle.setAttribute('aria-label',isPassword?'Hide password':'Show password');input.focus()});
+ }
  $('#staffLogin').addEventListener('submit',async e=>{e.preventDefault();const error=$('#staffError'),submit=$('#staffSubmit'),label=submit.querySelector('span');error.textContent='';submit.disabled=true;label.textContent='Signing in…';try{const expected=$('#expectedRole').value;const j=await request('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:$('#identifier').value.trim(),password:$('#password').value})});if(expected&&j.user.role!==expected&&j.user.role!=='ADMIN'){await fetch('/api/auth/logout',{method:'POST',headers:{authorization:`Bearer ${j.token}`}});throw Error('This account does not have permission for the selected portal.')}sessionStorage.setItem('nexusAccessToken',j.token);sessionStorage.setItem('nexusUser',JSON.stringify(j.user));location.assign('/livecare.html')}catch(err){error.textContent=err.message}finally{submit.disabled=false;label.textContent='Sign in securely'}}); 
  const saved=sessionStorage.getItem('nexusPatientRide');if(saved){try{verified=JSON.parse(saved);load().catch(()=>sessionStorage.removeItem('nexusPatientRide'))}catch{}}
  loadPreview();

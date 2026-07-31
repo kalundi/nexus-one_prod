@@ -99,16 +99,32 @@ function addSelector(){
   bindSelectors();
  }
  const observer=new MutationObserver(ms=>{
-  let needsSync=false;
-  ms.forEach(m=>m.addedNodes.forEach(n=>{
-   if(n.nodeType===1||n.nodeType===3)translateNode(n);
-   if(n.nodeType===1){
-    if(n.matches?.('[data-nexus-language]')||n.querySelector?.('[data-nexus-language]')) needsSync=true;
-   }
-  }));
-  if(needsSync)syncLanguageSelectors();
+    let needsSync=false;
+    ms.forEach(m=>{
+     if(m.type==='characterData'&&m.target&&m.target.nodeType===3){
+        const textNode=m.target;
+        const prior=originals.get(textNode);
+        if(prior===undefined){
+            originals.set(textNode,textNode.nodeValue);
+        }else{
+            const expected=translateText(prior);
+            if(textNode.nodeValue!==expected){
+                originals.set(textNode,textNode.nodeValue);
+            }
+        }
+        textNode.nodeValue=translateText(originals.get(textNode));
+        return;
+     }
+     m.addedNodes.forEach(n=>{
+        if(n.nodeType===1||n.nodeType===3)translateNode(n);
+        if(n.nodeType===1){
+            if(n.matches?.('[data-nexus-language]')||n.querySelector?.('[data-nexus-language]')) needsSync=true;
+        }
+     });
+    });
+    if(needsSync)syncLanguageSelectors();
  });
- function init(){addSelector();bindSelectors();apply();syncLanguageSelectors();observer.observe(document.body,{childList:true,subtree:true});}
+ function init(){addSelector();bindSelectors();apply();syncLanguageSelectors();observer.observe(document.body,{childList:true,subtree:true,characterData:true});}
  window.NexusI18n={setLocale,getLocale:()=>locale,locales,t:(s)=>exact(s),formatCurrency:(n,c='USD')=>new Intl.NumberFormat(locale,{style:'currency',currency:c}).format(n),formatDate:(d,o)=>new Intl.DateTimeFormat(locale,o).format(new Date(d))};
  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
 })();
