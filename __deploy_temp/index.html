@@ -12,6 +12,34 @@
     *, *::before, *::after {
       box-sizing: border-box;
     }
+
+    @media (max-width: 950px) {
+      .menuBtn,
+      .navBookRide,
+      #primary-navigation a {
+        min-height: 44px;
+      }
+
+      .menuBtn {
+        min-width: 44px;
+      }
+
+      #primary-navigation {
+        max-height: calc(100vh - 76px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      #primary-navigation a {
+        display: flex;
+        align-items: center;
+        padding-block: 10px;
+      }
+
+      .navRight .call {
+        display: none !important;
+      }
+    }
   </style>
 </head><body><div id="root"></div><script>
 (function(){
