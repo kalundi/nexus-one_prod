@@ -164,9 +164,9 @@
         clone=livecare.cloneNode(true);
         clone.dataset.mobileLivecare='1';
         normalizeMobileLivecare(clone);
-        const thirdLink=nav.querySelector('a:nth-of-type(3)');
-        if(thirdLink&&thirdLink.parentNode===nav){
-          nav.insertBefore(clone, thirdLink.nextSibling);
+        const secondLink=nav.querySelector('a:nth-of-type(2)');
+        if(secondLink&&secondLink.parentNode===nav){
+          nav.insertBefore(clone, secondLink.nextSibling);
         } else {
           nav.appendChild(clone);
         }
