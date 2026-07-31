@@ -343,12 +343,27 @@
     window.location.assign(bookingUrl(card));
   }
 
+  function routeTripLocationButton(event){
+    const button=event.target.closest('button');
+    if(!button) return;
+    const label=String(button.getAttribute('aria-label')||button.textContent||'').replace(/\s+/g,' ').trim();
+    if(!/^check a trip location$/i.test(label)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    window.location.assign('/livecare.html');
+  }
+
   document.addEventListener('pointerdown', routeJourneyCard, true);
   document.addEventListener('mousedown', routeJourneyCard, true);
   document.addEventListener('click', routeJourneyCard, true);
+  document.addEventListener('pointerdown', routeTripLocationButton, true);
+  document.addEventListener('mousedown', routeTripLocationButton, true);
+  document.addEventListener('click', routeTripLocationButton, true);
   document.addEventListener('keydown', function(event){
     if(event.key!=='Enter'&&event.key!==' ') return;
     routeJourneyCard(event);
+    routeTripLocationButton(event);
   }, true);
 
   let mobileSyncAttempts=0;
