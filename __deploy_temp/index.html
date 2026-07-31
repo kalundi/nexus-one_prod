@@ -84,6 +84,10 @@
     }
   </style>
   <style id="homepage-footer-world-class-redesign">
+    .cta {
+      display: none !important;
+    }
+
     .footer {
       position: relative;
       margin-top: 24px;
@@ -269,6 +273,9 @@
 </head><body><div id="root"></div><script>
 (function(){
   function normalizeHomepageFooter(){
+    const cta=document.querySelector('section.cta');
+    if(cta) cta.remove();
+
     const footer=document.querySelector('footer');
     if(!footer)return false;
 
