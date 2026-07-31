@@ -29,6 +29,7 @@ if(!locales[locale]) locale='en-US';
 const originals=new WeakMap();
 const originalAttributes=new WeakMap();
 const originalTitle=document.title;
+let isTranslating=false;
 function exact(value){const map=dictionary[locale]||{};return map[value]||value;}
 function escapeRegExp(value){return String(value).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
 function translateText(text){
@@ -48,7 +49,13 @@ function translateText(text){
 function translateNode(node){
  if(node.nodeType===3){
   if(!originals.has(node)) originals.set(node,node.nodeValue);
-  node.nodeValue=translateText(originals.get(node)); return;
+    const translated=translateText(originals.get(node));
+    if(node.nodeValue!==translated){
+     isTranslating=true;
+     node.nodeValue=translated;
+     isTranslating=false;
+    }
+    return;
  }
  if(node.nodeType!==1||['SCRIPT','STYLE','NOSCRIPT','CODE','PRE','TEXTAREA'].includes(node.tagName))return;
  ['aria-label','title','placeholder','value'].forEach(a=>{
@@ -62,6 +69,7 @@ function translateNode(node){
  node.childNodes.forEach(translateNode);
 }
 function apply(root=document.body){
+ isTranslating=true;
  document.documentElement.lang=locale;
  document.documentElement.dataset.locale=locale;
  document.title=translateText(originalTitle);
@@ -69,6 +77,7 @@ function apply(root=document.body){
  document.querySelectorAll('[data-nexus-language]').forEach(s=>{normalizeLanguageSelectorOptions(s);s.value=locale;});
  window.dispatchEvent(new CustomEvent('nexus:localechange',{detail:{locale}}));
  const live=document.getElementById('nexus-language-status');if(live)live.textContent=(locales[locale]?.label||locale)+' selected';
+ isTranslating=false;
 }
 function setLocale(next){if(!locales[next])return;locale=next;localStorage.setItem(STORAGE,next);try{apply();}catch(error){console.error('NEXUS language switch failed:',error);document.documentElement.lang=locale;document.documentElement.dataset.locale=locale;}}
 function addSelector(){
@@ -99,6 +108,7 @@ function addSelector(){
   bindSelectors();
  }
  const observer=new MutationObserver(ms=>{
+     if(isTranslating)return;
     let needsSync=false;
     ms.forEach(m=>{
      if(m.type==='characterData'&&m.target&&m.target.nodeType===3){
@@ -112,7 +122,12 @@ function addSelector(){
                 originals.set(textNode,textNode.nodeValue);
             }
         }
-        textNode.nodeValue=translateText(originals.get(textNode));
+        const translated=translateText(originals.get(textNode));
+        if(textNode.nodeValue!==translated){
+            isTranslating=true;
+            textNode.nodeValue=translated;
+            isTranslating=false;
+        }
         return;
      }
      m.addedNodes.forEach(n=>{
