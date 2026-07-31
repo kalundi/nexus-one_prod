@@ -244,6 +244,27 @@
     return true;
   }
 
+  function updateMobileServicesSectionVisibility(){
+    const menuBtn=document.querySelector('.menuBtn');
+    const compactNavActive=window.innerWidth<=BREAKPOINT || (menuBtn&&window.getComputedStyle(menuBtn).display!=='none');
+    const servicesAnchor=document.querySelector('#services');
+    const servicesSection=servicesAnchor?(servicesAnchor.closest('section')||servicesAnchor):null;
+
+    if(!servicesSection) return true;
+
+    if(compactNavActive){
+      servicesSection.style.setProperty('display','none','important');
+      servicesSection.setAttribute('aria-hidden','true');
+      servicesSection.setAttribute('data-mobile-services-hidden','1');
+      return true;
+    }
+
+    servicesSection.style.removeProperty('display');
+    servicesSection.removeAttribute('aria-hidden');
+    servicesSection.removeAttribute('data-mobile-services-hidden');
+    return true;
+  }
+
   function bindMobileMenuToggle(){
     const btn=document.querySelector('.menuBtn');
     const nav=document.querySelector('#primary-navigation');
@@ -301,7 +322,8 @@
   const sync=()=>{
     const livecareReady=showLivecareInMobileMenu();
     const toggleReady=bindMobileMenuToggle();
-    if(!(livecareReady&&toggleReady)&&mobileSyncAttempts<20){
+    const servicesReady=updateMobileServicesSectionVisibility();
+    if(!(livecareReady&&toggleReady&&servicesReady)&&mobileSyncAttempts<20){
       mobileSyncAttempts+=1;
       window.setTimeout(sync,100);
     }
