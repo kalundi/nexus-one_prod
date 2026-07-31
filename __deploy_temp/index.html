@@ -91,43 +91,6 @@
       if(isBookCta(el)){
         el.classList.add('bookRideSign');
         if(el.tagName==='A')el.setAttribute('href',buildBookingUrl(el));
-
-    function isJourneyCard(el){
-      if(!el||el.tagName!=='BUTTON')return false;
-      const label=String(el.getAttribute('aria-label')||'').trim().toLowerCase();
-      return label.startsWith('request ')&&label.endsWith(' transportation');
-    }
-
-    function redirectJourneyCard(event){
-      const el=event.target.closest('button[aria-label^="Request "]');
-      if(!isJourneyCard(el))return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      const target=window.location.protocol==='file:'?'https://www.nexusmt.com'+buildBookingUrl(el):buildBookingUrl(el);
-      window.location.assign(target);
-    }
-
-    function applyJourneyCards(root){
-      (root||document).querySelectorAll('button[aria-label^="Request "]').forEach(function(el){
-        if(!isJourneyCard(el))return;
-        el.classList.add('bookRideSign');
-        if(el.dataset.bookRideBound==='1')return;
-        el.dataset.bookRideBound='1';
-        el.style.cursor='pointer';
-        const redirect=function(event){
-          redirectJourneyCard(event);
-        };
-        el.addEventListener('pointerdown',redirect,true);
-        el.addEventListener('mousedown',redirect,true);
-        el.addEventListener('click',redirect,true);
-        el.addEventListener('keydown',function(event){
-          if(event.key==='Enter'||event.key===' '){
-            redirectJourneyCard(event);
-          }
-        },true);
-      });
-    }
       }
     });
   }
@@ -143,21 +106,20 @@
 
   document.addEventListener('pointerdown', redirectBookCta, true);
   document.addEventListener('mousedown', redirectBookCta, true);
+  document.addEventListener('click', redirectBookCta, true);
   document.addEventListener('keydown', function(event){
     if(event.key!=='Enter'&&event.key!==' '){return;}
     const el=event.target.closest('a, button, [role="button"]');
-    document.addEventListener('pointerdown', redirectJourneyCard, true);
-    document.addEventListener('mousedown', redirectJourneyCard, true);
-    document.addEventListener('click', redirectJourneyCard, true);
-    document.addEventListener('keydown', function(event){
-      if(event.key!=='Enter'&&event.key!==' '){return;}
-      const el=event.target.closest('button[aria-label^="Request "]');
-      if(isJourneyCard(el))redirectJourneyCard(event);
-    }, true);
+    if(isBookCta(el))redirectBookCta(event);
+  }, true);
+
+  ensureBookSignStyles();
+  applyBookRideSign(document);
+
+  const observer=new MutationObserver(function(records){
     records.forEach(function(record){
       record.addedNodes.forEach(function(node){
         if(node.nodeType!==1)return;
-    applyJourneyCards(document);
         if(node.matches&&node.matches('a, button, [role="button"]')&&isBookCta(node))node.classList.add('bookRideSign');
         if(node.querySelectorAll)applyBookRideSign(node);
       });
@@ -165,7 +127,6 @@
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
 })();
-          if(node.querySelectorAll)applyJourneyCards(node);
 </script><script>
 (function(){
   const BREAKPOINT=950;
