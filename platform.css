@@ -748,3 +748,7 @@ header .nav .navCta,header .nav .bookRide{background:linear-gradient(135deg,#ef3
 .bookRideSign:active{transform:translateY(0);filter:brightness(.98)}
 .bookRideSign span[aria-hidden="true"]{display:none!important}
 @media(max-width:620px){.bookRideSign{min-height:50px;padding:11px 17px!important;border-radius:16px!important;font-size:13px}}
+
+/* Build 044: remove inter-section gaps across site */
+main > section.section{padding-top:0!important;padding-bottom:0!important;margin-top:0!important;margin-bottom:0!important}
+main > section.section + section.section{margin-top:0!important}
