@@ -46,6 +46,7 @@
     }
   </style>
   <style id="homepage-language-selector-match-livecare">
+    .nexusLanguageControl.headerLanguageGlobal,
     .headerLanguage {
       position: static !important;
       display: inline-flex;
@@ -59,6 +60,7 @@
       box-shadow: none;
     }
 
+    .nexusLanguageControl.headerLanguageGlobal select,
     .headerLanguage select {
       min-width: 118px;
       min-height: 38px;
@@ -70,7 +72,12 @@
       padding: 4px 6px;
     }
 
+    .nexusLanguageControl.headerLanguageGlobal svg {
+      display: none !important;
+    }
+
     @media (max-width: 760px) {
+      .nexusLanguageControl.headerLanguageGlobal select,
       .headerLanguage select {
         min-width: 82px;
       }
@@ -199,6 +206,34 @@
     });
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script><script>
+(function(){
+  function normalizeHomepageLanguageSelector(){
+    const selectors=document.querySelectorAll('label.headerLanguage, label.nexusLanguageControl.headerLanguageGlobal');
+    selectors.forEach(function(label){
+      if(!label.querySelector('select[data-nexus-language]')) return;
+      label.classList.add('nexusLanguageControl','headerLanguageGlobal');
+      if(!label.dataset.nexusLangNormalized){
+        label.querySelectorAll('svg').forEach(function(icon){ icon.remove(); });
+        const sr=label.querySelector('.srOnly');
+        if(sr) sr.classList.add('sr');
+        label.dataset.nexusLangNormalized='1';
+      }
+    });
+  }
+
+  function startNormalization(){
+    normalizeHomepageLanguageSelector();
+    const observer=new MutationObserver(normalizeHomepageLanguageSelector);
+    observer.observe(document.documentElement,{childList:true,subtree:true});
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',startNormalization,{once:true});
+  }else{
+    startNormalization();
+  }
 })();
 </script><script>
 (function(){
