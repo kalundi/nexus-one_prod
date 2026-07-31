@@ -166,4 +166,60 @@
   observer.observe(document.documentElement,{childList:true,subtree:true});
 })();
           if(node.querySelectorAll)applyJourneyCards(node);
+</script><script>
+(function(){
+  const BREAKPOINT=950;
+
+  function parseService(el){
+    const label=String(el?.getAttribute('aria-label')||'').toLowerCase();
+    if(label.includes('wheelchair')) return 'wheelchair';
+    if(label.includes('stretcher')) return 'stretcher';
+    if(label.includes('ambulance')) return 'bls';
+    if(label.includes('shuttle')) return 'ambulatory';
+    return '';
+  }
+
+  function bookingUrl(el){
+    const service=parseService(el);
+    return service?`/booking-app.html?service=${encodeURIComponent(service)}`:'/booking-app.html';
+  }
+
+  function showLivecareInMobileMenu(){
+    const nav=document.querySelector('#primary-navigation');
+    const livecare=document.querySelector('.livecareLink');
+    if(!nav||!livecare) return;
+    let clone=nav.querySelector('[data-mobile-livecare="1"]');
+    if(window.innerWidth<=BREAKPOINT){
+      if(!clone){
+        clone=livecare.cloneNode(true);
+        clone.dataset.mobileLivecare='1';
+        nav.appendChild(clone);
+      }
+    } else if(clone){
+      clone.remove();
+    }
+  }
+
+  function routeJourneyCard(event){
+    const card=event.target.closest('button[aria-label^="Request "]');
+    if(!card) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    window.location.assign(bookingUrl(card));
+  }
+
+  document.addEventListener('pointerdown', routeJourneyCard, true);
+  document.addEventListener('mousedown', routeJourneyCard, true);
+  document.addEventListener('click', routeJourneyCard, true);
+  document.addEventListener('keydown', function(event){
+    if(event.key!=='Enter'&&event.key!==' ') return;
+    routeJourneyCard(event);
+  }, true);
+
+  const sync=()=>showLivecareInMobileMenu();
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', sync, { once:true }); else sync();
+  window.addEventListener('resize', sync);
+  new MutationObserver(sync).observe(document.documentElement, { childList:true, subtree:true });
+})();
 </script></body></html>
