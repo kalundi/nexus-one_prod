@@ -236,6 +236,5 @@
   const sync=()=>{showLivecareInMobileMenu();bindMobileMenuToggle();};
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', sync, { once:true }); else sync();
   window.addEventListener('resize', sync);
-  new MutationObserver(sync).observe(document.documentElement, { childList:true, subtree:true });
 })();
 </script></body></html>
