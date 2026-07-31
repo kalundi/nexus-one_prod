@@ -148,7 +148,7 @@
   function showLivecareInMobileMenu(){
     const nav=document.querySelector('#primary-navigation');
     const livecare=document.querySelector('.livecareLink');
-    if(!nav||!livecare) return;
+    if(!nav) return;
     let clone=nav.querySelector('[data-mobile-livecare="1"]');
 
     function normalizeMobileLivecare(link){
@@ -161,7 +161,11 @@
 
     if(window.innerWidth<=BREAKPOINT){
       if(!clone){
-        clone=livecare.cloneNode(true);
+        clone=livecare?livecare.cloneNode(true):document.createElement('a');
+        if(!livecare){
+          clone.href='/livecare.html';
+          clone.textContent='Livecare';
+        }
         clone.dataset.mobileLivecare='1';
         normalizeMobileLivecare(clone);
       }
