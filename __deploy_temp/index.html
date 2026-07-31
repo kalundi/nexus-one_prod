@@ -20,6 +20,10 @@
         min-height: 44px;
       }
 
+      #primary-navigation a[href="#services"] {
+        display: none !important;
+      }
+
       .menuBtn {
         min-width: 44px;
       }
@@ -187,6 +191,7 @@
     const nav=document.querySelector('#primary-navigation');
     const livecare=document.querySelector('.livecareLink');
     if(!nav) return false;
+    const servicesLink=nav.querySelector('a[href="#services"]');
     let clone=nav.querySelector('[data-mobile-livecare="1"]');
 
     function normalizeMobileLivecare(link){
@@ -198,6 +203,12 @@
     }
 
     if(window.innerWidth<=BREAKPOINT){
+      if(servicesLink){
+        servicesLink.style.setProperty('display','none','important');
+        servicesLink.setAttribute('aria-hidden','true');
+        servicesLink.setAttribute('tabindex','-1');
+      }
+
       if(!clone){
         clone=livecare?livecare.cloneNode(true):document.createElement('a');
         if(!livecare){
@@ -220,6 +231,12 @@
 
     if(clone){
       clone.remove();
+    }
+
+    if(servicesLink){
+      servicesLink.style.removeProperty('display');
+      servicesLink.removeAttribute('aria-hidden');
+      servicesLink.removeAttribute('tabindex');
     }
 
     return true;
