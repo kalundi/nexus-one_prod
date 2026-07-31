@@ -176,8 +176,13 @@
     btn.addEventListener('click',function(event){
       event.preventDefault();
       event.stopPropagation();
-      nav.classList.toggle('open');
-      syncExpanded();
+
+      // Apply at end of click cycle so this state is not immediately overwritten.
+      window.setTimeout(function(){
+        const isOpen=nav.classList.contains('open');
+        nav.classList.toggle('open',!isOpen);
+        syncExpanded();
+      },0);
     },true);
 
     nav.addEventListener('click',function(event){
