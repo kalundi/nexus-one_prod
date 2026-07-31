@@ -148,7 +148,7 @@
   function showLivecareInMobileMenu(){
     const nav=document.querySelector('#primary-navigation');
     const livecare=document.querySelector('.livecareLink');
-    if(!nav) return;
+    if(!nav) return false;
     let clone=nav.querySelector('[data-mobile-livecare="1"]');
 
     function normalizeMobileLivecare(link){
@@ -177,15 +177,21 @@
       } else {
         nav.appendChild(clone);
       }
-    } else if(clone){
+      return true;
+    }
+
+    if(clone){
       clone.remove();
     }
+
+    return true;
   }
 
   function bindMobileMenuToggle(){
     const btn=document.querySelector('.menuBtn');
     const nav=document.querySelector('#primary-navigation');
-    if(!btn||!nav||btn.dataset.mobileToggleBound==='1') return;
+    if(!btn||!nav) return false;
+    if(btn.dataset.mobileToggleBound==='1') return true;
     btn.dataset.mobileToggleBound='1';
 
     const syncExpanded=()=>{
@@ -214,6 +220,7 @@
     });
 
     syncExpanded();
+    return true;
   }
 
   function routeJourneyCard(event){
@@ -233,8 +240,17 @@
     routeJourneyCard(event);
   }, true);
 
-  const sync=()=>{showLivecareInMobileMenu();bindMobileMenuToggle();};
+  let mobileSyncAttempts=0;
+  const sync=()=>{
+    const livecareReady=showLivecareInMobileMenu();
+    const toggleReady=bindMobileMenuToggle();
+    if(!(livecareReady&&toggleReady)&&mobileSyncAttempts<20){
+      mobileSyncAttempts+=1;
+      window.setTimeout(sync,100);
+    }
+  };
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', sync, { once:true }); else sync();
+  window.addEventListener('load', sync);
   window.addEventListener('resize', sync);
 })();
 </script></body></html>
