@@ -265,6 +265,39 @@
     return true;
   }
 
+  function updateMobileSectionPruning(){
+    const menuBtn=document.querySelector('.menuBtn');
+    const compactNavActive=window.innerWidth<=BREAKPOINT || (menuBtn&&window.getComputedStyle(menuBtn).display!=='none');
+    const pruneHeadingPatterns=[
+      /the right level of care for every journey\.?/i,
+      /confidence before, during and after the ride\.?/i,
+      /built for case managers, schedulers and care teams\.?/i,
+      /operational accountability made visible\.?/i
+    ];
+
+    const sections=[...document.querySelectorAll('main section')];
+    sections.forEach((section)=>{
+      const heading=section.querySelector('h2, h3');
+      const text=String(heading&&heading.textContent||'').trim();
+      const shouldPrune=pruneHeadingPatterns.some((pattern)=>pattern.test(text));
+
+      if(!shouldPrune) return;
+
+      if(compactNavActive){
+        section.style.setProperty('display','none','important');
+        section.setAttribute('aria-hidden','true');
+        section.setAttribute('data-mobile-pruned','1');
+        return;
+      }
+
+      section.style.removeProperty('display');
+      section.removeAttribute('aria-hidden');
+      section.removeAttribute('data-mobile-pruned');
+    });
+
+    return true;
+  }
+
   function bindMobileMenuToggle(){
     const btn=document.querySelector('.menuBtn');
     const nav=document.querySelector('#primary-navigation');
@@ -323,7 +356,8 @@
     const livecareReady=showLivecareInMobileMenu();
     const toggleReady=bindMobileMenuToggle();
     const servicesReady=updateMobileServicesSectionVisibility();
-    if(!(livecareReady&&toggleReady&&servicesReady)&&mobileSyncAttempts<20){
+    const sectionsReady=updateMobileSectionPruning();
+    if(!(livecareReady&&toggleReady&&servicesReady&&sectionsReady)&&mobileSyncAttempts<20){
       mobileSyncAttempts+=1;
       window.setTimeout(sync,100);
     }
