@@ -108,9 +108,9 @@
 
     .footerGrid {
       display: grid;
-      grid-template-columns: 1.25fr 1fr 1fr 1fr;
-      gap: 16px;
-      padding: 24px 0 14px !important;
+      grid-template-columns: 1.2fr .95fr .95fr 1.15fr;
+      gap: 14px;
+      padding: 20px 0 12px !important;
       align-items: start;
     }
 
@@ -135,8 +135,14 @@
     .footerGrid a,
     .footerGrid button {
       color: #deecf6 !important;
-      font-size: 14px;
-      line-height: 1.35;
+      font-size: 13px;
+      line-height: 1.28;
+      text-decoration: none;
+    }
+
+    .footerGrid a:hover,
+    .footerGrid button:hover {
+      color: #fff !important;
     }
 
     .footerGrid button,
@@ -156,6 +162,68 @@
       font-size: 12px;
     }
 
+    .footerCompactNav {
+      display: grid;
+      gap: 6px;
+    }
+
+    .footerContactList {
+      display: grid;
+      gap: 7px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .footerContactItem {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      align-items: start;
+      gap: 8px;
+      color: #cce0ef;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .footerContactIcon {
+      display: inline-grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      font-size: 11px;
+      color: #fff;
+      margin-top: 1px;
+    }
+
+    .footerSocial {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .footerSocial a {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      display: inline-grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.06);
+      color: #f4fbff !important;
+      font-weight: 800;
+      font-size: 12px;
+      transition: transform .18s ease, background-color .18s ease, border-color .18s ease;
+    }
+
+    .footerSocial a:hover {
+      transform: translateY(-1px);
+      background: rgba(103, 232, 249, 0.2);
+      border-color: rgba(103, 232, 249, 0.65);
+    }
+
     @media (max-width: 980px) {
       .footerGrid {
         grid-template-columns: 1fr 1fr;
@@ -173,6 +241,10 @@
         gap: 12px;
         padding-top: 18px !important;
       }
+
+      .footerSocial {
+        margin-top: 6px;
+      }
     }
   </style>
 </head><body><div id="root"></div><script>
@@ -180,12 +252,57 @@
   function normalizeHomepageFooter(){
     const footer=document.querySelector('footer');
     if(!footer)return false;
-    footer.querySelectorAll('a,button').forEach(function(control){
-      const text=String(control.textContent||'').replace(/\s+/g,' ').trim();
-      if(/^book transportation$/i.test(text)){
-        control.textContent='Book a Ride';
-      }
-    });
+
+    const grid=footer.querySelector('.footerGrid');
+    if(grid&&!grid.dataset.compactRedesignApplied){
+      grid.dataset.compactRedesignApplied='1';
+      grid.innerHTML=''
+        + '<div class="footerBrandCompact">'
+        +   '<img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit">'
+        +   '<p>Access Drives Equity.</p>'
+        + '</div>'
+        + '<div>'
+        +   '<strong>Navigation</strong>'
+        +   '<div class="footerCompactNav">'
+        +     '<a href="#services">Services</a>'
+        +     '<a href="#patient-experience">Experience</a>'
+        +     '<a href="#coverage">Coverage</a>'
+        +     '<a href="/livecare.html">Livecare</a>'
+        +   '</div>'
+        + '</div>'
+        + '<div>'
+        +   '<strong>Portals</strong>'
+        +   '<div class="footerCompactNav">'
+        +     '<a href="/facility.html">Facility</a>'
+        +     '<a href="/dispatch.html">Dispatch</a>'
+        +     '<a href="/driver.html">Driver</a>'
+        +   '</div>'
+        + '</div>'
+        + '<div>'
+        +   '<strong>Contact</strong>'
+        +   '<ul class="footerContactList">'
+        +     '<li class="footerContactItem"><span class="footerContactIcon" aria-hidden="true">P</span><a href="tel:+18887604990">(888) 760-4990</a></li>'
+        +     '<li class="footerContactItem"><span class="footerContactIcon" aria-hidden="true">@</span><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a></li>'
+        +     '<li class="footerContactItem"><span class="footerContactIcon" aria-hidden="true">T</span><span>Mon-Fri, 8 AM-6 PM ET</span></li>'
+        +     '<li class="footerContactItem"><span class="footerContactIcon" aria-hidden="true">!</span><span>For emergencies, call 911.</span></li>'
+        +   '</ul>'
+        +   '<div class="footerSocial" aria-label="Social media">'
+        +     '<a href="https://www.linkedin.com" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">in</a>'
+        +     '<a href="https://www.facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook">f</a>'
+        +     '<a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer" aria-label="Instagram">ig</a>'
+        +     '<a href="https://x.com" target="_blank" rel="noopener noreferrer" aria-label="X">x</a>'
+        +   '</div>'
+        + '</div>';
+    }
+
+    const bottom=footer.querySelector('.footerBottom');
+    if(bottom){
+      bottom.querySelectorAll('span,a,small,p').forEach(function(node){
+        if(!node||!node.textContent)return;
+        node.textContent=node.textContent.replace(/Monâ€“Fri/g,'Mon-Fri').replace(/AMâ€“6 PM/g,'AM-6 PM');
+      });
+    }
+
     return true;
   }
 
