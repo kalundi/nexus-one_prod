@@ -190,9 +190,11 @@
   function showLivecareInMobileMenu(){
     const nav=document.querySelector('#primary-navigation');
     const livecare=document.querySelector('.livecareLink');
+    const menuBtn=document.querySelector('.menuBtn');
     if(!nav) return false;
     const servicesLink=nav.querySelector('a[href="#services"]');
     let clone=nav.querySelector('[data-mobile-livecare="1"]');
+    const compactNavActive=window.innerWidth<=BREAKPOINT || (menuBtn&&window.getComputedStyle(menuBtn).display!=='none');
 
     function normalizeMobileLivecare(link){
       if(!link) return;
@@ -202,7 +204,7 @@
       link.style.setProperty('opacity','1','important');
     }
 
-    if(window.innerWidth<=BREAKPOINT){
+    if(compactNavActive){
       if(servicesLink){
         servicesLink.style.setProperty('display','none','important');
         servicesLink.setAttribute('aria-hidden','true');
