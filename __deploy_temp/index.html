@@ -164,14 +164,14 @@
         clone=livecare.cloneNode(true);
         clone.dataset.mobileLivecare='1';
         normalizeMobileLivecare(clone);
-        const secondLink=nav.querySelector('a:nth-of-type(2)');
-        if(secondLink&&secondLink.parentNode===nav){
-          nav.insertBefore(clone, secondLink.nextSibling);
-        } else {
-          nav.appendChild(clone);
-        }
+      }
+
+      normalizeMobileLivecare(clone);
+      const secondLink=nav.querySelector('a:nth-of-type(2)');
+      if(secondLink&&secondLink.parentNode===nav){
+        nav.insertBefore(clone, secondLink.nextSibling);
       } else {
-        normalizeMobileLivecare(clone);
+        nav.appendChild(clone);
       }
     } else if(clone){
       clone.remove();
