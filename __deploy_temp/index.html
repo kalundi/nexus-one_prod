@@ -176,11 +176,11 @@
     btn.addEventListener('click',function(event){
       event.preventDefault();
       event.stopPropagation();
+      const shouldOpen=btn.getAttribute('aria-expanded')!=='true';
 
       // Apply at end of click cycle so this state is not immediately overwritten.
       window.setTimeout(function(){
-        const isOpen=nav.classList.contains('open');
-        nav.classList.toggle('open',!isOpen);
+        nav.classList.toggle('open',shouldOpen);
         syncExpanded();
       },0);
     },true);
