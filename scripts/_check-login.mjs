@@ -6,7 +6,7 @@ const connectionString = process.env.DATABASE_URL || process.env.NETLIFY_DB_URL;
 const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
 
 const password = process.env.NEXUS_ADMIN_PASSWORD || 'NexusAdmin042!';
-const email = process.env.NEXUS_ADMIN_EMAIL || 'fletcher@nexusmt.com';
+const email = process.env.NEXUS_ADMIN_EMAIL || 'admin@nexusmt.com';
 const expectedHash = crypto.createHash('sha256').update(password).digest('hex');
 
 const r = await pool.query('SELECT id, email, role, active, password_hash FROM users WHERE lower(email)=lower($1)', [email]);

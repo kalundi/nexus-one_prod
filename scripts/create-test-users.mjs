@@ -9,6 +9,7 @@ if (!connectionString) {
 }
 
 const testUsers = [
+  { email: 'admin@nexusmt.com',      name: 'Test Administrator', role: 'ADMIN',      password: 'NexusAdmin042!' },
   { email: 'dispatcher@nexusmt.com', name: 'Test Dispatcher', role: 'DISPATCHER', password: 'Dispatch2026!' },
   { email: 'driver@nexusmt.com',     name: 'Test Driver',     role: 'DRIVER',      password: 'Driver2026!'   },
   { email: 'facility@nexusmt.com',   name: 'Test Facility',   role: 'FACILITY',    password: 'Facility2026!' },
