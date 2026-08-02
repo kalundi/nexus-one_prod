@@ -1,5 +1,32 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#082f49"><meta name="description" content="Coordinate requests, assign drivers and vehicles, monitor progress and communicate with patients and facilities."><title>Dispatch Center | NEXUS ONE</title><style>html{visibility:hidden}body{visibility:hidden}</style>
   <link rel="stylesheet" href="./platform.css">
+  <style>
+.transportation-picker{width:min(100%,1100px);margin:0 auto;padding:28px;border:1px solid #e4e7ec;border-radius:24px;background:#ffffff;box-shadow:0 18px 50px rgba(16,24,40,.08);font-family:Inter,Arial,sans-serif;color:#172033}
+.picker-header,.company-card-heading,.company-actions{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.picker-header h2,.company-card h3{margin:0}
+.description{max-width:720px;margin:8px 0 0;color:#667085;line-height:1.6}
+.filter-grid,.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
+.form-grid{grid-template-columns:repeat(2,1fr)}
+.company-select-label{margin-top:24px}
+.add-company-form{margin-top:24px;padding:22px;border-radius:18px;background:#f8fafc}
+.add-company-form h3{margin-top:0}
+.primary-button,.secondary-button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;border-radius:11px;padding:10px 17px;font-weight:800;text-decoration:none;cursor:pointer}
+.primary-button{border:1px solid #7f1422;background:#9f1d2d;color:white}
+.secondary-button{border:1px solid #d0d5dd;background:white;color:#344054}
+.add-company-form .primary-button{margin-top:18px}
+.company-card{margin-top:22px;padding:24px;border:1px solid #e4e7ec;border-radius:18px;background:linear-gradient(145deg,#ffffff,#f9fafb)}
+.category-badge,.provider-status,.service-list span{display:inline-flex;border-radius:999px;padding:6px 10px;font-size:.76rem;font-weight:800}
+.category-badge{margin-bottom:8px;background:#f2f4f7;color:#344054}
+.provider-status.accepting{background:#ecfdf3;color:#067647}
+.provider-status.verify{background:#fffaeb;color:#b54708}
+.company-details{margin-top:18px}
+.company-details p{margin:8px 0}
+.company-details a{color:#9f1d2d}
+.service-list{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}
+.service-list span{background:#fff1f3;color:#9f1d2d}
+.company-actions{justify-content:flex-start;flex-wrap:wrap}
+@media(max-width:760px){.transportation-picker{padding:18px;border-radius:18px}.picker-header,.company-card-heading{align-items:flex-start;flex-direction:column}.filter-grid,.form-grid{grid-template-columns:1fr}.company-actions a{width:100%}}
+  </style>
   <script src="/trustedsite.js" defer></script>
   <script src="/i18n.js" defer></script>
 <script src="./auth-guard.js"></script><script src="./nexus-data.js"></script>
@@ -60,64 +87,61 @@
     <form id="brokerIntakeForm" class="formGrid" style="display:grid;gap:14px">
 
       <!-- Transportation Company Picker -->
-      <div id="transportationPickerBlock" style="border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--soft)">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div id="transportationPickerBlock" class="transportation-picker">
+        <div class="picker-header">
           <div>
-            <div class="eyebrow" style="margin-bottom:2px">Nexus Medical Transit</div>
-            <strong style="font-size:15px">Patient Transportation Company</strong>
-            <p style="margin:4px 0 0;font-size:13px;color:var(--muted)">Search Medicaid brokers, workers' comp, health plans, hospital platforms and government programs.</p>
+            <p class="eyebrow">Nexus Medical Transit</p>
+            <h2>Patient Transportation Company</h2>
+            <p class="description">Search Medicaid brokers, workers' comp, health plans, hospital platforms and government programs.</p>
           </div>
-          <button type="button" id="togglePickerAddForm" class="button" style="font-size:13px;padding:8px 14px">+ Add Company</button>
+          <button type="button" id="togglePickerAddForm" class="secondary-button">+ Add Company</button>
         </div>
-        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:12px">
-          <div class="formField">
-            <label for="pickerSearch">Search</label>
+
+        <div class="filter-grid">
+          <label for="pickerSearch">Search
             <input id="pickerSearch" type="search" placeholder="Company, state or category" autocomplete="off">
-          </div>
-          <div class="formField">
-            <label for="pickerCategory">Category</label>
+          </label>
+          <label for="pickerCategory">Category
             <select id="pickerCategory"></select>
-          </div>
-          <div class="formField">
-            <label for="pickerService">Service</label>
+          </label>
+          <label for="pickerService">Service
             <select id="pickerService"></select>
-          </div>
+          </label>
         </div>
 
         <!-- Add Custom Company Form -->
-        <div id="pickerAddForm" hidden style="border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff;margin-bottom:14px">
-          <strong style="display:block;margin-bottom:10px">Add a New Company</strong>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-            <div class="formField"><label for="addCoName">Company Name *</label><input id="addCoName" type="text" required></div>
-            <div class="formField"><label for="addCoCategory">Category</label><select id="addCoCategory"><option>Medicaid Broker</option><option>Workers Compensation</option><option>Health Plan</option><option>Hospital Transportation</option><option>Government</option><option>Facility Network</option><option selected>Other</option></select></div>
-            <div class="formField"><label for="addCoHQ">Headquarters</label><input id="addCoHQ" type="text" placeholder="City, State"></div>
-            <div class="formField"><label for="addCoPhone">Phone</label><input id="addCoPhone" type="tel" placeholder="(555) 123-4567"></div>
-            <div class="formField"><label for="addCoEmail">Email</label><input id="addCoEmail" type="email" placeholder="contact@company.com"></div>
-            <div class="formField"><label for="addCoWebsite">Website</label><input id="addCoWebsite" type="url" placeholder="https://"></div>
+        <div id="pickerAddForm" hidden class="add-company-form">
+          <h3>Add a New Company</h3>
+          <div class="form-grid" style="grid-template-columns:repeat(3,1fr)">
+            <label for="addCoName">Company Name *<input id="addCoName" type="text" required></label>
+            <label for="addCoCategory">Category<select id="addCoCategory"><option>Medicaid Broker</option><option>Workers Compensation</option><option>Health Plan</option><option>Hospital Transportation</option><option>Government</option><option>Facility Network</option><option selected>Other</option></select></label>
+            <label for="addCoHQ">Headquarters<input id="addCoHQ" type="text" placeholder="City, State"></label>
+            <label for="addCoPhone">Phone<input id="addCoPhone" type="tel" placeholder="(555) 123-4567"></label>
+            <label for="addCoEmail">Email<input id="addCoEmail" type="email" placeholder="contact@company.com"></label>
+            <label for="addCoWebsite">Website<input id="addCoWebsite" type="url" placeholder="https://"></label>
           </div>
-          <div style="margin-top:10px;display:flex;gap:8px">
-            <button type="button" id="saveCustomCompany" class="button primary" style="font-size:13px">Save Company</button>
-            <button type="button" id="cancelAddForm" class="button" style="font-size:13px">Cancel</button>
+          <div style="margin-top:14px;display:flex;gap:8px">
+            <button type="button" id="saveCustomCompany" class="primary-button">Save Company</button>
+            <button type="button" id="cancelAddForm" class="secondary-button">Cancel</button>
           </div>
         </div>
 
-        <div class="formField" style="margin-bottom:12px">
-          <label for="pickerSelect">Select Company</label>
+        <label class="company-select-label" for="pickerSelect">Select Company
           <select id="pickerSelect"><option value="">Choose a company…</option></select>
-        </div>
+        </label>
 
         <!-- Company Card -->
-        <div id="pickerCompanyCard" hidden style="border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div id="pickerCompanyCard" hidden class="company-card">
+          <div class="company-card-heading">
             <div>
-              <span id="pickerCardBadge" class="status blue" style="font-size:11px;margin-bottom:6px;display:inline-block"></span>
-              <h3 id="pickerCardName" style="margin:0;font-size:16px"></h3>
+              <span id="pickerCardBadge" class="category-badge"></span>
+              <h3 id="pickerCardName"></h3>
             </div>
-            <span id="pickerCardProviderStatus" class="status" style="font-size:11px"></span>
+            <span id="pickerCardProviderStatus" class="provider-status"></span>
           </div>
-          <div id="pickerCardDetails" style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px 16px;font-size:13px;margin-bottom:10px"></div>
-          <div id="pickerCardServices" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
-          <div id="pickerCardActions" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+          <div id="pickerCardDetails" class="company-details"></div>
+          <div id="pickerCardServices" class="service-list"></div>
+          <div id="pickerCardActions" class="company-actions"></div>
         </div>
       </div>
       <!-- /Transportation Company Picker -->
@@ -380,18 +404,18 @@ function renderCard(company){
   $('pickerCardBadge').textContent=company.category;
   $('pickerCardName').textContent=company.name;
   const st=$('pickerCardProviderStatus');
-  st.className='status '+(company.acceptingProviders?'green':'amber');
+  st.className='provider-status '+(company.acceptingProviders?'accepting':'verify');
   st.textContent=company.acceptingProviders?'Provider opportunities':'Verify enrollment';
   const details=[];
-  if(company.headquarters)details.push(`<span><strong>HQ:</strong> ${company.headquarters}</span>`);
-  if(company.phone)details.push(`<span><strong>Phone:</strong> <a href="tel:${company.phone}">${company.phone}</a></span>`);
-  if(company.email)details.push(`<span><strong>Email:</strong> <a href="mailto:${company.email}">${company.email}</a></span>`);
-  if(company.states?.length)details.push(`<span><strong>Coverage:</strong> ${company.states.join(', ')}</span>`);
+  if(company.headquarters)details.push(`<p><strong>HQ:</strong> ${company.headquarters}</p>`);
+  if(company.phone)details.push(`<p><strong>Phone:</strong> <a href="tel:${company.phone}">${company.phone}</a></p>`);
+  if(company.email)details.push(`<p><strong>Email:</strong> <a href="mailto:${company.email}">${company.email}</a></p>`);
+  if(company.states?.length)details.push(`<p><strong>Coverage:</strong> ${company.states.join(', ')}</p>`);
   $('pickerCardDetails').innerHTML=details.join('');
-  $('pickerCardServices').innerHTML=(company.services||[]).map(s=>`<span class="status blue" style="font-size:11px">${s}</span>`).join('');
+  $('pickerCardServices').innerHTML=(company.services||[]).map(s=>`<span>${s}</span>`).join('');
   const actions=[];
-  if(company.website)actions.push(`<a class="button" href="${company.website}" target="_blank" rel="noreferrer" style="font-size:13px">Company Website</a>`);
-  if(company.providerPortal)actions.push(`<a class="button primary" href="${company.providerPortal}" target="_blank" rel="noreferrer" style="font-size:13px">Provider Enrollment</a>`);
+  if(company.website)actions.push(`<a class="secondary-button" href="${company.website}" target="_blank" rel="noreferrer">Company Website</a>`);
+  if(company.providerPortal)actions.push(`<a class="primary-button" href="${company.providerPortal}" target="_blank" rel="noreferrer">Provider Enrollment</a>`);
   $('pickerCardActions').innerHTML=actions.join('');
 }
 function selectCompany(id){
