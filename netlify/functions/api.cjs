@@ -218,14 +218,32 @@ async function sendEmail(to,subject,html){
  const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:[{email:to}]}],from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Medical Transit'},subject,content:[{type:'text/html',value:html}]})});
  if(!r.ok)throw new Error(`SendGrid request failed (${r.status})`);return {status:'sent'};
 }
+async function sendTeamsAlert(text,title='Nexus Medical Transit'){
+ // Teams Incoming Webhook — set TEAMS_WEBHOOK_URL in Netlify env vars
+ // To add: Teams → Admin_NMT channel → ... → Connectors → Incoming Webhook → copy URL
+ const webhookUrl=process.env.TEAMS_WEBHOOK_URL;
+ if(!webhookUrl)return {status:'skipped'};
+ const body={
+  '@type':'MessageCard','@context':'https://schema.org/extensions',
+  themeColor:'#082f49',summary:title,title,text
+ };
+ try{
+  const r=await fetch(webhookUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  return r.ok?{status:'sent'}:{status:'failed',code:r.status};
+ }catch(e){return {status:'failed',error:e.message};}
+}
 function setupLink(token){
   const base=String(process.env.SITE_URL||process.env.URL||process.env.DEPLOY_PRIME_URL||'https://nexusmt.com').replace(/\/$/,'');
   return `${base}/set-password.html?token=${encodeURIComponent(token)}`;
 }
 async function notifyBooking(b){
- const text=`Nexus Medical Transit request ${b.reference} received for ${b.date} at ${b.time}. This request is pending confirmation.`;
- const results=await Promise.allSettled([sendSms(b.phone,text),sendEmail(b.email,`Nexus ride request ${b.reference}`,`<h1>Transportation request received</h1><p>Reference: <strong>${b.reference}</strong></p><p>${b.pickup} → ${b.destination}</p><p>${b.date} at ${b.time}</p><p>Nexus will contact you after availability is reviewed.</p>`)]);
- return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
+ const driverLine=b.driverName?`\nDriver: ${b.driverName}`:'';
+ const pickupLine=b.pickupTime||b.time;
+ const text=`Nexus Medical Transit: Your trip ${b.reference} is confirmed for ${b.date} at ${pickupLine}.${driverLine} Questions? Call (888) 760-4990.`;
+ const html=`<h2 style="color:#082f49">Trip Confirmed — ${b.reference}</h2><table style="width:100%;border-collapse:collapse;margin:16px 0">${b.driverName?`<tr><td style="padding:8px;font-weight:600;color:#62758a">Driver</td><td style="padding:8px"><strong>${b.driverName}</strong></td></tr>`:''}<tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup Time</td><td style="padding:8px"><strong>${pickupLine}</strong></td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Date</td><td style="padding:8px">${b.date}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup</td><td style="padding:8px">${b.pickup}</td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Destination</td><td style="padding:8px">${b.destination}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Service</td><td style="padding:8px">${b.service||'—'}</td></tr></table><p>Questions? Call <strong>(888) 760-4990</strong></p>`;
+ const teamsMsg=`**New Trip Booked** | Ref: ${b.reference}\n- **Patient:** ${b.name||'—'}\n- **Pickup:** ${b.pickup}\n- **Destination:** ${b.destination}\n- **Date/Time:** ${b.date} at ${pickupLine}${b.driverName?`\n- **Driver:** ${b.driverName}`:''}`;
+ const results=await Promise.allSettled([sendSms(b.phone,text),sendEmail(b.email,`Trip confirmed — ${b.reference}`,html),sendTeamsAlert(teamsMsg,'🚐 New Trip Booked — Admin_NMT')]);
+ return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message},teams:results[2].status==='fulfilled'?results[2].value:{status:'failed',error:results[2].reason?.message}};
 }
 async function sendInvoice(b){
  const fare=Number(b.estimatedFare||b.estimated_fare||0);
