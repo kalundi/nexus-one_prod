@@ -49,6 +49,15 @@ try {
   }
 
   let updated = 0, created = 0;
+
+  // organization_id is NOT NULL — look it up from the existing admin account
+  const orgRow = await withRetry(
+    () => pool.query("SELECT organization_id FROM users WHERE role='ADMIN' LIMIT 1"),
+    'org-lookup'
+  );
+  const orgId = orgRow.rows[0]?.organization_id || null;
+  console.log(`[TEST-USERS] Organization ID: ${orgId ? orgId.substring(0, 8) + '...' : 'NOT FOUND (will try without)'}`);
+
   for (const u of testUsers) {
     const passwordHash = crypto.createHash('sha256').update(u.password).digest('hex');
     const existing = await withRetry(
@@ -65,15 +74,25 @@ try {
       );
       console.log(`[TEST-USERS] Updated: ${u.email} (${u.role})`);
       updated++;
+    } else if (orgId) {
+      await withRetry(
+        () => pool.query(
+          'INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())',
+          [crypto.randomUUID(), u.email, u.name, u.role, passwordHash, orgId]
+        ),
+        `insert-${u.email}`
+      );
+      console.log(`[TEST-USERS] Created: ${u.email} (${u.role})`);
+      created++;
     } else {
       await withRetry(
         () => pool.query(
           'INSERT INTO users(id,email,display_name,role,password_hash,active,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,now(),now())',
           [crypto.randomUUID(), u.email, u.name, u.role, passwordHash]
         ),
-        `insert-${u.email}`
+        `insert-noorg-${u.email}`
       );
-      console.log(`[TEST-USERS] Created: ${u.email} (${u.role})`);
+      console.log(`[TEST-USERS] Created (no org): ${u.email} (${u.role})`);
       created++;
     }
   }

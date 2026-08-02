@@ -711,12 +711,18 @@ async function handler(event){
     {email:'executive@nexusmt.com',name:'Test Executive',role:'EXECUTIVE',password:'Exec2026!'},
    ];
    const results=[];
+   // Get the organization_id from the existing admin (required NOT NULL column)
+   const orgRow=await query("SELECT organization_id FROM users WHERE role='ADMIN' LIMIT 1");
+   const orgId=orgRow.rows[0]?.organization_id||null;
    for(const u of TEST_USERS){
     const hash=crypto.createHash('sha256').update(u.password).digest('hex');
     const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1)',[u.email]);
     if(existing.rows[0]){
      await query('UPDATE users SET display_name=$2,role=$3,password_hash=$4,active=true,updated_at=now() WHERE id=$1',[existing.rows[0].id,u.name,u.role,hash]);
      results.push({email:u.email,action:'updated'});
+    }else if(orgId){
+     await query('INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash,orgId]);
+     results.push({email:u.email,action:'created'});
     }else{
      await query('INSERT INTO users(id,email,display_name,role,password_hash,active,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash]);
      results.push({email:u.email,action:'created'});
@@ -742,7 +748,14 @@ async function handler(event){
    if(existing.rows[0])return json(409,{error:'A user with that email already exists'});
    const passwordHash=crypto.createHash('sha256').update(String(b.password)).digest('hex');
    const userId=crypto.randomUUID();
-   await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash]);
+   // Get organization_id from the authenticated admin (required NOT NULL column)
+   const adminRow=await query('SELECT organization_id FROM users WHERE id=$1',[me.id]);
+   const orgId=adminRow.rows[0]?.organization_id||null;
+   if(orgId){
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,orgId]);
+   }else{
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash]);
+   }
    await audit('USER',userId,'CREATED',{role:b.role,by:me.email});
    return json(201,{user:{id:userId,email:b.email,name:b.name,role:b.role,active:true}});
   }
@@ -913,12 +926,18 @@ async function handler(event){
     {email:'executive@nexusmt.com',name:'Test Executive',role:'EXECUTIVE',password:'Exec2026!'},
    ];
    const results=[];
+   // organization_id is NOT NULL — get it from the existing admin
+   const orgRow=await query("SELECT organization_id FROM users WHERE role='ADMIN' LIMIT 1");
+   const orgId=orgRow.rows[0]?.organization_id||null;
    for(const u of TEST_USERS){
     const hash=crypto.createHash('sha256').update(u.password).digest('hex');
     const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1)',[u.email]);
     if(existing.rows[0]){
      await query('UPDATE users SET display_name=$2,role=$3,password_hash=$4,active=true,updated_at=now() WHERE id=$1',[existing.rows[0].id,u.name,u.role,hash]);
      results.push({email:u.email,role:u.role,action:'updated'});
+    }else if(orgId){
+     await query('INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash,orgId]);
+     results.push({email:u.email,role:u.role,action:'created'});
     }else{
      await query('INSERT INTO users(id,email,display_name,role,password_hash,active,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash]);
      results.push({email:u.email,role:u.role,action:'created'});
