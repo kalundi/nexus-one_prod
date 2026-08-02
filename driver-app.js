@@ -427,6 +427,10 @@
     if (!unit) return;
     shift.vehicleUnit = unit.toUpperCase();
     saveShift();
+    // Set the active profile BEFORE rendering
+    activeInspProfile = profileForUnit(shift.vehicleUnit);
+    inspState = {}; // clear any prior inspection state for a fresh checklist
+    localStorage.removeItem(INSP_KEY);
     // Show checklist
     const section = $('#inspChecklistSection'), footer = $('#inspFormFooter'), vehicleCard = $('#inspVehicleCard');
     if (section) section.hidden = false;
@@ -439,7 +443,9 @@
   function renderInspection() {
     const list = $('#inspChecklist'); if (!list) return;
     const profile = activeInspProfile || profileForUnit(shift.vehicleUnit);
-    const groupIds = profile ? profile.groups : Object.keys(ALL_INSP_GROUPS);
+    // Don't render until a vehicle is chosen
+    if (!profile) { list.innerHTML = ''; return; }
+    const groupIds = profile.groups;
     const activeGroups = groupIds.map(id => ALL_INSP_GROUPS[id]).filter(Boolean);
     let total = 0, checked = 0;
     list.innerHTML = activeGroups.map(g => {
