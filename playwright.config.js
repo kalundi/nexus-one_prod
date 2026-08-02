@@ -10,7 +10,7 @@ module.exports = defineConfig({
     ignoreHTTPSErrors: true
   },
   webServer: {
-    command: 'npx http-server -p 4173',
+    command: 'node scripts/local-test-server.cjs',
     port: 4173,
     reuseExistingServer: true,
     timeout: 120000

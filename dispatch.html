@@ -49,49 +49,149 @@
 </aside>
 </div></section><main id="main" class="shell moduleMain" tabindex="-1">
 <section class="card" style="margin-top:20px">
-  <div class="toolbar"><div><div class="eyebrow">Broker intake</div><h2>Broker call-in request entry</h2></div></div>
-  <form id="brokerIntakeForm" class="formGrid" style="display:grid;gap:14px;margin-top:12px">
-    <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-      <div class="formField"><label for="brokerName">Broker name</label><input id="brokerName" name="brokerName" type="text" required></div>
-      <div class="formField"><label for="brokerSubmitterEmail">Submitter email</label><input id="brokerSubmitterEmail" name="submitterEmail" type="email" placeholder="broker@example.com"></div>
-    </div>
-    <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-      <div class="formField"><label for="brokerPickup">Pickup</label><input id="brokerPickup" name="pickup" type="text" required></div>
-      <div class="formField"><label for="brokerDestination">Destination</label><input id="brokerDestination" name="destination" type="text" required></div>
-    </div>
-    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-      <div class="formField"><label for="brokerTripDate">Trip date</label><input id="brokerTripDate" name="tripDate" type="date" required></div>
-      <div class="formField"><label for="brokerTripTime">Trip time</label><input id="brokerTripTime" name="tripTime" type="time" required></div>
-      <div class="formField"><label for="brokerService">Service</label><select id="brokerService" name="service"><option value="MEDICAL_TRANSPORT">Medical transport</option><option value="AMBULANCE">Ambulance</option><option value="WHEELCHAIR">Wheelchair</option><option value="STRETCHER">Stretcher</option></select></div>
-    </div>
-    <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-      <div class="formField"><label for="brokerQuotedRate">Broker quoted rate</label><input id="brokerQuotedRate" name="brokerQuotedRate" type="number" min="0" step="0.01" required></div>
-      <div class="formField"><label for="brokerCalculatedRate">Platform calculated rate</label><input id="brokerCalculatedRate" name="platformCalculatedRate" type="number" min="0" step="0.01" required></div>
-    </div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
-      <div id="brokerIntakeMessage" class="msgBox" hidden></div>
-      <button id="submitBrokerRequest" class="button primary" type="submit">Submit broker request</button>
-    </div>
-  </form>
+  <div class="toolbar"><div><div class="eyebrow">Dispatch intake hub</div><h2>Broker, customer and facility request intake</h2><p style="margin:6px 0 0;color:var(--muted)">Modernized intake with service-aware rates, return-trip wait-time logic and shared dispatch standards.</p></div></div>
+  <div class="pillTabs" role="tablist" aria-label="Intake forms" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+    <button type="button" class="button secondary" data-intake-tab="broker" role="tab" aria-selected="true">Broker intake</button>
+    <button type="button" class="button secondary" data-intake-tab="customer" role="tab" aria-selected="false">Customer intake</button>
+    <button type="button" class="button secondary" data-intake-tab="facility" role="tab" aria-selected="false">Facility intake</button>
+  </div>
+  <div id="brokerIntakePanel" class="intakePanel" data-intake-panel="broker" role="tabpanel" style="margin-top:16px">
+    <form id="brokerIntakeForm" class="formGrid" style="display:grid;gap:14px">
+      <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="formField"><label for="brokerReference">Referral ID</label><input id="brokerReference" name="reference" type="text" readonly></div>
+        <div class="formField"><label for="brokerName">Broker name</label><input id="brokerName" name="brokerName" type="text" required></div>
+        <div class="formField"><label for="brokerPatientName">Patient name</label><input id="brokerPatientName" name="patientName" type="text"></div>
+        <div class="formField"><label for="brokerSubmitterEmail">Submitter email</label><input id="brokerSubmitterEmail" name="submitterEmail" type="email" placeholder="broker@example.com"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <div class="formField"><label for="brokerPickup">Pickup address</label><input id="brokerPickup" name="pickup" type="text" required></div>
+        <div class="formField"><label for="brokerDestination">Destination address</label><input id="brokerDestination" name="destination" type="text" required></div>
+        <div class="formField"><label for="brokerPatientPhone">Phone number</label><input id="brokerPatientPhone" name="patientPhone" type="tel" placeholder="(555) 123-4567"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="formField"><label for="brokerPickupLocation">Pick up location</label><input id="brokerPickupLocation" name="pickupLocation" type="text" placeholder="Home, facility, etc."></div>
+        <div class="formField"><label for="brokerDestinationLocation">Destination location</label><input id="brokerDestinationLocation" name="destinationLocation" type="text" placeholder="Home, facility, etc."></div>
+        <div class="formField"><label for="brokerPickupPhone">Pick up facility/location phone number</label><input id="brokerPickupPhone" name="pickupPhone" type="tel" placeholder="(555) 123-4567"></div>
+        <div class="formField"><label for="brokerDestinationPhone">Destination facility/location phone number</label><input id="brokerDestinationPhone" name="destinationPhone" type="tel" placeholder="(555) 123-4567"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="brokerPickupTime">Pick up time</label><input id="brokerPickupTime" name="pickupTime" type="time"></div>
+        <div class="formField"><label for="brokerNotes">Notes</label><input id="brokerNotes" name="notes" type="text" placeholder="Special instructions"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="formField"><label for="brokerTripDate">Appointment date</label><input id="brokerTripDate" name="tripDate" type="date" required></div>
+        <div class="formField"><label for="brokerTripTime">Appointment time</label><input id="brokerTripTime" name="tripTime" type="time" required></div>
+        <div class="formField"><label for="brokerService">Service</label><select id="brokerService" name="service"><option value="wheelchair">Wheelchair Transportation</option><option value="ambulatory">Ambulatory Transportation</option><option value="facility_transfer">Facility-to-Facility Transfer</option><option value="facility_transfer_critical">High-Acuity IFT</option><option value="broda">Broda Chair Transportation</option><option value="stretcher">Stretcher Transportation</option><option value="bariatric">Bariatric Transportation</option><option value="bls">BLS Ambulance</option><option value="als1">ALS I Ambulance</option><option value="als2">ALS II Ambulance</option></select></div>
+        <div class="formField"><label for="brokerWaitMinutes">Wait minutes</label><input id="brokerWaitMinutes" name="waitMinutes" type="number" min="0" step="5" value="0"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="brokerQuotedRate">Broker quoted rate</label><input id="brokerQuotedRate" name="brokerQuotedRate" type="number" min="0" step="0.01" required></div>
+        <div class="formField"><label for="brokerCalculatedRate">Platform calculated rate</label><input id="brokerCalculatedRate" name="platformCalculatedRate" type="number" min="0" step="0.01" required></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <label class="field" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><input id="brokerReturnTrip" type="checkbox"> <span>Return trip</span></label>
+        <div class="formField"><label for="brokerNotesSecondary">Notes</label><input id="brokerNotesSecondary" name="notesAlt" type="text" placeholder="Special instructions"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
+        <div id="brokerIntakeMessage" class="msgBox" hidden></div>
+        <button id="submitBrokerRequest" class="button primary" type="submit">Submit broker request</button>
+      </div>
+    </form>
+  </div>
+  <div id="customerIntakePanel" class="intakePanel" data-intake-panel="customer" role="tabpanel" hidden style="margin-top:16px">
+    <form id="customerIntakeForm" class="formGrid" style="display:grid;gap:14px">
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="customerReference">Reference</label><input id="customerReference" name="reference" type="text" readonly></div>
+        <div class="formField"><label for="customerRequester">Requester</label><input id="customerRequester" name="requester" type="text" placeholder="Patient / caregiver name"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="customerPickup">Pickup</label><input id="customerPickup" name="pickup" type="text" required></div>
+        <div class="formField"><label for="customerDestination">Destination</label><input id="customerDestination" name="destination" type="text" required></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="formField"><label for="customerTripDate">Trip date</label><input id="customerTripDate" name="tripDate" type="date" required></div>
+        <div class="formField"><label for="customerTripTime">Trip time</label><input id="customerTripTime" name="tripTime" type="time" required></div>
+        <div class="formField"><label for="customerService">Service</label><select id="customerService" name="service"><option value="wheelchair">Wheelchair Transportation</option><option value="ambulatory">Ambulatory Transportation</option><option value="facility_transfer">Facility-to-Facility Transfer</option><option value="facility_transfer_critical">High-Acuity IFT</option><option value="broda">Broda Chair Transportation</option><option value="stretcher">Stretcher Transportation</option><option value="bariatric">Bariatric Transportation</option><option value="bls">BLS Ambulance</option><option value="als1">ALS I Ambulance</option><option value="als2">ALS II Ambulance</option></select></div>
+        <div class="formField"><label for="customerCalculatedRate">Platform rate</label><input id="customerCalculatedRate" name="platformRate" type="number" min="0" step="0.01" readonly></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <label class="field" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><input id="customerReturnTrip" type="checkbox"> <span>Return trip / round trip</span></label>
+        <div class="formField"><label for="customerWaitMinutes">Wait minutes</label><input id="customerWaitMinutes" name="waitMinutes" type="number" min="0" step="5" value="0"></div>
+        <div class="formField"><label for="customerNotes">Notes</label><input id="customerNotes" name="notes" type="text" placeholder="Pickup assistance, oxygen, etc."></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
+        <div id="customerIntakeMessage" class="msgBox" hidden></div>
+        <button id="submitCustomerRequest" class="button primary" type="submit">Create customer intake</button>
+      </div>
+    </form>
+  </div>
+  <div id="facilityIntakePanel" class="intakePanel" data-intake-panel="facility" role="tabpanel" hidden style="margin-top:16px">
+    <form id="facilityIntakeForm" class="formGrid" style="display:grid;gap:14px">
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="facilityReference">Reference</label><input id="facilityReference" name="reference" type="text" readonly></div>
+        <div class="formField"><label for="facilityName">Facility</label><input id="facilityName" name="facility" type="text" required></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="facilityContact">Contact</label><input id="facilityContact" name="contact" type="text" required></div>
+        <div class="formField"><label for="facilitySubmitterEmail">Submitter email</label><input id="facilitySubmitterEmail" name="submitterEmail" type="email" placeholder="facility@example.com"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="facilityPickup">Pickup</label><input id="facilityPickup" name="pickup" type="text" required></div>
+        <div class="formField"><label for="facilityDestination">Destination</label><input id="facilityDestination" name="destination" type="text" required></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="formField"><label for="facilityTripDate">Trip date</label><input id="facilityTripDate" name="tripDate" type="date" required></div>
+        <div class="formField"><label for="facilityTripTime">Trip time</label><input id="facilityTripTime" name="tripTime" type="time" required></div>
+        <div class="formField"><label for="facilityService">Service</label><select id="facilityService" name="service"><option value="facility_transfer">Facility-to-Facility Transfer</option><option value="facility_transfer_critical">High-Acuity IFT</option><option value="wheelchair">Wheelchair Transportation</option><option value="ambulatory">Ambulatory Transportation</option><option value="broda">Broda Chair Transportation</option><option value="stretcher">Stretcher Transportation</option><option value="bariatric">Bariatric Transportation</option><option value="bls">BLS Ambulance</option><option value="als1">ALS I Ambulance</option><option value="als2">ALS II Ambulance</option></select></div>
+        <div class="formField"><label for="facilityCalculatedRate">Platform rate</label><input id="facilityCalculatedRate" name="platformRate" type="number" min="0" step="0.01" readonly></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <label class="field" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><input id="facilityReturnTrip" type="checkbox"> <span>Return trip / round trip</span></label>
+        <div class="formField"><label for="facilityWaitMinutes">Wait minutes</label><input id="facilityWaitMinutes" name="waitMinutes" type="number" min="0" step="5" value="0"></div>
+        <div class="formField"><label for="facilityNotes">Notes</label><input id="facilityNotes" name="notes" type="text" placeholder="Transfer support, bed status"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
+        <div id="facilityIntakeMessage" class="msgBox" hidden></div>
+        <button id="submitFacilityRequest" class="button primary" type="submit">Create facility intake</button>
+      </div>
+    </form>
+  </div>
 </section>
 <section id="tripBoard" class="card" style="margin-top:20px"><div class="toolbar"><div><div class="eyebrow">Live Operations</div><h2>Trip management</h2></div><div style="display:flex;gap:10px"><button id="loadTrips" class="button primary">Refresh from API</button><button id="loadLocal" class="button">Load local</button></div></div><div class="tableWrap"><table class="table"><thead><tr><th>Reference</th><th>Patient</th><th>Service</th><th>Date / Time</th><th>Status</th><th>Estimate</th><th>AI risk</th><th>Action</th></tr></thead><tbody id="tripRows"></tbody></table></div></section>
 <section id="aiSection" class="grid cols2" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
 </main><footer class="footer"><div class="shell footerGrid"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Platform</strong><a href="/livecare.html">Livecare</a><a href="/facility.html">Facilities</a><a href="/dispatch.html">Dispatch</a></div><div><strong>Operations</strong><a href="/fleet.html">Fleet</a><a href="/driver.html">Driver</a><a href="/qa.html">QA & Compliance</a></div><div><strong>Contact</strong><a href="tel:+18887604990">(888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">♿</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js"></script><script>
 function setBrokerIntakeMessage(text,type){const el=document.getElementById('brokerIntakeMessage');if(!el)return;el.hidden=false;el.className=`msgBox ${type==='err'?'err':'ok'}`;el.textContent=text;}
+function setPanelMessage(elId,text,type){const el=document.getElementById(elId);if(!el)return;el.hidden=false;el.className=`msgBox ${type==='err'?'err':'ok'}`;el.textContent=text;}
+function ensureDispatchReference(prefix){const idMap={broker:'brokerReference',customer:'customerReference',facility:'facilityReference'};const el=document.getElementById(idMap[prefix]||'');if(!el)return null; if(el.value.trim()) return el.value.trim(); const now=new Date(); const stamp=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`; const value=`${prefix.toUpperCase()}-${stamp}`; el.value=value; return value;}
+function getDispatchRate(service, waitMinutes, isReturnTrip){const pricing=NexusCore?.getPricing?.()||NexusCore?.DEFAULT||{}; const rate=pricing[service]||pricing[service.toLowerCase?.()||service]||NexusCore?.DEFAULT?.[service]||NexusCore?.DEFAULT?.ambulatory||{base:65,includedMiles:5,perMile:3.25,waitPer15:20}; const base=Number(rate.base||0); const waitCharge=(Number(waitMinutes)||0)/15*Number(rate.waitPer15||0); const returnBoost=isReturnTrip?Number(rate.base||0)*0.15:0; return Number((base+waitCharge+returnBoost).toFixed(2));}
+function updateDispatchRateInputs(){const service=document.getElementById('customerService')?.value||'';const waitMinutes=Number(document.getElementById('customerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('customerReturnTrip')?.checked||false; const rate=getDispatchRate(service,waitMinutes,isReturnTrip); const rateInput=document.getElementById('customerCalculatedRate'); if(rateInput) rateInput.value=rate.toFixed(2); const facilityService=document.getElementById('facilityService')?.value||'';const facilityWait=Number(document.getElementById('facilityWaitMinutes')?.value||0);const facilityReturn=document.getElementById('facilityReturnTrip')?.checked||false; const facilityRate=getDispatchRate(facilityService,facilityWait,facilityReturn); const facilityInput=document.getElementById('facilityCalculatedRate'); if(facilityInput) facilityInput.value=facilityRate.toFixed(2); const brokerService=document.getElementById('brokerService')?.value||'';const brokerWait=Number(document.getElementById('brokerWaitMinutes')?.value||0); const brokerReturn=document.getElementById('brokerReturnTrip')?.checked||false; const brokerRate=getDispatchRate(brokerService,brokerWait,brokerReturn); const brokerInput=document.getElementById('brokerCalculatedRate'); if(brokerInput) brokerInput.value=brokerRate.toFixed(2);}function syncBrokerPickupTime(force=false){const appointmentInput=document.getElementById('brokerTripTime');const pickupInput=document.getElementById('brokerPickupTime');if(!appointmentInput||!pickupInput)return;const appointment=appointmentInput.value;if(!appointment)return;const service=document.getElementById('brokerService')?.value||'ambulatory';const serviceMinutes={wheelchair:35,ambulatory:25,facility_transfer:55,facility_transfer_critical:70,broda:40,stretcher:55,bariatric:65,bls:60,als1:70,als2:75}[service]||35;const waitMinutes=Number(document.getElementById('brokerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('brokerReturnTrip')?.checked||false;const travelMinutes=serviceMinutes+Math.round(waitMinutes/15)*10+(isReturnTrip?15:0);const [hour,minute]=appointment.split(':').map(Number);const totalMinutes=hour*60+minute-travelMinutes;const clamped=Math.max(0,Math.min(23*60+59,totalMinutes));const suggested=new Date(2000,0,1,Math.floor(clamped/60),clamped%60); if(force||!pickupInput.value){pickupInput.value=`${String(suggested.getHours()).padStart(2,'0')}:${String(suggested.getMinutes()).padStart(2,'0')}`;}}
+function activateIntakeTab(tab){document.querySelectorAll('[data-intake-tab]').forEach(btn=>{const active=btn.dataset.intakeTab===tab; btn.classList.toggle('active',active); btn.setAttribute('aria-selected',active?'true':'false');}); document.querySelectorAll('[data-intake-panel]').forEach(panel=>{panel.hidden=panel.dataset.intakePanel!==tab;});}
 
 async function submitBrokerRequest(event){
   event.preventDefault();
+  syncBrokerPickupTime(true);
   const form=document.getElementById('brokerIntakeForm');
   const payload={
     broker_name: document.getElementById('brokerName').value.trim(),
+    referral_id: document.getElementById('brokerReference').value.trim(),
+    patient_name: document.getElementById('brokerPatientName').value.trim(),
+    patient_phone: document.getElementById('brokerPatientPhone').value.trim(),
     pickup: document.getElementById('brokerPickup').value.trim(),
+    pickup_location: document.getElementById('brokerPickupLocation').value.trim(),
+    pickup_phone: document.getElementById('brokerPickupPhone').value.trim(),
     destination: document.getElementById('brokerDestination').value.trim(),
+    destination_location: document.getElementById('brokerDestinationLocation').value.trim(),
+    destination_phone: document.getElementById('brokerDestinationPhone').value.trim(),
+    pickup_time: document.getElementById('brokerPickupTime').value,
     trip_date: document.getElementById('brokerTripDate').value,
     trip_time: document.getElementById('brokerTripTime').value,
     service: document.getElementById('brokerService').value,
     broker_quoted_rate: Number(document.getElementById('brokerQuotedRate').value || 0),
     platform_calculated_rate: Number(document.getElementById('brokerCalculatedRate').value || 0),
-    submitter_email: document.getElementById('brokerSubmitterEmail').value.trim()
+    submitter_email: document.getElementById('brokerSubmitterEmail').value.trim(),
+    wait_minutes: Number(document.getElementById('brokerWaitMinutes').value || 0),
+    notes: document.getElementById('brokerNotes').value.trim(),
+    is_return_trip: document.getElementById('brokerReturnTrip').checked
   };
   if(!payload.broker_name||!payload.pickup||!payload.destination||!payload.trip_date||!payload.trip_time||!payload.broker_quoted_rate||!payload.platform_calculated_rate){
     setBrokerIntakeMessage('Please complete the required fields before submitting.','err');
@@ -105,6 +205,8 @@ async function submitBrokerRequest(event){
     if(!res.ok) throw new Error(data.error||'Unable to submit broker request');
     setBrokerIntakeMessage(data.clientMessage||data.message||'Broker request received.','ok');
     form.reset();
+    document.getElementById('brokerCalculatedRate').value='';
+    document.getElementById('brokerWaitMinutes').value='0';
   }catch(err){
     setBrokerIntakeMessage(err.message||'Unable to submit broker request.','err');
   }finally{
@@ -112,7 +214,28 @@ async function submitBrokerRequest(event){
   }
 }
 
+async function submitCustomerRequest(event){
+  event.preventDefault();
+  const ref=ensureDispatchReference('customer');
+  setPanelMessage('customerIntakeMessage',`Customer intake prepared with reference ${ref || 'pending'}.`, 'ok');
+  document.getElementById('customerIntakeForm').reset();
+  ensureDispatchReference('customer');
+}
+
+async function submitFacilityRequest(event){
+  event.preventDefault();
+  const ref=ensureDispatchReference('facility');
+  setPanelMessage('facilityIntakeMessage',`Facility intake prepared with reference ${ref || 'pending'}.`, 'ok');
+  document.getElementById('facilityIntakeForm').reset();
+  ensureDispatchReference('facility');
+}
+
 document.getElementById('brokerIntakeForm').addEventListener('submit',submitBrokerRequest);
+document.getElementById('customerIntakeForm').addEventListener('submit',submitCustomerRequest);
+document.getElementById('facilityIntakeForm').addEventListener('submit',submitFacilityRequest);
+document.querySelectorAll('[data-intake-tab]').forEach(btn=>btn.addEventListener('click',()=>activateIntakeTab(btn.dataset.intakeTab)));
+['customerPickup','customerDestination','customerService','customerWaitMinutes','customerReturnTrip','facilityPickup','facilityDestination','facilityService','facilityWaitMinutes','facilityReturnTrip','brokerPickup','brokerDestination','brokerService','brokerWaitMinutes','brokerReturnTrip','brokerTripTime','brokerTripDate'].forEach(id=>{const el=document.getElementById(id); if(el){el.addEventListener('input',()=>{updateDispatchRateInputs();syncBrokerPickupTime();});el.addEventListener('change',()=>{updateDispatchRateInputs();syncBrokerPickupTime();});}});
+document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); ensureDispatchReference('broker'); ensureDispatchReference('customer'); ensureDispatchReference('facility'); updateDispatchRateInputs();});
 
 function riskBadge(t){const r=NexusAI.riskScore(t);return `<div class="aiScore"><span class="status ${r.level==='High'?'red':r.level==='Medium'?'amber':'green'}">${r.level} ${r.score}%</span><span class="riskMeter" aria-label="${r.score} percent delay risk"><span style="width:${r.score}%"></span></span></div><small>${r.reasons.join(', ')}</small>`}
 function renderAI(trips){const rec=NexusAI.recommendations(trips);document.getElementById('aiRecommendations').innerHTML=rec.map(x=>`<article class="insight ${x.priority.toLowerCase()}"><h3>${x.priority}: ${x.title}</h3><p>${x.detail}</p></article>`).join('');const f=NexusAI.forecast(trips),max=Math.max(1,...f.map(x=>x.count));document.getElementById('demandForecast').innerHTML=f.map(x=>`<div class="forecastRow"><strong>${x.period}</strong><span class="forecastTrack"><span style="width:${Math.round(x.count/max*100)}%"></span></span><span>${x.count}</span></div>`).join('')}
