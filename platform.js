@@ -1,12 +1,12 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const access=$('#accessToggle'),panel=$('#accessPanel');
-if(access){access.addEventListener('click',()=>{const open=!panel.classList.contains('open');panel.classList.toggle('open',open);panel.hidden=!open;access.setAttribute('aria-expanded',String(open));});}
+if(access && panel){access.addEventListener('click',()=>{const open=!panel.classList.contains('open');panel.classList.toggle('open',open);panel.hidden=!open;access.setAttribute('aria-expanded',String(open));});}
 $('#large')?.addEventListener('click',()=>document.body.classList.toggle('large'));
 $('#contrast')?.addEventListener('click',()=>document.body.classList.toggle('contrast'));
 $('#motion')?.addEventListener('click',()=>document.body.classList.toggle('reduce'));
 // Global mobile nav toggle
 (function(){var toggle=document.querySelector('.mobileNavToggle');if(!toggle)return;var nav=document.querySelector('.globalLinks');if(!nav)return;toggle.addEventListener('click',function(){var open=!nav.classList.contains('open');nav.classList.toggle('open',open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'Close navigation':'Open navigation');});nav.addEventListener('click',function(e){if(e.target.tagName==='A'&&window.innerWidth<=950){nav.classList.remove('open');toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','Open navigation');}});})();
-$$('[data-api-list]').forEach(async el=>{const endpoint=el.dataset.apiList;const key=sessionStorage.getItem('nexusAdminKey')||'';try{const r=await fetch(endpoint,{headers:{'x-admin-key':key}});if(r.status===401){el.innerHTML='<p>Enter the operations key to load live data.</p>';return}const j=await r.json();el.dispatchEvent(new CustomEvent('nexus-data',{detail:j}));}catch{el.innerHTML='<p>Live data is unavailable.</p>'}});
+$$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;if(!endpoint) return;const key=sessionStorage.getItem('nexusAdminKey')||'';const r=await fetch(endpoint,{headers:{'x-admin-key':key}});if(r.status===401){el.innerHTML='<p>Enter the operations key to load live data.</p>';return}if(!r.ok){console.warn('[NEXUS] API fetch failed:',r.status,endpoint);el.innerHTML='<p>Live data is unavailable.</p>';return}const j=await r.json();el.dispatchEvent(new CustomEvent('nexus-data',{detail:j}));}catch(e){console.error('[NEXUS] API error:',e);if(el.innerHTML==='') el.innerHTML='<p>Live data is unavailable.</p>';}});
 
 // Apply the red sign design to all Book A Ride triggers.
 (function(){
