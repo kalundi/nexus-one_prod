@@ -381,6 +381,24 @@ const $=id=>document.getElementById(id);
 const pickerSearch=$('pickerSearch'),pickerCat=$('pickerCategory'),pickerSvc=$('pickerService');
 const pickerSelect=$('pickerSelect'),card=$('pickerCompanyCard');
 
+// Load companies from API, fall back to built-in list on error
+async function loadCompanies(apiUrl){
+  try{
+    const r=await fetch(apiUrl);
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const data=await r.json();
+    if(!Array.isArray(data))throw new Error('API must return an array');
+    companies=data;
+    console.log('[PICKER] Loaded',companies.length,'companies from API');
+  }catch(e){
+    console.warn('[PICKER] API load failed, using built-in list:',e.message);
+    companies=[...COMPANIES];
+  }
+  refresh();
+}
+
+loadCompanies('/api/transportation-companies');
+
 function getFiltered(){
   const q=filterSearch.toLowerCase().trim();
   return companies.filter(c=>{
@@ -482,7 +500,6 @@ $('saveCustomCompany').addEventListener('click',()=>{
   $('addCoName').value='';$('addCoHQ').value='';$('addCoPhone').value='';$('addCoEmail').value='';$('addCoWebsite').value='';
 });
 
-refresh();
 })();
 // ========== /TRANSPORTATION COMPANY PICKER ==========
 </script></body></html>

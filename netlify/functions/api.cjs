@@ -814,6 +814,44 @@ async function handler(event){
    await audit('BROKER_REQUEST',reqId,'REVIEWED',{status:b.dispatch_status,reviewedBy:u.display_name});
    return json(200,{request:r.rows[0]});
   }
+  // ========== TRANSPORTATION COMPANIES ==========
+  if(p.join('/')==='transportation-companies'&&method==='GET'){
+   const DEFAULT_COMPANIES=[
+    {id:'modivcare',name:'Modivcare',category:'Medicaid Broker',headquarters:'Denver, Colorado',website:'https://www.modivcare.com',providerPortal:'https://www.modivcare.com/transportation-providers-contact-us',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS'],acceptingProviders:true},
+    {id:'mtm',name:'MTM',category:'Medicaid Broker',headquarters:'Lake Saint Louis, Missouri',website:'https://www.mtm-inc.net',states:['National'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+    {id:'access2care',name:'Access2Care',category:'Medicaid Broker',headquarters:'United States',website:'https://www.access2care.net',states:['Multiple States'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+    {id:'verida',name:'Verida',category:'Medicaid Broker',headquarters:'Atlanta, Georgia',website:'https://verida.com',states:['Multiple States','District of Columbia'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+    {id:'saferide-health',name:'SafeRide Health',category:'Health Plan',headquarters:'San Antonio, Texas',phone:'855-955-7433',website:'https://www.saferidehealth.com',states:['National'],services:['Ambulatory','Wheelchair','Rideshare'],acceptingProviders:true},
+    {id:'alivi',name:'Alivi',category:'Health Plan',headquarters:'Miami, Florida',website:'https://www.alivi.com',states:['Multiple States'],services:['Ambulatory','Wheelchair'],acceptingProviders:true},
+    {id:'mas',name:'Medical Answering Services',category:'Medicaid Broker',headquarters:'New York',website:'https://www.medanswering.com',states:['New York'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+    {id:'american-logistics',name:'American Logistics',category:'Health Plan',headquarters:'California',website:'https://americanlogistics.com',states:['Multiple States'],services:['Ambulatory','Wheelchair','Rideshare'],acceptingProviders:true},
+    {id:'one-call',name:'One Call',category:'Workers Compensation',headquarters:'Jacksonville, Florida',website:'https://www.onecallcm.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS','ALS'],acceptingProviders:true},
+    {id:'go-t-and-t',name:'Go Transportation & Translation',category:'Workers Compensation',headquarters:'United States',website:'https://www.gotandt.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS','ALS','Air Ambulance'],acceptingProviders:true},
+    {id:'corvel',name:'CorVel Corporation',category:'Workers Compensation',headquarters:'Fort Worth, Texas',website:'https://www.corvel.com',states:['National'],services:['Medical Transportation','Case Management'],acceptingProviders:true},
+    {id:'sedgwick',name:'Sedgwick',category:'Workers Compensation',headquarters:'Memphis, Tennessee',website:'https://www.sedgwick.com',states:['National'],services:['Medical Transportation','Claims Management'],acceptingProviders:false},
+    {id:'enlyte',name:'Enlyte',category:'Workers Compensation',headquarters:'San Diego, California',website:'https://www.enlyte.com',states:['National'],services:['Medical Transportation','Case Management'],acceptingProviders:true},
+    {id:'genex',name:'Genex Services',category:'Workers Compensation',headquarters:'Wayne, Pennsylvania',website:'https://www.genexservices.com',states:['National'],services:['Medical Transportation','Case Management'],acceptingProviders:true},
+    {id:'coventry',name:'Coventry Workers Compensation Services',category:'Workers Compensation',headquarters:'United States',website:'https://www.coventrywcs.com',states:['National'],services:['Medical Transportation','Provider Networks'],acceptingProviders:true},
+    {id:'mti-america',name:'MTI America',category:'Workers Compensation',headquarters:'Pompano Beach, Florida',website:'https://www.mtiamerica.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+    {id:'procare',name:'ProCare Transportation and Language Services',category:'Workers Compensation',headquarters:'United States',website:'https://www.procaretransportation.com',states:['National'],services:['Ambulatory','Wheelchair','Translation'],acceptingProviders:true},
+    {id:'roundtrip',name:'Roundtrip',category:'Hospital Transportation',headquarters:'Philadelphia, Pennsylvania',website:'https://www.roundtriphealth.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+    {id:'ride-health',name:'Ride Health',category:'Hospital Transportation',headquarters:'New York',website:'https://www.ridehealth.com',states:['National'],services:['Ambulatory','Wheelchair','Rideshare'],acceptingProviders:true},
+    {id:'uber-health',name:'Uber Health',category:'Hospital Transportation',headquarters:'San Francisco, California',website:'https://www.uberhealth.com',states:['National'],services:['Ambulatory','Rideshare'],acceptingProviders:false},
+    {id:'lyft-healthcare',name:'Lyft Healthcare',category:'Hospital Transportation',headquarters:'San Francisco, California',website:'https://www.lyft.com/healthcare',states:['National'],services:['Ambulatory','Rideshare'],acceptingProviders:false},
+    {id:'va',name:'U.S. Department of Veterans Affairs',category:'Government',headquarters:'Washington, DC',website:'https://www.va.gov',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS'],acceptingProviders:true},
+   ];
+   // Check if custom companies table exists; merge with defaults if so
+   try{
+    const tableCheck=await query("SELECT to_regclass('public.transportation_companies') AS name");
+    if(tableCheck.rows[0]?.name){
+     const custom=await query('SELECT * FROM transportation_companies WHERE active=true ORDER BY name');
+     const customMapped=custom.rows.map(r=>({id:r.id,name:r.name,category:r.category||'Other',headquarters:r.headquarters||'',phone:r.phone||'',email:r.email||'',website:r.website||'',providerPortal:r.provider_portal||'',states:r.states||[],services:r.services||[],acceptingProviders:r.accepting_providers??true}));
+     const merged=[...DEFAULT_COMPANIES,...customMapped.filter(c=>!DEFAULT_COMPANIES.find(d=>d.id===String(c.id)))];
+     return json(200,merged);
+    }
+   }catch(e){console.warn('[COMPANIES] DB lookup failed, using defaults:',e.message);}
+   return json(200,DEFAULT_COMPANIES);
+  }
   // ========== AVAILABILITY CHECKING ==========
   if(p.join('/')==='availability/check'&&method==='POST'){
    const b=parseBody(event);required(b,['tripDate','tripTime','service']);
