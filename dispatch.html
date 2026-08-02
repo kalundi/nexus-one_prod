@@ -92,22 +92,34 @@
           <div>
             <p class="eyebrow">Nexus Medical Transit</p>
             <h2>Patient Transportation Company</h2>
-            <p class="description">Search Medicaid brokers, workers' comp, health plans, hospital platforms and government programs.</p>
+            <p class="description">Select the Medicaid broker, workers' comp coordinator, health plan, or government program sending this request.</p>
           </div>
           <button type="button" id="togglePickerAddForm" class="secondary-button">+ Add Company</button>
         </div>
 
-        <div class="filter-grid">
-          <label for="pickerSearch">Search
-            <input id="pickerSearch" type="search" placeholder="Company, state or category" autocomplete="off">
-          </label>
-          <label for="pickerCategory">Category
-            <select id="pickerCategory"></select>
-          </label>
-          <label for="pickerService">Service
-            <select id="pickerService"></select>
-          </label>
-        </div>
+        <!-- Primary dropdown — main selection -->
+        <label class="company-select-label" for="pickerSelect" style="margin-top:18px">
+          Select Company
+          <select id="pickerSelect" style="font-size:15px;min-height:52px"><option value="">Choose a company…</option></select>
+        </label>
+
+        <!-- Secondary filters — collapsible -->
+        <details style="margin-top:14px">
+          <summary style="cursor:pointer;font-size:13px;font-weight:700;color:#667085;user-select:none;list-style:none;display:flex;align-items:center;gap:6px">
+            <span id="filterSummaryLabel">Filter companies</span>
+          </summary>
+          <div class="filter-grid" style="margin-top:14px">
+            <label for="pickerSearch">Search
+              <input id="pickerSearch" type="search" placeholder="Company, state or category" autocomplete="off">
+            </label>
+            <label for="pickerCategory">Category
+              <select id="pickerCategory"></select>
+            </label>
+            <label for="pickerService">Service
+              <select id="pickerService"></select>
+            </label>
+          </div>
+        </details>
 
         <!-- Add Custom Company Form -->
         <div id="pickerAddForm" hidden class="add-company-form">
@@ -125,10 +137,6 @@
             <button type="button" id="cancelAddForm" class="secondary-button">Cancel</button>
           </div>
         </div>
-
-        <label class="company-select-label" for="pickerSelect">Select Company
-          <select id="pickerSelect"><option value="">Choose a company…</option></select>
-        </label>
 
         <!-- Company Card -->
         <div id="pickerCompanyCard" hidden class="company-card">
@@ -419,7 +427,9 @@ function buildServiceOptions(){
 }
 function buildSelect(){
   const filtered=getFiltered();
-  pickerSelect.innerHTML=`<option value="">Choose from ${filtered.length} companies…</option>`+filtered.map(c=>`<option value="${c.id}"${c.id===selectedId?' selected':''}>${c.name} — ${c.category}</option>`).join('');
+  pickerSelect.innerHTML=`<option value="">— Select from ${filtered.length} companies —</option>`+filtered.map(c=>`<option value="${c.id}"${c.id===selectedId?' selected':''}>${c.name} · ${c.category}</option>`).join('');
+  const lbl=document.getElementById('filterSummaryLabel');
+  if(lbl)lbl.textContent=`Filter companies (${filtered.length} shown)`;
 }
 function renderCard(company){
   if(!company){card.hidden=true;return;}
