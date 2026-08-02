@@ -130,190 +130,251 @@
   //       escalation notice requiring Fleet contact.
 
   const ALL_INSP_GROUPS = {
-    // ── Dashboard alerts — FIRST for ALL vehicles ─────────────
-    // These are what drivers CAN reliably check without mechanical expertise.
-    // If ANY light is ON the vehicle must NOT be driven.
+    // ══════════════════════════════════════════════════════════
+    // SE-254-01 — 2016 Tesla Model 3 (Electric Sedan)
+    // Ambulatory only. Normal passenger car. No lift, no wheelchair.
+    // ══════════════════════════════════════════════════════════
+    alerts_tesla: {id:'alerts_tesla', label:'Dashboard Warning Lights', critical:true, items:[
+      {id:'t_warn_hv',    label:'High-Voltage / EV System Warning',  note:'Must be OFF. Orange/red EV warning → do not drive; report to Fleet.'},
+      {id:'t_warn_brake', label:'Brake System Warning',              note:'Must be OFF. Tesla regenerative + hydraulic brakes — if warning ON → do not drive.'},
+      {id:'t_warn_tpms',  label:'Tire Pressure (TPMS)',              note:'Must be OFF. Check tire before driving if this is ON.'},
+      {id:'t_warn_abs',   label:'ABS / Stability Warning',           note:'Must be OFF. If ON → braking behavior may be unpredictable; report to Fleet.'},
+      {id:'t_warn_12v',   label:'12V Battery / Power Warning',       note:'Must be OFF. Powers accessories — if ON → report to Fleet.'},
+      {id:'t_warn_other', label:'Any other active warning',          note:'All lights must be OFF. Any orange or red → report to Fleet before driving.'},
+    ]},
+    prestart_tesla: {id:'prestart_tesla', label:'Tesla Pre-Start Check', items:[
+      {id:'t_charge',     label:'Battery charge sufficient (display)',     note:'Check center screen — range should cover full shift. Charge if below 30% or 80 miles.'},
+      {id:'t_no_leaks',   label:'No puddle or drip under vehicle',         note:'Tesla has a coolant loop — look at the ground for any wet spots.'},
+      {id:'t_sounds',     label:'No unusual sounds or vibrations',         note:'Driving slowly in parking lot — no grinding, clicking, or rattling.'},
+      {id:'t_washer',     label:'Windshield washer fluid',                 note:'Check frunk fluid reservoir is not empty; refill if needed.'},
+    ]},
+    exterior_tesla: {id:'exterior_tesla', label:'Exterior Lights & Glass', items:[
+      {id:'t_headlights', label:'Headlights (both sides)',   note:'Auto headlights functional; manual high beam works.'},
+      {id:'t_taillights', label:'Tail lights & brake lights',note:'Have someone observe from behind while you press brake.'},
+      {id:'t_signals',    label:'Turn signals (all 4)',       note:'All four corners flash at normal rate.'},
+      {id:'t_hazards',    label:'Hazard flashers',            note:'All 4 corners flash simultaneously.'},
+      {id:'t_windshield', label:'Windshield — no cracks',    note:'No cracks or chips in driver\'s field of vision; camera lane-assist not obstructed.'},
+      {id:'t_wipers',     label:'Wipers clean and streak-free',note:'Run wipers — no streaking, no torn blades.'},
+      {id:'t_mirrors',    label:'Side mirrors & camera',     note:'Both mirrors adjusted; backup camera clean and clear.'},
+      {id:'t_doors',      label:'All doors close fully',     note:'All 4 doors close and latch; handles extend properly.'},
+    ]},
+    tires_tesla: {id:'tires_tesla', label:'Tires', items:[
+      {id:'t_tires_all',  label:'All 4 tires visually OK',  note:'No visible flat, bulge, or damage; TPMS light is OFF (checked above).'},
+    ]},
+    interior_tesla: {id:'interior_tesla', label:'Cab & Passenger Area', items:[
+      {id:'t_seat_belt',  label:'Driver seatbelt latches and retracts',   note:'Click in and pull to test.'},
+      {id:'t_screen',     label:'Touchscreen & controls responsive',       note:'Main screen boots; climate, mirrors, and windows all respond.'},
+      {id:'t_climate',    label:'Heat & A/C working (rear vents)',         note:'Rear passengers need climate — check rear vent airflow.'},
+      {id:'t_pax_belts',  label:'Both rear passenger seatbelts',           note:'Both rear seats: belt clicks in and retracts properly.'},
+      {id:'t_clean',      label:'Interior clean — no hazards',             note:'Rear passenger area clean; no loose objects; floor clean.'},
+      {id:'t_firstaid',   label:'Basic first aid kit present',             note:'Small kit in glovebox or trunk — ensure it\'s there.'},
+      {id:'t_docs',       label:'Registration & insurance in vehicle',     note:'Check glovebox — registration and insurance card present and current.'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // SUV-254-01 — 2017 Land Rover Range Rover HSE (Gas SUV)
+    // Ambulatory, up to 3 passengers. Luxury SUV. No lift. No wheelchair.
+    // ══════════════════════════════════════════════════════════
+    alerts_landrover: {id:'alerts_landrover', label:'Dashboard Warning Lights', critical:true, items:[
+      {id:'lr_warn_engine',label:'Check Engine / MIL',              note:'Must be OFF. If ON → possible engine fault; do not operate; report to Fleet.'},
+      {id:'lr_warn_oil',   label:'Oil Pressure Warning',            note:'Must be OFF. If ON → stop engine immediately; engine damage risk.'},
+      {id:'lr_warn_cool',  label:'Coolant Temperature Warning',     note:'Must be OFF. If ON → overheating; do not drive.'},
+      {id:'lr_warn_bat',   label:'Battery / Alternator Warning',    note:'Must be OFF. If ON → electrical fault; report to Fleet.'},
+      {id:'lr_warn_brake', label:'Brake System Warning',            note:'Must be OFF. If ON → do not drive; safety-critical.'},
+      {id:'lr_warn_susp',  label:'Air Suspension Warning',          note:'Must be OFF. Range Rover uses air suspension — if ON, vehicle height may be wrong; report to Fleet.'},
+      {id:'lr_warn_tpms',  label:'Tire Pressure (TPMS)',            note:'Must be OFF. Check and inflate tires before driving if ON.'},
+      {id:'lr_warn_abs',   label:'ABS / Traction Control Warning',  note:'Must be OFF. If ON → braking affected; report to Fleet.'},
+      {id:'lr_warn_other', label:'Any other active warning',        note:'All lights must be OFF. Any orange or red → report to Fleet.'},
+    ]},
+    prestart_landrover: {id:'prestart_landrover', label:'Range Rover Pre-Start Check', items:[
+      {id:'lr_fuel',      label:'Fuel level adequate (dashboard)',  note:'Gauge shows at least 1/4 tank; V8 burns fuel quickly — fill if low.'},
+      {id:'lr_no_leaks',  label:'No fluid leaks under vehicle',     note:'Look at the ground — no oil, coolant, or power steering fluid puddles.'},
+      {id:'lr_no_smell',  label:'No burning smell at startup',      note:'Start engine — no burning oil or electrical smell.'},
+      {id:'lr_no_sounds', label:'No unusual engine or suspension sounds', note:'Air suspension should inflate quietly; no knocking or grinding.'},
+    ]},
+    exterior_landrover: {id:'exterior_landrover', label:'Exterior Lights & Glass', items:[
+      {id:'lr_headlights',label:'Headlights (both sides — auto and high beam)', note:'Adaptive LED headlights functional; no condensation inside housing.'},
+      {id:'lr_taillights',label:'Tail lights & brake lights',       note:'Both sides; have someone confirm brake lights from behind.'},
+      {id:'lr_signals',   label:'Turn signals (all 4)',             note:'All 4 corners working.'},
+      {id:'lr_hazards',   label:'Hazard flashers',                  note:'All 4 corners flash.'},
+      {id:'lr_windshield',label:'Windshield — no cracks',          note:'No cracks in driver\'s field of vision.'},
+      {id:'lr_wipers',    label:'Wipers and washers',               note:'Both wipers; front and rear wash sprays.'},
+      {id:'lr_mirrors',   label:'Door mirrors & camera',            note:'Power mirrors adjust; 360° surround-view camera clean.'},
+    ]},
+    tires_lr: {id:'tires_lr', label:'Tires', items:[
+      {id:'lr_tires_all', label:'All 4 tires visually OK',         note:'No visible damage, flat, or severe uneven wear; TPMS light OFF.'},
+    ]},
+    interior_landrover: {id:'interior_landrover', label:'Cab & Passenger Area', items:[
+      {id:'lr_seat_belt', label:'Driver seatbelt',                  note:'Latches and retracts properly; seat locks in position.'},
+      {id:'lr_climate',   label:'4-zone climate control working',   note:'Driver and rear-passenger zones respond; heat and A/C functional.'},
+      {id:'lr_pax_belts', label:'All 3 passenger seatbelts',        note:'Row 2 (L, R) and row 3 — each belt clicks and retracts.'},
+      {id:'lr_clean',     label:'Interior clean — no hazards',      note:'All seats clean; no loose items; carpets clean.'},
+      {id:'lr_firstaid',  label:'First aid kit present',            note:'Kit present in center console or luggage area.'},
+      {id:'lr_docs',      label:'Registration & insurance in vehicle',note:'Check glovebox — current and valid.'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // COMMON: Dashboard alerts for combustion vans / ambulances
+    // (WV, SH, AMB, ST all use this)
+    // ══════════════════════════════════════════════════════════
     dashboard_alerts: {id:'dashboard_alerts', label:'Dashboard Warning Lights', critical:true, items:[
       {id:'da_check_engine',label:'Check Engine / Malfunction Indicator Lamp (MIL)', note:'Must be OFF. If ON → possible engine fault; do not operate; report to Fleet.'},
-      {id:'da_oil_press',   label:'Oil Pressure Warning',                            note:'Must be OFF. If ON → stop engine immediately; serious engine damage risk.'},
+      {id:'da_oil_press',   label:'Oil Pressure Warning',                            note:'Must be OFF. If ON → stop engine immediately; engine damage risk.'},
       {id:'da_coolant',     label:'Coolant Temperature Warning',                     note:'Must be OFF. If ON → overheating risk; do not operate.'},
       {id:'da_battery',     label:'Battery / Charging Warning',                      note:'Must be OFF. If ON → electrical system fault; report to Fleet.'},
       {id:'da_brake',       label:'Brake System Warning',                            note:'Must be OFF. If ON → do not drive; safety-critical fault.'},
       {id:'da_tpms',        label:'Tire Pressure (TPMS) Warning',                   note:'Must be OFF. If ON → check and inflate tires before driving.'},
-      {id:'da_abs',         label:'ABS / Traction Control Warning',                 note:'Must be OFF. If ON → braking may be affected; report to Fleet.'},
+      {id:'da_abs',         label:'ABS / Traction Control Warning',                 note:'Must be OFF. If ON → report to Fleet.'},
       {id:'da_trans',       label:'Transmission Warning',                            note:'Must be OFF. If ON → do not drive; report to Fleet.'},
-      {id:'da_any_other',   label:'Any other active warning or error light',         note:'All dashboard lights must be off. Any orange or red light → report to Fleet before driving.'},
+      {id:'da_any_other',   label:'Any other active warning or error light',         note:'All lights must be OFF. Any orange or red → report to Fleet before driving.'},
     ]},
-    // ── Engine pre-start visual (combustion) — what drivers CAN check ──
-    // Drivers should NOT be expected to check oil dipstick, coolant overflow,
-    // PS fluid, etc. Those are mechanic responsibilities. Drivers verify:
-    engine_gas: {id:'engine_gas', label:'Engine Pre-Start Visual Check', items:[
-      {id:'eng_no_leaks',  label:'No fluid leaks under vehicle',    note:'Look at the ground under the vehicle — no oil, coolant, fuel, or brake fluid puddles or drips'},
-      {id:'eng_no_smell',  label:'No burning smell at startup',     note:'Start engine and idle briefly — no burning oil, fuel, rubber, or electrical smell'},
-      {id:'eng_no_sounds', label:'No unusual engine sounds',        note:'No knocking, grinding, rattling, or squealing when engine starts and idles'},
-      {id:'eng_fuel',      label:'Fuel level adequate (dashboard)', note:'Dashboard fuel gauge shows at least 1/4 tank for a full shift; fill if needed'},
-      {id:'eng_washer',    label:'Windshield washer fluid visible', note:'Open hood — visually check reservoir is above MIN line; top up if low'},
+    engine_gas: {id:'engine_gas', label:'Engine & Pre-Start Visual', items:[
+      {id:'eng_no_leaks',  label:'No fluid leaks under vehicle',    note:'Look at the ground — no oil, coolant, fuel, or brake fluid puddles'},
+      {id:'eng_no_smell',  label:'No burning smell at startup',     note:'Brief idle — no burning oil, fuel, or electrical smell'},
+      {id:'eng_no_sounds', label:'No unusual engine sounds',        note:'No knocking, grinding, or rattling at idle'},
+      {id:'eng_fuel',      label:'Fuel level adequate (dashboard)', note:'Gauge shows at least 1/4 tank for full shift; fill if needed'},
+      {id:'eng_washer',    label:'Windshield washer fluid',         note:'Reservoir above MIN; top up if low'},
     ]},
-    engine_ev: {id:'engine_ev', label:'EV Pre-Start Check', items:[
-      {id:'ev_charge',     label:'Battery state of charge (dashboard)', note:'Check energy display — adequate range for full shift; charge if below 30%'},
-      {id:'ev_no_leaks',   label:'No fluid leaks under vehicle',        note:'EV coolant loop — look for coolant puddles under front or rear; no drips'},
-      {id:'ev_no_sounds',  label:'No unusual sounds at startup',        note:'No grinding, rattling, or clicking when vehicle powers on and moves slowly'},
-      {id:'ev_washer',     label:'Windshield washer fluid visible',     note:'Open hood — check reservoir is above MIN; top up if low'},
-      {id:'ev_hv_sealed',  label:'High-voltage system sealed',          note:'No visible damage to orange HV cable conduits, battery undercarriage, or charge port'},
+    exterior_van: {id:'exterior_van', label:'Exterior Lights & Body', items:[
+      {id:'vn_headlights', label:'Headlights (low & high beam)',    note:'Both sides'},
+      {id:'vn_taillights', label:'Tail lights & brake lights',      note:'Both sides; confirm brake lights from outside'},
+      {id:'vn_signals',    label:'Turn signals — all 4 corners',    note:''},
+      {id:'vn_hazards',    label:'Emergency / hazard flashers',     note:''},
+      {id:'vn_reverse',    label:'Reverse lights',                  note:''},
+      {id:'vn_windshield', label:'Windshield — no cracks',          note:'Driver\'s field of vision clear'},
+      {id:'vn_wipers',     label:'Wiper blades & washer',           note:'Blades not torn; washer sprays'},
+      {id:'vn_mirrors',    label:'Side mirrors & cameras',          note:'Both mirrors adjusted; backup/360° camera clean'},
+      {id:'vn_fuel_cap',   label:'Fuel cap secure',                 note:'No fuel odor; cap clicks tight'},
+      {id:'vn_body',       label:'Body, doors & cargo doors',       note:'No damage affecting safety; all latch and close properly'},
     ]},
-    exterior_std: {id:'exterior_std', label:'Exterior Lights & Body', items:[
-      {id:'headlights',    label:'Headlights (low & high beam)', note:'Both sides operational'},
-      {id:'tail_lights',   label:'Tail lights',                  note:'Both sides'},
-      {id:'brake_lights',  label:'Brake lights',                 note:'Both sides'},
-      {id:'turn_signals',  label:'Turn signals — all 4 corners', note:''},
-      {id:'hazards',       label:'Emergency / hazard flashers',  note:''},
-      {id:'reverse',       label:'Reverse lights',               note:''},
-      {id:'reflectors',    label:'Reflectors (front & rear)',    note:'Clean and visible'},
-      {id:'horn',          label:'Horn',                         note:'Functional'},
-      {id:'windshield',    label:'Windshield',                   note:'No cracks in driver\'s field of vision'},
-      {id:'wipers',        label:'Wiper blades & washer',        note:'Blades not torn; washer sprays'},
-      {id:'mirrors',       label:'Side mirrors',                 note:'Clean, adjusted, not cracked'},
-      {id:'body_panels',   label:'Body panels & doors',          note:'No damage affecting safety; all latch properly'},
-      {id:'hood',          label:'Hood',                         note:'Properly latched'},
+    tires_van: {id:'tires_van', label:'Tires & Wheels', items:[
+      {id:'vn_tires',     label:'All tires visually OK (no flats/damage)', note:'Walk around and check all tires — no visible flat, bulge, or severe wear'},
+      {id:'vn_lug_nuts',  label:'Lug nuts appear secure',                  note:'No missing lug nuts visible; no cracking or rust around wheel'},
     ]},
-    exterior_combustion_extra: {id:'exterior_combustion_extra', label:'Fuel & Undercarriage', items:[
-      {id:'fuel_cap',      label:'Fuel cap',                note:'Secure, no leaks, no fuel odor'},
-      {id:'exhaust',       label:'Exhaust / emissions',     note:'No unusual smoke, leaks, or noise'},
-      {id:'undercarriage', label:'Undercarriage — no leaks',note:'Oil, coolant, fuel, brake fluid — all dry'},
+    brakes_van: {id:'brakes_van', label:'Brakes', items:[
+      {id:'vn_brake_pedal',label:'Brake pedal firm',               note:'Pump brake — firm resistance; does not sink to floor or feel spongy'},
+      {id:'vn_park_brake', label:'Parking brake holds',            note:'Apply parking brake; vehicle should not roll on flat surface'},
     ]},
-    exterior_ev_extra: {id:'exterior_ev_extra', label:'Charging & Undercarriage', items:[
-      {id:'charge_port',   label:'Charge port door & cable',note:'Door closes flush; no damage to port or cable'},
-      {id:'undercarriage_ev',label:'Undercarriage',         note:'No damage to battery pack or HV cable conduits; no fluid leaks'},
+    interior_van: {id:'interior_van', label:'Cab Interior', items:[
+      {id:'vn_driver_belt',label:'Driver seat & seatbelt',         note:'Seat locks in position; belt clicks and retracts'},
+      {id:'vn_hvac',       label:'Heating & A/C',                  note:'Both functional in cab and patient area'},
+      {id:'vn_docs',       label:'Vehicle documents',              note:'Registration, insurance, inspection sticker — current and in vehicle'},
     ]},
-    tires: {id:'tires', label:'Tires & Wheels', items:[
-      {id:'tires_front',label:'Front tires',            note:'Tread ≥ 4/32"; no bulges, cuts, or flat spots; inflation OK'},
-      {id:'tires_rear', label:'Rear tires',             note:'Tread ≥ 2/32"; no damage; duals not touching'},
-      {id:'lug_nuts',   label:'Lug nuts / wheel bolts', note:'All present; no cracked or broken studs'},
-      {id:'wheel_rims', label:'Wheel rims',             note:'No cracks or bends'},
-      {id:'spare',      label:'Spare tire (if equipped)',note:'Mounted, inflated, accessible'},
-    ]},
-    brakes: {id:'brakes', label:'Brakes', items:[
-      {id:'svc_brake',  label:'Service brake',             note:'Firm pedal; does not fade, pull, or grab'},
-      {id:'park_brake', label:'Parking / emergency brake', note:'Holds vehicle on grade; releases fully'},
-      {id:'brake_warn', label:'Brake warning lights',      note:'No ABS, brake, or traction-control warnings active'},
-    ]},
-    interior: {id:'interior', label:'Cab & Interior Safety', items:[
-      {id:'driver_seat', label:'Driver seat & seatbelt',    note:'Seat locked; belt latches and retracts'},
-      {id:'dash_lights', label:'Dashboard warning lights',  note:'No check-engine or safety warnings active'},
-      {id:'speedometer', label:'Speedometer & gauges',      note:'Functional; no red-zone readings'},
-      {id:'hvac',        label:'Heating & air conditioning',note:'Both functional'},
-      {id:'defroster',   label:'Front & rear defroster',    note:'Functional'},
-      {id:'cab_lighting',label:'Interior lighting',         note:'Dome and reading lights work'},
-      {id:'fire_ext',    label:'Fire extinguisher',         note:'Charged (green gauge); mounted; accessible — min 10 lb ABC'},
-      {id:'triangles',   label:'Warning triangles / flares',note:'Minimum 3 present and serviceable'},
-      {id:'fuses',       label:'Spare fuses',               note:'Present in fuse kit'},
-      {id:'first_aid',   label:'First aid kit',             note:'ANSI Class A minimum; stocked and accessible'},
-      {id:'docs',        label:'Vehicle documents',         note:'Registration, insurance, inspection sticker — current and in vehicle'},
-    ]},
-    // ── Sedan / SUV — ambulatory only ────────────────────────
-    med_ambulatory: {id:'med_ambulatory', label:'Passenger Safety', items:[
-      {id:'pax_belts_2', label:'Passenger seatbelts',  note:'All positions — belt present, latches, and retracts'},
-      {id:'pax_comfort', label:'Passenger area clean', note:'No hazards; climate control working for passengers'},
-    ]},
-    // ── Wheelchair Van (3 WC + 12 pax) ───────────────────────
+    // ── Wheelchair Van (WV-254-01: 3 WC + 12 pax) ─────────
     med_wv: {id:'med_wv', label:'Wheelchair Van Equipment', items:[
-      {id:'wc_straps',   label:'Wheelchair 4-point tie-down straps (×3 sets)', note:'12 straps total; no fraying; Q\'Straint hooks latch and lock'},
-      {id:'wc_seatbelt', label:'Wheelchair occupant seatbelts (×3)',           note:'Each WC position — belt present, latches, and retracts'},
-      {id:'lift_ramp',   label:'Hydraulic side-door ramp',                     note:'Full test: deploys, raises, lowers, stows; limit switch sounds; rated load OK'},
-      {id:'rear_lift',   label:'Rear wheelchair lift',                         note:'Powers up, holds rated load, lowers smoothly; emergency lowering tested'},
-      {id:'ramp_cleats', label:'Ramp & lift surface cleats',                   note:'Not worn; non-slip traction confirmed'},
-      {id:'grab_handles',label:'Interior grab handles',                        note:'All secure; no wobble or corrosion'},
-      {id:'floor_cond',  label:'Floor condition',                              note:'Clean, dry; no lifted edges or tripping hazards'},
-      {id:'pax_belts_12',label:'All 12 passenger seatbelts',                   note:'Each seat — belt present, latches, and retracts'},
-      {id:'oxygen',      label:'Oxygen system',                                note:'Tank ≥ 500 PSI; regulator functional; mask/cannula available; no leaks'},
-      {id:'suction',     label:'Suction unit',                                 note:'Powers on; tubing and canister clean and free of contamination'},
-      {id:'aed',         label:'AED',                                          note:'Charged; electrode pads not expired; indicator green'},
-      {id:'med_kit_wv',  label:'Medical first aid kit',                        note:'Gloves, BP cuff, pulse oximeter, bandages, trauma dressing — stocked'},
-      {id:'sanitation',  label:'Interior sanitation',                          note:'No biohazard contamination; surfaces wiped from prior trip'},
-      {id:'comm',        label:'Communication device / MDT',                   note:'Powered on; app accessible; adequate signal'},
+      {id:'wc_straps',   label:'Wheelchair tie-down straps — 3 sets (12 straps total)', note:'No fraying; Q\'Straint hooks latch and lock audibly'},
+      {id:'wc_seatbelt', label:'Wheelchair occupant seatbelts × 3',   note:'Each WC position — belt clicks and retracts'},
+      {id:'side_ramp',   label:'Hydraulic side-door ramp',            note:'Test full cycle: deploy → raise → lower → stow; limit switch beeps; surface not slippery'},
+      {id:'rear_lift',   label:'Rear hydraulic wheelchair lift',      note:'Full cycle test: up, load, down, stow; emergency lowering works'},
+      {id:'grab_handles',label:'Interior grab handles all secure',    note:'No wobble; firmly mounted'},
+      {id:'floor_cond',  label:'Floor — clean, dry, no trip hazards', note:'Flooring not lifted; clean from prior trip; no debris'},
+      {id:'pax_belts_12',label:'All 12 passenger seatbelts',          note:'Each seat has a working seatbelt'},
+      {id:'oxygen',      label:'Oxygen system',                       note:'Tank ≥ 500 PSI; regulator works; no leaks; mask/cannula present'},
+      {id:'suction',     label:'Suction unit',                        note:'Powers on; canister clean'},
+      {id:'aed',         label:'AED',                                 note:'Green indicator; pads not expired'},
+      {id:'med_kit_wv',  label:'Medical first aid kit',               note:'Stocked (gloves, BP cuff, pulse ox, bandages)'},
+      {id:'sanitation',  label:'Patient area sanitized',              note:'Wiped down since last trip; no biohazard contamination'},
     ]},
-    // ── Shuttle (1 WC + 14 pax) ──────────────────────────────
-    med_shuttle: {id:'med_shuttle', label:'Shuttle Transport Equipment', items:[
-      {id:'wc_straps_sh',  label:'Wheelchair 4-point tie-down straps (×1 set)', note:'4 straps; no fraying; hooks latch and lock'},
-      {id:'wc_seatbelt_sh',label:'Wheelchair occupant seatbelt',                note:'WC position — belt present, latches, and retracts'},
-      {id:'ramp_sh',       label:'Hydraulic side-door ramp / lift',             note:'Full test: deploys, raises, lowers, stows; limit switch sounds'},
-      {id:'ramp_cleats_sh',label:'Ramp surface cleats',                         note:'Not worn; non-slip traction confirmed'},
-      {id:'grab_handles_sh',label:'Interior grab handles',                      note:'All secure; no wobble'},
-      {id:'floor_sh',      label:'Floor condition',                             note:'Clean, dry; no hazards'},
-      {id:'pax_belts_14',  label:'All 14 passenger seatbelts',                  note:'Each seat — belt present, latches, and retracts'},
-      {id:'first_aid_sh',  label:'First aid kit',                               note:'ANSI Class A minimum; stocked and accessible'},
-      {id:'sanitation_sh', label:'Interior sanitation',                         note:'Clean; no biohazard contamination from prior trip'},
-      {id:'comm_sh',       label:'Communication device',                        note:'Powered on; signal adequate'},
+    // ── Shuttle (SH-254-01: 1 WC + 14 pax) ─────────────────
+    med_shuttle: {id:'med_shuttle', label:'Shuttle Equipment', items:[
+      {id:'sh_wc_straps',  label:'1× wheelchair tie-down set (4 straps)', note:'No fraying; hooks latch; securements lock'},
+      {id:'sh_wc_belt',    label:'Wheelchair occupant seatbelt',          note:'WC position — belt clicks and retracts'},
+      {id:'sh_ramp',       label:'Side-door hydraulic ramp',              note:'Full cycle: deploy, raise, lower, stow; not slippery'},
+      {id:'sh_grab',       label:'Grab handles secure',                   note:'All handles firm; no wobble'},
+      {id:'sh_floor',      label:'Floor clean and dry',                   note:'No hazards; clean from prior trip'},
+      {id:'sh_belts_14',   label:'All 14 passenger seatbelts',            note:'Each seat has a working seatbelt — walk the aisle to check'},
+      {id:'sh_firstaid',   label:'First aid kit present',                 note:'ANSI Class A minimum'},
+      {id:'sh_clean',      label:'Interior clean and ready',              note:'All seats clean; no trash or hazards'},
     ]},
-    // ── Ambulance — BLS base (shared by both AMB units) ──────
-    med_amb_base: {id:'med_amb_base', label:'Ambulance Base Equipment', items:[
-      {id:'stretcher',     label:'Power stretcher / cot',           note:'Load mechanism OK; locks in loaded position; legs deploy/retract; weight rated'},
-      {id:'pax_belts_amb', label:'Patient & attendant seatbelts',   note:'All positions — belt present, latches, and retracts'},
-      {id:'oxygen_amb',    label:'Oxygen — onboard & portable',     note:'Main tank ≥ 500 PSI; portable tank charged; regulators functional; no leaks'},
-      {id:'suction_amb',   label:'Suction unit',                    note:'Powers on; test suction; tubing and canister clean'},
-      {id:'aed_amb',       label:'AED / defibrillator (AED mode)',  note:'Charged; pads not expired; self-test passes'},
-      {id:'bvm',           label:'BVM (bag-valve mask)',            note:'Mask seals; valve functions; reservoir intact'},
-      {id:'bp_pulse',      label:'BP cuff & pulse oximeter',        note:'Both functional; readings plausible'},
-      {id:'trauma_kit',    label:'Trauma & first aid supplies',     note:'Gloves, dressings, bandages, splints, cervical collars — stocked'},
-      {id:'airway_basic',  label:'Basic airway kit',                note:'OPA, NPA, suction catheters present and accessible'},
-      {id:'emerg_lights',  label:'Emergency lights & siren',        note:'All LED lights functional (front/rear/side); all siren tones functional'},
-      {id:'sanitation_amb',label:'Patient compartment sanitation',  note:'No biohazard contamination; all surfaces wiped down from prior call'},
-      {id:'comm_amb',      label:'Radio & MDT',                    note:'Radio transmits/receives; MDT powered on and connected'},
-      {id:'docs_amb',      label:'MDPSC / State certification docs',note:'Vehicle certification, medical director approval, and PCR supply present'},
+    // ── Ambulance BLS base (AMB-254-01 & AMB-254-02) ────────
+    med_amb_base: {id:'med_amb_base', label:'Ambulance Equipment', items:[
+      {id:'emerg_lights',  label:'Emergency lights & all siren tones',  note:'All LED light bars on; test all siren tones (wail, yelp, air horn)'},
+      {id:'stretcher',     label:'Power stretcher / cot loads correctly',note:'Auto-load mechanism functions; cot locks into vehicle; legs deploy and collapse'},
+      {id:'oxygen_amb',    label:'Oxygen — main tank & portable',        note:'Main ≥ 500 PSI; portable charged; regulators functional; no leaks'},
+      {id:'suction_amb',   label:'Suction unit',                         note:'Powers on; adequate vacuum; tubing clean'},
+      {id:'aed_amb',       label:'AED / defibrillator',                  note:'Self-test passes; pads not expired; battery charged'},
+      {id:'bvm',           label:'BVM (bag-valve mask)',                  note:'Adult and pediatric masks; valve functional'},
+      {id:'bp_pulse',      label:'BP cuff & pulse oximeter',             note:'Both functional'},
+      {id:'trauma_kit',    label:'Trauma bag stocked',                   note:'Gloves, dressings, bandages, splints, cervical collars — all present'},
+      {id:'airway_basic',  label:'Basic airway supplies',                note:'OPA, NPA, suction catheters accessible'},
+      {id:'pax_belts_amb', label:'Patient & attendant seatbelts',        note:'Stretcher straps; attendant belt; squad bench belts'},
+      {id:'sanitation_amb',label:'Patient compartment sanitized',        note:'All surfaces wiped; no biohazard from prior call'},
+      {id:'comm_amb',      label:'Radio & MDT',                          note:'Radio transmits and receives clearly; MDT connected'},
     ]},
-    // ── Ambulance ALS 2 extras ────────────────────────────────
+    // ── ALS 2 extras (AMB-254-02 only) ──────────────────────
     med_amb_als: {id:'med_amb_als', label:'ALS 2 Advanced Equipment', items:[
-      {id:'cardiac_mon',  label:'Cardiac monitor / defibrillator (12-lead)', note:'Powers on; ECG electrodes present; pads installed; self-test passes; battery charged'},
-      {id:'iv_pump',      label:'IV pump',                                    note:'Powers on; tubing sets present; alarm functional; battery charged'},
-      {id:'adv_airway',   label:'Advanced airway kit',                        note:'Laryngoscope (blade + handle), ET tubes, stylet, CO2 detector, video laryngoscope (if equipped)'},
-      {id:'ventilator',   label:'Transport ventilator',                       note:'Powers on; test ventilation; circuits clean; battery charged'},
-      {id:'capnography',  label:'Waveform capnography',                       note:'Module attached; sample line present; test waveform plausible'},
-      {id:'als_meds',     label:'ALS medications cabinet',                    note:'Sealed/locked; sealed if supervisor checked; all required meds present and in-date'},
-      {id:'iv_supplies',  label:'IV start supplies',                          note:'Catheters (18g/20g/22g), tubing, saline flush, tape — stocked'},
-      {id:'telemedicine', label:'Telemedicine / ALS telemetry',               note:'Camera functional; hospital link connects; transmission tested'},
+      {id:'cardiac_mon',  label:'Cardiac monitor (12-lead ECG)',          note:'Powers on; self-test passes; pads installed; battery charged; 12-lead cable present'},
+      {id:'iv_pump',      label:'IV pump',                                note:'Powers on; tubing sets present; battery charged'},
+      {id:'adv_airway',   label:'Advanced airway kit',                   note:'Laryngoscope + blades, ET tubes, stylet, CO2 detector — all present'},
+      {id:'ventilator',   label:'Transport ventilator',                   note:'Powers on; battery charged; circuits clean; test lung attached'},
+      {id:'capnography',  label:'Waveform capnography',                   note:'Module attached; sampling line present'},
+      {id:'als_meds',     label:'ALS medications',                        note:'Cabinet sealed or supervisor-checked; all meds present and in-date'},
+      {id:'telemedicine', label:'Telemedicine system',                    note:'Camera functional; hospital link tested'},
     ]},
-    // ── Stretcher transport ───────────────────────────────────
-    med_stretcher: {id:'med_stretcher', label:'Stretcher Transport Equipment', items:[
-      {id:'stretcher_st',    label:'Power stretcher / cot',         note:'Auto-load mechanism functional; locks in place; weight-rated; legs deploy/retract'},
-      {id:'cot_mount_st',    label:'Stretcher mount / fastening system',note:'Mount locks; manual release accessible; stretcher does not shift'},
-      {id:'pax_belts_st',    label:'Patient seatbelts',             note:'Head, chest, lap straps present; all buckle and tighten'},
-      {id:'oxygen_st',       label:'Oxygen — onboard & portable',   note:'Main tank ≥ 500 PSI; portable charged; regulators functional; no leaks'},
-      {id:'suction_st',      label:'Suction unit',                  note:'Powers on; test suction; tubing and canister clean'},
-      {id:'aed_st',          label:'AED',                           note:'Charged; pads not expired; indicator green'},
-      {id:'basic_med_st',    label:'Basic medical kit',             note:'BP cuff, pulse oximeter, gloves, bandages, trauma dressings — stocked'},
-      {id:'climate_st',      label:'Patient compartment climate',   note:'Heat and AC functional in patient area'},
-      {id:'sanitation_st',   label:'Compartment sanitation',        note:'No biohazard contamination; surfaces wiped from prior trip'},
-      {id:'comm_st',         label:'Communication device',          note:'Powered on; signal adequate'},
+    // ── Stretcher transport (ST-254-01) ──────────────────────
+    med_stretcher: {id:'med_stretcher', label:'Stretcher Equipment', items:[
+      {id:'st_stretcher',  label:'Power stretcher / cot',                note:'Auto-load functional; locks in place; legs deploy and retract'},
+      {id:'st_straps',     label:'Patient restraint straps',             note:'Head, chest, lap straps all present and functional'},
+      {id:'st_oxygen',     label:'Oxygen — onboard & portable',          note:'≥ 500 PSI; regulators work; no leaks; mask available'},
+      {id:'st_suction',    label:'Suction unit',                         note:'Powers on; tubing clean'},
+      {id:'st_aed',        label:'AED',                                  note:'Green indicator; pads not expired'},
+      {id:'st_med',        label:'Basic medical kit',                    note:'BP cuff, pulse ox, gloves, bandages — present and stocked'},
+      {id:'st_climate',    label:'Patient area climate control',         note:'Heat and A/C work in the patient compartment'},
+      {id:'st_clean',      label:'Patient compartment clean',            note:'No contamination from prior trip; surfaces wiped'},
     ]},
   };
 
   // ── Vehicle type → inspection group list mapping ─────────────
   const VEHICLE_PROFILES = {
-    // Unit prefix → profile
-    // dashboard_alerts is FIRST in every profile — if any light is ON, driver is blocked.
-    'SE':  { label:'Sedan — Electric (2016 Tesla Model 3)',   note:'Ambulatory passengers only. Electric vehicle — no combustion engine checks.',
-              groups:['dashboard_alerts','engine_ev','exterior_std','exterior_ev_extra','tires','brakes','interior','med_ambulatory'] },
-    'SUV': { label:'SUV — Luxury (2017 Land Rover HSE)',      note:'Ambulatory passengers, up to 3. Check all dashboard lights first.',
-              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_ambulatory'] },
-    'WV':  { label:'Wheelchair Van (2017 Ford Transit 350)',  note:'ADA wheelchair transport: 3 wheelchair positions + 12 ambulatory.',
-              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_wv'] },
-    'SH':  { label:'Shuttle (2017 Ford Transit 350)',         note:'Group shuttle: 1 wheelchair position + 14 ambulatory passengers.',
-              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_shuttle'] },
-    'AMB-254-01': { label:'BLS Ambulance (2010 Ford Transit CG)',  note:'Basic Life Support certification. Check dashboard lights and all BLS equipment.',
-              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_amb_base'] },
-    'AMB-254-02': { label:'ALS 2 Ambulance (2010 Ford Transit CG)',note:'Advanced Life Support 2 certification. Full BLS + ALS equipment inspection required.',
-              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_amb_base','med_amb_als'] },
-    'ST':  { label:'Stretcher Transport (2010 Ford Transit CG)',   note:'Non-emergency stretcher transport. Check dashboard lights and stretcher equipment.',
-              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_stretcher'] },
+    // SE-254-01 — 2016 Tesla Model 3 — lean car checklist, no van/medical groups
+    'SE': {
+      label: 'SE-254-01 — 2016 Tesla Model 3',
+      note:  'Electric sedan. Ambulatory passengers only. No lift, no wheelchair equipment.',
+      groups: ['alerts_tesla','prestart_tesla','exterior_tesla','tires_tesla','interior_tesla'],
+    },
+    // SUV-254-01 — 2017 Land Rover Range Rover HSE — lean car checklist
+    'SUV': {
+      label: 'SUV-254-01 — 2017 Land Rover Range Rover HSE',
+      note:  'Gas luxury SUV. Ambulatory, up to 3 passengers. No lift, no wheelchair equipment.',
+      groups: ['alerts_landrover','prestart_landrover','exterior_landrover','tires_lr','interior_landrover'],
+    },
+    // WV-254-01 — 2017 Ford Transit 350 HD — full ADA wheelchair van
+    'WV': {
+      label: 'WV-254-01 — 2017 Ford Transit 350 HD (Wheelchair Van)',
+      note:  'ADA wheelchair transport. 3 wheelchair positions + 12 ambulatory passengers.',
+      groups: ['dashboard_alerts','engine_gas','exterior_van','tires_van','brakes_van','interior_van','med_wv'],
+    },
+    // SH-254-01 — 2017 Ford Transit 350 HD — shuttle
+    'SH': {
+      label: 'SH-254-01 — 2017 Ford Transit 350 HD (Shuttle)',
+      note:  'Group shuttle. 1 wheelchair position + 14 ambulatory passengers.',
+      groups: ['dashboard_alerts','engine_gas','exterior_van','tires_van','brakes_van','interior_van','med_shuttle'],
+    },
+    // AMB-254-01 — 2010 Ford Transit CG — BLS Ambulance
+    'AMB-254-01': {
+      label: 'AMB-254-01 — 2010 Ford Transit CG (BLS Ambulance)',
+      note:  'Basic Life Support. Full BLS equipment inspection required.',
+      groups: ['dashboard_alerts','engine_gas','exterior_van','tires_van','brakes_van','interior_van','med_amb_base'],
+    },
+    // AMB-254-02 — 2010 Ford Transit CG — ALS 2 Ambulance
+    'AMB-254-02': {
+      label: 'AMB-254-02 — 2010 Ford Transit CG (ALS 2 Ambulance)',
+      note:  'Advanced Life Support 2. Full BLS + ALS equipment inspection required.',
+      groups: ['dashboard_alerts','engine_gas','exterior_van','tires_van','brakes_van','interior_van','med_amb_base','med_amb_als'],
+    },
+    // ST-254-01 — 2010 Ford Transit CG — Stretcher Transport
+    'ST': {
+      label: 'ST-254-01 — 2010 Ford Transit CG (Stretcher Transport)',
+      note:  'Non-emergency stretcher transport. Check stretcher and basic medical equipment.',
+      groups: ['dashboard_alerts','engine_gas','exterior_van','tires_van','brakes_van','interior_van','med_stretcher'],
+    },
   };
 
   // Resolve profile from unit number
   function profileForUnit(unit) {
     if (!unit) return null;
     const u = unit.toUpperCase();
-    // Exact match first (for AMB-254-01 vs AMB-254-02)
     if (VEHICLE_PROFILES[u]) return VEHICLE_PROFILES[u];
-    // Prefix match
     const prefix = u.split('-')[0];
     return VEHICLE_PROFILES[prefix] || null;
   }
@@ -405,9 +466,11 @@
     const pct = total ? Math.round(checked / total * 100) : 0;
     if ($('#inspProgressLabel')) $('#inspProgressLabel').textContent = `${checked} / ${total}`;
     if ($('#inspProgressBar'))   $('#inspProgressBar').style.width   = pct + '%';
-    // Real-time dashboard alert detection
-    const alertGroup = ALL_INSP_GROUPS['dashboard_alerts'];
-    const anyAlertFailed = alertGroup?.items.some(i => inspState[i.id] === 'fail');
+    // Real-time dashboard alert detection — find the critical group for this vehicle
+    const activeGroups2 = (activeInspProfile || profileForUnit(shift.vehicleUnit))?.groups || [];
+    const criticalGroupId = activeGroups2.find(gid => ALL_INSP_GROUPS[gid]?.critical);
+    const criticalGroup = criticalGroupId ? ALL_INSP_GROUPS[criticalGroupId] : null;
+    const anyAlertFailed = criticalGroup?.items.some(i => inspState[i.id] === 'fail') || false;
     const banner = $('#inspAlertBanner');
     if (banner) banner.hidden = !anyAlertFailed;
     // Change submit button if alert is active
@@ -435,8 +498,10 @@
     const failures = allItems.filter(i => inspState[i.id] === 'fail').map(i => i.label);
     const noticeEl = $('#inspSubmitNotice');
     // Block if any dashboard warning light is ON (failed)
-    const alertGroup = ALL_INSP_GROUPS['dashboard_alerts'];
-    const alertFails = alertGroup?.items.filter(i => inspState[i.id] === 'fail').map(i => i.label) || [];
+    const activeGroupIds = profile.groups;
+    const critGid = activeGroupIds.find(gid => ALL_INSP_GROUPS[gid]?.critical);
+    const critGroup = critGid ? ALL_INSP_GROUPS[critGid] : null;
+    const alertFails = critGroup?.items.filter(i => inspState[i.id] === 'fail').map(i => i.label) || [];
     if (alertFails.length) {
       if (noticeEl) {
         noticeEl.hidden = false;
