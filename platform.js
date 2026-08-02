@@ -244,3 +244,21 @@ $$('[data-api-list]').forEach(async el=>{const endpoint=el.dataset.apiList;const
 	}
 	setTimeout(()=>{ popLogos(); setInterval(popLogos,60000); },3000); // first pop 3s after load, then every 60s
 })();
+
+// ===== Standalone logo pop (runs independently of any IIFE) =====
+(function nexusLogoPop(){
+	function popAll(){
+		document.querySelectorAll('img.logo').forEach(function(el){
+			el.classList.remove('logo-pop');
+			void el.offsetWidth;
+			el.classList.add('logo-pop');
+			el.addEventListener('animationend',function(){ el.classList.remove('logo-pop'); },{once:true});
+		});
+	}
+	// Fire on load, then every 60 seconds
+	if(document.readyState==='loading'){
+		document.addEventListener('DOMContentLoaded',function(){ popAll(); setInterval(popAll,60000); },{once:true});
+	}else{
+		popAll(); setInterval(popAll,60000);
+	}
+}());
