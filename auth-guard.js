@@ -15,12 +15,18 @@
   '/operations.html':['DISPATCHER','ADMIN']
  };
  
- const allowed=policy[location.pathname];
+ // Normalize pathname: add .html if missing for policy lookup
+ let pathname = location.pathname;
+ if(!pathname.endsWith('.html') && pathname !== '/'){
+   pathname = pathname.replace(/\/$/, '') + '.html';
+ }
+ 
+ const allowed=policy[pathname];
  
  // If not a protected path, allow normal loading
  if(!allowed) return;
  
- console.log('[AUTH-GUARD] Protecting:', location.pathname);
+ console.log('[AUTH-GUARD] Protecting:', pathname);
  
  // STEP 1: Block rendering immediately
  if(document.documentElement) document.documentElement.style.visibility='hidden';
@@ -38,7 +44,7 @@
  
  if(!token){
    // Auto-redirect to login instead of showing blank page
-   window.location.href='/livecare.html?redirect='+encodeURIComponent(location.pathname);
+   window.location.href='/livecare.html?redirect='+encodeURIComponent(pathname);
    return;
  }
  
