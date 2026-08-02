@@ -58,6 +58,70 @@
   </div>
   <div id="brokerIntakePanel" class="intakePanel" data-intake-panel="broker" role="tabpanel" style="margin-top:16px">
     <form id="brokerIntakeForm" class="formGrid" style="display:grid;gap:14px">
+
+      <!-- Transportation Company Picker -->
+      <div id="transportationPickerBlock" style="border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--soft)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+          <div>
+            <div class="eyebrow" style="margin-bottom:2px">Nexus Medical Transit</div>
+            <strong style="font-size:15px">Patient Transportation Company</strong>
+            <p style="margin:4px 0 0;font-size:13px;color:var(--muted)">Search Medicaid brokers, workers' comp, health plans, hospital platforms and government programs.</p>
+          </div>
+          <button type="button" id="togglePickerAddForm" class="button" style="font-size:13px;padding:8px 14px">+ Add Company</button>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:12px">
+          <div class="formField">
+            <label for="pickerSearch">Search</label>
+            <input id="pickerSearch" type="search" placeholder="Company, state or category" autocomplete="off">
+          </div>
+          <div class="formField">
+            <label for="pickerCategory">Category</label>
+            <select id="pickerCategory"></select>
+          </div>
+          <div class="formField">
+            <label for="pickerService">Service</label>
+            <select id="pickerService"></select>
+          </div>
+        </div>
+
+        <!-- Add Custom Company Form -->
+        <div id="pickerAddForm" hidden style="border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff;margin-bottom:14px">
+          <strong style="display:block;margin-bottom:10px">Add a New Company</strong>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+            <div class="formField"><label for="addCoName">Company Name *</label><input id="addCoName" type="text" required></div>
+            <div class="formField"><label for="addCoCategory">Category</label><select id="addCoCategory"><option>Medicaid Broker</option><option>Workers Compensation</option><option>Health Plan</option><option>Hospital Transportation</option><option>Government</option><option>Facility Network</option><option selected>Other</option></select></div>
+            <div class="formField"><label for="addCoHQ">Headquarters</label><input id="addCoHQ" type="text" placeholder="City, State"></div>
+            <div class="formField"><label for="addCoPhone">Phone</label><input id="addCoPhone" type="tel" placeholder="(555) 123-4567"></div>
+            <div class="formField"><label for="addCoEmail">Email</label><input id="addCoEmail" type="email" placeholder="contact@company.com"></div>
+            <div class="formField"><label for="addCoWebsite">Website</label><input id="addCoWebsite" type="url" placeholder="https://"></div>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px">
+            <button type="button" id="saveCustomCompany" class="button primary" style="font-size:13px">Save Company</button>
+            <button type="button" id="cancelAddForm" class="button" style="font-size:13px">Cancel</button>
+          </div>
+        </div>
+
+        <div class="formField" style="margin-bottom:12px">
+          <label for="pickerSelect">Select Company</label>
+          <select id="pickerSelect"><option value="">Choose a company…</option></select>
+        </div>
+
+        <!-- Company Card -->
+        <div id="pickerCompanyCard" hidden style="border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+            <div>
+              <span id="pickerCardBadge" class="status blue" style="font-size:11px;margin-bottom:6px;display:inline-block"></span>
+              <h3 id="pickerCardName" style="margin:0;font-size:16px"></h3>
+            </div>
+            <span id="pickerCardProviderStatus" class="status" style="font-size:11px"></span>
+          </div>
+          <div id="pickerCardDetails" style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px 16px;font-size:13px;margin-bottom:10px"></div>
+          <div id="pickerCardServices" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+          <div id="pickerCardActions" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        </div>
+      </div>
+      <!-- /Transportation Company Picker -->
+
       <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
         <div class="formField"><label for="brokerReference">Referral ID</label><input id="brokerReference" name="reference" type="text" readonly></div>
         <div class="formField"><label for="brokerName">Broker name</label><input id="brokerName" name="brokerName" type="text" required></div>
@@ -253,5 +317,123 @@ document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); e
 function riskBadge(t){const r=NexusAI.riskScore(t);return `<div class="aiScore"><span class="status ${r.level==='High'?'red':r.level==='Medium'?'amber':'green'}">${r.level} ${r.score}%</span><span class="riskMeter" aria-label="${r.score} percent delay risk"><span style="width:${r.score}%"></span></span></div><small>${r.reasons.join(', ')}</small>`}
 function renderAI(trips){const rec=NexusAI.recommendations(trips);document.getElementById('aiRecommendations').innerHTML=rec.map(x=>`<article class="insight ${x.priority.toLowerCase()}"><h3>${x.priority}: ${x.title}</h3><p>${x.detail}</p></article>`).join('');const f=NexusAI.forecast(trips),max=Math.max(1,...f.map(x=>x.count));document.getElementById('demandForecast').innerHTML=f.map(x=>`<div class="forecastRow"><strong>${x.period}</strong><span class="forecastTrack"><span style="width:${Math.round(x.count/max*100)}%"></span></span><span>${x.count}</span></div>`).join('')}
 function renderTrips(trips){const statuses={pending:trips.filter(t=>["requested","scheduled"].includes(t.status)).length,active:trips.filter(t=>["assigned","en-route","arrived","in-transit"].includes(t.status)).length,completed:trips.filter(t=>t.status==="completed").length};document.getElementById("totalTrips").textContent=trips.length;document.getElementById("pendingTrips").textContent=statuses.pending;document.getElementById("activeTrips").textContent=statuses.active;document.getElementById("completedTrips").textContent=statuses.completed;document.getElementById("heroTotalTrips").textContent=trips.length;document.getElementById("heroPendingTrips").textContent=statuses.pending;document.getElementById("heroActiveTrips").textContent=statuses.active;document.getElementById("heroCompletedTrips").textContent=statuses.completed;const statusColors={requested:'blue',scheduled:'blue',assigned:'amber',['en-route']:'amber',arrived:'amber',['in-transit']:'green',completed:'green'};;document.getElementById("heroTripList")&&(document.getElementById("heroTripList").innerHTML=trips.slice(0,6).map(t=>`<div style="background:#fff;border:1px solid #d5e0e8;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="min-width:0"><strong style="font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name||"—"}</strong><small style="color:#52677c;font-size:11px">${t.service||"—"} · ${t.date||"—"}</small></div><span class="status ${statusColors[t.status]||'blue'}" style="font-size:10px;flex-shrink:0">${t.statusLabel||t.status||"Requested"}</span></div>`).join("")||'<div style="text-align:center;padding:16px;color:#52677c">No trips yet.</div>');document.getElementById("tripRows").innerHTML=trips.map(t=>`<tr><td>${t.reference||t.id}</td><td>${t.name||"—"}</td><td>${t.service||"—"}</td><td>${t.date||"—"} ${t.time||""}</td><td><span class="status blue">${t.statusLabel||t.status||"Requested"}</span></td><td>${NexusCore.money(t.quote?.total||t.amount)}</td><td>${riskBadge(t)}</td><td><button class="button compact" data-advance="${t.reference||t.id}">Advance</button></td></tr>`).join("")||`<tr><td colspan="8">No integrated trips yet. Create one from Book a Ride.</td></tr>`;document.querySelectorAll("[data-advance]").forEach(b=>b.onclick=()=>advance(b.dataset.advance));renderAI(trips)}function advance(id){const trips=NexusCore.getTrips(),flow=[["requested","Scheduled"],["scheduled","Assigned"],["assigned","En Route"],["en-route","Arrived"],["arrived","In Transit"],["in-transit","Completed"]];const t=trips.find(x=>(x.reference||x.id)===id);if(!t)return;const next=flow.find(x=>x[0]===t.status);if(next){t.status=next[1].toLowerCase().replaceAll(" ","-");t.statusLabel=next[1];localStorage.setItem("nexusTrips",JSON.stringify(trips));renderTrips(trips)}}document.getElementById("loadLocal").onclick=()=>renderTrips(NexusCore.getTrips());document.getElementById("loadTrips").onclick=async()=>{try{const r=await fetch("/api/portal/trips",{headers:{authorization:`Bearer ${sessionStorage.getItem('nexusAccessToken')}`}});const j=await r.json();if(!r.ok)throw new Error(j.error||"Unable to load");renderTrips(j.trips||[])}catch(e){alert(e.message)}};async function loadFleet(){try{const r=await fetch('/api/fleet/live',{headers:{authorization:`Bearer ${sessionStorage.getItem('nexusAccessToken')}`}});if(!r.ok)return;const j=await r.json();const v=j.vehicles||[];const c={MOVING:0,PATIENT_ON_BOARD:0,AVAILABLE:0,ATTENTION:0};v.forEach(x=>{c[x.status]=(c[x.status]||0)+1});document.getElementById('heroFleetMoving').textContent=c.MOVING||0;document.getElementById('heroFleetOnboard').textContent=c.PATIENT_ON_BOARD||0;document.getElementById('heroFleetAvail').textContent=c.AVAILABLE||0;document.getElementById('heroFleetAttn').textContent=c.ATTENTION||0;document.getElementById('heroFleetStatus').textContent=v.length?`Live · ${v.length} vehicle${v.length===1?'':'s'}`:'No fleet data';document.getElementById('heroFleetUpdated').textContent=`Updated ${new Date().toLocaleTimeString()}`;const statusCls={MOVING:'green',PATIENT_ON_BOARD:'green',AVAILABLE:'muted',ATTENTION:'amber'};const statusLabel={MOVING:'Moving',PATIENT_ON_BOARD:'Patient on board',AVAILABLE:'Available',ATTENTION:'Needs attention'};document.getElementById('heroVehicleList').innerHTML=v.length?v.map(x=>`<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div><strong style="font-size:13px;color:#fff;display:block">${x.unit||x.id}</strong><small style="color:#9fc2d8;font-size:11px">${x.type||'Vehicle'} · ${x.lastSeen?new Date(x.lastSeen).toLocaleTimeString():'No GPS'}</small></div><span class="status ${statusCls[x.status]||'blue'}" style="font-size:10px;flex-shrink:0">${statusLabel[x.status]||x.status}</span></div>`).join(''):'<div style="text-align:center;padding:20px;color:#9fc2d8;font-size:13px">No active vehicles. GPS positions update as drivers report.</div>'}catch(e){console.error('[Fleet]',e)}}document.getElementById('loadLocal').onclick=()=>renderTrips(NexusCore.getTrips());document.getElementById('loadTrips').onclick=async()=>{try{const r=await fetch('/api/portal/trips',{headers:{authorization:`Bearer ${sessionStorage.getItem('nexusAccessToken')}`}});const j=await r.json();if(!r.ok)throw new Error(j.error||'Unable to load');renderTrips(j.trips||[])}catch(e){alert(e.message)}};document.getElementById('heroRefreshFleet').onclick=loadFleet;window.addEventListener('nexus:authorized',()=>{loadFleet();renderTrips(NexusCore.getTrips())});if(window.NexusAuthorizedUser){loadFleet();renderTrips(NexusCore.getTrips())}
+
+// ========== TRANSPORTATION COMPANY PICKER ==========
+(function(){
+const COMPANIES=[
+  {id:'modivcare',name:'Modivcare',category:'Medicaid Broker',headquarters:'Denver, Colorado',website:'https://www.modivcare.com',providerPortal:'https://www.modivcare.com/transportation-providers-contact-us',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS'],acceptingProviders:true},
+  {id:'mtm',name:'MTM',category:'Medicaid Broker',headquarters:'Lake Saint Louis, Missouri',website:'https://www.mtm-inc.net',states:['National'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'access2care',name:'Access2Care',category:'Medicaid Broker',headquarters:'United States',website:'https://www.access2care.net',states:['Multiple States'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'verida',name:'Verida',category:'Medicaid Broker',headquarters:'Atlanta, Georgia',website:'https://verida.com',states:['Multiple States','District of Columbia'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'saferide-health',name:'SafeRide Health',category:'Health Plan',headquarters:'San Antonio, Texas',phone:'855-955-7433',website:'https://www.saferidehealth.com',states:['National'],services:['Ambulatory','Wheelchair','Rideshare'],acceptingProviders:true},
+  {id:'alivi',name:'Alivi',category:'Health Plan',headquarters:'Miami, Florida',website:'https://www.alivi.com',states:['Multiple States'],services:['Ambulatory','Wheelchair'],acceptingProviders:true},
+  {id:'mas',name:'Medical Answering Services',category:'Medicaid Broker',headquarters:'New York',website:'https://www.medanswering.com',states:['New York'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'american-logistics',name:'American Logistics',category:'Health Plan',headquarters:'California',website:'https://americanlogistics.com',states:['Multiple States'],services:['Ambulatory','Wheelchair','Rideshare'],acceptingProviders:true},
+  {id:'one-call',name:'One Call',category:'Workers Compensation',headquarters:'Jacksonville, Florida',website:'https://www.onecallcm.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS','ALS'],acceptingProviders:true},
+  {id:'go-t-and-t',name:'Go Transportation & Translation',category:'Workers Compensation',headquarters:'United States',website:'https://www.gotandt.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS','ALS','Air Ambulance'],acceptingProviders:true},
+  {id:'corvel',name:'CorVel Corporation',category:'Workers Compensation',headquarters:'Fort Worth, Texas',website:'https://www.corvel.com',states:['National'],services:['Medical Transportation','Case Management'],acceptingProviders:true},
+  {id:'sedgwick',name:'Sedgwick',category:'Workers Compensation',headquarters:'Memphis, Tennessee',website:'https://www.sedgwick.com',states:['National'],services:['Medical Transportation','Claims Management'],acceptingProviders:false},
+  {id:'enlyte',name:'Enlyte',category:'Workers Compensation',headquarters:'San Diego, California',website:'https://www.enlyte.com',states:['National'],services:['Medical Transportation','Case Management'],acceptingProviders:true},
+  {id:'genex',name:'Genex Services',category:'Workers Compensation',headquarters:'Wayne, Pennsylvania',website:'https://www.genexservices.com',states:['National'],services:['Medical Transportation','Case Management'],acceptingProviders:true},
+  {id:'coventry',name:'Coventry Workers Compensation Services',category:'Workers Compensation',headquarters:'United States',website:'https://www.coventrywcs.com',states:['National'],services:['Medical Transportation','Provider Networks'],acceptingProviders:true},
+  {id:'mti-america',name:'MTI America',category:'Workers Compensation',headquarters:'Pompano Beach, Florida',website:'https://www.mtiamerica.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'procare',name:'ProCare Transportation and Language Services',category:'Workers Compensation',headquarters:'United States',website:'https://www.procaretransportation.com',states:['National'],services:['Ambulatory','Wheelchair','Translation'],acceptingProviders:true},
+  {id:'roundtrip',name:'Roundtrip',category:'Hospital Transportation',headquarters:'Philadelphia, Pennsylvania',website:'https://www.roundtriphealth.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'ride-health',name:'Ride Health',category:'Hospital Transportation',headquarters:'New York',website:'https://www.ridehealth.com',states:['National'],services:['Ambulatory','Wheelchair','Rideshare'],acceptingProviders:true},
+  {id:'uber-health',name:'Uber Health',category:'Hospital Transportation',headquarters:'San Francisco, California',website:'https://www.uberhealth.com',states:['National'],services:['Ambulatory','Rideshare'],acceptingProviders:false},
+  {id:'lyft-healthcare',name:'Lyft Healthcare',category:'Hospital Transportation',headquarters:'San Francisco, California',website:'https://www.lyft.com/healthcare',states:['National'],services:['Ambulatory','Rideshare'],acceptingProviders:false},
+  {id:'va',name:'U.S. Department of Veterans Affairs',category:'Government',headquarters:'Washington, DC',website:'https://www.va.gov',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS'],acceptingProviders:true},
+];
+let companies=[...COMPANIES];
+let selectedId='';
+let filterSearch='',filterCat='All',filterSvc='All';
+
+const $=id=>document.getElementById(id);
+const pickerSearch=$('pickerSearch'),pickerCat=$('pickerCategory'),pickerSvc=$('pickerService');
+const pickerSelect=$('pickerSelect'),card=$('pickerCompanyCard');
+
+function getFiltered(){
+  const q=filterSearch.toLowerCase().trim();
+  return companies.filter(c=>{
+    const matchQ=!q||c.name.toLowerCase().includes(q)||c.category.toLowerCase().includes(q)||(c.headquarters||'').toLowerCase().includes(q)||(c.states||[]).some(s=>s.toLowerCase().includes(q));
+    const matchCat=filterCat==='All'||c.category===filterCat;
+    const matchSvc=filterSvc==='All'||(c.services||[]).includes(filterSvc);
+    return matchQ&&matchCat&&matchSvc;
+  }).sort((a,b)=>a.name.localeCompare(b.name));
+}
+
+function buildCategoryOptions(){
+  const cats=['All',...new Set(companies.map(c=>c.category))];
+  pickerCat.innerHTML=cats.map(c=>`<option${c===filterCat?' selected':''}>${c}</option>`).join('');
+}
+function buildServiceOptions(){
+  const svcs=['All',...new Set(companies.flatMap(c=>c.services||[]))].sort();
+  pickerSvc.innerHTML=svcs.map(s=>`<option${s===filterSvc?' selected':''}>${s}</option>`).join('');
+}
+function buildSelect(){
+  const filtered=getFiltered();
+  pickerSelect.innerHTML=`<option value="">Choose from ${filtered.length} companies…</option>`+filtered.map(c=>`<option value="${c.id}"${c.id===selectedId?' selected':''}>${c.name} — ${c.category}</option>`).join('');
+}
+function renderCard(company){
+  if(!company){card.hidden=true;return;}
+  card.hidden=false;
+  $('pickerCardBadge').textContent=company.category;
+  $('pickerCardName').textContent=company.name;
+  const st=$('pickerCardProviderStatus');
+  st.className='status '+(company.acceptingProviders?'green':'amber');
+  st.textContent=company.acceptingProviders?'Provider opportunities':'Verify enrollment';
+  const details=[];
+  if(company.headquarters)details.push(`<span><strong>HQ:</strong> ${company.headquarters}</span>`);
+  if(company.phone)details.push(`<span><strong>Phone:</strong> <a href="tel:${company.phone}">${company.phone}</a></span>`);
+  if(company.email)details.push(`<span><strong>Email:</strong> <a href="mailto:${company.email}">${company.email}</a></span>`);
+  if(company.states?.length)details.push(`<span><strong>Coverage:</strong> ${company.states.join(', ')}</span>`);
+  $('pickerCardDetails').innerHTML=details.join('');
+  $('pickerCardServices').innerHTML=(company.services||[]).map(s=>`<span class="status blue" style="font-size:11px">${s}</span>`).join('');
+  const actions=[];
+  if(company.website)actions.push(`<a class="button" href="${company.website}" target="_blank" rel="noreferrer" style="font-size:13px">Company Website</a>`);
+  if(company.providerPortal)actions.push(`<a class="button primary" href="${company.providerPortal}" target="_blank" rel="noreferrer" style="font-size:13px">Provider Enrollment</a>`);
+  $('pickerCardActions').innerHTML=actions.join('');
+}
+function selectCompany(id){
+  selectedId=id;
+  const company=companies.find(c=>c.id===id)||null;
+  renderCard(company);
+  // Auto-fill broker name field
+  if(company){const n=$('brokerName');if(n&&!n.value)n.value=company.name;}
+}
+function refresh(){buildSelect();buildCategoryOptions();buildServiceOptions();}
+
+// Events
+pickerSearch.addEventListener('input',()=>{filterSearch=pickerSearch.value;buildSelect();});
+pickerCat.addEventListener('change',()=>{filterCat=pickerCat.value;buildSelect();});
+pickerSvc.addEventListener('change',()=>{filterSvc=pickerSvc.value;buildSelect();});
+pickerSelect.addEventListener('change',()=>selectCompany(pickerSelect.value));
+$('togglePickerAddForm').addEventListener('click',()=>{
+  const f=$('pickerAddForm');f.hidden=!f.hidden;
+  $('togglePickerAddForm').textContent=f.hidden?'+ Add Company':'Close Form';
+});
+$('cancelAddForm').addEventListener('click',()=>{$('pickerAddForm').hidden=true;$('togglePickerAddForm').textContent='+ Add Company';});
+$('saveCustomCompany').addEventListener('click',()=>{
+  const name=$('addCoName').value.trim();if(!name)return;
+  const newCo={
+    id:name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now(),
+    name,category:$('addCoCategory').value,
+    headquarters:$('addCoHQ').value.trim(),
+    phone:$('addCoPhone').value.trim(),email:$('addCoEmail').value.trim(),
+    website:$('addCoWebsite').value.trim(),
+    states:[],services:[],acceptingProviders:false
+  };
+  companies=[...companies,newCo];
+  refresh();
+  selectCompany(newCo.id);
+  pickerSelect.value=newCo.id;
+  $('pickerAddForm').hidden=true;
+  $('togglePickerAddForm').textContent='+ Add Company';
+  $('addCoName').value='';$('addCoHQ').value='';$('addCoPhone').value='';$('addCoEmail').value='';$('addCoWebsite').value='';
+});
+
+refresh();
+})();
+// ========== /TRANSPORTATION COMPANY PICKER ==========
 </script></body></html>
 
