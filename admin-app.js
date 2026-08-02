@@ -47,6 +47,29 @@ async function loadUsers(){
 
 document.getElementById('refreshUsers').addEventListener('click',loadUsers);
 
+// Reset all test credentials
+document.getElementById('resetCredentialsBtn')?.addEventListener('click',async()=>{
+  const btn=document.getElementById('resetCredentialsBtn');
+  const msgEl=document.getElementById('resetCredentialsMsg');
+  if(!confirm('This will reset all 7 standard test accounts to their default passwords. Continue?'))return;
+  btn.disabled=true;btn.textContent='Resetting…';
+  msgEl.hidden=true;
+  try{
+    const r=await fetch('/api/admin/reset-credentials',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'}});
+    const data=await r.json();
+    if(!r.ok)throw new Error(data.error||'Failed to reset credentials');
+    const summary=data.results.map(x=>`${x.email} (${x.action})`).join(', ');
+    msgEl.style.cssText='background:#ecfdf3;color:#065f46;border:1px solid #6ee7b7;';
+    msgEl.textContent=`✓ ${data.message} — ${summary}`;
+    msgEl.hidden=false;
+    loadUsers();
+  }catch(e){
+    msgEl.style.cssText='background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;';
+    msgEl.textContent=`✗ ${e.message}`;
+    msgEl.hidden=false;
+  }finally{btn.disabled=false;btn.textContent='⟳ Reset test credentials';}
+});
+
 document.getElementById('createUserBtn').addEventListener('click',async()=>{
   const email=document.getElementById('newEmail').value.trim();
   const name=document.getElementById('newName').value.trim();

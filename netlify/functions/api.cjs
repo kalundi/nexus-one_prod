@@ -698,6 +698,33 @@ async function handler(event){
   if(p[0]==='fleet'&&p[1]==='live'&&method==='GET'){
    let u=null;try{if(bearer(event))u=await requireUser(bearer(event))}catch{}const r=await query(`SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at FROM vehicles WHERE last_seen_at IS NULL OR last_seen_at>now()-interval '24 hours' ORDER BY unit_number`);return json(200,{generatedAt:new Date().toISOString(),role:u?.role||'PUBLIC',vehicles:r.rows.map(v=>({id:v.unit_number,unit:v.unit_number,type:v.vehicle_type,status:v.status,lat:Number(v.latitude),lng:Number(v.longitude),heading:Number(v.heading||0),speed:Number(v.speed_mph||0),lastSeen:v.last_seen_at}))});
   }
+  // Admin: reset all test credentials (idempotent upsert for all standard roles)
+  if(p[0]==='admin'&&p[1]==='reset-credentials'&&method==='POST'){
+   await requireUser(bearer(event),['ADMIN']);
+   const TEST_USERS=[
+    {email:'admin@nexusmt.com',name:'Test Administrator',role:'ADMIN',password:'NexusAdmin042!'},
+    {email:'dispatcher@nexusmt.com',name:'Test Dispatcher',role:'DISPATCHER',password:'Dispatch2026!'},
+    {email:'driver@nexusmt.com',name:'Test Driver',role:'DRIVER',password:'Driver2026!'},
+    {email:'facility@nexusmt.com',name:'Test Facility',role:'FACILITY',password:'Facility2026!'},
+    {email:'billing@nexusmt.com',name:'Test Billing',role:'BILLING',password:'Billing2026!'},
+    {email:'qa@nexusmt.com',name:'Test QA',role:'QA',password:'Quality2026!'},
+    {email:'executive@nexusmt.com',name:'Test Executive',role:'EXECUTIVE',password:'Exec2026!'},
+   ];
+   const results=[];
+   for(const u of TEST_USERS){
+    const hash=crypto.createHash('sha256').update(u.password).digest('hex');
+    const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1)',[u.email]);
+    if(existing.rows[0]){
+     await query('UPDATE users SET display_name=$2,role=$3,password_hash=$4,active=true,updated_at=now() WHERE id=$1',[existing.rows[0].id,u.name,u.role,hash]);
+     results.push({email:u.email,action:'updated'});
+    }else{
+     await query('INSERT INTO users(id,email,display_name,role,password_hash,active,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash]);
+     results.push({email:u.email,action:'created'});
+    }
+   }
+   await audit('USER','system','CREDENTIALS_RESET',{count:results.length});
+   return json(200,{ok:true,results,message:`${results.length} accounts reset. All credentials restored.`});
+  }
   // Admin: list users
   if(p[0]==='admin'&&p[1]==='users'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
