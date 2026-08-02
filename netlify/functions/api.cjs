@@ -897,7 +897,38 @@ async function handler(event){
    }catch(e){console.warn('[COMPANIES] DB lookup failed, using defaults:',e.message);}
    return json(200,DEFAULT_COMPANIES);
   }
-  // ========== AVAILABILITY CHECKING ==========
+  // ===== SETUP/BOOTSTRAP — seed users without needing an admin login =====
+  // Protected by SETUP_KEY env var. Call: POST /api/setup/seed { key: "VALUE" }
+  if(p[0]==='setup'&&p[1]==='seed'&&method==='POST'){
+   const b=parseBody(event);
+   const setupKey=process.env.SETUP_KEY||'nexus-setup-2026';
+   if(clean(b.key)!==setupKey)return json(403,{error:'Invalid setup key'});
+   const TEST_USERS=[
+    {email:'admin@nexusmt.com',name:'Test Administrator',role:'ADMIN',password:'NexusAdmin042!'},
+    {email:'dispatcher@nexusmt.com',name:'Test Dispatcher',role:'DISPATCHER',password:'Dispatch2026!'},
+    {email:'driver@nexusmt.com',name:'Test Driver',role:'DRIVER',password:'Driver2026!'},
+    {email:'facility@nexusmt.com',name:'Test Facility',role:'FACILITY',password:'Facility2026!'},
+    {email:'billing@nexusmt.com',name:'Test Billing',role:'BILLING',password:'Billing2026!'},
+    {email:'qa@nexusmt.com',name:'Test QA',role:'QA',password:'Quality2026!'},
+    {email:'executive@nexusmt.com',name:'Test Executive',role:'EXECUTIVE',password:'Exec2026!'},
+   ];
+   const results=[];
+   for(const u of TEST_USERS){
+    const hash=crypto.createHash('sha256').update(u.password).digest('hex');
+    const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1)',[u.email]);
+    if(existing.rows[0]){
+     await query('UPDATE users SET display_name=$2,role=$3,password_hash=$4,active=true,updated_at=now() WHERE id=$1',[existing.rows[0].id,u.name,u.role,hash]);
+     results.push({email:u.email,role:u.role,action:'updated'});
+    }else{
+     await query('INSERT INTO users(id,email,display_name,role,password_hash,active,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash]);
+     results.push({email:u.email,role:u.role,action:'created'});
+    }
+   }
+   return json(200,{ok:true,seeded:results.length,results,
+    credentials:TEST_USERS.map(u=>({email:u.email,password:u.password,role:u.role}))
+   });
+  }
+  // ===== AVAILABILITY CHECKING ==========
   if(p.join('/')==='availability/check'&&method==='POST'){
    const b=parseBody(event);required(b,['tripDate','tripTime','service']);
    const tripDate=clean(b.tripDate);
