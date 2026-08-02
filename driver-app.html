@@ -269,6 +269,15 @@ a{color:var(--blue);text-decoration:none}
       <!-- Step 2: Checklist (hidden until vehicle selected) -->
       <div id="inspChecklistSection" hidden>
         <div class="notice info">Check every item. Mark Pass or Fail — all items required before starting shift.</div>
+        <!-- Dashboard alert escalation — shown if any warning light is ON -->
+        <div id="inspAlertBanner" hidden style="margin-bottom:10px;padding:14px 16px;background:#fff1f3;border:2px solid #fda4af;border-radius:14px;color:#be123c">
+          <strong style="font:800 15px Manrope,sans-serif">&#9888;&#65039; Dashboard Warning Light Is ON</strong>
+          <p style="margin:6px 0 10px;font-size:14px">Do <strong>NOT</strong> operate this vehicle. A warning light indicates a mechanical fault that requires Fleet attention before the vehicle is safe to drive.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="tel:+18887604990" class="btn primary sm" style="min-height:38px;text-decoration:none">&#128222; Call Fleet Now</a>
+            <button type="button" class="btn ghost sm" onclick="document.getElementById('inspNotes').focus();document.getElementById('inspNotes').scrollIntoView({behavior:'smooth'})" style="min-height:38px">Add Notes Below</button>
+          </div>
+        </div>
         <div id="inspProgress" class="card" style="overflow:visible">
           <div class="cardBody" style="padding-bottom:10px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">

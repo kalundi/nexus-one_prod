@@ -124,25 +124,42 @@
   //
   // Groups are tagged so we can show only what applies to each vehicle type.
   // profileGroups() returns the right set for the selected unit.
+  //
+  // RULE: dashboard_alerts is always FIRST. If any item is marked 'fail',
+  //       the inspection banner shows and shift start is blocked with an
+  //       escalation notice requiring Fleet contact.
 
   const ALL_INSP_GROUPS = {
-    engine_gas: {id:'engine_gas', label:'Engine Compartment', items:[
-      {id:'oil',    label:'Engine oil level',          note:'Dipstick between MIN and MAX'},
-      {id:'coolant',label:'Coolant / antifreeze level',note:'Full when cold; no leaks'},
-      {id:'brake_f',label:'Brake fluid level',         note:'Full, no leaks visible'},
-      {id:'ps_f',   label:'Power steering fluid',      note:'Full, no leaks'},
-      {id:'wash_f', label:'Windshield washer fluid',   note:'Adequate level'},
-      {id:'battery',label:'Battery',                   note:'Cables secure, no corrosion, hold-down tight'},
-      {id:'belts',  label:'Drive belts',               note:'No cracks, fraying, or slipping'},
-      {id:'hoses',  label:'Hoses',                     note:'No leaks, chafing, or soft spots'},
+    // ── Dashboard alerts — FIRST for ALL vehicles ─────────────
+    // These are what drivers CAN reliably check without mechanical expertise.
+    // If ANY light is ON the vehicle must NOT be driven.
+    dashboard_alerts: {id:'dashboard_alerts', label:'Dashboard Warning Lights', critical:true, items:[
+      {id:'da_check_engine',label:'Check Engine / Malfunction Indicator Lamp (MIL)', note:'Must be OFF. If ON → possible engine fault; do not operate; report to Fleet.'},
+      {id:'da_oil_press',   label:'Oil Pressure Warning',                            note:'Must be OFF. If ON → stop engine immediately; serious engine damage risk.'},
+      {id:'da_coolant',     label:'Coolant Temperature Warning',                     note:'Must be OFF. If ON → overheating risk; do not operate.'},
+      {id:'da_battery',     label:'Battery / Charging Warning',                      note:'Must be OFF. If ON → electrical system fault; report to Fleet.'},
+      {id:'da_brake',       label:'Brake System Warning',                            note:'Must be OFF. If ON → do not drive; safety-critical fault.'},
+      {id:'da_tpms',        label:'Tire Pressure (TPMS) Warning',                   note:'Must be OFF. If ON → check and inflate tires before driving.'},
+      {id:'da_abs',         label:'ABS / Traction Control Warning',                 note:'Must be OFF. If ON → braking may be affected; report to Fleet.'},
+      {id:'da_trans',       label:'Transmission Warning',                            note:'Must be OFF. If ON → do not drive; report to Fleet.'},
+      {id:'da_any_other',   label:'Any other active warning or error light',         note:'All dashboard lights must be off. Any orange or red light → report to Fleet before driving.'},
     ]},
-    engine_ev: {id:'engine_ev', label:'Electric Powertrain', items:[
-      {id:'ev_charge',  label:'Battery state of charge',       note:'Adequate range for full shift; charge if below 30%'},
-      {id:'ev_thermal', label:'Thermal management system',     note:'No warnings; coolant loop pressure OK'},
-      {id:'brake_f_ev', label:'Brake fluid level',             note:'Full, no leaks — regenerative braking still uses hydraulics'},
-      {id:'wash_f_ev',  label:'Windshield washer fluid',       note:'Adequate level'},
-      {id:'battery_12v',label:'12V auxiliary battery',         note:'Charged; cables secure; powers accessories'},
-      {id:'ev_warn',    label:'EV system warnings',            note:'No orange/red dashboard warnings; high-voltage system sealed'},
+    // ── Engine pre-start visual (combustion) — what drivers CAN check ──
+    // Drivers should NOT be expected to check oil dipstick, coolant overflow,
+    // PS fluid, etc. Those are mechanic responsibilities. Drivers verify:
+    engine_gas: {id:'engine_gas', label:'Engine Pre-Start Visual Check', items:[
+      {id:'eng_no_leaks',  label:'No fluid leaks under vehicle',    note:'Look at the ground under the vehicle — no oil, coolant, fuel, or brake fluid puddles or drips'},
+      {id:'eng_no_smell',  label:'No burning smell at startup',     note:'Start engine and idle briefly — no burning oil, fuel, rubber, or electrical smell'},
+      {id:'eng_no_sounds', label:'No unusual engine sounds',        note:'No knocking, grinding, rattling, or squealing when engine starts and idles'},
+      {id:'eng_fuel',      label:'Fuel level adequate (dashboard)', note:'Dashboard fuel gauge shows at least 1/4 tank for a full shift; fill if needed'},
+      {id:'eng_washer',    label:'Windshield washer fluid visible', note:'Open hood — visually check reservoir is above MIN line; top up if low'},
+    ]},
+    engine_ev: {id:'engine_ev', label:'EV Pre-Start Check', items:[
+      {id:'ev_charge',     label:'Battery state of charge (dashboard)', note:'Check energy display — adequate range for full shift; charge if below 30%'},
+      {id:'ev_no_leaks',   label:'No fluid leaks under vehicle',        note:'EV coolant loop — look for coolant puddles under front or rear; no drips'},
+      {id:'ev_no_sounds',  label:'No unusual sounds at startup',        note:'No grinding, rattling, or clicking when vehicle powers on and moves slowly'},
+      {id:'ev_washer',     label:'Windshield washer fluid visible',     note:'Open hood — check reservoir is above MIN; top up if low'},
+      {id:'ev_hv_sealed',  label:'High-voltage system sealed',          note:'No visible damage to orange HV cable conduits, battery undercarriage, or charge port'},
     ]},
     exterior_std: {id:'exterior_std', label:'Exterior Lights & Body', items:[
       {id:'headlights',    label:'Headlights (low & high beam)', note:'Both sides operational'},
@@ -273,20 +290,21 @@
   // ── Vehicle type → inspection group list mapping ─────────────
   const VEHICLE_PROFILES = {
     // Unit prefix → profile
-    'SE':  { label:'Sedan — Electric (2016 Tesla Model 3)',   note:'Ambulatory passengers only. Electric — no combustion engine checks.',
-              groups:['engine_ev','exterior_std','exterior_ev_extra','tires','brakes','interior','med_ambulatory'] },
-    'SUV': { label:'SUV — Luxury (2017 Land Rover HSE)',      note:'Ambulatory passengers, up to 3. Full combustion engine inspection.',
-              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_ambulatory'] },
+    // dashboard_alerts is FIRST in every profile — if any light is ON, driver is blocked.
+    'SE':  { label:'Sedan — Electric (2016 Tesla Model 3)',   note:'Ambulatory passengers only. Electric vehicle — no combustion engine checks.',
+              groups:['dashboard_alerts','engine_ev','exterior_std','exterior_ev_extra','tires','brakes','interior','med_ambulatory'] },
+    'SUV': { label:'SUV — Luxury (2017 Land Rover HSE)',      note:'Ambulatory passengers, up to 3. Check all dashboard lights first.',
+              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_ambulatory'] },
     'WV':  { label:'Wheelchair Van (2017 Ford Transit 350)',  note:'ADA wheelchair transport: 3 wheelchair positions + 12 ambulatory.',
-              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_wv'] },
+              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_wv'] },
     'SH':  { label:'Shuttle (2017 Ford Transit 350)',         note:'Group shuttle: 1 wheelchair position + 14 ambulatory passengers.',
-              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_shuttle'] },
-    'AMB-254-01': { label:'BLS Ambulance (2010 Ford Transit CG)',  note:'Basic Life Support certification. Full BLS equipment inspection required.',
-              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_amb_base'] },
+              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_shuttle'] },
+    'AMB-254-01': { label:'BLS Ambulance (2010 Ford Transit CG)',  note:'Basic Life Support certification. Check dashboard lights and all BLS equipment.',
+              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_amb_base'] },
     'AMB-254-02': { label:'ALS 2 Ambulance (2010 Ford Transit CG)',note:'Advanced Life Support 2 certification. Full BLS + ALS equipment inspection required.',
-              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_amb_base','med_amb_als'] },
-    'ST':  { label:'Stretcher Transport (2010 Ford Transit CG)',   note:'Non-emergency stretcher transport. Full stretcher & medical compartment inspection.',
-              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_stretcher'] },
+              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_amb_base','med_amb_als'] },
+    'ST':  { label:'Stretcher Transport (2010 Ford Transit CG)',   note:'Non-emergency stretcher transport. Check dashboard lights and stretcher equipment.',
+              groups:['dashboard_alerts','engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_stretcher'] },
   };
 
   // Resolve profile from unit number
@@ -387,6 +405,24 @@
     const pct = total ? Math.round(checked / total * 100) : 0;
     if ($('#inspProgressLabel')) $('#inspProgressLabel').textContent = `${checked} / ${total}`;
     if ($('#inspProgressBar'))   $('#inspProgressBar').style.width   = pct + '%';
+    // Real-time dashboard alert detection
+    const alertGroup = ALL_INSP_GROUPS['dashboard_alerts'];
+    const anyAlertFailed = alertGroup?.items.some(i => inspState[i.id] === 'fail');
+    const banner = $('#inspAlertBanner');
+    if (banner) banner.hidden = !anyAlertFailed;
+    // Change submit button if alert is active
+    const submitBtn = $('#btnSubmitInspection');
+    if (submitBtn) {
+      if (anyAlertFailed) {
+        submitBtn.textContent = '⚠️ Warning Light Active — Cannot Start Shift';
+        submitBtn.className = 'btn primary';
+        submitBtn.style.opacity = '0.6';
+      } else {
+        submitBtn.textContent = 'Submit Inspection & Start Shift';
+        submitBtn.className = 'btn ok';
+        submitBtn.style.opacity = '';
+      }
+    }
   }
 
   $('#inspectionForm')?.addEventListener('submit', e => {
@@ -398,6 +434,16 @@
     const missing  = allItems.filter(i => !inspState[i.id]);
     const failures = allItems.filter(i => inspState[i.id] === 'fail').map(i => i.label);
     const noticeEl = $('#inspSubmitNotice');
+    // Block if any dashboard warning light is ON (failed)
+    const alertGroup = ALL_INSP_GROUPS['dashboard_alerts'];
+    const alertFails = alertGroup?.items.filter(i => inspState[i.id] === 'fail').map(i => i.label) || [];
+    if (alertFails.length) {
+      if (noticeEl) {
+        noticeEl.hidden = false;
+        noticeEl.textContent = `Cannot start shift — ${alertFails.length} dashboard warning light(s) are ON. Contact Fleet before operating this vehicle.`;
+      }
+      return;
+    }
     if (missing.length) {
       if (noticeEl) { noticeEl.hidden = false; noticeEl.textContent = `${missing.length} item(s) not checked. Mark every item Pass or Fail.`; }
       return;
