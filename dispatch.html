@@ -65,9 +65,13 @@
         <div class="formField"><label for="brokerSubmitterEmail">Submitter email</label><input id="brokerSubmitterEmail" name="submitterEmail" type="email" placeholder="broker@example.com"></div>
       </div>
       <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-        <div class="formField"><label for="brokerPickup">Pickup address</label><input id="brokerPickup" name="pickup" type="text" required></div>
-        <div class="formField"><label for="brokerDestination">Destination address</label><input id="brokerDestination" name="destination" type="text" required></div>
+        <div class="formField"><label for="brokerPickup">Pickup address</label><textarea id="brokerPickup" name="pickup" style="resize:vertical;min-height:60px;font-family:inherit;font-size:inherit" required></textarea></div>
+        <div class="formField"><label for="brokerDestination">Destination address</label><textarea id="brokerDestination" name="destination" style="resize:vertical;min-height:60px;font-family:inherit;font-size:inherit" required></textarea></div>
         <div class="formField"><label for="brokerPatientPhone">Phone number</label><input id="brokerPatientPhone" name="patientPhone" type="tel" placeholder="(555) 123-4567"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="brokerPickupSuite">Pickup suite/unit number <small style="color:var(--muted)">(optional)</small></label><input id="brokerPickupSuite" name="pickupSuite" type="text" placeholder="Suite, Apt, Unit #"></div>
+        <div class="formField"><label for="brokerDestinationSuite">Destination suite/unit number <small style="color:var(--muted)">(optional)</small></label><input id="brokerDestinationSuite" name="destinationSuite" type="text" placeholder="Suite, Apt, Unit #"></div>
       </div>
       <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
         <div class="formField"><label for="brokerPickupLocation">Pick up location</label><input id="brokerPickupLocation" name="pickupLocation" type="text" placeholder="Home, facility, etc."></div>
@@ -106,8 +110,12 @@
         <div class="formField"><label for="customerRequester">Requester</label><input id="customerRequester" name="requester" type="text" placeholder="Patient / caregiver name"></div>
       </div>
       <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-        <div class="formField"><label for="customerPickup">Pickup</label><input id="customerPickup" name="pickup" type="text" required></div>
-        <div class="formField"><label for="customerDestination">Destination</label><input id="customerDestination" name="destination" type="text" required></div>
+        <div class="formField"><label for="customerPickup">Pickup</label><textarea id="customerPickup" name="pickup" style="resize:vertical;min-height:60px;font-family:inherit;font-size:inherit" required></textarea></div>
+        <div class="formField"><label for="customerDestination">Destination</label><textarea id="customerDestination" name="destination" style="resize:vertical;min-height:60px;font-family:inherit;font-size:inherit" required></textarea></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="customerPickupSuite">Pickup suite/unit number <small style="color:var(--muted)">(optional)</small></label><input id="customerPickupSuite" name="pickupSuite" type="text" placeholder="Suite, Apt, Unit #"></div>
+        <div class="formField"><label for="customerDestinationSuite">Destination suite/unit number <small style="color:var(--muted)">(optional)</small></label><input id="customerDestinationSuite" name="destinationSuite" type="text" placeholder="Suite, Apt, Unit #"></div>
       </div>
       <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
         <div class="formField"><label for="customerTripDate">Trip date</label><input id="customerTripDate" name="tripDate" type="date" required></div>
@@ -137,8 +145,12 @@
         <div class="formField"><label for="facilitySubmitterEmail">Submitter email</label><input id="facilitySubmitterEmail" name="submitterEmail" type="email" placeholder="facility@example.com"></div>
       </div>
       <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-        <div class="formField"><label for="facilityPickup">Pickup</label><input id="facilityPickup" name="pickup" type="text" required></div>
-        <div class="formField"><label for="facilityDestination">Destination</label><input id="facilityDestination" name="destination" type="text" required></div>
+        <div class="formField"><label for="facilityPickup">Pickup</label><textarea id="facilityPickup" name="pickup" style="resize:vertical;min-height:60px;font-family:inherit;font-size:inherit" required></textarea></div>
+        <div class="formField"><label for="facilityDestination">Destination</label><textarea id="facilityDestination" name="destination" style="resize:vertical;min-height:60px;font-family:inherit;font-size:inherit" required></textarea></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="facilityPickupSuite">Pickup suite/unit number <small style="color:var(--muted)">(optional)</small></label><input id="facilityPickupSuite" name="pickupSuite" type="text" placeholder="Suite, Apt, Unit #"></div>
+        <div class="formField"><label for="facilityDestinationSuite">Destination suite/unit number <small style="color:var(--muted)">(optional)</small></label><input id="facilityDestinationSuite" name="destinationSuite" type="text" placeholder="Suite, Apt, Unit #"></div>
       </div>
       <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
         <div class="formField"><label for="facilityTripDate">Trip date</label><input id="facilityTripDate" name="tripDate" type="date" required></div>

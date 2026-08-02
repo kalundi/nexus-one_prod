@@ -664,6 +664,16 @@ Destination: -</p>
           <input id="destination" name="destination" placeholder="Destination address" autocomplete="off" required>
           <div id="destinationSuggestionsPanel" class="suggestions" hidden></div>
         </div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:8px">
+          <div class="field">
+            <label for="pickupSuite">Pickup suite/unit <span style="font-size:12px;color:#888">(optional)</span></label>
+            <input id="pickupSuite" name="pickupSuite" type="text" placeholder="Suite, Apt, Unit #">
+          </div>
+          <div class="field">
+            <label for="destinationSuite">Destination suite/unit <span style="font-size:12px;color:#888">(optional)</span></label>
+            <input id="destinationSuite" name="destinationSuite" type="text" placeholder="Suite, Apt, Unit #">
+          </div>
+        </div>
         <div class="destinationRows" id="destinationRows"></div>
         <p class="subtle" style="margin-top:-2px">Start typing to see address suggestions.</p>
         <div class="authActions" style="margin-top:8px">
