@@ -8,6 +8,8 @@
   },
   "scripts": {
     "build": "node scripts/build-static.mjs",
+    "build:prod": "node scripts/build-static.mjs && node scripts/obfuscate-code.mjs",
+    "obfuscate": "node scripts/obfuscate-code.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:check": "node scripts/db-check.mjs",
     "verify": "node scripts/verify-build042.mjs",
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "javascript-obfuscator": "^4.2.0"
   }
 }

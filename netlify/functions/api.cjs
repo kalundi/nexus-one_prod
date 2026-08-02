@@ -814,6 +814,39 @@ async function handler(event){
    await audit('BROKER_REQUEST',reqId,'REVIEWED',{status:b.dispatch_status,reviewedBy:u.display_name});
    return json(200,{request:r.rows[0]});
   }
+  // ========== AVAILABILITY CHECKING ==========
+  if(p.join('/')==='availability/check'&&method==='POST'){
+   const b=parseBody(event);required(b,['tripDate','tripTime','service']);
+   const tripDate=clean(b.tripDate);
+   const tripTime=clean(b.tripTime);
+   const service=clean(b.service);
+   // Check driver availability for this date/time
+   const drivers=await query(`
+    SELECT COUNT(DISTINCT e.id) as available
+    FROM employees e
+    INNER JOIN employee_shifts es ON e.id=es.employee_id
+    WHERE e.employee_type='DRIVER' AND e.active=true
+    AND es.shift_day::text ILIKE SUBSTRING($1,1,10)
+    AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
+   `,[tripDate,tripTime]);
+   const driverCount=Number(drivers.rows[0]?.available||0);
+   // Check fleet vehicle availability for this service
+   const vehicles=await query(`
+    SELECT COUNT(*) as available FROM vehicles
+    WHERE active=true AND status='AVAILABLE'
+    AND (metadata->>'availability_24_7'='true' OR metadata->'service_hours' @> $1::jsonb)
+   `,[JSON.stringify({service})]);
+   const vehicleCount=Number(vehicles.rows[0]?.available||0);
+   const available=driverCount>0&&vehicleCount>0;
+   return json(200,{
+    available,
+    drivers:{available:driverCount,total:10,status:driverCount>2?'HIGH':driverCount>0?'LOW':'NONE'},
+    vehicles:{available:vehicleCount,total:4,status:vehicleCount>2?'HIGH':vehicleCount>0?'LOW':'NONE'},
+    recommendation:available?'AUTO_CONFIRM':'DISPATCH_REVIEW',
+    action:available?'AUTOMATIC':'MANUAL',
+    checkedAt:new Date().toISOString()
+   });
+  }
   if(p[0]==='admin'&&p[1]==='brokers'&&p[2]&&p[3]==='dashboard'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN','EXECUTIVE','BILLING']);
    const brokerId=Number(p[2]);
