@@ -37,7 +37,9 @@
  };
  
  if(!token){
-   return deny('Please sign in through Livecare first.');
+   // Auto-redirect to login instead of showing blank page
+   window.location.href='/livecare.html?redirect='+encodeURIComponent(location.pathname);
+   return;
  }
  
  // STEP 2: Verify token synchronously with async check
