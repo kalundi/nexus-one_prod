@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#061321">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Nexus Medical Transit Driver App — start your shift, manage trips and update status in real time.">
+<title>Driver App | NEXUS ONE</title>
+<link rel="stylesheet" href="./driver-app.css">
+<style>
+/* ── Login screen ─────────────────────────────────── */
+#loginScreen{position:fixed;inset:0;z-index:1000;background:var(--driver-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+#loginScreen.hidden{display:none}
+.loginCard{width:min(420px,100%);background:var(--driver-panel);border:1px solid var(--driver-line);border-radius:24px;padding:32px}
+.loginLogo{display:block;width:170px;filter:brightness(0) invert(1);margin:0 auto 28px}
+.loginCard h1{margin:0 0 6px;font-size:22px;text-align:center}
+.loginCard p{margin:0 0 24px;color:var(--driver-muted);text-align:center;font-size:14px}
+.loginField{display:grid;gap:7px;margin-bottom:14px}
+.loginField label{font-weight:800;font-size:14px}
+.loginField input{width:100%;border:1px solid var(--driver-line);border-radius:12px;background:#0d263a;color:#fff;padding:14px 12px;font:inherit;font-size:16px}
+.loginField input:focus{outline:none;border-color:#2e90fa;box-shadow:0 0 0 3px rgba(46,144,250,.15)}
+#loginError{padding:12px 14px;border-radius:12px;background:rgba(240,68,56,.15);border:1px solid rgba(240,68,56,.35);color:#fda29b;font-size:14px;margin-bottom:14px;display:none}
+#loginBtn{width:100%;min-height:54px;border:0;border-radius:14px;background:linear-gradient(135deg,#0b75ff,#005dcc);color:#fff;font-size:16px;font-weight:900;cursor:pointer;margin-top:6px}
+#loginBtn:disabled{opacity:.5;cursor:not-allowed}
+.loginFooter{margin-top:20px;text-align:center;color:var(--driver-muted);font-size:13px}
+.loginFooter a{color:#74c0fc}
+/* ── Shift-gated message ──────────────────────────── */
+#offShiftBanner{background:rgba(247,144,9,.14);border:1px solid rgba(247,144,9,.35);border-radius:14px;padding:14px 16px;color:#fec84b;margin-bottom:16px;display:none}
+/* ── GPS dot ──────────────────────────────────────── */
+.gpsBadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--driver-muted)}
+.gpsBadge.active{color:#6ce9a6}.gpsBadge.active span.dot{background:#16b364}
+.gpsBadge span.dot{width:8px;height:8px;border-radius:50%;background:var(--driver-muted);display:inline-block}
+/* ── Trip action row ──────────────────────────────── */
+.tripActions{display:flex;gap:8px;margin-top:10px}
+.tripActions button{flex:1;min-height:40px;border:1px solid var(--driver-line);border-radius:10px;background:var(--driver-panel-2);color:#fff;font-weight:800;font-size:12px;cursor:pointer}
+.tripActions button.primary{background:linear-gradient(135deg,#0b75ff,#005dcc);border-color:#0b75ff}
+</style>
+</head>
+<body class="driverAppBody">
+
+<!-- ══ LOGIN SCREEN ════════════════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="loginCard">
+    <img class="loginLogo" src="./nexus-logo.png" alt="Nexus Medical Transit">
+    <h1>Driver Sign In</h1>
+    <p>Sign in with your Nexus driver credentials to start your shift.</p>
+    <div id="loginError"></div>
+    <form id="loginForm" autocomplete="on" novalidate>
+      <div class="loginField">
+        <label for="loginEmail">Email</label>
+        <input id="loginEmail" type="email" name="email" autocomplete="username" placeholder="driver@example.com" required>
+      </div>
+      <div class="loginField">
+        <label for="loginPassword">Password</label>
+        <input id="loginPassword" type="password" name="password" autocomplete="current-password" placeholder="••••••••" required>
+      </div>
+      <button id="loginBtn" type="submit">Sign in</button>
+    </form>
+    <p class="loginFooter">Need help? Call <a href="tel:+18887604990">(888) 760‑4990</a></p>
+  </div>
+</div>
+
+<!-- ══ DRIVER APP ══════════════════════════════════════════════ -->
+<header class="driverTop" id="appHeader">
+  <div class="driverTopInner">
+    <a class="driverBrand" href="/" aria-label="Nexus Medical Transit home">
+      <img src="./nexus-logo.png" alt="Nexus Medical Transit">
+    </a>
+    <div class="gpsBadge" id="gpsBadge"><span class="dot"></span>GPS</div>
+    <div class="driverTopActions">
+      <button class="driverIconBtn" id="callDispatch" aria-label="Call dispatch" title="Call dispatch">📞</button>
+      <button class="driverIconBtn" id="messageButton" aria-label="Message dispatch" title="Message dispatch">💬</button>
+      <button class="driverIconBtn" id="signOutBtn" aria-label="Sign out" title="Sign out">⏏</button>
+    </div>
+  </div>
+</header>
+
+<div class="driverShell">
+  <div class="driverHero">
+    <div class="driverGreeting">
+      <div>
+        <p class="driverEyebrow">NEXUS Driver Workspace</p>
+        <h1>Good <span id="timeOfDay">day</span>, <span id="driverName">Driver</span>.</h1>
+        <p id="shiftSubtitle" style="margin:6px 0 0;color:var(--driver-muted)">Loading your shift…</p>
+      </div>
+      <div id="driverStatus" class="driverStatusPill off"><span class="driverStatusDot"></span>OFF DUTY</div>
+    </div>
+
+    <div id="offShiftBanner">
+      <strong>Outside scheduled shift hours.</strong> You can still start your shift but it will be flagged for supervisor review.
+    </div>
+
+    <div class="shiftSummaryGrid">
+      <div class="shiftStat"><strong id="hoursWorked">0:00</strong><span>Hours worked</span></div>
+      <div class="shiftStat"><strong id="tripCount">0</strong><span>Assigned today</span></div>
+      <div class="shiftStat"><strong id="completedCount">0</strong><span>Completed</span></div>
+      <div class="shiftStat"><strong id="vehicleNumber">—</strong><span>Vehicle unit</span></div>
+    </div>
+  </div>
+
+  <!-- Shift controls -->
+  <div class="driverCard" style="margin-bottom:16px">
+    <div class="driverCardHeader">
+      <div><p class="driverEyebrow">Shift management</p><h2 id="driverFullName">Loading…</h2></div>
+      <span style="font-size:13px;color:var(--driver-muted)" id="driverId"></span>
+    </div>
+    <div class="driverButtonRow" style="margin-bottom:12px">
+      <button id="shiftButton" class="driverPrimary green" style="flex:1" disabled>START SHIFT</button>
+      <button id="breakButton" class="driverSecondary" disabled>BREAK</button>
+      <button id="inspectionButton" class="driverSecondary" disabled>INSPECTION</button>
+    </div>
+    <div id="driverNotice" class="driverNotice" role="status" aria-live="polite">Loading driver workspace…</div>
+  </div>
+
+  <div class="driverGrid">
+    <!-- LEFT: Active trip + workflow -->
+    <div>
+      <div class="driverCard">
+        <div class="driverCardHeader">
+          <div><p class="driverEyebrow">Current assignment</p><h2>Active trip</h2></div>
+          <span id="activeTripBadge" class="tripStatus">No trip</span>
+        </div>
+        <div id="activeTripPanel" class="nextTrip">
+          <p style="color:var(--driver-muted)">No active trip. Dispatch will assign your next trip.</p>
+        </div>
+        <div class="driverButtonRow" style="margin-top:14px">
+          <button id="advanceWorkflow" class="driverPrimary" disabled>ACCEPT TRIP</button>
+          <button id="navigateButton" class="driverSecondary" disabled>🗺 NAV</button>
+        </div>
+      </div>
+
+      <div class="driverCard driverSection">
+        <div class="driverCardHeader"><div><p class="driverEyebrow">Trip workflow</p><h2>Status steps</h2></div></div>
+        <div id="workflow" class="workflow">
+          <p style="color:var(--driver-muted);font-size:13px">Start shift and accept a trip to begin workflow.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Manifest + vehicle + quick actions -->
+    <div>
+      <div class="driverCard">
+        <div class="driverCardHeader"><div><p class="driverEyebrow">Today's manifest</p><h2>All trips</h2></div>
+        <button id="refreshTrips" class="driverSecondary" style="min-height:36px;font-size:12px">↻ Refresh</button></div>
+        <div id="tripList" class="tripList"><p style="color:var(--driver-muted)">Loading trips…</p></div>
+      </div>
+
+      <div class="driverCard driverSection">
+        <div class="driverCardHeader"><div><p class="driverEyebrow">Quick actions</p><h2>Tools</h2></div></div>
+        <div class="quickGrid">
+          <button class="quickAction" id="incidentButton"><span>🚨</span><small>Report incident</small></button>
+          <button class="quickAction" id="fleetButton"><span>🚐</span><small>Vehicle status</small></button>
+          <button class="quickAction" id="callDispatch2"><span>📞</span><small>Call dispatch</small></button>
+          <button class="quickAction" id="messageButton2"><span>💬</span><small>Message</small></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="height:24px"></div>
+</div>
+
+<!-- ══ BOTTOM NAV ══════════════════════════════════════════════ -->
+<nav class="driverBottomNav" aria-label="Driver navigation">
+  <a href="#" class="active" data-nav="dash"><span>🏠</span>Dashboard</a>
+  <a href="#" data-nav="trips"><span>📋</span>Trips</a>
+  <a href="#" data-nav="map"><span>🗺</span>Navigate</a>
+  <a href="#" data-nav="vehicle"><span>🚐</span>Vehicle</a>
+  <a href="#" data-nav="more"><span>⋯</span>More</a>
+</nav>
+
+<!-- ══ DIALOGS ════════════════════════════════════════════════ -->
+<dialog id="inspectionDialog" class="driverDialog">
+  <div class="driverDialogInner">
+    <div class="driverDialogHeader"><h2>Pre-trip inspection</h2><button class="driverClose" aria-label="Close">×</button></div>
+    <p style="color:var(--driver-muted);margin-bottom:18px">Check every item before your first trip. This is logged and shared with Fleet and Dispatch.</p>
+    <form id="inspectionForm">
+      <div class="inspectionList">
+        <div class="inspectionItem"><label>Wheelchair restraints &amp; stretcher locks</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="restraints" required></div>
+        <div class="inspectionItem"><label>Fuel / charge level adequate</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="fuel" required></div>
+        <div class="inspectionItem"><label>Emergency equipment &amp; first-aid supplies</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="emergency" required></div>
+        <div class="inspectionItem"><label>Lift / ramp operation tested</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="lift" required></div>
+        <div class="inspectionItem"><label>Exterior lights &amp; turn signals</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="lights" required></div>
+        <div class="inspectionItem"><label>Tires &amp; mirrors</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="tires" required></div>
+        <div class="inspectionItem"><label>Interior clean &amp; properly configured</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="interior" required></div>
+        <div class="inspectionItem"><label>Oxygen &amp; suction units (if applicable)</label><small style="color:var(--driver-muted)">If applicable</small><input type="checkbox" name="oxygen"></div>
+      </div>
+      <button class="driverPrimary green" type="submit" style="margin-top:18px">SUBMIT INSPECTION</button>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="endShiftDialog" class="driverDialog">
+  <div class="driverDialogInner">
+    <div class="driverDialogHeader"><h2>End shift</h2><button class="driverClose" aria-label="Close">×</button></div>
+    <p style="color:var(--driver-muted)">Your shift summary will be submitted to Dispatch and Fleet.</p>
+    <div class="shiftSummaryGrid" style="margin:18px 0">
+      <div class="shiftStat"><strong id="endShiftHours">0:00</strong><span>Hours worked</span></div>
+      <div class="shiftStat"><strong id="endShiftTrips">0</strong><span>Trips completed</span></div>
+      <div class="shiftStat"><strong id="endShiftMiles">0.0</strong><span>Miles driven</span></div>
+      <div class="shiftStat"><strong id="endShiftVehicle">—</strong><span>Vehicle</span></div>
+    </div>
+    <div class="driverButtonRow">
+      <button id="confirmEndShift" class="driverPrimary red" style="flex:1">CONFIRM END SHIFT</button>
+      <button class="driverSecondary driverClose">CANCEL</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="incidentDialog" class="driverDialog">
+  <div class="driverDialogInner">
+    <div class="driverDialogHeader"><h2>Report incident</h2><button class="driverClose" aria-label="Close">×</button></div>
+    <form id="incidentForm">
+      <div class="driverField"><label for="incidentType">Incident type</label>
+        <select id="incidentType" name="type">
+          <option value="vehicle_damage">Vehicle damage</option>
+          <option value="patient_fall">Patient fall</option>
+          <option value="traffic_accident">Traffic accident</option>
+          <option value="medical_emergency">Patient medical emergency</option>
+          <option value="mechanical_failure">Mechanical failure</option>
+          <option value="safety_concern">Safety concern</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="driverField"><label for="incidentDesc">Description</label>
+        <textarea id="incidentDesc" name="description" required placeholder="Briefly describe what happened…"></textarea>
+      </div>
+      <div class="driverField"><label for="incidentLocation">Location</label>
+        <input id="incidentLocation" name="location" type="text" placeholder="Cross street or address">
+      </div>
+      <button class="driverPrimary red" type="submit" style="margin-top:6px">SUBMIT REPORT</button>
+    </form>
+  </div>
+</dialog>
+
+<script src="./driver-app.js"></script>
+</body>
+</html>

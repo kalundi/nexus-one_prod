@@ -683,7 +683,10 @@ async function handler(event){
   if(p[0]==='admin'&&p[1]==='bookings'&&method==='GET'){await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);const r=await query('SELECT * FROM bookings ORDER BY trip_date DESC,trip_time DESC LIMIT 500');return json(200,{bookings:r.rows.map(mapBooking)})}
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='GET'){await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);const ref=decodeURIComponent(p[2]);const r=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref]);if(!r.rows[0])return json(404,{error:'Booking not found'});return json(200,{booking:mapBooking(r.rows[0])})}
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='PATCH'){
-   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const b=parseBody(event),ref=decodeURIComponent(p[2]);const hasEstimatedFare=Object.prototype.hasOwnProperty.call(b,'estimatedFare');const estimatedFareRaw=hasEstimatedFare?Number(b.estimatedFare):null;if(hasEstimatedFare&&!Number.isFinite(estimatedFareRaw))return json(400,{error:'estimatedFare must be a valid number'});if(hasEstimatedFare&&estimatedFareRaw<0)return json(400,{error:'estimatedFare must be 0 or greater'});if(hasEstimatedFare&&u.role!=='ADMIN')return json(403,{error:'Only Admin can adjust fares'});const r=await query(`UPDATE bookings SET status=COALESCE($2,status),driver_name=COALESCE($3,driver_name),vehicle_unit=COALESCE($4,vehicle_unit),estimated_fare=CASE WHEN $5 THEN $6 ELSE estimated_fare END,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,b.status?String(b.status).toUpperCase().replaceAll('-','_'):null,b.driverName||null,b.vehicleUnit||null,hasEstimatedFare,hasEstimatedFare?estimatedFareRaw:null]);if(!r.rows[0])return json(404,{error:'Booking not found'});await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),b.note||null,u.display_name]);await audit('BOOKING',ref,'UPDATED',{status:r.rows[0].status,estimatedFare:hasEstimatedFare?estimatedFareRaw:undefined});return json(200,{booking:mapBooking(r.rows[0])});
+   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','DRIVER']);const b=parseBody(event),ref=decodeURIComponent(p[2]);
+   // DRIVER role: only allowed to update status, not fare/assignment
+   if(u.role==='DRIVER'&&(b.driverName||b.vehicleUnit||b.estimatedFare!==undefined))return json(403,{error:'Drivers may only update trip status'});
+   const hasEstimatedFare=Object.prototype.hasOwnProperty.call(b,'estimatedFare');const estimatedFareRaw=hasEstimatedFare?Number(b.estimatedFare):null;if(hasEstimatedFare&&!Number.isFinite(estimatedFareRaw))return json(400,{error:'estimatedFare must be a valid number'});if(hasEstimatedFare&&estimatedFareRaw<0)return json(400,{error:'estimatedFare must be 0 or greater'});if(hasEstimatedFare&&u.role!=='ADMIN')return json(403,{error:'Only Admin can adjust fares'});const r=await query(`UPDATE bookings SET status=COALESCE($2,status),driver_name=COALESCE($3,driver_name),vehicle_unit=COALESCE($4,vehicle_unit),estimated_fare=CASE WHEN $5 THEN $6 ELSE estimated_fare END,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,b.status?String(b.status).toUpperCase().replaceAll('-','_'):null,b.driverName||null,b.vehicleUnit||null,hasEstimatedFare,hasEstimatedFare?estimatedFareRaw:null]);if(!r.rows[0])return json(404,{error:'Booking not found'});await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),b.note||null,u.display_name]);await audit('BOOKING',ref,'UPDATED',{status:r.rows[0].status,estimatedFare:hasEstimatedFare?estimatedFareRaw:undefined});return json(200,{booking:mapBooking(r.rows[0])});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const next=STATUS_FLOW[current.rows[0].status]||current.rows[0].status;const r=await query('UPDATE bookings SET status=$2,updated_at=now() WHERE reference=$1 RETURNING *',[ref,next]);await query('INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,$2,$3,$4)',[ref,next,statusLabel(next),u.display_name]);await audit('BOOKING',ref,'STATUS_ADVANCED',{from:current.rows[0].status,to:next});
@@ -697,6 +700,48 @@ async function handler(event){
   }
   if(p[0]==='fleet'&&p[1]==='live'&&method==='GET'){
    let u=null;try{if(bearer(event))u=await requireUser(bearer(event))}catch{}const r=await query(`SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at FROM vehicles WHERE last_seen_at IS NULL OR last_seen_at>now()-interval '24 hours' ORDER BY unit_number`);return json(200,{generatedAt:new Date().toISOString(),role:u?.role||'PUBLIC',vehicles:r.rows.map(v=>({id:v.unit_number,unit:v.unit_number,type:v.vehicle_type,status:v.status,lat:Number(v.latitude),lng:Number(v.longitude),heading:Number(v.heading||0),speed:Number(v.speed_mph||0),lastSeen:v.last_seen_at}))});
+  }
+  if(p[0]==='dispatch'&&p[1]==='drivers'&&method==='GET'){
+   await requireUser(bearer(event),['DISPATCHER','ADMIN']);
+   const now=new Date();
+   const todayIso=now.toISOString().slice(0,10);
+   const nowTime=now.toTimeString().slice(0,5); // HH:MM
+   const weekday=now.getDay()||7; // ISO weekday: Mon=1 … Sun=7
+   // Drivers on shift right now (shift covers current time on today's weekday)
+   const onShift=await query(`
+    SELECT e.id, e.name, e.scope_id, e.active,
+           es.start_time::text AS shift_start, es.end_time::text AS shift_end,
+           v.unit_number AS vehicle_unit, v.vehicle_type, v.status AS vehicle_status
+    FROM employees e
+    INNER JOIN employee_shifts es ON e.id=es.employee_id
+    LEFT JOIN vehicles v ON v.driver_scope_id=e.scope_id
+    WHERE e.employee_type='DRIVER' AND e.active=true AND es.active=true
+      AND es.weekday_iso=$1
+      AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
+      AND (es.effective_end_date IS NULL OR es.effective_end_date>=$3)
+    ORDER BY e.name
+   `,[weekday,nowTime,todayIso]);
+   // Trip counts today per driver scope_id
+   const tripCounts=await query(`
+    SELECT driver_name, COUNT(*) as total,
+           COUNT(*) FILTER (WHERE status IN ('assigned','en-route','arrived','in-transit')) as active
+    FROM bookings
+    WHERE trip_date=$1 AND driver_name IS NOT NULL
+    GROUP BY driver_name
+   `,[todayIso]);
+   const countMap=Object.fromEntries(tripCounts.rows.map(r=>[r.driver_name,{total:Number(r.total),active:Number(r.active)}]));
+   const drivers=onShift.rows.map(d=>({
+    id:d.id, name:d.name, scopeId:d.scope_id,
+    shiftStart:d.shift_start?.slice(0,5)||null,
+    shiftEnd:d.shift_end?.slice(0,5)||null,
+    vehicleUnit:d.vehicle_unit||null,
+    vehicleType:d.vehicle_type||null,
+    vehicleStatus:d.vehicle_status||null,
+    tripsToday:countMap[d.name]?.total||0,
+    activeTrips:countMap[d.name]?.active||0,
+    status:countMap[d.name]?.active>0?'ON_TRIP':'ON_DUTY'
+   }));
+   return json(200,{generatedAt:now.toISOString(),onDuty:drivers.length,drivers});
   }
   // Admin: reset all test credentials (idempotent upsert for all standard roles)
   if(p[0]==='admin'&&p[1]==='reset-credentials'&&method==='POST'){
