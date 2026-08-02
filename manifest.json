@@ -1,0 +1,17 @@
+{
+  "name": "Nexus Driver App",
+  "short_name": "Nexus Driver",
+  "description": "Nexus Medical Transit driver workspace — shift management, pre-trip inspection, mileage tracking, and trip workflow.",
+  "start_url": "/driver-app.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07142c",
+  "theme_color": "#07142c",
+  "categories": ["productivity", "medical"],
+  "icons": [
+    { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
