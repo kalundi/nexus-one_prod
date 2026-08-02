@@ -48,9 +48,72 @@
   </div>
 </aside>
 </div></section><main id="main" class="shell moduleMain" tabindex="-1">
+<section class="card" style="margin-top:20px">
+  <div class="toolbar"><div><div class="eyebrow">Broker intake</div><h2>Broker call-in request entry</h2></div></div>
+  <form id="brokerIntakeForm" class="formGrid" style="display:grid;gap:14px;margin-top:12px">
+    <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+      <div class="formField"><label for="brokerName">Broker name</label><input id="brokerName" name="brokerName" type="text" required></div>
+      <div class="formField"><label for="brokerSubmitterEmail">Submitter email</label><input id="brokerSubmitterEmail" name="submitterEmail" type="email" placeholder="broker@example.com"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+      <div class="formField"><label for="brokerPickup">Pickup</label><input id="brokerPickup" name="pickup" type="text" required></div>
+      <div class="formField"><label for="brokerDestination">Destination</label><input id="brokerDestination" name="destination" type="text" required></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+      <div class="formField"><label for="brokerTripDate">Trip date</label><input id="brokerTripDate" name="tripDate" type="date" required></div>
+      <div class="formField"><label for="brokerTripTime">Trip time</label><input id="brokerTripTime" name="tripTime" type="time" required></div>
+      <div class="formField"><label for="brokerService">Service</label><select id="brokerService" name="service"><option value="MEDICAL_TRANSPORT">Medical transport</option><option value="AMBULANCE">Ambulance</option><option value="WHEELCHAIR">Wheelchair</option><option value="STRETCHER">Stretcher</option></select></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+      <div class="formField"><label for="brokerQuotedRate">Broker quoted rate</label><input id="brokerQuotedRate" name="brokerQuotedRate" type="number" min="0" step="0.01" required></div>
+      <div class="formField"><label for="brokerCalculatedRate">Platform calculated rate</label><input id="brokerCalculatedRate" name="platformCalculatedRate" type="number" min="0" step="0.01" required></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
+      <div id="brokerIntakeMessage" class="msgBox" hidden></div>
+      <button id="submitBrokerRequest" class="button primary" type="submit">Submit broker request</button>
+    </div>
+  </form>
+</section>
 <section id="tripBoard" class="card" style="margin-top:20px"><div class="toolbar"><div><div class="eyebrow">Live Operations</div><h2>Trip management</h2></div><div style="display:flex;gap:10px"><button id="loadTrips" class="button primary">Refresh from API</button><button id="loadLocal" class="button">Load local</button></div></div><div class="tableWrap"><table class="table"><thead><tr><th>Reference</th><th>Patient</th><th>Service</th><th>Date / Time</th><th>Status</th><th>Estimate</th><th>AI risk</th><th>Action</th></tr></thead><tbody id="tripRows"></tbody></table></div></section>
 <section id="aiSection" class="grid cols2" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
 </main><footer class="footer"><div class="shell footerGrid"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Platform</strong><a href="/livecare.html">Livecare</a><a href="/facility.html">Facilities</a><a href="/dispatch.html">Dispatch</a></div><div><strong>Operations</strong><a href="/fleet.html">Fleet</a><a href="/driver.html">Driver</a><a href="/qa.html">QA & Compliance</a></div><div><strong>Contact</strong><a href="tel:+18887604990">(888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">♿</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js"></script><script>
+function setBrokerIntakeMessage(text,type){const el=document.getElementById('brokerIntakeMessage');if(!el)return;el.hidden=false;el.className=`msgBox ${type==='err'?'err':'ok'}`;el.textContent=text;}
+
+async function submitBrokerRequest(event){
+  event.preventDefault();
+  const form=document.getElementById('brokerIntakeForm');
+  const payload={
+    broker_name: document.getElementById('brokerName').value.trim(),
+    pickup: document.getElementById('brokerPickup').value.trim(),
+    destination: document.getElementById('brokerDestination').value.trim(),
+    trip_date: document.getElementById('brokerTripDate').value,
+    trip_time: document.getElementById('brokerTripTime').value,
+    service: document.getElementById('brokerService').value,
+    broker_quoted_rate: Number(document.getElementById('brokerQuotedRate').value || 0),
+    platform_calculated_rate: Number(document.getElementById('brokerCalculatedRate').value || 0),
+    submitter_email: document.getElementById('brokerSubmitterEmail').value.trim()
+  };
+  if(!payload.broker_name||!payload.pickup||!payload.destination||!payload.trip_date||!payload.trip_time||!payload.broker_quoted_rate||!payload.platform_calculated_rate){
+    setBrokerIntakeMessage('Please complete the required fields before submitting.','err');
+    return;
+  }
+  const btn=document.getElementById('submitBrokerRequest');
+  btn.disabled=true;btn.textContent='Submitting...';
+  try{
+    const res=await fetch('/api/broker-requests',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Unable to submit broker request');
+    setBrokerIntakeMessage(data.clientMessage||data.message||'Broker request received.','ok');
+    form.reset();
+  }catch(err){
+    setBrokerIntakeMessage(err.message||'Unable to submit broker request.','err');
+  }finally{
+    btn.disabled=false;btn.textContent='Submit broker request';
+  }
+}
+
+document.getElementById('brokerIntakeForm').addEventListener('submit',submitBrokerRequest);
+
 function riskBadge(t){const r=NexusAI.riskScore(t);return `<div class="aiScore"><span class="status ${r.level==='High'?'red':r.level==='Medium'?'amber':'green'}">${r.level} ${r.score}%</span><span class="riskMeter" aria-label="${r.score} percent delay risk"><span style="width:${r.score}%"></span></span></div><small>${r.reasons.join(', ')}</small>`}
 function renderAI(trips){const rec=NexusAI.recommendations(trips);document.getElementById('aiRecommendations').innerHTML=rec.map(x=>`<article class="insight ${x.priority.toLowerCase()}"><h3>${x.priority}: ${x.title}</h3><p>${x.detail}</p></article>`).join('');const f=NexusAI.forecast(trips),max=Math.max(1,...f.map(x=>x.count));document.getElementById('demandForecast').innerHTML=f.map(x=>`<div class="forecastRow"><strong>${x.period}</strong><span class="forecastTrack"><span style="width:${Math.round(x.count/max*100)}%"></span></span><span>${x.count}</span></div>`).join('')}
 function renderTrips(trips){const statuses={pending:trips.filter(t=>["requested","scheduled"].includes(t.status)).length,active:trips.filter(t=>["assigned","en-route","arrived","in-transit"].includes(t.status)).length,completed:trips.filter(t=>t.status==="completed").length};document.getElementById("totalTrips").textContent=trips.length;document.getElementById("pendingTrips").textContent=statuses.pending;document.getElementById("activeTrips").textContent=statuses.active;document.getElementById("completedTrips").textContent=statuses.completed;document.getElementById("heroTotalTrips").textContent=trips.length;document.getElementById("heroPendingTrips").textContent=statuses.pending;document.getElementById("heroActiveTrips").textContent=statuses.active;document.getElementById("heroCompletedTrips").textContent=statuses.completed;const statusColors={requested:'blue',scheduled:'blue',assigned:'amber',['en-route']:'amber',arrived:'amber',['in-transit']:'green',completed:'green'};;document.getElementById("heroTripList")&&(document.getElementById("heroTripList").innerHTML=trips.slice(0,6).map(t=>`<div style="background:#fff;border:1px solid #d5e0e8;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="min-width:0"><strong style="font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name||"—"}</strong><small style="color:#52677c;font-size:11px">${t.service||"—"} · ${t.date||"—"}</small></div><span class="status ${statusColors[t.status]||'blue'}" style="font-size:10px;flex-shrink:0">${t.statusLabel||t.status||"Requested"}</span></div>`).join("")||'<div style="text-align:center;padding:16px;color:#52677c">No trips yet.</div>');document.getElementById("tripRows").innerHTML=trips.map(t=>`<tr><td>${t.reference||t.id}</td><td>${t.name||"—"}</td><td>${t.service||"—"}</td><td>${t.date||"—"} ${t.time||""}</td><td><span class="status blue">${t.statusLabel||t.status||"Requested"}</span></td><td>${NexusCore.money(t.quote?.total||t.amount)}</td><td>${riskBadge(t)}</td><td><button class="button compact" data-advance="${t.reference||t.id}">Advance</button></td></tr>`).join("")||`<tr><td colspan="8">No integrated trips yet. Create one from Book a Ride.</td></tr>`;document.querySelectorAll("[data-advance]").forEach(b=>b.onclick=()=>advance(b.dataset.advance));renderAI(trips)}function advance(id){const trips=NexusCore.getTrips(),flow=[["requested","Scheduled"],["scheduled","Assigned"],["assigned","En Route"],["en-route","Arrived"],["arrived","In Transit"],["in-transit","Completed"]];const t=trips.find(x=>(x.reference||x.id)===id);if(!t)return;const next=flow.find(x=>x[0]===t.status);if(next){t.status=next[1].toLowerCase().replaceAll(" ","-");t.statusLabel=next[1];localStorage.setItem("nexusTrips",JSON.stringify(trips));renderTrips(trips)}}document.getElementById("loadLocal").onclick=()=>renderTrips(NexusCore.getTrips());document.getElementById("loadTrips").onclick=async()=>{try{const r=await fetch("/api/portal/trips",{headers:{authorization:`Bearer ${sessionStorage.getItem('nexusAccessToken')}`}});const j=await r.json();if(!r.ok)throw new Error(j.error||"Unable to load");renderTrips(j.trips||[])}catch(e){alert(e.message)}};async function loadFleet(){try{const r=await fetch('/api/fleet/live',{headers:{authorization:`Bearer ${sessionStorage.getItem('nexusAccessToken')}`}});if(!r.ok)return;const j=await r.json();const v=j.vehicles||[];const c={MOVING:0,PATIENT_ON_BOARD:0,AVAILABLE:0,ATTENTION:0};v.forEach(x=>{c[x.status]=(c[x.status]||0)+1});document.getElementById('heroFleetMoving').textContent=c.MOVING||0;document.getElementById('heroFleetOnboard').textContent=c.PATIENT_ON_BOARD||0;document.getElementById('heroFleetAvail').textContent=c.AVAILABLE||0;document.getElementById('heroFleetAttn').textContent=c.ATTENTION||0;document.getElementById('heroFleetStatus').textContent=v.length?`Live · ${v.length} vehicle${v.length===1?'':'s'}`:'No fleet data';document.getElementById('heroFleetUpdated').textContent=`Updated ${new Date().toLocaleTimeString()}`;const statusCls={MOVING:'green',PATIENT_ON_BOARD:'green',AVAILABLE:'muted',ATTENTION:'amber'};const statusLabel={MOVING:'Moving',PATIENT_ON_BOARD:'Patient on board',AVAILABLE:'Available',ATTENTION:'Needs attention'};document.getElementById('heroVehicleList').innerHTML=v.length?v.map(x=>`<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div><strong style="font-size:13px;color:#fff;display:block">${x.unit||x.id}</strong><small style="color:#9fc2d8;font-size:11px">${x.type||'Vehicle'} · ${x.lastSeen?new Date(x.lastSeen).toLocaleTimeString():'No GPS'}</small></div><span class="status ${statusCls[x.status]||'blue'}" style="font-size:10px;flex-shrink:0">${statusLabel[x.status]||x.status}</span></div>`).join(''):'<div style="text-align:center;padding:20px;color:#9fc2d8;font-size:13px">No active vehicles. GPS positions update as drivers report.</div>'}catch(e){console.error('[Fleet]',e)}}document.getElementById('loadLocal').onclick=()=>renderTrips(NexusCore.getTrips());document.getElementById('loadTrips').onclick=async()=>{try{const r=await fetch('/api/portal/trips',{headers:{authorization:`Bearer ${sessionStorage.getItem('nexusAccessToken')}`}});const j=await r.json();if(!r.ok)throw new Error(j.error||'Unable to load');renderTrips(j.trips||[])}catch(e){alert(e.message)}};document.getElementById('heroRefreshFleet').onclick=loadFleet;window.addEventListener('nexus:authorized',()=>{loadFleet();renderTrips(NexusCore.getTrips())});if(window.NexusAuthorizedUser){loadFleet();renderTrips(NexusCore.getTrips())}

@@ -82,6 +82,7 @@ test.describe('Broker Management System',()=>{
   expect(body.request.submission_method).toBe('FORM');
   expect(body.request.request_status).toBe('AUTO_CONFIRMED');
   expect(body.autoConfirmed).toBe(true);
+  expect(body.clientMessage).toContain('received');
  });
 
  test('GET /api/admin/broker-requests - List pending requests',async()=>{

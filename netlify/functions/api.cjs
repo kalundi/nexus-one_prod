@@ -324,6 +324,13 @@ async function sendBrokerRequestToDispatch(br){
  await Promise.allSettled([sendSms(process.env.DISPATCH_PHONE,text),sendEmail(dispatchEmail,`Broker: ${br.broker_name}`,html)]).catch(()=>{});
 }
 
+async function sendBrokerRequestConfirmation(br,toEmail,brokerName){
+ const subject=`Nexus broker request received — ${br.broker_name || brokerName || 'Broker request'}`;
+ const html=`<h2>Broker request received</h2><p>Your request for <strong>${br.pickup}</strong> to <strong>${br.destination}</strong> on <strong>${br.trip_date}</strong> at <strong>${br.trip_time}</strong> has been received.</p><p>Status: <strong>${br.request_status || 'AUTO_CONFIRMED'}</strong></p><p>We will review it and follow up with you shortly.</p>`;
+ const results=await Promise.allSettled([sendEmail(toEmail,subject,html)]);
+ return {email:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message}};
+}
+
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
@@ -784,8 +791,13 @@ async function handler(event){
    const r=await query('INSERT INTO broker_requests(broker_id,booking_reference,broker_name,service,pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,trip_date,trip_time,broker_quoted_rate,platform_calculated_rate,rate_delta,submission_method,submitted_by,request_status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *',[brokerId,clean(b.booking_reference)||null,clean(b.broker_name)||'Unknown',clean(b.service),clean(b.pickup),clean(b.destination),Number(b.pickup_lat)||null,Number(b.pickup_lng)||null,Number(b.destination_lat)||null,Number(b.destination_lng)||null,b.trip_date,b.trip_time,brokerRate,platformRate,delta,clean(b.submission_method)||'FORM',clean(b.submitted_by)||'ANONYMOUS','AUTO_CONFIRMED']);
    const req=r.rows[0];
    await sendBrokerRequestToDispatch(req).catch(e=>console.error('[BROKER_NOTIFY]',e.message));
+   const submitterEmail=clean(b.submitted_by)||clean(b.contact_email)||null;
+   if(submitterEmail){
+    await sendBrokerRequestConfirmation(req,submitterEmail,clean(b.broker_name)||'Broker request').catch(e=>console.error('[BROKER_CONFIRM]',e.message));
+   }
+   const confirmationMessage='Your broker request has been received and is being reviewed. We will follow up shortly.';
    await audit('BROKER_REQUEST',req.id,'SUBMITTED',{method:b.submission_method,broker:b.broker_name});
-   return json(201,{request:req,autoConfirmed:true});
+   return json(201,{request:req,autoConfirmed:true,clientMessage:confirmationMessage,message:confirmationMessage});
   }
   if(p[0]==='admin'&&p[1]==='broker-requests'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN','DISPATCHER']);
@@ -828,3 +840,4 @@ async function handler(event){
 }
 function mapBooking(b){return {id:b.reference,reference:b.reference,name:b.name,phone:b.phone,email:b.email,alternatePhone:b.alternate_phone,alternateEmail:b.alternate_email,service:b.service,pickup:b.pickup,destination:b.destination,date:b.trip_date,time:String(b.trip_time||'').slice(0,5),status:statusLabel(b.status),statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),driver:b.driver_name,driverName:b.driver_name,vehicle:b.vehicle_unit,vehicleUnit:b.vehicle_unit,facilityId:b.facility_id,distanceMiles:b.distance_miles?Number(b.distance_miles):null,estimatedDuration:b.estimated_duration,estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,paymentStatus:b.payment_status||'UNPAID',bookingSource:b.booking_source||'CUSTOMER',depositAmount:b.deposit_amount?Number(b.deposit_amount):null,balanceDue:b.balance_due?Number(b.balance_due):null,depositPaidAt:b.deposit_paid_at||null,paidInFullAt:b.paid_in_full_at||null,cancellationFeeAmount:b.cancellation_fee_amount?Number(b.cancellation_fee_amount):0,cancellationFeeApplied:Boolean(b.cancellation_fee_applied),cancellationRuleSnapshot:b.cancellation_rule_snapshot||null,lastUpdatedBy:b.last_updated_by,lastUpdatedAt:b.last_updated_at} }
 exports.handler=handler;
+exports.sendBrokerRequestConfirmation=sendBrokerRequestConfirmation;
