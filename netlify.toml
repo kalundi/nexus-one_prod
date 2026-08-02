@@ -27,6 +27,77 @@
   status = 200
   force = true
 
+# Explicit page redirects — must come BEFORE the catch-all so /fleet loads fleet.html (not React index)
+[[redirects]]
+  from = "/livecare"
+  to = "/livecare.html"
+  status = 200
+
+[[redirects]]
+  from = "/dispatch"
+  to = "/dispatch.html"
+  status = 200
+
+[[redirects]]
+  from = "/fleet"
+  to = "/fleet.html"
+  status = 200
+
+[[redirects]]
+  from = "/driver"
+  to = "/driver.html"
+  status = 200
+
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 200
+
+[[redirects]]
+  from = "/executive"
+  to = "/executive.html"
+  status = 200
+
+[[redirects]]
+  from = "/billing"
+  to = "/billing.html"
+  status = 200
+
+[[redirects]]
+  from = "/facility"
+  to = "/facility.html"
+  status = 200
+
+[[redirects]]
+  from = "/patient"
+  to = "/patient.html"
+  status = 200
+
+[[redirects]]
+  from = "/operations"
+  to = "/operations.html"
+  status = 200
+
+[[redirects]]
+  from = "/qa"
+  to = "/qa.html"
+  status = 200
+
+[[redirects]]
+  from = "/booking"
+  to = "/booking-app.html"
+  status = 200
+
+[[redirects]]
+  from = "/ai-operations"
+  to = "/ai-operations.html"
+  status = 200
+
+[[redirects]]
+  from = "/accessibility"
+  to = "/accessibility.html"
+  status = 200
+
 # Exclude dist files from SPA redirect
 [[redirects]]
   from = "/dist/*"
