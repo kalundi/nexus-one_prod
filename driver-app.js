@@ -46,7 +46,7 @@
     if($('#topViewTitle'))$('#topViewTitle').textContent=VT[id]||'';
     if(id==='manifestView')renderManifest();
     if(id==='milesView')renderMiles();
-    if(id==='inspectionView')renderInspection();
+    if(id==='inspectionView'){renderInspection();loadFleetForInspection();}
     if(id==='dashView')renderDash();
   }
   $$('.navBtn').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
@@ -120,123 +120,293 @@
   });
   $('#btnCancelEndShift')?.addEventListener('click',()=>showView('dashView'));
 
-  // ── Pre-trip inspection (FMCSA + Medical Transport) ───────────
-  const INSP_GROUPS = [
-    {id:'engine',label:'Engine Compartment',items:[
-      {id:'oil',    label:'Engine oil level',           note:'Dipstick between MIN and MAX'},
-      {id:'coolant',label:'Coolant / antifreeze level', note:'Full when cold; no leaks'},
-      {id:'brake_f',label:'Brake fluid level',          note:'Full, no leaks visible'},
-      {id:'ps_f',   label:'Power steering fluid',       note:'Full, no leaks'},
-      {id:'wash_f', label:'Windshield washer fluid',    note:'Adequate level'},
-      {id:'battery',label:'Battery',                    note:'Cables secure, no corrosion, hold-down tight'},
-      {id:'belts',  label:'Drive belts',                note:'No cracks, fraying, or slipping'},
-      {id:'hoses',  label:'Hoses',                      note:'No leaks, chafing, or soft spots'},
+  // ── Pre-trip inspection — vehicle-specific groups ────────────
+  //
+  // Groups are tagged so we can show only what applies to each vehicle type.
+  // profileGroups() returns the right set for the selected unit.
+
+  const ALL_INSP_GROUPS = {
+    engine_gas: {id:'engine_gas', label:'Engine Compartment', items:[
+      {id:'oil',    label:'Engine oil level',          note:'Dipstick between MIN and MAX'},
+      {id:'coolant',label:'Coolant / antifreeze level',note:'Full when cold; no leaks'},
+      {id:'brake_f',label:'Brake fluid level',         note:'Full, no leaks visible'},
+      {id:'ps_f',   label:'Power steering fluid',      note:'Full, no leaks'},
+      {id:'wash_f', label:'Windshield washer fluid',   note:'Adequate level'},
+      {id:'battery',label:'Battery',                   note:'Cables secure, no corrosion, hold-down tight'},
+      {id:'belts',  label:'Drive belts',               note:'No cracks, fraying, or slipping'},
+      {id:'hoses',  label:'Hoses',                     note:'No leaks, chafing, or soft spots'},
     ]},
-    {id:'exterior',label:'Exterior Lights & Body',items:[
-      {id:'headlights',   label:'Headlights (low & high beam)',note:'Both sides'},
-      {id:'tail_lights',  label:'Tail lights',                note:'Both sides'},
-      {id:'brake_lights', label:'Brake lights',               note:'Both sides'},
-      {id:'turn_signals', label:'Turn signals — all 4 corners',note:''},
-      {id:'hazards',      label:'Emergency / hazard flashers', note:''},
-      {id:'reverse',      label:'Reverse lights',             note:''},
-      {id:'reflectors',   label:'Reflectors (front & rear)',  note:'Clean and visible'},
-      {id:'horn',         label:'Horn',                       note:'Functional'},
-      {id:'windshield',   label:'Windshield',                 note:'No cracks in driver\'s field of vision'},
-      {id:'wipers',       label:'Wiper blades & washer',      note:'Blades not torn; washer sprays'},
-      {id:'mirrors',      label:'Side mirrors',               note:'Clean, adjusted, not cracked'},
-      {id:'body_panels',  label:'Body panels & doors',        note:'No damage affecting safety; all latch'},
-      {id:'hood',         label:'Hood',                       note:'Properly latched'},
-      {id:'fuel_cap',     label:'Fuel cap',                   note:'Secure, no leaks, no fuel odor'},
-      {id:'exhaust',      label:'Exhaust / emissions',        note:'No unusual smoke, leaks, or noise'},
-      {id:'undercarriage',label:'Undercarriage — no leaks',   note:'Oil, coolant, fuel, brake fluid — all dry'},
+    engine_ev: {id:'engine_ev', label:'Electric Powertrain', items:[
+      {id:'ev_charge',  label:'Battery state of charge',       note:'Adequate range for full shift; charge if below 30%'},
+      {id:'ev_thermal', label:'Thermal management system',     note:'No warnings; coolant loop pressure OK'},
+      {id:'brake_f_ev', label:'Brake fluid level',             note:'Full, no leaks — regenerative braking still uses hydraulics'},
+      {id:'wash_f_ev',  label:'Windshield washer fluid',       note:'Adequate level'},
+      {id:'battery_12v',label:'12V auxiliary battery',         note:'Charged; cables secure; powers accessories'},
+      {id:'ev_warn',    label:'EV system warnings',            note:'No orange/red dashboard warnings; high-voltage system sealed'},
     ]},
-    {id:'tires',label:'Tires & Wheels',items:[
+    exterior_std: {id:'exterior_std', label:'Exterior Lights & Body', items:[
+      {id:'headlights',    label:'Headlights (low & high beam)', note:'Both sides operational'},
+      {id:'tail_lights',   label:'Tail lights',                  note:'Both sides'},
+      {id:'brake_lights',  label:'Brake lights',                 note:'Both sides'},
+      {id:'turn_signals',  label:'Turn signals — all 4 corners', note:''},
+      {id:'hazards',       label:'Emergency / hazard flashers',  note:''},
+      {id:'reverse',       label:'Reverse lights',               note:''},
+      {id:'reflectors',    label:'Reflectors (front & rear)',    note:'Clean and visible'},
+      {id:'horn',          label:'Horn',                         note:'Functional'},
+      {id:'windshield',    label:'Windshield',                   note:'No cracks in driver\'s field of vision'},
+      {id:'wipers',        label:'Wiper blades & washer',        note:'Blades not torn; washer sprays'},
+      {id:'mirrors',       label:'Side mirrors',                 note:'Clean, adjusted, not cracked'},
+      {id:'body_panels',   label:'Body panels & doors',          note:'No damage affecting safety; all latch properly'},
+      {id:'hood',          label:'Hood',                         note:'Properly latched'},
+    ]},
+    exterior_combustion_extra: {id:'exterior_combustion_extra', label:'Fuel & Undercarriage', items:[
+      {id:'fuel_cap',      label:'Fuel cap',                note:'Secure, no leaks, no fuel odor'},
+      {id:'exhaust',       label:'Exhaust / emissions',     note:'No unusual smoke, leaks, or noise'},
+      {id:'undercarriage', label:'Undercarriage — no leaks',note:'Oil, coolant, fuel, brake fluid — all dry'},
+    ]},
+    exterior_ev_extra: {id:'exterior_ev_extra', label:'Charging & Undercarriage', items:[
+      {id:'charge_port',   label:'Charge port door & cable',note:'Door closes flush; no damage to port or cable'},
+      {id:'undercarriage_ev',label:'Undercarriage',         note:'No damage to battery pack or HV cable conduits; no fluid leaks'},
+    ]},
+    tires: {id:'tires', label:'Tires & Wheels', items:[
       {id:'tires_front',label:'Front tires',            note:'Tread ≥ 4/32"; no bulges, cuts, or flat spots; inflation OK'},
       {id:'tires_rear', label:'Rear tires',             note:'Tread ≥ 2/32"; no damage; duals not touching'},
       {id:'lug_nuts',   label:'Lug nuts / wheel bolts', note:'All present; no cracked or broken studs'},
       {id:'wheel_rims', label:'Wheel rims',             note:'No cracks or bends'},
       {id:'spare',      label:'Spare tire (if equipped)',note:'Mounted, inflated, accessible'},
     ]},
-    {id:'brakes',label:'Brakes',items:[
-      {id:'svc_brake',  label:'Service brake',            note:'Firm pedal; does not fade, pull, or grab'},
-      {id:'park_brake', label:'Parking / emergency brake',note:'Holds vehicle on grade; releases fully'},
-      {id:'brake_warn', label:'Brake warning lights',     note:'No ABS, brake, or traction-control warnings active'},
+    brakes: {id:'brakes', label:'Brakes', items:[
+      {id:'svc_brake',  label:'Service brake',             note:'Firm pedal; does not fade, pull, or grab'},
+      {id:'park_brake', label:'Parking / emergency brake', note:'Holds vehicle on grade; releases fully'},
+      {id:'brake_warn', label:'Brake warning lights',      note:'No ABS, brake, or traction-control warnings active'},
     ]},
-    {id:'interior',label:'Cab & Interior Safety',items:[
-      {id:'driver_seat', label:'Driver seat & seatbelt',     note:'Seat locked; belt latches and retracts'},
-      {id:'dash_lights', label:'Dashboard warning lights',   note:'No check-engine or safety warnings active'},
-      {id:'speedometer', label:'Speedometer & gauges',       note:'Functional; no red-zone readings'},
-      {id:'hvac',        label:'Heating & air conditioning', note:'Both functional'},
-      {id:'defroster',   label:'Front & rear defroster',     note:'Functional'},
-      {id:'cab_lighting',label:'Interior lighting',          note:'Dome and reading lights work'},
-      {id:'fire_ext',    label:'Fire extinguisher',          note:'Charged (green gauge); mounted; accessible — min 10 lb ABC'},
-      {id:'triangles',   label:'Warning triangles / flares', note:'Minimum 3 present and serviceable'},
-      {id:'fuses',       label:'Spare fuses',                note:'Present in fuse kit'},
-      {id:'first_aid',   label:'First aid kit',              note:'ANSI Class A minimum; stocked and accessible'},
-      {id:'docs',        label:'Vehicle documents',          note:'Registration, insurance, inspection sticker — current and in vehicle'},
+    interior: {id:'interior', label:'Cab & Interior Safety', items:[
+      {id:'driver_seat', label:'Driver seat & seatbelt',    note:'Seat locked; belt latches and retracts'},
+      {id:'dash_lights', label:'Dashboard warning lights',  note:'No check-engine or safety warnings active'},
+      {id:'speedometer', label:'Speedometer & gauges',      note:'Functional; no red-zone readings'},
+      {id:'hvac',        label:'Heating & air conditioning',note:'Both functional'},
+      {id:'defroster',   label:'Front & rear defroster',    note:'Functional'},
+      {id:'cab_lighting',label:'Interior lighting',         note:'Dome and reading lights work'},
+      {id:'fire_ext',    label:'Fire extinguisher',         note:'Charged (green gauge); mounted; accessible — min 10 lb ABC'},
+      {id:'triangles',   label:'Warning triangles / flares',note:'Minimum 3 present and serviceable'},
+      {id:'fuses',       label:'Spare fuses',               note:'Present in fuse kit'},
+      {id:'first_aid',   label:'First aid kit',             note:'ANSI Class A minimum; stocked and accessible'},
+      {id:'docs',        label:'Vehicle documents',         note:'Registration, insurance, inspection sticker — current and in vehicle'},
     ]},
-    {id:'medical',label:'Medical Transport Equipment',items:[
-      {id:'wc_straps',   label:'Wheelchair 4-point tie-down straps',note:'All 4 straps present; no fraying; hooks latch and lock'},
-      {id:'wc_seatbelt', label:'Wheelchair occupant seatbelt',      note:'Each WC position — belt present, latches, and retracts'},
-      {id:'lift_ramp',   label:'Hydraulic lift / folding ramp',     note:'Full test: deploys, raises, lowers, stows; limit switch sounds'},
-      {id:'ramp_cleats', label:'Ramp surface cleats',               note:'Not worn or damaged; non-slip traction confirmed'},
-      {id:'grab_handles',label:'Interior grab handles',             note:'All secure; no wobble or corrosion'},
-      {id:'floor_cond',  label:'Floor condition',                   note:'Clean, dry; no lifted edges or tripping hazards'},
-      {id:'pax_belts',   label:'All passenger seatbelts',           note:'Each seat — belt present, latches, and retracts'},
-      {id:'oxygen',      label:'Oxygen system (if equipped)',       note:'Tank >= 500 PSI; regulator functional; mask/cannula available; no leaks'},
-      {id:'suction',     label:'Suction unit (if equipped)',        note:'Powers on; tubing and canister clean'},
-      {id:'aed',         label:'AED (if equipped)',                 note:'Charged; pads not expired; indicator green'},
-      {id:'med_kit',     label:'Medical first aid kit',             note:'Gloves, BP cuff, pulse oximeter, bandages, trauma dressing — all stocked'},
-      {id:'sanitation',  label:'Interior sanitation',               note:'No biohazard contamination; surfaces wiped down from prior trip'},
-      {id:'stretcher',   label:'Stretcher / cot (if equipped)',     note:'Load mechanism OK; locks in position; legs deploy/collapse'},
-      {id:'comm',        label:'Communication device / MDT',        note:'Powered on; app accessible; adequate signal'},
+    // ── Sedan / SUV — ambulatory only ────────────────────────
+    med_ambulatory: {id:'med_ambulatory', label:'Passenger Safety', items:[
+      {id:'pax_belts_2', label:'Passenger seatbelts',  note:'All positions — belt present, latches, and retracts'},
+      {id:'pax_comfort', label:'Passenger area clean', note:'No hazards; climate control working for passengers'},
     ]},
-  ];
+    // ── Wheelchair Van (3 WC + 12 pax) ───────────────────────
+    med_wv: {id:'med_wv', label:'Wheelchair Van Equipment', items:[
+      {id:'wc_straps',   label:'Wheelchair 4-point tie-down straps (×3 sets)', note:'12 straps total; no fraying; Q\'Straint hooks latch and lock'},
+      {id:'wc_seatbelt', label:'Wheelchair occupant seatbelts (×3)',           note:'Each WC position — belt present, latches, and retracts'},
+      {id:'lift_ramp',   label:'Hydraulic side-door ramp',                     note:'Full test: deploys, raises, lowers, stows; limit switch sounds; rated load OK'},
+      {id:'rear_lift',   label:'Rear wheelchair lift',                         note:'Powers up, holds rated load, lowers smoothly; emergency lowering tested'},
+      {id:'ramp_cleats', label:'Ramp & lift surface cleats',                   note:'Not worn; non-slip traction confirmed'},
+      {id:'grab_handles',label:'Interior grab handles',                        note:'All secure; no wobble or corrosion'},
+      {id:'floor_cond',  label:'Floor condition',                              note:'Clean, dry; no lifted edges or tripping hazards'},
+      {id:'pax_belts_12',label:'All 12 passenger seatbelts',                   note:'Each seat — belt present, latches, and retracts'},
+      {id:'oxygen',      label:'Oxygen system',                                note:'Tank ≥ 500 PSI; regulator functional; mask/cannula available; no leaks'},
+      {id:'suction',     label:'Suction unit',                                 note:'Powers on; tubing and canister clean and free of contamination'},
+      {id:'aed',         label:'AED',                                          note:'Charged; electrode pads not expired; indicator green'},
+      {id:'med_kit_wv',  label:'Medical first aid kit',                        note:'Gloves, BP cuff, pulse oximeter, bandages, trauma dressing — stocked'},
+      {id:'sanitation',  label:'Interior sanitation',                          note:'No biohazard contamination; surfaces wiped from prior trip'},
+      {id:'comm',        label:'Communication device / MDT',                   note:'Powered on; app accessible; adequate signal'},
+    ]},
+    // ── Shuttle (1 WC + 14 pax) ──────────────────────────────
+    med_shuttle: {id:'med_shuttle', label:'Shuttle Transport Equipment', items:[
+      {id:'wc_straps_sh',  label:'Wheelchair 4-point tie-down straps (×1 set)', note:'4 straps; no fraying; hooks latch and lock'},
+      {id:'wc_seatbelt_sh',label:'Wheelchair occupant seatbelt',                note:'WC position — belt present, latches, and retracts'},
+      {id:'ramp_sh',       label:'Hydraulic side-door ramp / lift',             note:'Full test: deploys, raises, lowers, stows; limit switch sounds'},
+      {id:'ramp_cleats_sh',label:'Ramp surface cleats',                         note:'Not worn; non-slip traction confirmed'},
+      {id:'grab_handles_sh',label:'Interior grab handles',                      note:'All secure; no wobble'},
+      {id:'floor_sh',      label:'Floor condition',                             note:'Clean, dry; no hazards'},
+      {id:'pax_belts_14',  label:'All 14 passenger seatbelts',                  note:'Each seat — belt present, latches, and retracts'},
+      {id:'first_aid_sh',  label:'First aid kit',                               note:'ANSI Class A minimum; stocked and accessible'},
+      {id:'sanitation_sh', label:'Interior sanitation',                         note:'Clean; no biohazard contamination from prior trip'},
+      {id:'comm_sh',       label:'Communication device',                        note:'Powered on; signal adequate'},
+    ]},
+    // ── Ambulance — BLS base (shared by both AMB units) ──────
+    med_amb_base: {id:'med_amb_base', label:'Ambulance Base Equipment', items:[
+      {id:'stretcher',     label:'Power stretcher / cot',           note:'Load mechanism OK; locks in loaded position; legs deploy/retract; weight rated'},
+      {id:'pax_belts_amb', label:'Patient & attendant seatbelts',   note:'All positions — belt present, latches, and retracts'},
+      {id:'oxygen_amb',    label:'Oxygen — onboard & portable',     note:'Main tank ≥ 500 PSI; portable tank charged; regulators functional; no leaks'},
+      {id:'suction_amb',   label:'Suction unit',                    note:'Powers on; test suction; tubing and canister clean'},
+      {id:'aed_amb',       label:'AED / defibrillator (AED mode)',  note:'Charged; pads not expired; self-test passes'},
+      {id:'bvm',           label:'BVM (bag-valve mask)',            note:'Mask seals; valve functions; reservoir intact'},
+      {id:'bp_pulse',      label:'BP cuff & pulse oximeter',        note:'Both functional; readings plausible'},
+      {id:'trauma_kit',    label:'Trauma & first aid supplies',     note:'Gloves, dressings, bandages, splints, cervical collars — stocked'},
+      {id:'airway_basic',  label:'Basic airway kit',                note:'OPA, NPA, suction catheters present and accessible'},
+      {id:'emerg_lights',  label:'Emergency lights & siren',        note:'All LED lights functional (front/rear/side); all siren tones functional'},
+      {id:'sanitation_amb',label:'Patient compartment sanitation',  note:'No biohazard contamination; all surfaces wiped down from prior call'},
+      {id:'comm_amb',      label:'Radio & MDT',                    note:'Radio transmits/receives; MDT powered on and connected'},
+      {id:'docs_amb',      label:'MDPSC / State certification docs',note:'Vehicle certification, medical director approval, and PCR supply present'},
+    ]},
+    // ── Ambulance ALS 2 extras ────────────────────────────────
+    med_amb_als: {id:'med_amb_als', label:'ALS 2 Advanced Equipment', items:[
+      {id:'cardiac_mon',  label:'Cardiac monitor / defibrillator (12-lead)', note:'Powers on; ECG electrodes present; pads installed; self-test passes; battery charged'},
+      {id:'iv_pump',      label:'IV pump',                                    note:'Powers on; tubing sets present; alarm functional; battery charged'},
+      {id:'adv_airway',   label:'Advanced airway kit',                        note:'Laryngoscope (blade + handle), ET tubes, stylet, CO2 detector, video laryngoscope (if equipped)'},
+      {id:'ventilator',   label:'Transport ventilator',                       note:'Powers on; test ventilation; circuits clean; battery charged'},
+      {id:'capnography',  label:'Waveform capnography',                       note:'Module attached; sample line present; test waveform plausible'},
+      {id:'als_meds',     label:'ALS medications cabinet',                    note:'Sealed/locked; sealed if supervisor checked; all required meds present and in-date'},
+      {id:'iv_supplies',  label:'IV start supplies',                          note:'Catheters (18g/20g/22g), tubing, saline flush, tape — stocked'},
+      {id:'telemedicine', label:'Telemedicine / ALS telemetry',               note:'Camera functional; hospital link connects; transmission tested'},
+    ]},
+    // ── Stretcher transport ───────────────────────────────────
+    med_stretcher: {id:'med_stretcher', label:'Stretcher Transport Equipment', items:[
+      {id:'stretcher_st',    label:'Power stretcher / cot',         note:'Auto-load mechanism functional; locks in place; weight-rated; legs deploy/retract'},
+      {id:'cot_mount_st',    label:'Stretcher mount / fastening system',note:'Mount locks; manual release accessible; stretcher does not shift'},
+      {id:'pax_belts_st',    label:'Patient seatbelts',             note:'Head, chest, lap straps present; all buckle and tighten'},
+      {id:'oxygen_st',       label:'Oxygen — onboard & portable',   note:'Main tank ≥ 500 PSI; portable charged; regulators functional; no leaks'},
+      {id:'suction_st',      label:'Suction unit',                  note:'Powers on; test suction; tubing and canister clean'},
+      {id:'aed_st',          label:'AED',                           note:'Charged; pads not expired; indicator green'},
+      {id:'basic_med_st',    label:'Basic medical kit',             note:'BP cuff, pulse oximeter, gloves, bandages, trauma dressings — stocked'},
+      {id:'climate_st',      label:'Patient compartment climate',   note:'Heat and AC functional in patient area'},
+      {id:'sanitation_st',   label:'Compartment sanitation',        note:'No biohazard contamination; surfaces wiped from prior trip'},
+      {id:'comm_st',         label:'Communication device',          note:'Powered on; signal adequate'},
+    ]},
+  };
+
+  // ── Vehicle type → inspection group list mapping ─────────────
+  const VEHICLE_PROFILES = {
+    // Unit prefix → profile
+    'SE':  { label:'Sedan — Electric (2016 Tesla Model 3)',   note:'Ambulatory passengers only. Electric — no combustion engine checks.',
+              groups:['engine_ev','exterior_std','exterior_ev_extra','tires','brakes','interior','med_ambulatory'] },
+    'SUV': { label:'SUV — Luxury (2017 Land Rover HSE)',      note:'Ambulatory passengers, up to 3. Full combustion engine inspection.',
+              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_ambulatory'] },
+    'WV':  { label:'Wheelchair Van (2017 Ford Transit 350)',  note:'ADA wheelchair transport: 3 wheelchair positions + 12 ambulatory.',
+              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_wv'] },
+    'SH':  { label:'Shuttle (2017 Ford Transit 350)',         note:'Group shuttle: 1 wheelchair position + 14 ambulatory passengers.',
+              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_shuttle'] },
+    'AMB-254-01': { label:'BLS Ambulance (2010 Ford Transit CG)',  note:'Basic Life Support certification. Full BLS equipment inspection required.',
+              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_amb_base'] },
+    'AMB-254-02': { label:'ALS 2 Ambulance (2010 Ford Transit CG)',note:'Advanced Life Support 2 certification. Full BLS + ALS equipment inspection required.',
+              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_amb_base','med_amb_als'] },
+    'ST':  { label:'Stretcher Transport (2010 Ford Transit CG)',   note:'Non-emergency stretcher transport. Full stretcher & medical compartment inspection.',
+              groups:['engine_gas','exterior_std','exterior_combustion_extra','tires','brakes','interior','med_stretcher'] },
+  };
+
+  // Resolve profile from unit number
+  function profileForUnit(unit) {
+    if (!unit) return null;
+    const u = unit.toUpperCase();
+    // Exact match first (for AMB-254-01 vs AMB-254-02)
+    if (VEHICLE_PROFILES[u]) return VEHICLE_PROFILES[u];
+    // Prefix match
+    const prefix = u.split('-')[0];
+    return VEHICLE_PROFILES[prefix] || null;
+  }
 
   let inspState = loadJ(INSP_KEY);
+  let activeInspProfile = null; // set when vehicle selected
+
+  // Load fleet into inspector vehicle selector
+  async function loadFleetForInspection() {
+    const sel = $('#inspVehicleSelect'); if (!sel) return;
+    try {
+      const r = await fetch('/api/fleet/live', { headers: ah(), cache: 'no-store' });
+      if (!r.ok) return;
+      const j = await r.json();
+      const vehicles = j.vehicles || [];
+      sel.innerHTML = '<option value="">-- Choose vehicle --</option>' +
+        vehicles.map(v => {
+          const p = profileForUnit(v.unit);
+          const label = p ? p.label : `${v.unit} (${v.type})`;
+          return `<option value="${v.unit}">${v.unit} — ${label.split('(')[0].trim()}</option>`;
+        }).join('');
+      // Pre-select saved vehicle
+      if (shift.vehicleUnit) sel.value = shift.vehicleUnit;
+      onVehicleSelected(sel.value);
+    } catch (e) { console.error('[DRIVER] loadFleet:', e); }
+  }
+
+  function onVehicleSelected(unit) {
+    const proceed = $('#btnProceedInspection');
+    const infoBox = $('#inspVehicleInfo');
+    const nameEl  = $('#inspVehicleName');
+    const noteEl  = $('#inspVehicleNote');
+    const profile = profileForUnit(unit);
+    activeInspProfile = profile;
+    if (profile && unit) {
+      if (infoBox) infoBox.hidden = false;
+      if (nameEl)  nameEl.textContent = profile.label;
+      if (noteEl)  noteEl.textContent = profile.note;
+      if (proceed) proceed.disabled = false;
+    } else {
+      if (infoBox) infoBox.hidden = true;
+      if (proceed) proceed.disabled = true;
+    }
+  }
+
+  $('#inspVehicleSelect')?.addEventListener('change', e => onVehicleSelected(e.target.value));
+
+  $('#btnProceedInspection')?.addEventListener('click', () => {
+    const unit = $('#inspVehicleSelect')?.value;
+    if (!unit) return;
+    shift.vehicleUnit = unit.toUpperCase();
+    saveShift();
+    // Show checklist
+    const section = $('#inspChecklistSection'), footer = $('#inspFormFooter'), vehicleCard = $('#inspVehicleCard');
+    if (section) section.hidden = false;
+    if (footer)  footer.hidden  = false;
+    if (vehicleCard) vehicleCard.style.opacity = '0.6';
+    renderInspection();
+    section?.scrollIntoView({ behavior: 'smooth' });
+  });
 
   function renderInspection() {
-    const list=$('#inspChecklist');if(!list)return;
-    let total=0,checked=0;
-    list.innerHTML=INSP_GROUPS.map(g=>{
-      const items=g.items.map(item=>{
-        total++;const val=inspState[item.id];if(val)checked++;
+    const list = $('#inspChecklist'); if (!list) return;
+    const profile = activeInspProfile || profileForUnit(shift.vehicleUnit);
+    const groupIds = profile ? profile.groups : Object.keys(ALL_INSP_GROUPS);
+    const activeGroups = groupIds.map(id => ALL_INSP_GROUPS[id]).filter(Boolean);
+    let total = 0, checked = 0;
+    list.innerHTML = activeGroups.map(g => {
+      const items = g.items.map(item => {
+        total++; const val = inspState[item.id]; if (val) checked++;
         return `<div class="inspItem">
-          <div class="inspLabel">${item.label}${item.note?`<small>${item.note}</small>`:''}
-          </div>
+          <div class="inspLabel">${item.label}${item.note ? `<small>${item.note}</small>` : ''}</div>
           <div class="inspToggle">
-            <button type="button" class="${val==='pass'?'pass':''}" data-insp="${item.id}" data-v="pass">Pass</button>
-            <button type="button" class="${val==='fail'?'fail':''}" data-insp="${item.id}" data-v="fail">Fail</button>
+            <button type="button" class="${val === 'pass' ? 'pass' : ''}" data-insp="${item.id}" data-v="pass">Pass</button>
+            <button type="button" class="${val === 'fail' ? 'fail' : ''}" data-insp="${item.id}" data-v="fail">Fail</button>
           </div>
         </div>`;
       }).join('');
       return `<p class="inspGroupHead">${g.label}</p><div class="inspGroup">${items}</div>`;
     }).join('');
-    $$('[data-insp]',list).forEach(btn=>{
-      btn.addEventListener('click',()=>{
-        const id=btn.dataset.insp,v=btn.dataset.v;
-        inspState[id]=inspState[id]===v?null:v;
-        localStorage.setItem(INSP_KEY,JSON.stringify(inspState));
+    $$('[data-insp]', list).forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.insp, v = btn.dataset.v;
+        inspState[id] = inspState[id] === v ? null : v;
+        localStorage.setItem(INSP_KEY, JSON.stringify(inspState));
         renderInspection();
       });
     });
-    const pct=total?Math.round(checked/total*100):0;
-    if($('#inspProgressLabel'))$('#inspProgressLabel').textContent=`${checked} / ${total}`;
-    if($('#inspProgressBar'))$('#inspProgressBar').style.width=pct+'%';
+    const pct = total ? Math.round(checked / total * 100) : 0;
+    if ($('#inspProgressLabel')) $('#inspProgressLabel').textContent = `${checked} / ${total}`;
+    if ($('#inspProgressBar'))   $('#inspProgressBar').style.width   = pct + '%';
   }
 
-  $('#inspectionForm')?.addEventListener('submit',e=>{
+  $('#inspectionForm')?.addEventListener('submit', e => {
     e.preventDefault();
-    const all=INSP_GROUPS.flatMap(g=>g.items);
-    const missing=all.filter(i=>!inspState[i.id]);
-    const failures=all.filter(i=>inspState[i.id]==='fail').map(i=>i.label);
-    const noticeEl=$('#inspSubmitNotice');
-    if(missing.length){if(noticeEl){noticeEl.hidden=false;noticeEl.textContent=`${missing.length} item(s) not checked. Mark every item Pass or Fail.`;}return;}
-    const odo=Number($('#inspOdometer')?.value)||null;
-    if(odo){miles.odoStart=odo;saveMiles();}
-    shift.inspectionDone=true;saveShift();
-    if(failures.length)alert(`FAILED ITEMS (${failures.length}):\n${failures.join('\n')}\n\nReport to Fleet before operating.`);
-    beginShift();showView('dashView');
+    const profile = activeInspProfile || profileForUnit(shift.vehicleUnit);
+    if (!profile) { alert('Select your vehicle before submitting.'); return; }
+    const groupIds = profile.groups;
+    const allItems = groupIds.map(id => ALL_INSP_GROUPS[id]).filter(Boolean).flatMap(g => g.items);
+    const missing  = allItems.filter(i => !inspState[i.id]);
+    const failures = allItems.filter(i => inspState[i.id] === 'fail').map(i => i.label);
+    const noticeEl = $('#inspSubmitNotice');
+    if (missing.length) {
+      if (noticeEl) { noticeEl.hidden = false; noticeEl.textContent = `${missing.length} item(s) not checked. Mark every item Pass or Fail.`; }
+      return;
+    }
+    const odo = Number($('#inspOdometer')?.value) || null;
+    if (odo) { miles.odoStart = odo; saveMiles(); }
+    shift.inspectionDone = true; saveShift();
+    if (failures.length) alert(`FAILED ITEMS (${failures.length}):\n${failures.join('\n')}\n\nReport to Fleet before operating.`);
+    beginShift(); showView('dashView');
   });
 
   // ── Trips / manifest ──────────────────────────────────────────
@@ -483,7 +653,7 @@
   // ── Init ──────────────────────────────────────────────────────
   async function initApp(){
     const ok=await checkAuth();if(!ok)return;
-    hideLoginView();renderDash();renderInspection();
+    hideLoginView();renderDash();renderInspection();loadFleetForInspection();
     await loadTrips();
     if(shift.onDuty)startGPS();
     setInterval(()=>{if(shift.onDuty)renderDash();},30000);

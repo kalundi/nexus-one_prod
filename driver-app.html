@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Nexus Driver">
-<meta name="description" content="Nexus Medical Transit Driver App — shift management, pre-trip inspection, mileage tracking, and trip workflow.">
+<meta name="description" content="Nexus Medical Transit Driver App â€” shift management, pre-trip inspection, mileage tracking, and trip workflow.">
 <title>Driver App | Nexus Medical Transit</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/assets/icon-192.png">
@@ -38,10 +38,10 @@
 body{margin:0;font-family:'Source Sans 3',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:16px}
 a{color:var(--blue);text-decoration:none}
 
-/* ── Phone shell ──────────────────────────────────── */
+/* â”€â”€ Phone shell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .phone{max-width:480px;margin:0 auto;min-height:100svh;display:flex;flex-direction:column;padding:0 0 calc(72px + var(--safe-bottom))}
 
-/* ── Top bar ──────────────────────────────────────── */
+/* â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .topBar{background:var(--navy);color:#fff;padding:env(safe-area-inset-top,0) 0 0;position:sticky;top:0;z-index:50}
 .topBarInner{display:flex;align-items:center;gap:10px;padding:14px 16px;min-height:60px}
 .topLogo{height:28px;filter:brightness(0) invert(1)}
@@ -52,7 +52,7 @@ a{color:var(--blue);text-decoration:none}
 .topBadge.break{background:rgba(234,179,8,.22);color:#fde047}
 .topBadge::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
 
-/* ── Bottom nav ───────────────────────────────────── */
+/* â”€â”€ Bottom nav â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .bottomNav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(480px,100%);background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding:0 0 var(--safe-bottom);z-index:50;box-shadow:0 -4px 16px rgba(0,0,0,.08)}
 .navBtn{border:0;background:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:10px 4px 8px;font:700 10px/1 Manrope,sans-serif;color:var(--muted);cursor:pointer;min-height:56px;letter-spacing:.04em;text-transform:uppercase;-webkit-tap-highlight-color:transparent}
 .navBtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -60,7 +60,7 @@ a{color:var(--blue);text-decoration:none}
 .navBadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--brand);color:#fff;font-size:10px;font-weight:900;position:absolute;top:6px;right:calc(50% - 20px)}
 .navBtnWrap{position:relative;display:flex;flex-direction:column;align-items:center}
 
-/* ── Sections / cards ─────────────────────────────── */
+/* â”€â”€ Sections / cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .padded{padding:12px 14px}
 .card{background:var(--sheet);border:1px solid var(--line);border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:10px;overflow:hidden}
 .cardHead{padding:14px 16px 0;display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -68,7 +68,7 @@ a{color:var(--blue);text-decoration:none}
 .cardBody{padding:12px 16px 16px}
 .eyebrow{font:800 11px/1 Manrope,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
 
-/* ── Forms ────────────────────────────────────────── */
+/* â”€â”€ Forms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .field{display:grid;gap:6px;margin-bottom:12px}
 .field:last-child{margin-bottom:0}
 .field label{font:700 13px/1 Manrope,sans-serif;color:var(--ink)}
@@ -77,7 +77,7 @@ a{color:var(--blue);text-decoration:none}
 .field textarea{min-height:80px;resize:vertical}
 .fieldRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
-/* ── Buttons ──────────────────────────────────────── */
+/* â”€â”€ Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;border:0;padding:0 20px;font:800 15px/1 Manrope,sans-serif;cursor:pointer;min-height:52px;letter-spacing:-.01em;transition:transform .1s,box-shadow .1s}
 .btn:active{transform:scale(.97)}
 .btn.primary{background:linear-gradient(135deg,var(--brand),#a91616);color:#fff;box-shadow:0 8px 20px rgba(214,31,31,.28);width:100%}
@@ -88,7 +88,7 @@ a{color:var(--blue);text-decoration:none}
 .btnRow{display:flex;gap:8px;flex-wrap:wrap}
 .btnRow .btn{flex:1}
 
-/* ── Status badges ────────────────────────────────── */
+/* â”€â”€ Status badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;font:800 11px/1 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase}
 .badge.blue{background:#dbeafe;color:#1e40af}
 .badge.green{background:var(--ok-bg);color:var(--ok)}
@@ -96,7 +96,7 @@ a{color:var(--blue);text-decoration:none}
 .badge.amber{background:var(--warn-bg);color:var(--warn)}
 .badge.gray{background:#f1f5f9;color:#475569}
 
-/* ── Trip card ────────────────────────────────────── */
+/* â”€â”€ Trip card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tripCard{display:grid;grid-template-columns:56px 1fr auto;gap:12px;align-items:center;padding:13px 14px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .15s}
 .tripCard:last-child{border-bottom:0}
 .tripCard:hover,.tripCard:focus-visible{background:#f8fafc;outline:none}
@@ -104,7 +104,7 @@ a{color:var(--blue);text-decoration:none}
 .tripTime{text-align:center}.tripTime strong{display:block;font:800 16px/1 Manrope,sans-serif}.tripTime small{font-size:11px;color:var(--muted)}
 .tripInfo strong{display:block;font:700 14px/1.2 Manrope,sans-serif}.tripInfo span{display:block;font-size:13px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
 
-/* ── Inspection ───────────────────────────────────── */
+/* â”€â”€ Inspection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .inspGroup{margin-bottom:14px}
 .inspGroupHead{font:800 13px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);padding:10px 16px;background:#f0f7fc;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:0}
 .inspItem{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
@@ -118,7 +118,7 @@ a{color:var(--blue);text-decoration:none}
 .inspProgress{height:4px;background:var(--line);border-radius:999px;margin:10px 16px}
 .inspProgress span{display:block;height:100%;background:var(--ok);border-radius:999px;transition:width .3s}
 
-/* ── Mileage ──────────────────────────────────────── */
+/* â”€â”€ Mileage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .legRow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--line)}
 .legRow:last-child{border-bottom:0}
 .legInfo strong{font:700 13px/1.2 Manrope,sans-serif;display:block}.legInfo span{font-size:12px;color:var(--muted);margin-top:2px;display:block}
@@ -128,41 +128,41 @@ a{color:var(--blue);text-decoration:none}
 .milesTotal strong{font:800 26px/1 Manrope,sans-serif}
 .milesTotal span{font-size:13px;color:#94a3b8}
 
-/* ── Shift summary (end) ──────────────────────────── */
+/* â”€â”€ Shift summary (end) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .summaryGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 16px}
 .summaryItem{padding:14px;background:var(--bg);border-radius:12px;border:1px solid var(--line)}
 .summaryItem strong{display:block;font:800 28px/1 Manrope,sans-serif;margin-bottom:4px}
 .summaryItem span{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
 
-/* ── Alert / notice ───────────────────────────────── */
+/* â”€â”€ Alert / notice â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .notice{border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:10px;border:1px solid}
 .notice.ok{background:var(--ok-bg);border-color:#bbf7d0;color:var(--ok)}
 .notice.err{background:var(--err-bg);border-color:#fecdd3;color:var(--err)}
 .notice.info{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
 .notice.warn{background:var(--warn-bg);border-color:#fde68a;color:var(--warn)}
 
-/* ── Login ────────────────────────────────────────── */
+/* â”€â”€ Login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 #loginView{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;background:var(--navy)}
 .loginCard{width:min(400px,100%);background:#fff;border-radius:20px;padding:28px;box-shadow:0 30px 60px rgba(0,0,0,.3)}
 .loginLogo{display:block;width:160px;margin:0 auto 24px}
 .loginCard h1{margin:0 0 4px;font:900 22px/1 Manrope,sans-serif;text-align:center}
 .loginCard p{margin:0 0 20px;color:var(--muted);text-align:center;font-size:14px}
 
-/* ── Date filter tabs ─────────────────────────────── */
+/* â”€â”€ Date filter tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tabBar{display:flex;gap:6px;padding:12px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .tabBar::-webkit-scrollbar{display:none}
 .tabBar button{flex:0 0 auto;padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font:700 13px/1 Manrope,sans-serif;color:var(--muted);cursor:pointer;white-space:nowrap}
 .tabBar button.active{background:var(--navy);border-color:var(--navy);color:#fff}
 
-/* ── Empty state ──────────────────────────────────── */
+/* â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .empty{text-align:center;padding:40px 20px;color:var(--muted)}
 .empty svg{width:48px;height:48px;margin:0 auto 12px;opacity:.4;display:block}
 .empty p{margin:0;font-size:14px}
 
-/* ── Divider ──────────────────────────────────────── */
+/* â”€â”€ Divider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .divider{height:1px;background:var(--line);margin:12px 0}
 
-/* ── View transitions ─────────────────────────────── */
+/* â”€â”€ View transitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .view{display:none;flex:1;flex-direction:column}
 .view.active{display:flex;flex-direction:column;animation:fadeUp .25s ease-out}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
@@ -170,7 +170,7 @@ a{color:var(--blue);text-decoration:none}
 </head>
 <body>
 
-<!-- ══ LOGIN ════════════════════════════════════════════════════ -->
+<!-- â•â• LOGIN â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 <div id="loginView">
   <div class="loginCard">
     <img class="loginLogo" src="./nexus-logo.png" alt="Nexus Medical Transit">
@@ -179,14 +179,14 @@ a{color:var(--blue);text-decoration:none}
     <div id="loginNotice" class="notice err" hidden></div>
     <form id="loginForm" autocomplete="on" novalidate>
       <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" name="email" autocomplete="username" placeholder="you@nexusmt.com" required></div>
-      <div class="field"><label for="loginPassword">Password</label><input id="loginPassword" type="password" name="password" autocomplete="current-password" placeholder="••••••••" required></div>
+      <div class="field"><label for="loginPassword">Password</label><input id="loginPassword" type="password" name="password" autocomplete="current-password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required></div>
       <button id="loginBtn" class="btn primary" type="submit" style="margin-top:8px">Sign In</button>
     </form>
     <p style="margin:16px 0 0;text-align:center;font-size:13px;color:var(--muted)">Need help? Call <a href="tel:+18887604990">(888) 760-4990</a></p>
   </div>
 </div>
 
-<!-- ══ APP SHELL ════════════════════════════════════════════════ -->
+<!-- â•â• APP SHELL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 <div id="appShell" hidden>
 <div class="phone">
 
@@ -199,14 +199,14 @@ a{color:var(--blue);text-decoration:none}
     </div>
   </header>
 
-  <!-- ── DASHBOARD VIEW ─────────────────────────────── -->
+  <!-- â”€â”€ DASHBOARD VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="dashView" class="view active">
     <div class="padded">
       <div id="dashNotice" class="notice info" hidden></div>
 
       <!-- Shift card -->
       <div class="card">
-        <div class="cardHead"><div><div class="eyebrow">Today's shift</div><h2 id="dashDriverName">Loading…</h2></div><span id="dashVehicle" class="badge gray">—</span></div>
+        <div class="cardHead"><div><div class="eyebrow">Today's shift</div><h2 id="dashDriverName">Loadingâ€¦</h2></div><span id="dashVehicle" class="badge gray">â€”</span></div>
         <div class="cardBody">
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
             <div style="text-align:center;padding:10px 6px;background:var(--bg);border-radius:10px;border:1px solid var(--line)"><strong style="display:block;font:800 20px/1 Manrope,sans-serif" id="statHours">0:00</strong><span style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Hours</span></div>
@@ -227,12 +227,12 @@ a{color:var(--blue);text-decoration:none}
 
       <!-- Active trip quick card -->
       <div id="activeTripCard" class="card" hidden>
-        <div class="cardHead"><div><div class="eyebrow">Active trip</div><h2 id="activeTripTitle">—</h2></div><span id="activeTripBadge" class="badge blue">En Route</span></div>
+        <div class="cardHead"><div><div class="eyebrow">Active trip</div><h2 id="activeTripTitle">â€”</h2></div><span id="activeTripBadge" class="badge blue">En Route</span></div>
         <div class="cardBody">
           <p id="activeTripSub" style="margin:0 0 12px;color:var(--muted);font-size:14px"></p>
           <div class="btnRow">
             <button id="btnGoActiveTrip" class="btn navy sm">Manage Trip</button>
-            <button id="btnNavActiveTrip" class="btn ghost sm">🗺 Navigate</button>
+            <button id="btnNavActiveTrip" class="btn ghost sm">ðŸ—º Navigate</button>
           </div>
         </div>
       </div>
@@ -245,24 +245,45 @@ a{color:var(--blue);text-decoration:none}
     </div>
   </div>
 
-  <!-- ── INSPECTION VIEW ────────────────────────────── -->
+  <!-- â”€â”€ INSPECTION VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="inspectionView" class="view">
     <div class="padded">
-      <div class="notice info">Complete every item before your first trip. This report is filed with Fleet and Dispatch.</div>
-      <div id="inspProgress" class="card" style="overflow:visible">
-        <div class="cardBody" style="padding-bottom:10px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <span style="font:700 13px Manrope,sans-serif">Inspection progress</span>
-            <span id="inspProgressLabel" style="font:800 13px Manrope,sans-serif;color:var(--ok)">0 / 0</span>
+      <!-- Step 1: Select vehicle -->
+      <div class="card" id="inspVehicleCard">
+        <div class="cardHead"><div><div class="eyebrow">Step 1 of 2</div><h2>Select your vehicle</h2></div></div>
+        <div class="cardBody">
+          <p style="margin:0 0 12px;font-size:14px;color:var(--muted)">The inspection checklist is tailored to your vehicle type. Select before proceeding.</p>
+          <div class="field">
+            <label for="inspVehicleSelect">Assigned vehicle</label>
+            <select id="inspVehicleSelect">
+              <option value="">-- Choose vehicle --</option>
+            </select>
           </div>
-          <div class="inspProgress"><span id="inspProgressBar" style="width:0%"></span></div>
+          <div id="inspVehicleInfo" hidden style="margin-bottom:12px;padding:12px;background:var(--bg);border-radius:12px;border:1px solid var(--line)">
+            <p id="inspVehicleName" style="margin:0 0 4px;font:700 15px Manrope,sans-serif"></p>
+            <p id="inspVehicleNote" style="margin:0;font-size:13px;color:var(--muted)"></p>
+          </div>
+          <button id="btnProceedInspection" class="btn navy" disabled>Begin Inspection &rarr;</button>
+        </div>
+      </div>
+      <!-- Step 2: Checklist (hidden until vehicle selected) -->
+      <div id="inspChecklistSection" hidden>
+        <div class="notice info">Check every item. Mark Pass or Fail — all items required before starting shift.</div>
+        <div id="inspProgress" class="card" style="overflow:visible">
+          <div class="cardBody" style="padding-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <span style="font:700 13px Manrope,sans-serif">Inspection progress</span>
+              <span id="inspProgressLabel" style="font:800 13px Manrope,sans-serif;color:var(--ok)">0 / 0</span>
+            </div>
+            <div class="inspProgress"><span id="inspProgressBar" style="width:0%"></span></div>
+          </div>
         </div>
       </div>
     </div>
     <form id="inspectionForm">
       <div id="inspChecklist"></div>
-      <div class="padded">
-        <div class="field"><label for="inspNotes">Overall notes / defects</label><textarea id="inspNotes" name="notes" placeholder="Any defects, concerns, or notes for Fleet…"></textarea></div>
+      <div id="inspFormFooter" class="padded" hidden>
+        <div class="field"><label for="inspNotes">Overall notes / defects</label><textarea id="inspNotes" name="notes" placeholder="Any defects, concerns, or notes for Fleet&hellip;"></textarea></div>
         <div class="field"><label for="inspOdometer">Odometer at inspection (miles)</label><input id="inspOdometer" name="odometer" type="number" inputmode="numeric" placeholder="e.g. 45000"></div>
         <div id="inspSubmitNotice" class="notice err" hidden></div>
         <button id="btnSubmitInspection" class="btn ok" type="submit">Submit Inspection &amp; Start Shift</button>
@@ -270,7 +291,7 @@ a{color:var(--blue);text-decoration:none}
     </form>
   </div>
 
-  <!-- ── MANIFEST VIEW ──────────────────────────────── -->
+  <!-- â”€â”€ MANIFEST VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="manifestView" class="view">
     <div class="tabBar" id="manifestTabs" role="tablist">
       <button class="active" data-days="1">Today</button>
@@ -283,20 +304,20 @@ a{color:var(--blue);text-decoration:none}
       <div id="manifestNotice" class="notice info" hidden></div>
     </div>
     <div id="manifestList" class="card" style="border-radius:16px;margin:0 14px;overflow:hidden">
-      <div class="empty"><p>Loading trips…</p></div>
+      <div class="empty"><p>Loading tripsâ€¦</p></div>
     </div>
     <div style="height:14px"></div>
   </div>
 
-  <!-- ── TRIP DETAIL VIEW ───────────────────────────── -->
+  <!-- â”€â”€ TRIP DETAIL VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="tripView" class="view">
     <div class="padded">
       <!-- Trip header -->
       <div class="card">
         <div class="cardBody">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
-            <div><div class="eyebrow" id="tripRef">—</div><h2 id="tripPatient" style="margin:4px 0 0;font:800 20px/1.1 Manrope,sans-serif">—</h2></div>
-            <span id="tripStatusBadge" class="badge blue">—</span>
+            <div><div class="eyebrow" id="tripRef">â€”</div><h2 id="tripPatient" style="margin:4px 0 0;font:800 20px/1.1 Manrope,sans-serif">â€”</h2></div>
+            <span id="tripStatusBadge" class="badge blue">â€”</span>
           </div>
           <div style="background:var(--bg);border-radius:12px;padding:12px;border:1px solid var(--line)">
             <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
@@ -321,7 +342,7 @@ a{color:var(--blue);text-decoration:none}
         <div class="cardHead"><div class="eyebrow">Trip status</div></div>
         <div id="tripWorkflow" style="padding:0 0 4px"></div>
         <div class="cardBody" style="padding-top:4px">
-          <button id="btnAdvanceTrip" class="btn navy" disabled>—</button>
+          <button id="btnAdvanceTrip" class="btn navy" disabled>â€”</button>
         </div>
       </div>
 
@@ -349,14 +370,14 @@ a{color:var(--blue);text-decoration:none}
       <div class="card">
         <div class="cardHead"><div><div class="eyebrow">Comments</div><h2>Trip notes</h2></div></div>
         <div class="cardBody">
-          <div class="field"><textarea id="tripComments" placeholder="Patient condition, delays, special circumstances, incidents…" rows="3"></textarea></div>
+          <div class="field"><textarea id="tripComments" placeholder="Patient condition, delays, special circumstances, incidentsâ€¦" rows="3"></textarea></div>
           <button id="btnSaveComments" class="btn ghost sm">Save Notes</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ── MILES VIEW ─────────────────────────────────── -->
+  <!-- â”€â”€ MILES VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="milesView" class="view">
     <div class="padded">
       <div id="milesOdoCard" class="card">
@@ -380,24 +401,24 @@ a{color:var(--blue);text-decoration:none}
     </div>
   </div>
 
-  <!-- ── END SHIFT VIEW ─────────────────────────────── -->
+  <!-- â”€â”€ END SHIFT VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="endView" class="view">
     <div class="padded">
       <div class="notice warn">Review your shift summary before signing out. This data is submitted to Dispatch and Fleet.</div>
       <div class="card">
-        <div class="cardHead"><div><div class="eyebrow">Shift complete</div><h2 id="endDriverName">—</h2></div></div>
+        <div class="cardHead"><div><div class="eyebrow">Shift complete</div><h2 id="endDriverName">â€”</h2></div></div>
         <div class="summaryGrid">
           <div class="summaryItem"><strong id="endHours">0:00</strong><span>Hours worked</span></div>
           <div class="summaryItem"><strong id="endTrips">0</strong><span>Trips completed</span></div>
           <div class="summaryItem"><strong id="endMiles">0.0</strong><span>Total miles</span></div>
-          <div class="summaryItem"><strong id="endVehicle">—</strong><span>Vehicle unit</span></div>
+          <div class="summaryItem"><strong id="endVehicle">â€”</strong><span>Vehicle unit</span></div>
         </div>
         <div class="cardBody">
           <div class="fieldRow">
             <div class="field"><label for="endOdo">Final odometer</label><input id="endOdo" type="number" inputmode="numeric" placeholder="45198"></div>
             <div class="field"><label for="endFuel">Fuel level %</label><input id="endFuel" type="number" min="0" max="100" placeholder="75"></div>
           </div>
-          <div class="field"><label for="endNotes">End-of-shift notes</label><textarea id="endNotes" placeholder="Vehicle condition, incidents, handoff notes for next driver…" rows="3"></textarea></div>
+          <div class="field"><label for="endNotes">End-of-shift notes</label><textarea id="endNotes" placeholder="Vehicle condition, incidents, handoff notes for next driverâ€¦" rows="3"></textarea></div>
           <div style="display:grid;gap:8px;margin-top:4px">
             <button id="btnConfirmEndShift" class="btn primary">Sign Out &amp; Submit Shift</button>
             <button id="btnCancelEndShift" class="btn ghost">Back to Dashboard</button>
@@ -409,7 +430,7 @@ a{color:var(--blue);text-decoration:none}
 
 </div><!-- .phone -->
 
-<!-- ── BOTTOM NAV ──────────────────────────────────── -->
+<!-- â”€â”€ BOTTOM NAV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 <nav class="bottomNav" aria-label="Driver navigation">
   <button class="navBtn active" data-view="dashView">
     <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -437,233 +458,6 @@ a{color:var(--blue);text-decoration:none}
 </nav>
 
 </div><!-- #appShell -->
-
-<script src="./driver-app.js"></script>
-</body>
-</html>
-/* ── Login screen ─────────────────────────────────── */
-#loginScreen{position:fixed;inset:0;z-index:1000;background:var(--driver-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
-#loginScreen.hidden{display:none}
-.loginCard{width:min(420px,100%);background:var(--driver-panel);border:1px solid var(--driver-line);border-radius:24px;padding:32px}
-.loginLogo{display:block;width:170px;filter:brightness(0) invert(1);margin:0 auto 28px}
-.loginCard h1{margin:0 0 6px;font-size:22px;text-align:center}
-.loginCard p{margin:0 0 24px;color:var(--driver-muted);text-align:center;font-size:14px}
-.loginField{display:grid;gap:7px;margin-bottom:14px}
-.loginField label{font-weight:800;font-size:14px}
-.loginField input{width:100%;border:1px solid var(--driver-line);border-radius:12px;background:#0d263a;color:#fff;padding:14px 12px;font:inherit;font-size:16px}
-.loginField input:focus{outline:none;border-color:#2e90fa;box-shadow:0 0 0 3px rgba(46,144,250,.15)}
-#loginError{padding:12px 14px;border-radius:12px;background:rgba(240,68,56,.15);border:1px solid rgba(240,68,56,.35);color:#fda29b;font-size:14px;margin-bottom:14px;display:none}
-#loginBtn{width:100%;min-height:54px;border:0;border-radius:14px;background:linear-gradient(135deg,#0b75ff,#005dcc);color:#fff;font-size:16px;font-weight:900;cursor:pointer;margin-top:6px}
-#loginBtn:disabled{opacity:.5;cursor:not-allowed}
-.loginFooter{margin-top:20px;text-align:center;color:var(--driver-muted);font-size:13px}
-.loginFooter a{color:#74c0fc}
-/* ── Shift-gated message ──────────────────────────── */
-#offShiftBanner{background:rgba(247,144,9,.14);border:1px solid rgba(247,144,9,.35);border-radius:14px;padding:14px 16px;color:#fec84b;margin-bottom:16px;display:none}
-/* ── GPS dot ──────────────────────────────────────── */
-.gpsBadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--driver-muted)}
-.gpsBadge.active{color:#6ce9a6}.gpsBadge.active span.dot{background:#16b364}
-.gpsBadge span.dot{width:8px;height:8px;border-radius:50%;background:var(--driver-muted);display:inline-block}
-/* ── Trip action row ──────────────────────────────── */
-.tripActions{display:flex;gap:8px;margin-top:10px}
-.tripActions button{flex:1;min-height:40px;border:1px solid var(--driver-line);border-radius:10px;background:var(--driver-panel-2);color:#fff;font-weight:800;font-size:12px;cursor:pointer}
-.tripActions button.primary{background:linear-gradient(135deg,#0b75ff,#005dcc);border-color:#0b75ff}
-</style>
-</head>
-<body class="driverAppBody">
-
-<!-- ══ LOGIN SCREEN ════════════════════════════════════════════ -->
-<div id="loginScreen">
-  <div class="loginCard">
-    <img class="loginLogo" src="./nexus-logo.png" alt="Nexus Medical Transit">
-    <h1>Driver Sign In</h1>
-    <p>Sign in with your Nexus driver credentials to start your shift.</p>
-    <div id="loginError"></div>
-    <form id="loginForm" autocomplete="on" novalidate>
-      <div class="loginField">
-        <label for="loginEmail">Email</label>
-        <input id="loginEmail" type="email" name="email" autocomplete="username" placeholder="driver@example.com" required>
-      </div>
-      <div class="loginField">
-        <label for="loginPassword">Password</label>
-        <input id="loginPassword" type="password" name="password" autocomplete="current-password" placeholder="••••••••" required>
-      </div>
-      <button id="loginBtn" type="submit">Sign in</button>
-    </form>
-    <p class="loginFooter">Need help? Call <a href="tel:+18887604990">(888) 760‑4990</a></p>
-  </div>
-</div>
-
-<!-- ══ DRIVER APP ══════════════════════════════════════════════ -->
-<header class="driverTop" id="appHeader">
-  <div class="driverTopInner">
-    <a class="driverBrand" href="/" aria-label="Nexus Medical Transit home">
-      <img src="./nexus-logo.png" alt="Nexus Medical Transit">
-    </a>
-    <div class="gpsBadge" id="gpsBadge"><span class="dot"></span>GPS</div>
-    <div class="driverTopActions">
-      <button class="driverIconBtn" id="callDispatch" aria-label="Call dispatch" title="Call dispatch">📞</button>
-      <button class="driverIconBtn" id="messageButton" aria-label="Message dispatch" title="Message dispatch">💬</button>
-      <button class="driverIconBtn" id="signOutBtn" aria-label="Sign out" title="Sign out">⏏</button>
-    </div>
-  </div>
-</header>
-
-<div class="driverShell">
-  <div class="driverHero">
-    <div class="driverGreeting">
-      <div>
-        <p class="driverEyebrow">NEXUS Driver Workspace</p>
-        <h1>Good <span id="timeOfDay">day</span>, <span id="driverName">Driver</span>.</h1>
-        <p id="shiftSubtitle" style="margin:6px 0 0;color:var(--driver-muted)">Loading your shift…</p>
-      </div>
-      <div id="driverStatus" class="driverStatusPill off"><span class="driverStatusDot"></span>OFF DUTY</div>
-    </div>
-
-    <div id="offShiftBanner">
-      <strong>Outside scheduled shift hours.</strong> You can still start your shift but it will be flagged for supervisor review.
-    </div>
-
-    <div class="shiftSummaryGrid">
-      <div class="shiftStat"><strong id="hoursWorked">0:00</strong><span>Hours worked</span></div>
-      <div class="shiftStat"><strong id="tripCount">0</strong><span>Assigned today</span></div>
-      <div class="shiftStat"><strong id="completedCount">0</strong><span>Completed</span></div>
-      <div class="shiftStat"><strong id="vehicleNumber">—</strong><span>Vehicle unit</span></div>
-    </div>
-  </div>
-
-  <!-- Shift controls -->
-  <div class="driverCard" style="margin-bottom:16px">
-    <div class="driverCardHeader">
-      <div><p class="driverEyebrow">Shift management</p><h2 id="driverFullName">Loading…</h2></div>
-      <span style="font-size:13px;color:var(--driver-muted)" id="driverId"></span>
-    </div>
-    <div class="driverButtonRow" style="margin-bottom:12px">
-      <button id="shiftButton" class="driverPrimary green" style="flex:1" disabled>START SHIFT</button>
-      <button id="breakButton" class="driverSecondary" disabled>BREAK</button>
-      <button id="inspectionButton" class="driverSecondary" disabled>INSPECTION</button>
-    </div>
-    <div id="driverNotice" class="driverNotice" role="status" aria-live="polite">Loading driver workspace…</div>
-  </div>
-
-  <div class="driverGrid">
-    <!-- LEFT: Active trip + workflow -->
-    <div>
-      <div class="driverCard">
-        <div class="driverCardHeader">
-          <div><p class="driverEyebrow">Current assignment</p><h2>Active trip</h2></div>
-          <span id="activeTripBadge" class="tripStatus">No trip</span>
-        </div>
-        <div id="activeTripPanel" class="nextTrip">
-          <p style="color:var(--driver-muted)">No active trip. Dispatch will assign your next trip.</p>
-        </div>
-        <div class="driverButtonRow" style="margin-top:14px">
-          <button id="advanceWorkflow" class="driverPrimary" disabled>ACCEPT TRIP</button>
-          <button id="navigateButton" class="driverSecondary" disabled>🗺 NAV</button>
-        </div>
-      </div>
-
-      <div class="driverCard driverSection">
-        <div class="driverCardHeader"><div><p class="driverEyebrow">Trip workflow</p><h2>Status steps</h2></div></div>
-        <div id="workflow" class="workflow">
-          <p style="color:var(--driver-muted);font-size:13px">Start shift and accept a trip to begin workflow.</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- RIGHT: Manifest + vehicle + quick actions -->
-    <div>
-      <div class="driverCard">
-        <div class="driverCardHeader"><div><p class="driverEyebrow">Today's manifest</p><h2>All trips</h2></div>
-        <button id="refreshTrips" class="driverSecondary" style="min-height:36px;font-size:12px">↻ Refresh</button></div>
-        <div id="tripList" class="tripList"><p style="color:var(--driver-muted)">Loading trips…</p></div>
-      </div>
-
-      <div class="driverCard driverSection">
-        <div class="driverCardHeader"><div><p class="driverEyebrow">Quick actions</p><h2>Tools</h2></div></div>
-        <div class="quickGrid">
-          <button class="quickAction" id="incidentButton"><span>🚨</span><small>Report incident</small></button>
-          <button class="quickAction" id="fleetButton"><span>🚐</span><small>Vehicle status</small></button>
-          <button class="quickAction" id="callDispatch2"><span>📞</span><small>Call dispatch</small></button>
-          <button class="quickAction" id="messageButton2"><span>💬</span><small>Message</small></button>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div style="height:24px"></div>
-</div>
-
-<!-- ══ BOTTOM NAV ══════════════════════════════════════════════ -->
-<nav class="driverBottomNav" aria-label="Driver navigation">
-  <a href="#" class="active" data-nav="dash"><span>🏠</span>Dashboard</a>
-  <a href="#" data-nav="trips"><span>📋</span>Trips</a>
-  <a href="#" data-nav="map"><span>🗺</span>Navigate</a>
-  <a href="#" data-nav="vehicle"><span>🚐</span>Vehicle</a>
-  <a href="#" data-nav="more"><span>⋯</span>More</a>
-</nav>
-
-<!-- ══ DIALOGS ════════════════════════════════════════════════ -->
-<dialog id="inspectionDialog" class="driverDialog">
-  <div class="driverDialogInner">
-    <div class="driverDialogHeader"><h2>Pre-trip inspection</h2><button class="driverClose" aria-label="Close">×</button></div>
-    <p style="color:var(--driver-muted);margin-bottom:18px">Check every item before your first trip. This is logged and shared with Fleet and Dispatch.</p>
-    <form id="inspectionForm">
-      <div class="inspectionList">
-        <div class="inspectionItem"><label>Wheelchair restraints &amp; stretcher locks</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="restraints" required></div>
-        <div class="inspectionItem"><label>Fuel / charge level adequate</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="fuel" required></div>
-        <div class="inspectionItem"><label>Emergency equipment &amp; first-aid supplies</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="emergency" required></div>
-        <div class="inspectionItem"><label>Lift / ramp operation tested</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="lift" required></div>
-        <div class="inspectionItem"><label>Exterior lights &amp; turn signals</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="lights" required></div>
-        <div class="inspectionItem"><label>Tires &amp; mirrors</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="tires" required></div>
-        <div class="inspectionItem"><label>Interior clean &amp; properly configured</label><small style="color:var(--driver-muted)">Required</small><input type="checkbox" name="interior" required></div>
-        <div class="inspectionItem"><label>Oxygen &amp; suction units (if applicable)</label><small style="color:var(--driver-muted)">If applicable</small><input type="checkbox" name="oxygen"></div>
-      </div>
-      <button class="driverPrimary green" type="submit" style="margin-top:18px">SUBMIT INSPECTION</button>
-    </form>
-  </div>
-</dialog>
-
-<dialog id="endShiftDialog" class="driverDialog">
-  <div class="driverDialogInner">
-    <div class="driverDialogHeader"><h2>End shift</h2><button class="driverClose" aria-label="Close">×</button></div>
-    <p style="color:var(--driver-muted)">Your shift summary will be submitted to Dispatch and Fleet.</p>
-    <div class="shiftSummaryGrid" style="margin:18px 0">
-      <div class="shiftStat"><strong id="endShiftHours">0:00</strong><span>Hours worked</span></div>
-      <div class="shiftStat"><strong id="endShiftTrips">0</strong><span>Trips completed</span></div>
-      <div class="shiftStat"><strong id="endShiftMiles">0.0</strong><span>Miles driven</span></div>
-      <div class="shiftStat"><strong id="endShiftVehicle">—</strong><span>Vehicle</span></div>
-    </div>
-    <div class="driverButtonRow">
-      <button id="confirmEndShift" class="driverPrimary red" style="flex:1">CONFIRM END SHIFT</button>
-      <button class="driverSecondary driverClose">CANCEL</button>
-    </div>
-  </div>
-</dialog>
-
-<dialog id="incidentDialog" class="driverDialog">
-  <div class="driverDialogInner">
-    <div class="driverDialogHeader"><h2>Report incident</h2><button class="driverClose" aria-label="Close">×</button></div>
-    <form id="incidentForm">
-      <div class="driverField"><label for="incidentType">Incident type</label>
-        <select id="incidentType" name="type">
-          <option value="vehicle_damage">Vehicle damage</option>
-          <option value="patient_fall">Patient fall</option>
-          <option value="traffic_accident">Traffic accident</option>
-          <option value="medical_emergency">Patient medical emergency</option>
-          <option value="mechanical_failure">Mechanical failure</option>
-          <option value="safety_concern">Safety concern</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
-      <div class="driverField"><label for="incidentDesc">Description</label>
-        <textarea id="incidentDesc" name="description" required placeholder="Briefly describe what happened…"></textarea>
-      </div>
-      <div class="driverField"><label for="incidentLocation">Location</label>
-        <input id="incidentLocation" name="location" type="text" placeholder="Cross street or address">
-      </div>
-      <button class="driverPrimary red" type="submit" style="margin-top:6px">SUBMIT REPORT</button>
-    </form>
-  </div>
-</dialog>
 
 <script src="./driver-app.js"></script>
 </body>
