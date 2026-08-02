@@ -19,6 +19,11 @@
     /* Reduce footer top padding: was 65px, now 16px to match other pages */
     footer { padding-top: 16px !important; }
 
+    /* Remove Assurance section and its nav link completely */
+    #safety-and-quality { display: none !important; }
+    a[href="#safety-and-quality"],
+    a[href="/#safety-and-quality"] { display: none !important; }
+
     @media (max-width: 950px) {
       .menuBtn,
       .navBookRide,
