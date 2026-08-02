@@ -6,6 +6,11 @@
 
 .footerLogo{width:min(100%,300px);height:auto;object-fit:contain;object-position:left center;background:transparent}
 
+/* ===== Logo pop animation ===== */
+@keyframes logoPop{0%{transform:scale(1)}20%{transform:scale(1.18) rotate(-3deg)}40%{transform:scale(1.22) rotate(3deg)}60%{transform:scale(1.15) rotate(-1.5deg)}80%{transform:scale(1.05) rotate(1deg)}100%{transform:scale(1) rotate(0deg)}}
+.logo-pop{animation:logoPop .6s cubic-bezier(.36,.07,.19,.97) both}
+@media(prefers-reduced-motion:reduce){.logo-pop{animation:none!important}}
+
 .fleetGalleryCard>p{color:var(--muted)}.fleetGallery{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.fleetGallery figure{margin:0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--soft)}.fleetGallery img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}.fleetGallery figcaption{padding:12px 14px;font-weight:750;color:var(--navy)}@media(max-width:850px){.fleetGallery{grid-template-columns:1fr}}
 
 /* Build 003 operations core */

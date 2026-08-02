@@ -231,4 +231,16 @@ $$('[data-api-list]').forEach(async el=>{const endpoint=el.dataset.apiList;const
 	}else{
 		boot();
 	}
+
+	// ===== Logo pop every 60 seconds =====
+	function popLogos(){
+		const logos=document.querySelectorAll('img.logo');
+		logos.forEach(logo=>{
+			logo.classList.remove('logo-pop');
+			void logo.offsetWidth; // force reflow to restart animation
+			logo.classList.add('logo-pop');
+			logo.addEventListener('animationend',()=>logo.classList.remove('logo-pop'),{once:true});
+		});
+	}
+	setTimeout(()=>{ popLogos(); setInterval(popLogos,60000); },3000); // first pop 3s after load, then every 60s
 })();
