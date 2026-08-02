@@ -15,6 +15,7 @@
     "admin:create-test": "node scripts/create-test-admin.mjs",
     "test:create-users": "node scripts/create-test-users.mjs",
     "driver:add-fletcher": "node scripts/add-fletcher-driver.mjs",
+    "fleet:seed": "node scripts/seed-fleet.mjs",
     "seed:demo": "node scripts/seed-demo-bookings.mjs",
     "debug:admin": "node scripts/debug-admin.mjs",
     "test:broker": "node scripts/local-test-server.cjs"
