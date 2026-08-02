@@ -77,8 +77,8 @@ try {
     } else if (orgId) {
       await withRetry(
         () => pool.query(
-          'INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())',
-          [crypto.randomUUID(), u.email, u.name, u.role, passwordHash, orgId]
+          'INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())',
+          [crypto.randomUUID(), u.email, u.name, u.role, passwordHash, orgId, crypto.randomUUID()]
         ),
         `insert-${u.email}`
       );
@@ -87,8 +87,8 @@ try {
     } else {
       await withRetry(
         () => pool.query(
-          'INSERT INTO users(id,email,display_name,role,password_hash,active,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,now(),now())',
-          [crypto.randomUUID(), u.email, u.name, u.role, passwordHash]
+          'INSERT INTO users(id,email,display_name,role,password_hash,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())',
+          [crypto.randomUUID(), u.email, u.name, u.role, passwordHash, crypto.randomUUID()]
         ),
         `insert-noorg-${u.email}`
       );
