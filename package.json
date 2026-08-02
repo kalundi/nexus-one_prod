@@ -19,5 +19,9 @@
   },
   "dependencies": {
     "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "http-server": "^14.1.1"
   }
 }

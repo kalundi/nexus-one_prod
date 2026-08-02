@@ -227,6 +227,39 @@ async function notifyBooking(b){
  const results=await Promise.allSettled([sendSms(b.phone,text),sendEmail(b.email,`Nexus ride request ${b.reference}`,`<h1>Transportation request received</h1><p>Reference: <strong>${b.reference}</strong></p><p>${b.pickup} → ${b.destination}</p><p>${b.date} at ${b.time}</p><p>Nexus will contact you after availability is reviewed.</p>`)]);
  return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
 }
+async function sendInvoice(b){
+ const fare=Number(b.estimatedFare||b.estimated_fare||0);
+ const fareText=fare>0?` Estimated fare: $${fare.toFixed(2)}.`:'';
+ const text=`Nexus Medical Transit: Booking ${b.reference} created for ${b.date} at ${b.time}.${fareText} An invoice will follow. Questions? Call (888) 760-4990.`;
+ const html=`<h2>Nexus Medical Transit Invoice</h2><p>Reference: <strong>${b.reference}</strong></p><p>${b.pickup} → ${b.destination}</p><p>${b.date} at ${b.time}</p>${fare>0?`<p>Estimated fare: <strong>$${fare.toFixed(2)}</strong></p>`:''}<p>Payment may be made by ACH, card, check, or wire. Contact billing@nexusmt.com or call (888) 760-4990.</p>`;
+ const results=await Promise.allSettled([sendSms(b.phone||b.phone,text),sendEmail(b.email,`Invoice — Nexus booking ${b.reference}`,html)]);
+ return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
+}
+async function sendBalanceDueReminder(b,balanceDue){
+ const base=siteBase();
+ const payLink=`${base}/booking-app.html?payBalance=1&bookingReference=${encodeURIComponent(b.reference)}`;
+ const dueText=balanceDue>0?` Remaining balance: $${Number(balanceDue).toFixed(2)}.`:'';
+ const text=`Nexus Medical Transit: Your driver is on the way for booking ${b.reference}.${dueText} Complete payment before pickup: ${payLink}`;
+ const html=`<h2>Complete your payment — booking ${b.reference}</h2><p>Your driver is en route.${dueText}</p><p><a href="${payLink}">Pay remaining balance now</a></p><p>Questions? Call (888) 760-4990.</p>`;
+ await Promise.allSettled([sendSms(b.phone,text),sendEmail(b.email,`Balance due — ${b.reference}`,html)]);
+}
+function verifyStripeWebhookSignature(rawBody,signature){
+ if(!envEnabled('STRIPE_WEBHOOK_SECRET'))throw Object.assign(new Error('Stripe webhook secret not configured'),{statusCode:500});
+ const secret=process.env.STRIPE_WEBHOOK_SECRET;
+ const parts={};
+ for(const part of String(signature||'').split(',')){
+  const eqIdx=part.indexOf('=');if(eqIdx<0)continue;
+  const k=part.slice(0,eqIdx),v=part.slice(eqIdx+1);
+  parts[k]=v;
+ }
+ const ts=parts['t'],sig=parts['v1'];
+ if(!ts||!sig)throw Object.assign(new Error('Invalid Stripe signature format'),{statusCode:400});
+ const now=Math.floor(Date.now()/1000);
+ if(Math.abs(now-Number(ts))>300)throw Object.assign(new Error('Stripe webhook timestamp expired'),{statusCode:400});
+ const hmac=crypto.createHmac('sha256',secret).update(`${ts}.${rawBody}`).digest('hex');
+ if(hmac!==sig)throw Object.assign(new Error('Invalid Stripe webhook signature'),{statusCode:400});
+ return JSON.parse(rawBody);
+}
 async function createStripeIntent(amountCents,metadata){
  if(!envEnabled('STRIPE_SECRET_KEY'))throw Object.assign(new Error('Stripe is not configured'),{statusCode:503});
  const form=new URLSearchParams();form.set('amount',String(amountCents));form.set('currency','usd');form.set('automatic_payment_methods[enabled]','true');
@@ -245,11 +278,12 @@ async function createStripeCheckoutSession(amountCents,metadata){
  form.set('success_url',`${siteBase()}/booking-app.html?payment=success&bookingReference=${encodeURIComponent(bookingReference)}`);
  form.set('cancel_url',`${siteBase()}/booking-app.html?payment=cancelled&bookingReference=${encodeURIComponent(bookingReference)}`);
  form.set('line_items[0][price_data][currency]','usd');
- form.set('line_items[0][price_data][product_data][name]',`Nexus Medical Transit Booking ${bookingReference}`);
+ const modeLabel=metadata?.paymentMode==='deposit'?'25% Deposit — ':'';
+ form.set('line_items[0][price_data][product_data][name]',`${modeLabel}Nexus Medical Transit Booking ${bookingReference}`);
  form.set('line_items[0][price_data][unit_amount]',String(amountCents));
  form.set('line_items[0][quantity]','1');
  for(const [k,v] of Object.entries(metadata||{}))if(v!=null)form.set(`metadata[${k}]`,String(v).slice(0,500));
- const r=await fetch('https://api.stripe.com/v1/checkout/sessions',{method:'POST',headers:{authorization:`Bearer ${process.env.STRIPE_SECRET_KEY}`,'content-type':'application/x-www-form-urlencoded','idempotency-key':`checkout-${bookingReference}`},body:form});
+ const r=await fetch('https://api.stripe.com/v1/checkout/sessions',{method:'POST',headers:{authorization:`Bearer ${process.env.STRIPE_SECRET_KEY}`,'content-type':'application/x-www-form-urlencoded','idempotency-key':`checkout-${bookingReference}-${metadata?.paymentMode||'full'}`},body:form});
  const data=await r.json().catch(()=>({}));
  if(!r.ok)throw Object.assign(new Error(data.error?.message||'Stripe checkout request failed'),{statusCode:502});
  return data;
@@ -275,6 +309,19 @@ async function createSquarePaymentLink(amountCents,metadata){
  const data=await r.json().catch(()=>({}));
  if(!r.ok)throw Object.assign(new Error(data?.errors?.[0]?.detail||'Square payment link request failed'),{statusCode:502});
  return data;
+}
+async function calculateBrokerRate(brokerId,service,miles){
+ if(!brokerId)return null;
+ const r=await query(`SELECT base_rate,per_mile_rate FROM broker_rates WHERE broker_id=$1 AND service=$2 AND effective_from<=now() AND (effective_to IS NULL OR effective_to>now()) ORDER BY effective_from DESC LIMIT 1`,[brokerId,service]);
+ if(!r.rows[0])return null;
+ const rate=r.rows[0];
+ return Number(rate.base_rate||0)+Number(miles||0)*Number(rate.per_mile_rate||0);
+}
+async function sendBrokerRequestToDispatch(br){
+ const dispatchEmail=process.env.COMPANY_EMAIL||'dispatch@nexusmt.com';
+ const text=`Broker request: ${br.broker_name} - ${br.pickup} to ${br.destination} on ${br.trip_date} at ${br.trip_time}. Broker: $${Number(br.broker_quoted_rate||0).toFixed(2)} vs Platform: $${Number(br.platform_calculated_rate||0).toFixed(2)}.`;
+ const html=`<h2>Broker Request</h2><p><strong>Broker:</strong> ${br.broker_name}</p><p><strong>Route:</strong> ${br.pickup} to ${br.destination}</p><p><strong>Date/Time:</strong> ${br.trip_date} at ${br.trip_time}</p><p>Broker rate: $${Number(br.broker_quoted_rate||0).toFixed(2)} | Platform rate: $${Number(br.platform_calculated_rate||0).toFixed(2)} | Delta: $${Number(br.rate_delta||0).toFixed(2)}</p><p>Status: ${br.request_status}</p>`;
+ await Promise.allSettled([sendSms(process.env.DISPATCH_PHONE,text),sendEmail(dispatchEmail,`Broker: ${br.broker_name}`,html)]).catch(()=>{});
 }
 
 async function handler(event){
@@ -310,8 +357,8 @@ async function handler(event){
      }
    });
   }
-  if(p.join('/')==='integrations/config'&&method==='GET')return json(200,{build:'042',googleMapsEnabled:envEnabled('GOOGLE_MAPS_BROWSER_KEY'),googleMapsBrowserKey:process.env.GOOGLE_MAPS_BROWSER_KEY||'',stripeEnabled:envEnabled('STRIPE_PUBLISHABLE_KEY')&&envEnabled('STRIPE_SECRET_KEY'),stripePublishableKey:process.env.STRIPE_PUBLISHABLE_KEY||'',squareEnabled:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')});
-  if(p.join('/')==='integrations/health'&&method==='GET')return json(200,{googleMaps:envEnabled('GOOGLE_MAPS_BROWSER_KEY')?'configured':'not-configured',twilio:envEnabled('TWILIO_ACCOUNT_SID')&&envEnabled('TWILIO_AUTH_TOKEN')&&envEnabled('TWILIO_PHONE_NUMBER')?'configured':'not-configured',sendGrid:envEnabled('SENDGRID_API_KEY')&&envEnabled('SENDGRID_FROM_EMAIL')?'configured':'not-configured',stripe:envEnabled('STRIPE_SECRET_KEY')&&envEnabled('STRIPE_PUBLISHABLE_KEY')?'configured':'not-configured',square:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')?'configured':'not-configured',gps:'enabled',checkedAt:new Date().toISOString()});
+  if(p.join('/')==='integrations/config'&&method==='GET')return json(200,{build:'042',googleMapsEnabled:envEnabled('GOOGLE_MAPS_BROWSER_KEY'),googleMapsBrowserKey:process.env.GOOGLE_MAPS_BROWSER_KEY||'',stripeEnabled:envEnabled('STRIPE_SECRET_KEY') || envEnabled('STRIPE_PUBLISHABLE_KEY'),stripePublishableKey:process.env.STRIPE_PUBLISHABLE_KEY||'',squareEnabled:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')});
+  if(p.join('/')==='integrations/health'&&method==='GET')return json(200,{googleMaps:envEnabled('GOOGLE_MAPS_BROWSER_KEY')?'configured':'not-configured',twilio:envEnabled('TWILIO_ACCOUNT_SID')&&envEnabled('TWILIO_AUTH_TOKEN')&&envEnabled('TWILIO_PHONE_NUMBER')?'configured':'not-configured',sendGrid:envEnabled('SENDGRID_API_KEY')&&envEnabled('SENDGRID_FROM_EMAIL')?'configured':'not-configured',stripe:envEnabled('STRIPE_SECRET_KEY')||envEnabled('STRIPE_PUBLISHABLE_KEY')?'configured':'not-configured',square:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')?'configured':'not-configured',gps:'enabled',checkedAt:new Date().toISOString()});
   if(p[0]==='settings'&&p[1]==='public'&&method==='GET'){
    const settings=await readPlatformSettings();
    return json(200,{pricing:settings.pricing,fareRules:settings.fareRules,activeServices:settings.activeServices,organization:settings.organization});
@@ -347,14 +394,27 @@ async function handler(event){
    if(phoneDigits.length!==10)return json(400,{error:'Phone number must be 10 digits'});
    // Validate email if provided
    if(b.email){const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;if(!emailPattern.test(b.email.trim()))return json(400,{error:'Please enter a valid email address'});}
+   // Detect booking source: staff users (authenticated) get invoiced; public customers pay online
+   let bookingActor=null;
+   try{if(bearer(event))bookingActor=await requireUser(bearer(event))}catch{}
+   const bookingSource=bookingActor&&['ADMIN','DISPATCHER','FACILITY','BILLING'].includes(bookingActor.role)?'STAFF':'CUSTOMER';
    const ref=reference();
-   const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,created_at,updated_at)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,b.time,clean(b.notes)||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,b.estimatedFare||null]);
-   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,'SUBMITTED','submitted','Online transportation request received','PUBLIC']);
-   await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service});
-   const booking=mapBooking(r.rows[0]);const notifications=await notifyBooking(booking);
-   await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[ref,JSON.stringify(notifications)]).catch(()=>{});
-   return json(201,{booking:{...booking,notifications}});
+   const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,created_at,updated_at)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,b.time,clean(b.notes)||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,b.estimatedFare||null,bookingSource]);
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,'SUBMITTED','submitted','Online transportation request received',bookingSource==='STAFF'?bookingActor.display_name:'PUBLIC']);
+   await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource});
+   const booking=mapBooking(r.rows[0]);
+   let notifications;
+   if(bookingSource==='STAFF'){
+    // Non-customer path: send invoice, skip online payment prompt
+    notifications=await sendInvoice(booking);
+    await query('UPDATE bookings SET payment_status=$2,notification_status=$3::jsonb WHERE reference=$1',[ref,'INVOICED',JSON.stringify(notifications)]).catch(()=>{});
+    return json(201,{booking:{...booking,paymentStatus:'INVOICED',notifications},invoiceSent:true,requiresOnlinePayment:false});
+   }else{
+    notifications=await notifyBooking(booking);
+    await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[ref,JSON.stringify(notifications)]).catch(()=>{});
+    return json(201,{booking:{...booking,notifications},requiresOnlinePayment:true});
+   }
   }
   if(p[0]==='bookings'&&p[1]&&method==='GET'){
    const phone=clean(event.queryStringParameters?.phone);if(!phone)return json(400,{error:'Phone number is required'});
@@ -440,12 +500,55 @@ async function handler(event){
   }
   if(p.join('/')==='payments/stripe/checkout'&&method==='POST'){
    const b=parseBody(event);required(b,['bookingReference']);
-   const r=await query('SELECT reference,email,estimated_fare,payment_status FROM bookings WHERE reference=$1',[b.bookingReference]);
+   const paymentMode=['deposit','full'].includes(b.paymentMode)?b.paymentMode:'full';
+   const r=await query('SELECT reference,email,estimated_fare,payment_status,booking_source FROM bookings WHERE reference=$1',[b.bookingReference]);
    if(!r.rows[0])return json(404,{error:'Booking not found'});
-   const amount=Math.round(Number(b.amount||r.rows[0].estimated_fare||0)*100);if(amount<50)return json(400,{error:'A valid payment amount is required'});
-   const session=await createStripeCheckoutSession(amount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined});
-   await query('UPDATE bookings SET stripe_checkout_session_id=$2,payment_status=$3,updated_at=now() WHERE reference=$1',[r.rows[0].reference,session.id,'PENDING']);
-   return json(200,{provider:'stripe',url:session.url,sessionId:session.id,amount});
+   const totalFare=Number(b.amount||r.rows[0].estimated_fare||0);
+   const chargeAmount=paymentMode==='deposit'?Math.round(totalFare*0.25*100):Math.round(totalFare*100);
+   if(chargeAmount<50)return json(400,{error:'A valid payment amount is required'});
+   const depositAmount=paymentMode==='deposit'?chargeAmount/100:totalFare;
+   const balanceDue=paymentMode==='deposit'?Math.max(0,totalFare-depositAmount):0;
+   const session=await createStripeCheckoutSession(chargeAmount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined,paymentMode});
+   await query('UPDATE bookings SET stripe_checkout_session_id=$2,payment_status=$3,deposit_amount=$4,balance_due=$5,updated_at=now() WHERE reference=$1',[r.rows[0].reference,session.id,'PENDING',depositAmount,balanceDue]);
+   return json(200,{provider:'stripe',url:session.url,sessionId:session.id,amount:chargeAmount,paymentMode});
+  }
+  if(p.join('/')==='payments/stripe/webhook'&&method==='POST'){
+   const sig=event.headers['stripe-signature'];
+   if(!sig)return json(400,{error:'Missing stripe-signature header'});
+   let stripeEvent;
+   try{stripeEvent=verifyStripeWebhookSignature(event.body||'',sig)}catch(err){return json(err.statusCode||400,{error:err.message});}
+   if(stripeEvent.type==='checkout.session.completed'){
+    const session=stripeEvent.data.object;
+    const bookingReference=session.metadata?.bookingReference;
+    const paymentMode=session.metadata?.paymentMode||'full';
+    if(bookingReference){
+     const bRow=await query('SELECT * FROM bookings WHERE reference=$1',[bookingReference]);
+     if(bRow.rows[0]){
+      const bk=bRow.rows[0];
+      const isDeposit=paymentMode==='deposit';
+      const newStatus=isDeposit?'DEPOSIT_PAID':'PAID_IN_FULL';
+      const updateSql=isDeposit
+       ?'UPDATE bookings SET payment_status=$2,deposit_paid_at=now(),updated_at=now() WHERE reference=$1 RETURNING *'
+       :'UPDATE bookings SET payment_status=$2,paid_in_full_at=now(),updated_at=now() WHERE reference=$1 RETURNING *';
+      await query(updateSql,[bookingReference,newStatus]);
+      await audit('BOOKING',bookingReference,'PAYMENT_RECEIVED',{mode:paymentMode,sessionId:session.id,amount:session.amount_total});
+      if(isDeposit){
+       await Promise.allSettled([
+        sendSms(bk.phone,`Nexus Medical Transit: 25% deposit received for booking ${bookingReference}. Your ride is reserved! The remaining balance of $${Number(bk.balance_due||0).toFixed(2)} will be due before pickup.`),
+        bk.email?sendEmail(bk.email,`Deposit confirmed — ${bookingReference}`,`<h2>Deposit received</h2><p>Your 25% deposit for booking <strong>${bookingReference}</strong> has been received and your ride is reserved.</p><p>Remaining balance: <strong>$${Number(bk.balance_due||0).toFixed(2)}</strong> — due before pickup.</p>`):Promise.resolve()
+       ]);
+      }else{
+       await Promise.allSettled([
+        sendSms(bk.phone,`Nexus Medical Transit: Full payment confirmed for booking ${bookingReference}. Thank you!`),
+        bk.email?sendEmail(bk.email,`Payment confirmed — ${bookingReference}`,`<h2>Payment confirmed</h2><p>Booking <strong>${bookingReference}</strong> is fully paid. We look forward to your ride.</p>`):Promise.resolve(),
+        process.env.COMPANY_EMAIL?sendEmail(process.env.COMPANY_EMAIL,`Payment complete: ${bookingReference}`,`<h2>Payment Received</h2><p><strong>Reference:</strong> ${bookingReference}</p><p><strong>Passenger:</strong> ${bk.name}</p><p><strong>Amount:</strong> $${((session.amount_total||0)/100).toFixed(2)}</p>`):Promise.resolve(),
+        bk.driver_name?sendSms(bk.phone,`[NEXUS DRIVER ALERT] Payment complete for booking ${bookingReference} — ${bk.name}. You are clear to proceed.`):Promise.resolve()
+       ]);
+      }
+     }
+    }
+   }
+   return json(200,{received:true});
   }
   if(p.join('/')==='payments/square/checkout'&&method==='POST'){
    const b=parseBody(event);required(b,['bookingReference']);
@@ -558,7 +661,14 @@ async function handler(event){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const b=parseBody(event),ref=decodeURIComponent(p[2]);const hasEstimatedFare=Object.prototype.hasOwnProperty.call(b,'estimatedFare');const estimatedFareRaw=hasEstimatedFare?Number(b.estimatedFare):null;if(hasEstimatedFare&&!Number.isFinite(estimatedFareRaw))return json(400,{error:'estimatedFare must be a valid number'});if(hasEstimatedFare&&estimatedFareRaw<0)return json(400,{error:'estimatedFare must be 0 or greater'});if(hasEstimatedFare&&u.role!=='ADMIN')return json(403,{error:'Only Admin can adjust fares'});const r=await query(`UPDATE bookings SET status=COALESCE($2,status),driver_name=COALESCE($3,driver_name),vehicle_unit=COALESCE($4,vehicle_unit),estimated_fare=CASE WHEN $5 THEN $6 ELSE estimated_fare END,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,b.status?String(b.status).toUpperCase().replaceAll('-','_'):null,b.driverName||null,b.vehicleUnit||null,hasEstimatedFare,hasEstimatedFare?estimatedFareRaw:null]);if(!r.rows[0])return json(404,{error:'Booking not found'});await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),b.note||null,u.display_name]);await audit('BOOKING',ref,'UPDATED',{status:r.rows[0].status,estimatedFare:hasEstimatedFare?estimatedFareRaw:undefined});return json(200,{booking:mapBooking(r.rows[0])});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
-   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const next=STATUS_FLOW[current.rows[0].status]||current.rows[0].status;const r=await query('UPDATE bookings SET status=$2,updated_at=now() WHERE reference=$1 RETURNING *',[ref,next]);await query('INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,$2,$3,$4)',[ref,next,statusLabel(next),u.display_name]);await audit('BOOKING',ref,'STATUS_ADVANCED',{from:current.rows[0].status,to:next});return json(200,{booking:mapBooking(r.rows[0])});
+   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const next=STATUS_FLOW[current.rows[0].status]||current.rows[0].status;const r=await query('UPDATE bookings SET status=$2,updated_at=now() WHERE reference=$1 RETURNING *',[ref,next]);await query('INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,$2,$3,$4)',[ref,next,statusLabel(next),u.display_name]);await audit('BOOKING',ref,'STATUS_ADVANCED',{from:current.rows[0].status,to:next});
+   // When driver is en route and customer only paid a deposit, send the balance-due reminder
+   if(next==='EN_ROUTE'&&current.rows[0].payment_status==='DEPOSIT_PAID'&&!current.rows[0].balance_reminder_sent_at){
+    const bk=mapBooking(r.rows[0]);
+    await sendBalanceDueReminder(bk,current.rows[0].balance_due).catch(e=>console.error('[BALANCE_REMINDER]',e.message));
+    await query('UPDATE bookings SET payment_status=$2,balance_reminder_sent_at=now(),updated_at=now() WHERE reference=$1',[ref,'BALANCE_REMINDER_SENT']);
+   }
+   return json(200,{booking:mapBooking(r.rows[0])});
   }
   if(p[0]==='fleet'&&p[1]==='live'&&method==='GET'){
    let u=null;try{if(bearer(event))u=await requireUser(bearer(event))}catch{}const r=await query(`SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at FROM vehicles WHERE last_seen_at IS NULL OR last_seen_at>now()-interval '24 hours' ORDER BY unit_number`);return json(200,{generatedAt:new Date().toISOString(),role:u?.role||'PUBLIC',vehicles:r.rows.map(v=>({id:v.unit_number,unit:v.unit_number,type:v.vehicle_type,status:v.status,lat:Number(v.latitude),lng:Number(v.longitude),heading:Number(v.heading||0),speed:Number(v.speed_mph||0),lastSeen:v.last_seen_at}))});
@@ -625,9 +735,96 @@ async function handler(event){
    const booking=mapBooking(updated.rows[0]);
    return json(200,{booking,message:'Trip details updated successfully'});
   }
+  if(p[0]==='admin'&&p[1]==='brokers'&&method==='POST'){
+   const u=await requireUser(bearer(event),['ADMIN']);
+   const b=parseBody(event);required(b,['name','contact_email','net_terms_days']);
+   const r=await query('INSERT INTO brokers(name,contact_email,contact_person,contact_phone,net_terms_days,notes) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(name) DO NOTHING RETURNING *',[clean(b.name),clean(b.contact_email),clean(b.contact_person)||null,clean(b.contact_phone)||null,Number(b.net_terms_days)||30,clean(b.notes)||null]);
+   if(!r.rows[0])return json(409,{error:'Broker name already exists'});
+   await audit('BROKER',r.rows[0].id,'CREATED',{name:b.name,email:b.contact_email});
+   return json(201,{broker:r.rows[0]});
+  }
+  if(p[0]==='admin'&&p[1]==='brokers'&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING']);
+   const r=await query('SELECT * FROM brokers WHERE status=$1 ORDER BY name',['ACTIVE']);
+   return json(200,{brokers:r.rows});
+  }
+  if(p[0]==='admin'&&p[1]==='brokers'&&p[2]&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING']);
+   const brokerId=Number(p[2]);
+   const r=await query('SELECT * FROM brokers WHERE id=$1',[brokerId]);
+   if(!r.rows[0])return json(404,{error:'Broker not found'});
+   const rates=await query('SELECT * FROM broker_rates WHERE broker_id=$1 AND effective_to IS NULL ORDER BY service',[brokerId]);
+   return json(200,{broker:r.rows[0],rates:rates.rows});
+  }
+  if(p[0]==='admin'&&p[1]==='brokers'&&p[2]&&method==='PATCH'){
+   const u=await requireUser(bearer(event),['ADMIN']);
+   const brokerId=Number(p[2]);
+   const b=parseBody(event);
+   const r=await query('UPDATE brokers SET contact_person=COALESCE($2,contact_person),contact_phone=COALESCE($3,contact_phone),net_terms_days=COALESCE($4,net_terms_days),notes=COALESCE($5,notes),updated_at=now() WHERE id=$1 RETURNING *',[brokerId,clean(b.contact_person)||null,clean(b.contact_phone)||null,Number(b.net_terms_days)||null,clean(b.notes)||null]);
+   if(!r.rows[0])return json(404,{error:'Broker not found'});
+   await audit('BROKER',brokerId,'UPDATED',{fields:Object.keys(b)});
+   return json(200,{broker:r.rows[0]});
+  }
+  if(p[0]==='admin'&&p[1]==='brokers'&&p[2]&&p[3]==='rates'&&method==='POST'){
+   const u=await requireUser(bearer(event),['ADMIN']);
+   const brokerId=Number(p[2]);
+   const b=parseBody(event);required(b,['service','base_rate','per_mile_rate']);
+   const r=await query('UPDATE broker_rates SET effective_to=now() WHERE broker_id=$1 AND service=$2 AND effective_to IS NULL',[brokerId,clean(b.service)]);
+   const nr=await query('INSERT INTO broker_rates(broker_id,service,base_rate,per_mile_rate,notes) VALUES($1,$2,$3,$4,$5) RETURNING *',[brokerId,clean(b.service),Number(b.base_rate),Number(b.per_mile_rate),clean(b.notes)||null]);
+   await audit('BROKER',brokerId,'RATE_UPDATED',{service:b.service,baseRate:b.base_rate,perMileRate:b.per_mile_rate});
+   return json(201,{rate:nr.rows[0]});
+  }
+  if(p.join('/')==='broker-requests'&&method==='POST'){
+   const b=parseBody(event);required(b,['pickup','destination','trip_date','trip_time','service','broker_quoted_rate']);
+   let brokerId=null;
+   if(b.broker_id)brokerId=Number(b.broker_id);
+   const platformRate=Number(b.platform_calculated_rate)||0;
+   const brokerRate=Number(b.broker_quoted_rate)||0;
+   const delta=brokerRate-platformRate;
+   const r=await query('INSERT INTO broker_requests(broker_id,booking_reference,broker_name,service,pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,trip_date,trip_time,broker_quoted_rate,platform_calculated_rate,rate_delta,submission_method,submitted_by,request_status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *',[brokerId,clean(b.booking_reference)||null,clean(b.broker_name)||'Unknown',clean(b.service),clean(b.pickup),clean(b.destination),Number(b.pickup_lat)||null,Number(b.pickup_lng)||null,Number(b.destination_lat)||null,Number(b.destination_lng)||null,b.trip_date,b.trip_time,brokerRate,platformRate,delta,clean(b.submission_method)||'FORM',clean(b.submitted_by)||'ANONYMOUS','AUTO_CONFIRMED']);
+   const req=r.rows[0];
+   await sendBrokerRequestToDispatch(req).catch(e=>console.error('[BROKER_NOTIFY]',e.message));
+   await audit('BROKER_REQUEST',req.id,'SUBMITTED',{method:b.submission_method,broker:b.broker_name});
+   return json(201,{request:req,autoConfirmed:true});
+  }
+  if(p[0]==='admin'&&p[1]==='broker-requests'&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN','DISPATCHER']);
+   const status=event.queryStringParameters?.status||'AUTO_CONFIRMED';
+   const r=await query('SELECT * FROM broker_requests WHERE request_status=$1 ORDER BY created_at DESC LIMIT 200',[clean(status)]);
+   return json(200,{requests:r.rows});
+  }
+  if(p[0]==='admin'&&p[1]==='broker-requests'&&p[2]&&method==='PATCH'){
+   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);
+   const reqId=Number(p[2]);
+   const b=parseBody(event);required(b,['dispatch_status']);
+   const r=await query('UPDATE broker_requests SET request_status=$2,dispatch_reviewed=true,dispatch_reviewed_at=now(),dispatch_reviewed_by=$3,dispatch_notes=$4,updated_at=now() WHERE id=$1 RETURNING *',[reqId,clean(b.dispatch_status),u.display_name,clean(b.dispatch_notes)||null]);
+   if(!r.rows[0])return json(404,{error:'Request not found'});
+   await audit('BROKER_REQUEST',reqId,'REVIEWED',{status:b.dispatch_status,reviewedBy:u.display_name});
+   return json(200,{request:r.rows[0]});
+  }
+  if(p[0]==='admin'&&p[1]==='brokers'&&p[2]&&p[3]==='dashboard'&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN','EXECUTIVE','BILLING']);
+   const brokerId=Number(p[2]);
+   const broker=await query('SELECT * FROM brokers WHERE id=$1',[brokerId]);
+   if(!broker.rows[0])return json(404,{error:'Broker not found'});
+   const thisYear=new Date().getFullYear();
+   const thisMonth=new Date().getMonth();
+   const periodStart=new Date(thisYear,thisMonth,1).toISOString().split('T')[0];
+   const periodEnd=new Date(thisYear,thisMonth+1,0).toISOString().split('T')[0];
+   const volume=await query('SELECT COUNT(*) as rides, SUM(CASE WHEN broker_quoted_rate>0 THEN broker_quoted_rate ELSE 0 END) as revenue FROM broker_requests WHERE broker_id=$1 AND trip_date>=$2 AND trip_date<=$3 AND request_status=$4',[brokerId,periodStart,periodEnd,'AUTO_CONFIRMED']);
+   const invoices=await query('SELECT * FROM broker_invoices WHERE broker_id=$1 ORDER BY period_start DESC LIMIT 12',[brokerId]);
+   return json(200,{broker:broker.rows[0],currentPeriod:{start:periodStart,end:periodEnd,rides:Number(volume.rows[0]?.rides||0),revenue:Number(volume.rows[0]?.revenue||0)},recentInvoices:invoices.rows});
+  }
+  if(p[0]==='admin'&&p[1]==='brokers'&&p[2]&&p[3]==='export'&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN','EXECUTIVE','BILLING']);
+   const brokerId=Number(p[2]);
+   const r=await query('SELECT * FROM broker_requests WHERE broker_id=$1 ORDER BY created_at DESC',[brokerId]);
+   const csv='booking_reference,service,pickup,destination,date,time,broker_rate,platform_rate,delta,status\n'+r.rows.map(row=>`${row.booking_reference||'N/A'},${row.service},"${row.pickup}","${row.destination}",${row.trip_date},${row.trip_time},${row.broker_quoted_rate},${row.platform_calculated_rate},${row.rate_delta},${row.request_status}`).join('\n');
+   return {statusCode:200,headers:{'Content-Type':'text/csv','Content-Disposition':'attachment; filename=broker-export.csv'},body:csv};
+  }
   if(p[0]==='ready'&&method==='GET'){const r=await query("SELECT version FROM schema_migrations WHERE version IN ('040.001','041.001','042.001','044.001','045.001','046.001') ORDER BY version");return json(r.rowCount===6?200:503,{ready:r.rowCount===6,migrations:r.rows.map(x=>x.version)})}
   return json(404,{error:'Route not found'});
  }catch(err){console.error(err);return json(err.statusCode||500,{error:err.statusCode?err.message:'Internal server error',requestId:crypto.randomUUID()})}
 }
-function mapBooking(b){return {id:b.reference,reference:b.reference,name:b.name,phone:b.phone,email:b.email,alternatePhone:b.alternate_phone,alternateEmail:b.alternate_email,service:b.service,pickup:b.pickup,destination:b.destination,date:b.trip_date,time:String(b.trip_time||'').slice(0,5),status:statusLabel(b.status),statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),driver:b.driver_name,driverName:b.driver_name,vehicle:b.vehicle_unit,vehicleUnit:b.vehicle_unit,facilityId:b.facility_id,distanceMiles:b.distance_miles?Number(b.distance_miles):null,estimatedDuration:b.estimated_duration,estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,paymentStatus:b.payment_status||'UNPAID',cancellationFeeAmount:b.cancellation_fee_amount?Number(b.cancellation_fee_amount):0,cancellationFeeApplied:Boolean(b.cancellation_fee_applied),cancellationRuleSnapshot:b.cancellation_rule_snapshot||null,lastUpdatedBy:b.last_updated_by,lastUpdatedAt:b.last_updated_at} }
+function mapBooking(b){return {id:b.reference,reference:b.reference,name:b.name,phone:b.phone,email:b.email,alternatePhone:b.alternate_phone,alternateEmail:b.alternate_email,service:b.service,pickup:b.pickup,destination:b.destination,date:b.trip_date,time:String(b.trip_time||'').slice(0,5),status:statusLabel(b.status),statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),driver:b.driver_name,driverName:b.driver_name,vehicle:b.vehicle_unit,vehicleUnit:b.vehicle_unit,facilityId:b.facility_id,distanceMiles:b.distance_miles?Number(b.distance_miles):null,estimatedDuration:b.estimated_duration,estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,paymentStatus:b.payment_status||'UNPAID',bookingSource:b.booking_source||'CUSTOMER',depositAmount:b.deposit_amount?Number(b.deposit_amount):null,balanceDue:b.balance_due?Number(b.balance_due):null,depositPaidAt:b.deposit_paid_at||null,paidInFullAt:b.paid_in_full_at||null,cancellationFeeAmount:b.cancellation_fee_amount?Number(b.cancellation_fee_amount):0,cancellationFeeApplied:Boolean(b.cancellation_fee_applied),cancellationRuleSnapshot:b.cancellation_rule_snapshot||null,lastUpdatedBy:b.last_updated_by,lastUpdatedAt:b.last_updated_at} }
 exports.handler=handler;

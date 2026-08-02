@@ -35,6 +35,11 @@
   const paymentStatusMsg = $('paymentStatusMsg');
   const payStripeBtn = $('payStripeBtn');
   const paySquareBtn = $('paySquareBtn');
+  const payDepositBtn = $('payDepositBtn');
+  const payFullBtn = $('payFullBtn');
+  const depositAmountLabel = $('depositAmountLabel');
+  const fullAmountLabel = $('fullAmountLabel');
+  const paymentChoiceHint = $('paymentChoiceHint');
   const fareSummaryAmount = $('fareSummaryAmount');
   const fareSummaryDistance = $('fareSummaryDistance');
   const fareSummaryEta = $('fareSummaryEta');
@@ -1335,6 +1340,36 @@
       stripeEnabled = false;
       squareEnabled = false;
     }
+    updatePaymentButtonState();
+  }
+
+  function updatePaymentButtonState(){
+    if(!payStripeBtn || !paySquareBtn) return;
+    const showStripe = stripeEnabled;
+    const showSquare = squareEnabled;
+
+    if(showStripe && showSquare){
+      payStripeBtn.hidden = false;
+      paySquareBtn.hidden = false;
+      payStripeBtn.disabled = false;
+      paySquareBtn.disabled = false;
+      return;
+    }
+
+    payStripeBtn.hidden = !showStripe;
+    paySquareBtn.hidden = !showSquare;
+    payStripeBtn.disabled = !showStripe;
+    paySquareBtn.disabled = !showSquare;
+  }
+
+  function resolvePaymentProvider(requestedProvider){
+    if(requestedProvider === 'stripe' && stripeEnabled) return 'stripe';
+    if(requestedProvider === 'square' && squareEnabled) return 'square';
+    if(requestedProvider === 'stripe' && squareEnabled) return 'square';
+    if(requestedProvider === 'square' && stripeEnabled) return 'stripe';
+    if(stripeEnabled) return 'stripe';
+    if(squareEnabled) return 'square';
+    return null;
   }
 
   function loadMaps(){
@@ -1380,11 +1415,17 @@
     }
   }
 
-  function showPaymentOptions(reference, fare){
+  function showPaymentOptions(reference, fare, requiresOnlinePayment = true){
     currentBookingReference = String(reference || '').trim();
     currentBookingFare = Number(fare || 0);
     if(!paymentSection || !currentBookingReference) return;
+    // Staff-created bookings are invoiced; no online payment section shown
+    if(!requiresOnlinePayment){
+      paymentSection.hidden = true;
+      return;
+    }
     paymentSection.hidden = false;
+    const depositAmt = Math.round(currentBookingFare * 0.25 * 100) / 100;
     const taxRatePct = Math.max(0, Number(fareRules.taxRatePct || 0));
     const discountText = estimateState.memberSavings > 0
       ? ` Includes member savings of $${estimateState.memberSavings.toFixed(2)}.`
@@ -1396,36 +1437,54 @@
     }else{
       paymentSummary.textContent = `Booking ${currentBookingReference} is ready for payment. Estimated total: $${currentBookingFare.toFixed(2)}.${discountText}`;
     }
-    payStripeBtn.hidden = false;
-    paySquareBtn.hidden = true;
-    payStripeBtn.disabled = false;
-    paySquareBtn.disabled = true;
-    if(stripeEnabled){
-      setPaymentMessage('Tap Pay with Stripe to complete checkout.');
+    // Populate deposit / full labels
+    if(depositAmountLabel) depositAmountLabel.textContent = `$${depositAmt.toFixed(2)}`;
+    if(fullAmountLabel) fullAmountLabel.textContent = `$${currentBookingFare.toFixed(2)}`;
+    // Show deposit/full buttons; hide legacy single-provider buttons
+    if(payDepositBtn) payDepositBtn.hidden = false;
+    if(payFullBtn) payFullBtn.hidden = false;
+    if(payStripeBtn) payStripeBtn.hidden = true;
+    if(paySquareBtn) paySquareBtn.hidden = true;
+    updatePaymentButtonState();
+    if(stripeEnabled && squareEnabled){
+      setPaymentMessage('Choose a payment method to reserve your ride.');
+    }else if(squareEnabled || stripeEnabled){
+      setPaymentMessage('Reserve your ride with a deposit or pay in full now.');
     }else{
-      setPaymentMessage('Tap Pay with Stripe to continue. If Stripe is unavailable, dispatch will complete payment with you.', true);
+      setPaymentMessage('Payment checkout is currently unavailable. Dispatch will contact you.', true);
+      if(payDepositBtn) payDepositBtn.disabled = true;
+      if(payFullBtn) payFullBtn.disabled = true;
     }
   }
 
-  async function startHostedPayment(provider){
+  async function startHostedPayment(provider, paymentMode){
     if(!currentBookingReference){
       setPaymentMessage('Create a booking before starting payment.', true);
       return;
     }
-    const button = provider === 'stripe' ? payStripeBtn : paySquareBtn;
-    const idleText = provider === 'stripe' ? 'Pay with Stripe' : 'Pay with Square';
-    const busyText = provider === 'stripe' ? 'Opening Stripe...' : 'Opening Square...';
+    const resolvedProvider = resolvePaymentProvider(provider);
+    if(!resolvedProvider){
+      setPaymentMessage('Payment checkout is unavailable because no provider is configured.', true);
+      return;
+    }
+    const mode = ['deposit','full'].includes(paymentMode) ? paymentMode : 'full';
+    const button = mode === 'deposit' ? payDepositBtn : payFullBtn;
+    const idleText = mode === 'deposit'
+      ? `Pay 25% Deposit — $${(Math.round(currentBookingFare * 0.25 * 100) / 100).toFixed(2)}`
+      : `Pay in Full — $${currentBookingFare.toFixed(2)}`;
+    const busyText = mode === 'deposit' ? 'Opening deposit checkout...' : 'Opening full payment checkout...';
     setBusy(button, true, busyText, idleText);
-    setPaymentMessage(`Preparing ${provider === 'stripe' ? 'Stripe' : 'Square'} checkout...`);
+    const fallbackNotice = resolvedProvider !== provider ? ` (using ${resolvedProvider === 'stripe' ? 'Stripe' : 'Square'})` : '';
+    setPaymentMessage(`Preparing ${mode === 'deposit' ? 'deposit' : 'full payment'} checkout${fallbackNotice}...`);
     try{
-      const r = await fetch(`/api/payments/${provider}/checkout`, {
+      const r = await fetch(`/api/payments/${resolvedProvider}/checkout`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ bookingReference: currentBookingReference, amount: currentBookingFare })
+        body: JSON.stringify({ bookingReference: currentBookingReference, amount: currentBookingFare, paymentMode: mode })
       });
       const data = await r.json().catch(() => ({}));
-      if(!r.ok) throw new Error(data.error || `Failed to start ${provider} checkout`);
-      if(!data.url) throw new Error(`${provider} checkout URL was not returned`);
+      if(!r.ok) throw new Error(data.error || `Failed to start ${resolvedProvider} checkout`);
+      if(!data.url) throw new Error(`${resolvedProvider} checkout URL was not returned`);
       window.location.href = data.url;
     }catch(err){
       setPaymentMessage(err.message, true);
@@ -1444,6 +1503,11 @@
     customerRouteBounds = null;
     applyFocusMode();
   }
+
+  window.NexusBookingApp = {
+    showPaymentOptions,
+    startHostedPayment
+  };
 
   function renderTelemetryFallback(vehicles = [], usingLocalMock = false, routePoints = []){
     if(!telemetryMapEl) return;
@@ -2400,7 +2464,7 @@
       }else{
         setBookingOutcome('Booking Confirmed - Dispatch will follow up for payment', 'confirmed');
       }
-      showPaymentOptions(ref, Number(data.booking?.estimatedFare ?? payload.estimatedFare ?? 0));
+      showPaymentOptions(ref, Number(data.booking?.estimatedFare ?? payload.estimatedFare ?? 0), data.requiresOnlinePayment !== false);
       bookingSubmitted = true;
       if(submitBtn) submitBtn.textContent = 'Book My Ride';
       syncSectionProgressUi();
@@ -2763,8 +2827,10 @@
     syncMultipleStopsUi();
     if(confirmRiderBtn) confirmRiderBtn.addEventListener('click', confirmRiderDetails);
     if(confirmPickupDropoffBtn) confirmPickupDropoffBtn.addEventListener('click', confirmPickupDropoffDetails);
-    if(payStripeBtn) payStripeBtn.addEventListener('click', () => startHostedPayment('stripe'));
-    if(paySquareBtn) paySquareBtn.addEventListener('click', () => startHostedPayment('square'));
+    if(payStripeBtn) payStripeBtn.addEventListener('click', () => startHostedPayment('stripe', 'full'));
+    if(paySquareBtn) paySquareBtn.addEventListener('click', () => startHostedPayment('square', 'full'));
+    if(payDepositBtn) payDepositBtn.addEventListener('click', () => startHostedPayment('stripe', 'deposit'));
+    if(payFullBtn) payFullBtn.addEventListener('click', () => startHostedPayment('stripe', 'full'));
     hidePaymentOptions();
 
     ['tripDate','tripTime','pickup','destination'].forEach((id) => {

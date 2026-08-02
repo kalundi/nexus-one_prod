@@ -399,6 +399,9 @@
     .paymentActions{display:grid;gap:8px}
     .paymentActions button{width:100%}
     .paymentActions .secondaryPay{background:#111827;color:#fff}
+    .paymentActions .payFullBtn{background:linear-gradient(135deg,#0b1d47,#0a6b99);color:#fff;box-shadow:0 10px 22px rgba(10,107,153,.22)}
+    .paymentActions .payFullBtn:hover{filter:brightness(1.06)}
+    .paymentChoiceHint{margin:4px 0 0;font:700 11px/1.4 Manrope,sans-serif;color:#4b6678;text-align:center}
     .manageTripWrap{margin-top:12px;border-top:1px solid #dbe7f0;padding-top:10px}
     .manageTripToggle{width:100%;padding:10px 12px;font:700 13px Manrope,sans-serif}
     .manageTripPanel{margin-top:8px;padding:10px;border:1px solid #d5e2ec;border-radius:12px;background:#f8fcff;display:grid;gap:8px}
@@ -782,9 +785,12 @@ Destination: -</p>
         <h2>Complete Payment</h2>
         <p class="subtle" id="paymentSummary">Choose how you want to pay for this booking.</p>
         <div class="paymentActions">
-          <button type="button" class="primary" id="payStripeBtn">Pay with Stripe</button>
-          <button type="button" class="secondaryPay" id="paySquareBtn">Pay with Square</button>
+          <button type="button" class="primary" id="payDepositBtn">Pay 25% Deposit &mdash; <span id="depositAmountLabel">$0.00</span></button>
+          <button type="button" class="payFullBtn" id="payFullBtn">Pay in Full &mdash; <span id="fullAmountLabel">$0.00</span></button>
+          <button type="button" class="primary" id="payStripeBtn" hidden>Pay with Stripe</button>
+          <button type="button" class="secondaryPay" id="paySquareBtn" hidden>Pay with Square</button>
         </div>
+        <p class="paymentChoiceHint" id="paymentChoiceHint">Reserve your ride now with a 25% deposit. The balance is due before pickup.</p>
         <p class="subtle" id="paymentStatusMsg"></p>
       </section>
 
