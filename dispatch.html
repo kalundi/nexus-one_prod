@@ -143,6 +143,11 @@
           <div id="pickerCardServices" class="service-list"></div>
           <div id="pickerCardActions" class="company-actions"></div>
         </div>
+
+        <div style="display:flex;align-items:center;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid #e4e7ec">
+          <button type="button" id="pickerContinueBtn" class="primary-button" disabled style="opacity:.45;cursor:not-allowed">Continue</button>
+          <span id="pickerContinueMsg" style="font-size:13px;color:#667085">Select a company to continue.</span>
+        </div>
       </div>
       <!-- /Transportation Company Picker -->
 
@@ -424,6 +429,16 @@ function selectCompany(id){
   renderCard(company);
   // Auto-fill broker name field
   if(company){const n=$('brokerName');if(n&&!n.value)n.value=company.name;}
+  // Enable/disable Continue button
+  const btn=$('pickerContinueBtn');
+  const msg=$('pickerContinueMsg');
+  if(company){
+    btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';
+    msg.textContent=`${company.name} selected.`;msg.style.color='#067647';
+  } else {
+    btn.disabled=true;btn.style.opacity='.45';btn.style.cursor='not-allowed';
+    msg.textContent='Select a company to continue.';msg.style.color='#667085';
+  }
 }
 function refresh(){buildSelect();buildCategoryOptions();buildServiceOptions();}
 
@@ -432,6 +447,17 @@ pickerSearch.addEventListener('input',()=>{filterSearch=pickerSearch.value;build
 pickerCat.addEventListener('change',()=>{filterCat=pickerCat.value;buildSelect();});
 pickerSvc.addEventListener('change',()=>{filterSvc=pickerSvc.value;buildSelect();});
 pickerSelect.addEventListener('change',()=>selectCompany(pickerSelect.value));
+$('pickerContinueBtn').addEventListener('click',()=>{
+  const company=companies.find(c=>c.id===selectedId)||null;
+  if(!company){alert('Please select a transportation company.');return;}
+  console.log('Selected company:',company);
+  // Scroll to and focus the first broker form field
+  const firstField=$('brokerReference');
+  if(firstField){firstField.closest('.formRow')?.scrollIntoView({behavior:'smooth',block:'start'});}
+  // Update message
+  const msg=$('pickerContinueMsg');
+  msg.textContent=`✓ Request assigned to ${company.name}`;msg.style.color='#067647';
+});
 $('togglePickerAddForm').addEventListener('click',()=>{
   const f=$('pickerAddForm');f.hidden=!f.hidden;
   $('togglePickerAddForm').textContent=f.hidden?'+ Add Company':'Close Form';
