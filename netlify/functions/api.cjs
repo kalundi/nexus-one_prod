@@ -8,7 +8,7 @@ const {buildEmailRecipients,buildSmsRecipients}=require('./_shared/notification-
 const {resolveAssignedStatus}=require('./_shared/assignment-status.cjs');
 const {isDriverAssignableStatus, normalizeDriverAcceptanceStatus}=require('./_shared/driver-assignments.cjs');
 const {hashPassword, verifyPassword}=require('./_shared/password.cjs');
-const {ensureDefaultTestUsers}=require('./_shared/default-users.cjs');
+const {ensureDefaultTestUsers, ensureDefaultUserForEmail}=require('./_shared/default-users.cjs');
 const {buildDriverEmployeeLookupSql, buildDriverAvailabilitySql}=require('./_shared/employee-driver-lookup.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
@@ -774,7 +774,14 @@ async function handler(event){
      const b=parseBody(event);
      console.log('[LOGIN] Email:', b.email?.substring(0,10)+'...');
      const r=await query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[b.email||'']);
-     const u=r.rows[0];
+     let u=r.rows[0];
+     if(!u){
+       const restored=await ensureDefaultUserForEmail(query, b.email||'');
+       if(restored){
+         const restoredRows=await query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[b.email||'']);
+         u=restoredRows.rows[0];
+       }
+     }
      if(!u){console.log('[LOGIN] User not found or inactive'); return json(401,{error:'Invalid credentials'});}
      console.log('[LOGIN] User found:', u.email, 'role:', u.role);
      
