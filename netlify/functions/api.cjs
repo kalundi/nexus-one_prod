@@ -6,6 +6,7 @@ const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestSta
 const {canAdvanceBookingForAvailability}=require('./_shared/dispatch-approval.cjs');
 const {buildEmailRecipients,buildSmsRecipients}=require('./_shared/notification-routing.cjs');
 const {resolveAssignedStatus}=require('./_shared/assignment-status.cjs');
+const {isDriverAssignableStatus, normalizeDriverAcceptanceStatus}=require('./_shared/driver-assignments.cjs');
 const {hashPassword, verifyPassword}=require('./_shared/password.cjs');
 const {ensureDefaultTestUsers}=require('./_shared/default-users.cjs');
 const {buildDriverEmployeeLookupSql, buildDriverAvailabilitySql}=require('./_shared/employee-driver-lookup.cjs');
@@ -579,6 +580,18 @@ async function handler(event){
    if(!r.rows[0])return json(404,{error:'Request not found'});return json(200,{booking:mapBooking(r.rows[0])});
   }
   // Cancel booking
+  if(p[0]==='bookings'&&p[1]&&p[2]==='accept'&&method==='POST'){
+   const u=await requireUser(bearer(event),['DRIVER','ADMIN','DISPATCHER']);
+   const ref=decodeURIComponent(p[1]);
+   const booking=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
+   if(!booking.rows[0])return json(404,{error:'Booking not found'});
+   if(!isDriverAssignableStatus(booking.rows[0].status))return json(409,{error:'This booking is not currently available for acceptance'});
+   const nextStatus=normalizeDriverAcceptanceStatus(booking.rows[0].status);
+   const updated=await query(`UPDATE bookings SET status=$2, driver_name=COALESCE($3,driver_name), driver_scope_id=COALESCE($4,driver_scope_id), updated_at=now() WHERE reference=$1 RETURNING *`,[ref,nextStatus,clean(u.display_name||u.email||'Driver')||null,clean(u.scope_id||u.scopeId||null)||null]);
+   if(!updated.rows[0])return json(404,{error:'Booking not found'});
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,nextStatus,statusLabel(nextStatus),`Accepted by ${u.display_name||u.email||'driver'}`,'DRIVER']);
+   return json(200,{booking:mapBooking(updated.rows[0]),message:'Trip accepted'});
+  }
   if(p[0]==='bookings'&&p[1]&&p[2]==='cancel'&&method==='POST'){
    const b=parseBody(event);const phone=clean(b.phone);if(!phone)return json(400,{error:'Phone number is required to cancel'});
    const ref=decodeURIComponent(p[1]);
@@ -979,6 +992,14 @@ async function handler(event){
    }
    await audit('USER',userId,'CREATED',{role:b.role,by:me.email});
    return json(201,{user:{id:userId,email:b.email,name:b.name,role:b.role,active:true}});
+  }
+  if(p[0]==='driver'&&p[1]==='assignments'&&method==='GET'){
+   const u=await requireUser(bearer(event),['DRIVER','ADMIN','DISPATCHER']);
+   const driverName=clean(u.display_name||u.email||'');
+   const scopeId=clean(u.scope_id||u.scopeId||'');
+   const sql=`SELECT * FROM bookings WHERE ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)) AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED') ORDER BY trip_date,trip_time,created_at`;
+   const r=await query(sql,[driverName,scopeId]);
+   return json(200,{assignments:r.rows.map(mapBooking)});
   }
   // Admin: toggle user active/inactive
   if(p[0]==='admin'&&p[1]==='users'&&p[2]&&method==='PATCH'){

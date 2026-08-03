@@ -35,6 +35,7 @@
   function fmtDate(s) { if(!s)return ''; return new Date(s+'T00:00:00').toLocaleDateString([],{month:'short',day:'numeric'}); }
   function tod() { const h=new Date().getHours(); return h<12?'morning':h<17?'afternoon':'evening'; }
   function totalMiles() { return miles.legs.reduce((s,l)=>s+(Number(l.miles)||0),0); }
+  function normalizeBookingStatus(status) { return String(status || 'SCHEDULED').trim().toUpperCase().replaceAll('-', '_'); }
   function dashNotice(msg,type) { const el=$('#dashNotice');if(!el)return; el.className=`notice ${type||'info'}`;el.textContent=msg;el.hidden=false; setTimeout(()=>{el.hidden=true;},5000); }
 
   // ── View routing ──────────────────────────────────────────────
@@ -602,20 +603,32 @@
   // ── Trips / manifest ──────────────────────────────────────────
   async function loadTrips(){
     try{
-      const r=await fetch('/api/bookings',{headers:ah(),cache:'no-store'});
+      const r=await fetch('/api/driver/assignments',{headers:ah(),cache:'no-store'});
       if(!r.ok)return;
       const j=await r.json();
-      trips=(j.bookings||j||[]).map(b=>({
-        ref:b.reference||b.id,date:b.trip_date||'',
-        time:b.trip_time?b.trip_time.slice(0,5):'',
+      trips=(j.assignments||[]).map(b=>({
+        ref:b.reference||b.id,date:b.date||b.trip_date||'',
+        time:(b.time||b.trip_time||'').slice(0,5),
         pickup:b.pickup||'',destination:b.destination||'',
         patient:b.name||'Patient',service:b.service||'',
-        status:b.status||'SCHEDULED',notes:b.notes||'',
-        distMi:b.distance_miles?Number(b.distance_miles).toFixed(1):null,
+        status:normalizeBookingStatus(b.status||'SCHEDULED'),notes:b.notes||'',
+        distMi:b.distanceMiles!=null?Number(b.distanceMiles).toFixed(1):null,
         comments:'',
       }));
       updateBadge();renderDash();
     }catch(e){console.error('[DRIVER]',e);}
+  }
+
+  async function acceptTrip(ref){
+    const t=trips.find(x=>x.ref===ref);if(!t)return;
+    try{
+      const r=await fetch(`/api/bookings/${encodeURIComponent(ref)}/accept`,{method:'POST',headers:ah(),cache:'no-store'});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(j.error||'Unable to accept trip');
+      t.status=normalizeBookingStatus(j.booking?.status||'EN_ROUTE');
+      renderManifest();renderDash();
+      dashNotice('Trip accepted. You can advance it from the manifest.','ok');
+    }catch(err){dashNotice(err.message,'err');}
   }
 
   function updateBadge(){
@@ -631,19 +644,39 @@
     const list=trips.filter(t=>{if(!t.date)return false;const d=new Date(t.date+'T00:00:00');return d>=start&&d<end;})
       .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
     const el=$('#manifestList');if(!el)return;
-    if(!list.length){el.innerHTML='<div class="empty"><p>No trips in this period.</p></div>';return;}
+    if(!list.length){el.innerHTML='<div class="empty"><p>No assigned trips in this period.</p></div>';return;}
     const sc={SCHEDULED:'gray',ASSIGNED:'blue',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',ARRIVED_PICKUP:'amber',DEPARTED:'amber',ARRIVED_DESTINATION:'amber',DELIVERED:'green',COMPLETED:'green',CANCELLED:'red'};
-    el.innerHTML=list.map(t=>`
+    const canAccept=t=>['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED'].includes(t.status);
+    el.innerHTML=`<div class="card" style="margin-bottom:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <div>
+        <strong>Assigned trip queue</strong>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">Accept each trip or accept all pending assignments.</div>
+      </div>
+      <button class="btn primary sm" id="acceptAllBtn" ${list.filter(canAccept).length?'':'disabled'}>Accept All</button>
+    </div>`+list.map(t=>`
       <div class="tripCard${t.ref===activeRef?' active-trip':''}" data-ref="${t.ref}" role="button" tabindex="0">
         <div class="tripTime"><strong>${t.time||'—'}</strong><small>${fmtDate(t.date)}</small></div>
         <div class="tripInfo"><strong>${t.patient}</strong><span>${t.pickup}</span><span>to ${t.destination}</span></div>
-        <span class="badge ${sc[t.status]||'gray'}">${t.status.replace(/_/g,' ')}</span>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+          <span class="badge ${sc[t.status]||'gray'}">${t.status.replace(/_/g,' ')}</span>
+          ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">Accept</button>`:'<span style="font-size:11px;color:var(--muted)">In progress</span>'}
+        </div>
       </div>`).join('');
     $$('.tripCard',el).forEach(c=>{
       const open=()=>openTrip(c.dataset.ref);
       c.addEventListener('click',open);
       c.addEventListener('keypress',e=>e.key==='Enter'&&open());
     });
+    $$('.btn[data-accept-ref]',el).forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();acceptTrip(btn.dataset.acceptRef);}));
+    const acceptAllBtn=$('#acceptAllBtn');
+    if(acceptAllBtn){acceptAllBtn.addEventListener('click',async()=>{
+      const pending=list.filter(canAccept);
+      if(!pending.length)return;
+      acceptAllBtn.disabled=true;acceptAllBtn.textContent='Accepting…';
+      try{
+        await Promise.all(pending.map(t=>acceptTrip(t.ref)));
+      } finally {acceptAllBtn.disabled=false;acceptAllBtn.textContent='Accept All';}
+    });}
   }
 
   $$('#manifestTabs button').forEach(b=>b.addEventListener('click',()=>{
