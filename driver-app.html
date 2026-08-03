@@ -382,6 +382,14 @@ a{color:var(--blue);text-decoration:none}
         <div class="cardHead"><div class="eyebrow">Trip status</div></div>
         <div id="tripWorkflow" style="padding:0 0 4px"></div>
         <div class="cardBody" style="padding-top:4px">
+          <button id="btnTripStepHelp" class="btn ghost sm" type="button" style="width:100%;margin-bottom:8px">Show Step Hints</button>
+          <div id="tripStepHints" class="notice info" hidden style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+              <strong style="font:800 13px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase">Driver Hints</strong>
+              <button id="btnTripStepHelpClose" class="btn ghost sm" type="button" style="min-height:30px;padding:0 10px">Hide</button>
+            </div>
+            <div id="tripStepHintsBody" style="display:grid;gap:8px"></div>
+          </div>
           <button id="btnAdvanceTrip" class="btn navy" disabled>--</button>
         </div>
       </div>

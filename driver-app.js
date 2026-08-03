@@ -718,11 +718,35 @@
     {label:'Trip Complete',         status:'COMPLETED',           hint:'Log final mileage and notes so billing and compliance records are complete.'},
   ];
   const WF_STATUS=WORKFLOW.map(w=>w.status);
+  let stepHintsOpen=false;
   function wfIdx(s){return WF_STATUS.indexOf(normalizeBookingStatus(s));}
   function nextWorkflowStep(status){
     const i=wfIdx(status);
     if(i===-1)return WORKFLOW[0]||null;
     return WORKFLOW[i+1]||null;
+  }
+
+  function renderStepHints(t){
+    const box=$('#tripStepHints');
+    const body=$('#tripStepHintsBody');
+    if(!box||!body||!t)return;
+    const idx=wfIdx(t.status);
+    body.innerHTML=WORKFLOW.map((w,i)=>{
+      const tone=i<idx?'var(--ok)':i===idx?'var(--ink)':'var(--muted)';
+      const marker=i<idx?'Done':i===idx?'Current':'Next';
+      const markerBg=i<idx?'#ecfdf3':i===idx?'#eff6ff':'#f8fafc';
+      const markerColor=i<idx?'var(--ok)':i===idx?'#1e40af':'#475569';
+      return `<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+          <strong style="font:700 13px/1.2 Manrope,sans-serif;color:${tone}">${i+1}. ${w.label}</strong>
+          <span style="display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:${markerBg};color:${markerColor};font:800 10px/1 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase">${marker}</span>
+        </div>
+        <div style="font:500 13px/1.35 Source Sans 3,sans-serif;color:var(--muted)">${w.hint}</div>
+      </div>`;
+    }).join('');
+    box.hidden=!stepHintsOpen;
+    const toggle=$('#btnTripStepHelp');
+    if(toggle)toggle.textContent=stepHintsOpen?'Hide Step Hints':'Show Step Hints';
   }
 
   function openTrip(ref){
@@ -739,6 +763,7 @@
     $('#tripStatusBadge').className=`badge ${sc[t.status]||'blue'}`;
     $('#tripComments').value=t.comments||'';
     renderTripWorkflow(t);
+    renderStepHints(t);
     const last=miles.legs[miles.legs.length-1];
     if(last?.odoEnd&&$('#legOdoStart'))$('#legOdoStart').value=last.odoEnd;
     const inTrip=['PATIENT_ON_BOARD','DEPARTED'].includes(t.status);
@@ -761,16 +786,25 @@
           <span style="font:${st==='current'?'700':'500'} 14px Source Sans 3,sans-serif;color:${st==='done'?'var(--ok)':st==='current'?'var(--ink)':'var(--muted)'}">
             ${w.label}
           </span>
-          <span style="font:500 12px Source Sans 3,sans-serif;color:${st==='pending'?'var(--muted)':'var(--ink-soft)'}">
-            ${w.hint}
-          </span>
         </div>
       </div>`;
     }).join('');
     const btn=$('#btnAdvanceTrip');if(!btn)return;
     if(done){btn.textContent='Trip Complete';btn.disabled=true;}
     else{btn.textContent=(next?.label||'Advance').toUpperCase();btn.disabled=!shift.onDuty||!next;}
+    if(stepHintsOpen)renderStepHints(t);
   }
+
+  $('#btnTripStepHelp')?.addEventListener('click',()=>{
+    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    stepHintsOpen=!stepHintsOpen;
+    renderStepHints(t);
+  });
+  $('#btnTripStepHelpClose')?.addEventListener('click',()=>{
+    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    stepHintsOpen=false;
+    renderStepHints(t);
+  });
 
   $('#btnAdvanceTrip')?.addEventListener('click',async()=>{
     const t=trips.find(x=>x.ref===activeRef);if(!t)return;
@@ -781,7 +815,7 @@
       if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||`HTTP ${r.status}`);}
       t.status=next.status;
       if(['COMPLETED','DELIVERED'].includes(next.status)){shift.completedTrips++;saveShift();}
-      renderTripWorkflow(t);updateBadge();renderManifest();
+      renderTripWorkflow(t);renderStepHints(t);updateBadge();renderManifest();
     }catch(err){alert('Update failed: '+err.message);renderTripWorkflow(t);}
   });
 
