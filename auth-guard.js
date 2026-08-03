@@ -20,6 +20,12 @@
  if(!pathname.endsWith('.html') && pathname !== '/'){
    pathname = pathname.replace(/\/$/, '') + '.html';
  }
+
+ // Legacy driver workspace route now lives at driver-app.html.
+ if(pathname === '/driver.html'){
+   location.replace('/driver-app.html');
+   return;
+ }
  
  const allowed=policy[pathname];
  
