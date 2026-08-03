@@ -8,7 +8,7 @@ const FALLBACK_USERS = [
   { email: 'billing@nexusmt.com', password: 'Billing2026!', role: 'BILLING', display_name: 'Test Billing' },
   { email: 'qa@nexusmt.com', password: 'Quality2026!', role: 'QA', display_name: 'Test QA' },
   { email: 'executive@nexusmt.com', password: 'Exec2026!', role: 'EXECUTIVE', display_name: 'Test Executive' },
-  { email: 'fletcher@nexusmt.com', password: 'Fletcher2026!', role: 'DRIVER', display_name: 'Fletcher Kalundi' }
+  { email: 'fletcher@nexusmt.com', password: 'Flandi01#', role: 'DRIVER', display_name: 'Fletcher Kalundi' }
 ];
 
 const fallbackAssignments = new Map();
