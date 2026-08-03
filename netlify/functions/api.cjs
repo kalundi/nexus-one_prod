@@ -5,6 +5,7 @@ const {digest,safeUser,requireUser,audit}=require('./_shared/auth.cjs');
 const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestStatus}=require('./_shared/broker-auto-book.cjs');
 const {canAdvanceBookingForAvailability}=require('./_shared/dispatch-approval.cjs');
 const {buildEmailRecipients,buildSmsRecipients}=require('./_shared/notification-routing.cjs');
+const {resolveAssignedStatus}=require('./_shared/assignment-status.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -38,7 +39,7 @@ async function autoAssign(booking){
   const tripTime=booking.trip_time||'08:00';
   const weekday=new Date(tripDate+'T12:00:00').getDay()||7;
   const dRows=await query(`
-   SELECT e.display_name, e.scope_id FROM employees e
+   SELECT e.display_name, e.scope_id, e.email, e.phone FROM employees e
    INNER JOIN employee_shifts es ON e.id=es.employee_id
    WHERE e.employee_type='DRIVER' AND e.active=true AND es.active=true
      AND es.weekday_iso=$1
@@ -46,16 +47,20 @@ async function autoAssign(booking){
    ORDER BY e.display_name LIMIT 5
   `,[weekday,tripTime]);
   // Pick driver not already on an active trip at the same time
-  let driverName=null;
+  let driverName=null;let driverScopeId=null;let driverEmail=null;let driverPhone=null;
   for(const d of dRows.rows){
    const busy=await query(`SELECT 1 FROM bookings WHERE driver_name=$1 AND trip_date=$2 AND status NOT IN ('CANCELLED','COMPLETED','DELIVERED') LIMIT 1`,[d.display_name,tripDate]);
-   if(!busy.rows[0]){driverName=d.display_name;break;}
+   if(!busy.rows[0]){driverName=d.display_name;driverScopeId=d.scope_id||null;driverEmail=d.email||null;driverPhone=d.phone||null;break;}
   }
-  if(!driverName&&dRows.rows[0])driverName=dRows.rows[0].display_name; // fallback: take first on shift
+  if(!driverName&&dRows.rows[0]){driverName=dRows.rows[0].display_name;driverScopeId=dRows.rows[0].scope_id||null;driverEmail=dRows.rows[0].email||null;driverPhone=dRows.rows[0].phone||null;} // fallback: take first on shift
   if(!vehicleUnit&&!driverName)return {assigned:false,message:'No available vehicle or driver found for this service type.'};
+  const nextStatus=resolveAssignedStatus(booking.status);
   // Update booking
-  await query(`UPDATE bookings SET driver_name=COALESCE($1,driver_name),vehicle_unit=COALESCE($2,vehicle_unit),status=CASE WHEN status='SCHEDULED' THEN 'ASSIGNED' ELSE status END,updated_at=now() WHERE reference=$3`,[driverName,vehicleUnit,booking.reference]);
-  return {assigned:true,driverName,vehicleUnit,message:`Assigned to ${driverName||'—'} / ${vehicleUnit||'—'}`};
+  await query(`UPDATE bookings SET driver_name=COALESCE($1,driver_name),driver_scope_id=COALESCE($2,driver_scope_id),vehicle_unit=COALESCE($3,vehicle_unit),status=$5,updated_at=now() WHERE reference=$4`,[driverName,driverScopeId,vehicleUnit,nextStatus,booking.reference]);
+  const updatedBookingResult=await query('SELECT * FROM bookings WHERE reference=$1',[booking.reference]);
+  const updatedBooking=updatedBookingResult.rows[0];
+  await notifyAssignedDriver(updatedBooking,{driverName,driverEmail,driverPhone,vehicleUnit}).catch(e=>console.error('[ASSIGNMENT_NOTIFY]',e.message));
+  return {assigned:true,driverName,vehicleUnit,status:nextStatus,message:`Assigned to ${driverName||'—'} / ${vehicleUnit||'—'}`};
  }catch(e){console.error('[AUTO-ASSIGN]',e.message);return {assigned:false,message:'Auto-assign error: '+e.message};}
 }
 
@@ -281,6 +286,25 @@ async function sendEmail(to,subject,html){
  if(!envEnabled('SENDGRID_API_KEY')||!envEnabled('SENDGRID_FROM_EMAIL')||recipients.length===0)return {status:'skipped'};
  const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:recipients.map(email=>({email}))}],from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Medical Transit'},subject,content:[{type:'text/html',value:html}]})});
  if(!r.ok)throw new Error(`SendGrid request failed (${r.status})`);return {status:'sent'};
+}
+async function notifyAssignedDriver(booking,options={}){
+ const driverName=clean(options.driverName||booking?.driver_name||booking?.driverName||'');
+ const driverEmail=clean(options.driverEmail||booking?.driver_email||booking?.driverEmail||'');
+ const driverPhone=clean(options.driverPhone||booking?.driver_phone||booking?.driverPhone||'');
+ const vehicleUnit=clean(options.vehicleUnit||booking?.vehicle_unit||booking?.vehicleUnit||'');
+ const tripDate=clean(booking?.trip_date||booking?.date||'');
+ const tripTime=clean(booking?.trip_time||booking?.time||'');
+ const pickup=clean(booking?.pickup||'');
+ const destination=clean(booking?.destination||'');
+ const reference=clean(booking?.reference||'');
+ if(!driverName||(!driverEmail&&!driverPhone))return {sms:{status:'skipped'},email:{status:'skipped'}};
+ const smsBody=`Nexus Medical Transit: You have been assigned to trip ${reference}${tripDate?` on ${tripDate}`:''}${tripTime?` at ${tripTime}`:''}. Pickup: ${pickup || 'See dispatch'}. Destination: ${destination || 'See dispatch'}. Vehicle: ${vehicleUnit || 'TBD'}.`;
+ const html=`<h2 style="color:#082f49">Trip assigned — ${reference}</h2><p><strong>Driver:</strong> ${driverName}</p><p><strong>Date:</strong> ${tripDate || '—'}</p><p><strong>Time:</strong> ${tripTime || '—'}</p><p><strong>Pickup:</strong> ${pickup || '—'}</p><p><strong>Destination:</strong> ${destination || '—'}</p><p><strong>Vehicle:</strong> ${vehicleUnit || 'TBD'}</p><p>Please confirm your availability with dispatch.</p>`;
+ const results=await Promise.allSettled([
+  driverPhone?sendSms(driverPhone,smsBody):Promise.resolve({status:'skipped-no-driver-phone'}),
+  driverEmail?sendEmail(driverEmail,`Trip assigned — ${reference}`,html):Promise.resolve({status:'skipped-no-driver-email'})
+ ]);
+ return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
 }
 async function sendTeamsAlert(text,title='Nexus Medical Transit'){
  // Teams Incoming Webhook — set TEAMS_WEBHOOK_URL in Netlify env vars
