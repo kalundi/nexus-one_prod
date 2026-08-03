@@ -10,7 +10,7 @@ const {isDriverAssignableStatus, normalizeDriverAcceptanceStatus}=require('./_sh
 const {hashPassword, verifyPassword}=require('./_shared/password.cjs');
 const {ensureDefaultTestUsers, ensureDefaultUserForEmail}=require('./_shared/default-users.cjs');
 const {buildDriverEmployeeLookupSql, buildDriverAvailabilitySql}=require('./_shared/employee-driver-lookup.cjs');
-const {getFallbackUser, createFallbackSession, getFallbackSession, revokeFallbackSession, getFallbackAssignments, acceptFallbackAssignment}=require('./_shared/fallback-auth.cjs');
+const {getFallbackUser, createFallbackSession, getFallbackSession, revokeFallbackSession, getFallbackAssignments, acceptFallbackAssignment, updateFallbackAssignmentStatus}=require('./_shared/fallback-auth.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -1082,6 +1082,19 @@ async function handler(event){
    const token=bearer(event);
    const b=parseBody(event);
    if(token){
+    if(typeof token==='string'&&token.startsWith('fb.')){
+     const fallbackSession=getFallbackSession(token);
+     if(!fallbackSession)return json(401,{error:'Session expired or invalid'});
+     const role=String(fallbackSession.role||'').toUpperCase();
+     if(!['DRIVER','ADMIN','DISPATCHER'].includes(role))return json(403,{error:'Forbidden'});
+     const statusInput=b.status?String(b.status).toUpperCase().replaceAll('-','_'):null;
+     if(role==='DRIVER'&&!statusInput)return json(400,{error:'Status is required'});
+     if(role==='DRIVER'&&(b.name||b.service||b.pickup||b.destination||b.email||b.alternatePhone||b.alternateEmail||Object.prototype.hasOwnProperty.call(b,'estimatedFare')))return json(403,{error:'Drivers may only update trip status and vehicle data'});
+     const updatedFallback=updateFallbackAssignmentStatus({email:fallbackSession.email},ref,statusInput||'');
+     if(!updatedFallback)return json(404,{error:'Booking not found'});
+     return json(200,{booking:mapBooking(updatedFallback),message:'Trip updated successfully'});
+    }
+
     const u=await requireUser(token,['DRIVER','ADMIN','DISPATCHER']);
     if(u.role==='DRIVER'&&(b.name||b.service||b.pickup||b.destination||b.email||b.alternatePhone||b.alternateEmail||Object.prototype.hasOwnProperty.call(b,'estimatedFare')))return json(403,{error:'Drivers may only update trip status and vehicle data'});
     const statusInput=b.status?String(b.status).toUpperCase().replaceAll('-','_'):null;

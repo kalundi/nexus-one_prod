@@ -119,6 +119,24 @@ function acceptFallbackAssignment(user, reference) {
   return { ...list[idx] };
 }
 
+function updateFallbackAssignmentStatus(user, reference, status) {
+  if (!isFallbackAuthEnabled()) return null;
+  const key = String(user?.email || '').toLowerCase();
+  if (!key || !fallbackAssignments.has(key)) return null;
+  const normalizedStatus = String(status || '').toUpperCase().replaceAll('-', '_');
+  if (!normalizedStatus) return null;
+  const list = fallbackAssignments.get(key);
+  const idx = list.findIndex((item) => String(item.reference) === String(reference));
+  if (idx === -1) return null;
+  const current = list[idx];
+  if (['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(String(current.status || '').toUpperCase())) {
+    return null;
+  }
+  list[idx] = { ...current, status: normalizedStatus };
+  fallbackAssignments.set(key, list);
+  return { ...list[idx] };
+}
+
 function getFallbackUser(email, password) {
   if (!isFallbackAuthEnabled()) return null;
   const user = findFallbackUserByEmail(email);
@@ -179,5 +197,6 @@ module.exports = {
   getFallbackSession,
   revokeFallbackSession,
   getFallbackAssignments,
-  acceptFallbackAssignment
+  acceptFallbackAssignment,
+  updateFallbackAssignmentStatus
 };
