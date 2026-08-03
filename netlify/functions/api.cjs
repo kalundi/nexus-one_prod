@@ -6,6 +6,8 @@ const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestSta
 const {canAdvanceBookingForAvailability}=require('./_shared/dispatch-approval.cjs');
 const {buildEmailRecipients,buildSmsRecipients}=require('./_shared/notification-routing.cjs');
 const {resolveAssignedStatus}=require('./_shared/assignment-status.cjs');
+const {hashPassword, verifyPassword}=require('./_shared/password.cjs');
+const {ensureDefaultTestUsers}=require('./_shared/default-users.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -760,14 +762,10 @@ async function handler(event){
      if(!u){console.log('[LOGIN] User not found or inactive'); return json(401,{error:'Invalid credentials'});}
      console.log('[LOGIN] User found:', u.email, 'role:', u.role);
      
-     const supplied=crypto.createHash('sha256').update(String(b.password||'')).digest('hex');
+     const supplied=hashPassword(String(b.password||''));
      console.log('[LOGIN] Hash length supplied:', supplied.length, 'stored:', String(u.password_hash).length);
      
-     if(String(u.password_hash).length!==supplied.length){console.log('[LOGIN] Hash length mismatch'); return json(401,{error:'Invalid credentials'});}
-     
-     const suppliedBuf=Buffer.from(supplied,'hex');
-     const storedBuf=Buffer.from(String(u.password_hash),'hex');
-     if(!crypto.timingSafeEqual(suppliedBuf,storedBuf)){console.log('[LOGIN] Password mismatch'); return json(401,{error:'Invalid credentials'});}
+     if(!verifyPassword(String(b.password||''), String(u.password_hash))){console.log('[LOGIN] Password mismatch'); return json(401,{error:'Invalid credentials'});}
      console.log('[LOGIN] Password verified');
      
      const token=crypto.randomBytes(32).toString('base64url');
@@ -944,35 +942,11 @@ async function handler(event){
   // Admin: reset all test credentials (idempotent upsert for all standard roles)
   if(p[0]==='admin'&&p[1]==='reset-credentials'&&method==='POST'){
    await requireUser(bearer(event),['ADMIN']);
-   const TEST_USERS=[
-    {email:'admin@nexusmt.com',name:'Test Administrator',role:'ADMIN',password:'NexusAdmin042!'},
-    {email:'dispatcher@nexusmt.com',name:'Test Dispatcher',role:'DISPATCHER',password:'Dispatch2026!'},
-    {email:'driver@nexusmt.com',name:'Test Driver',role:'DRIVER',password:'Driver2026!'},
-    {email:'facility@nexusmt.com',name:'Test Facility',role:'FACILITY',password:'Facility2026!'},
-    {email:'billing@nexusmt.com',name:'Test Billing',role:'BILLING',password:'Billing2026!'},
-    {email:'qa@nexusmt.com',name:'Test QA',role:'QA',password:'Quality2026!'},
-    {email:'executive@nexusmt.com',name:'Test Executive',role:'EXECUTIVE',password:'Exec2026!'},
-   ];
-   const results=[];
-   // Get the organization_id from the existing admin (required NOT NULL column)
    const orgRow=await query("SELECT organization_id FROM users WHERE role='ADMIN' LIMIT 1");
    const orgId=orgRow.rows[0]?.organization_id||null;
-   for(const u of TEST_USERS){
-    const hash=crypto.createHash('sha256').update(u.password).digest('hex');
-    const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1)',[u.email]);
-    if(existing.rows[0]){
-     await query('UPDATE users SET display_name=$2,role=$3,password_hash=$4,active=true,updated_at=now() WHERE id=$1',[existing.rows[0].id,u.name,u.role,hash]);
-     results.push({email:u.email,action:'updated'});
-    }else if(orgId){
-     await query('INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash,orgId,crypto.randomUUID()]);
-     results.push({email:u.email,action:'created'});
-    }else{
-     await query('INSERT INTO users(id,email,display_name,role,password_hash,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash,crypto.randomUUID()]);
-     results.push({email:u.email,action:'created'});
-    }
-   }
-   await audit('USER','system','CREDENTIALS_RESET',{count:results.length});
-   return json(200,{ok:true,results,message:`${results.length} accounts reset. All credentials restored.`});
+   const result=await ensureDefaultTestUsers(query,{organizationId:orgId});
+   await audit('USER','system','CREDENTIALS_RESET',{count:result.results.length});
+   return json(200,{ok:true,results:result.results,created:result.created,updated:result.updated,message:`${result.results.length} accounts reset. All credentials restored.`});
   }
   // Admin: list users
   if(p[0]==='admin'&&p[1]==='users'&&method==='GET'){
