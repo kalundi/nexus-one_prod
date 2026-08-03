@@ -2464,6 +2464,15 @@
       }else{
         setBookingOutcome('Booking Confirmed - Dispatch will follow up for payment', 'confirmed');
       }
+      const popupMessage = confirmationMessage || `Booking created. Reference: ${ref}`;
+      window.NexusTripPopup?.show({
+        title: isPending ? 'Trip request received' : 'Trip booked successfully',
+        message: popupMessage,
+        detail: isPending
+          ? 'Dispatch will confirm and finalize your trip shortly.'
+          : 'Your trip is now booked and dispatch will follow up as needed.',
+        accent: isPending ? '#0f766e' : '#0b1d47'
+      });
       showPaymentOptions(ref, Number(data.booking?.estimatedFare ?? payload.estimatedFare ?? 0), data.requiresOnlinePayment !== false);
       bookingSubmitted = true;
       if(submitBtn) submitBtn.textContent = 'Book My Ride';

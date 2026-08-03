@@ -1,4 +1,40 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+(function(){
+  const POPUP_ID='nexusGlobalTripPopup';
+  function showTripPopup({title='Trip created', message='Your trip request has been received.', detail='', accent='#0f766e', duration=5000}={}){
+    if(typeof document==='undefined' || !document.body) return;
+    const existing=document.getElementById(POPUP_ID);
+    if(existing) existing.remove();
+
+    const overlay=document.createElement('div');
+    overlay.id=POPUP_ID;
+    overlay.setAttribute('role','dialog');
+    overlay.setAttribute('aria-live','assertive');
+    overlay.setAttribute('aria-label',title);
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(2,17,31,.78);display:flex;align-items:center;justify-content:center;padding:24px;z-index:2147483647;';
+
+    const card=document.createElement('div');
+    card.style.cssText=`max-width:min(640px,100%);width:100%;padding:30px 28px 24px;border-radius:24px;background:linear-gradient(145deg,#ffffff,#f2f7fb);box-shadow:0 40px 90px rgba(2,12,24,.36);border:1px solid rgba(255,255,255,.8);text-align:center;`;
+    card.innerHTML=`
+      <div style="width:74px;height:74px;border-radius:999px;margin:0 auto 16px;display:grid;place-items:center;background:${accent};color:#fff;font-size:34px;font-weight:900;box-shadow:0 16px 36px rgba(15,23,42,.14)">✓</div>
+      <h2 style="margin:0 0 10px;font:800 28px/1.15 Manrope,sans-serif;color:#071c2d">${String(title||'Trip created').replace(/</g,'&lt;')}</h2>
+      <p style="margin:0 0 10px;font-size:17px;line-height:1.55;color:#23404f">${String(message||'Your trip request has been received.').replace(/</g,'&lt;')}</p>
+      ${detail?`<p style="margin:0 0 18px;font-size:15px;line-height:1.45;color:#5b7385">${String(detail).replace(/</g,'&lt;')}</p>`:''}
+      <button type="button" data-close-popup style="border:0;border-radius:999px;padding:10px 18px;background:${accent};color:#fff;font:800 14px/1 Manrope,sans-serif;cursor:pointer;box-shadow:0 10px 24px rgba(15,23,42,.14)">Close</button>
+    `;
+
+    card.querySelector('[data-close-popup]')?.addEventListener('click',()=>overlay.remove());
+    overlay.addEventListener('click',event=>{if(event.target===overlay) overlay.remove();});
+    document.body.appendChild(overlay);
+
+    const close=()=>overlay.remove();
+    const handleKey=(event)=>{if(event.key==='Escape'){close(); document.removeEventListener('keydown',handleKey);}};
+    document.addEventListener('keydown',handleKey);
+    if(Number(duration)>0){window.setTimeout(()=>{close();document.removeEventListener('keydown',handleKey);},Number(duration));}
+  }
+
+  window.NexusTripPopup={show:showTripPopup};
+})();
 const access=$('#accessToggle'),panel=$('#accessPanel');
 if(access && panel){access.addEventListener('click',()=>{const open=!panel.classList.contains('open');panel.classList.toggle('open',open);panel.hidden=!open;access.setAttribute('aria-expanded',String(open));});}
 $('#large')?.addEventListener('click',()=>document.body.classList.toggle('large'));

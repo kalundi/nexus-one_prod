@@ -395,8 +395,14 @@ async function submitBrokerRequest(event){
       setBrokerIntakeMessage(message,'err');
       return;
     }
-    const successMessage = data.clientMessage || data.message || 'Broker request received. It is pending review and has not been booked yet.';
+    const successMessage = data.clientMessage || data.message || 'Broker request received. It is pending dispatch confirmation and will be finalized once dispatch completes the booking.';
     setBrokerIntakeMessage(successMessage,'ok');
+    window.NexusTripPopup?.show({
+      title: 'Trip request received',
+      message: successMessage,
+      detail: 'Dispatch will review this request and finalize the booking shortly.',
+      accent: '#0f766e'
+    });
     form.reset();
     document.getElementById('brokerCalculatedRate').value='';
     document.getElementById('brokerWaitMinutes').value='0';
