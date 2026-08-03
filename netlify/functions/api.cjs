@@ -1004,7 +1004,7 @@ async function handler(event){
    const u=await requireUser(bearer(event),['DRIVER','ADMIN','DISPATCHER']);
    const driverName=clean(u.display_name||u.email||'');
    const scopeId=clean(u.scope_id||u.scopeId||'');
-   const sql=`SELECT * FROM bookings WHERE ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)) AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED') ORDER BY trip_date,trip_time,created_at`;
+   const sql=`SELECT * FROM bookings WHERE ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)) AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION') ORDER BY trip_date,trip_time,created_at`;
    const r=await query(sql,[driverName,scopeId]);
    return json(200,{assignments:r.rows.map(mapBooking)});
   }
