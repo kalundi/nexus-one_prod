@@ -88,6 +88,16 @@
 
       <!-- Transportation Company Picker -->
       <div id="transportationPickerBlock" class="transportation-picker">
+        <!-- Collapsed summary — shown after Continue, hidden initially -->
+        <div id="pickerCollapsedBar" hidden style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:#f0f7fc;border:1px solid #cce0f0;border-radius:12px;cursor:pointer" onclick="expandPicker()">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:13px;color:#667085;font-weight:700">Company:</span>
+            <strong id="pickerCollapsedName" style="font-size:14px;color:#082f49"></strong>
+          </div>
+          <button type="button" style="border:0;background:0;color:#0a6b99;font-size:13px;font-weight:700;cursor:pointer;padding:0;white-space:nowrap">Change ✎</button>
+        </div>
+        <!-- Full picker body — hidden after Continue -->
+        <div id="pickerBody">
         <div class="picker-header">
           <div>
             <p class="eyebrow">Nexus Medical Transit</p>
@@ -161,6 +171,7 @@
           <button type="button" id="pickerContinueBtn" class="primary-button" disabled style="opacity:.45;cursor:not-allowed">Continue</button>
           <span id="pickerContinueMsg" style="font-size:13px;color:#667085">Select a company to continue.</span>
         </div>
+        </div><!-- /pickerBody -->
       </div>
       <!-- /Transportation Company Picker -->
 
@@ -366,6 +377,11 @@ async function submitBrokerRequest(event){
     form.reset();
     document.getElementById('brokerCalculatedRate').value='';
     document.getElementById('brokerWaitMinutes').value='0';
+    // Re-expand picker for next request
+    expandPicker();
+    selectedId=''; selectedCompanyName='';
+    document.getElementById('pickerCollapsedBar').hidden=true;
+    document.getElementById('pickerCompanyCard').hidden=true;
   }catch(err){
     setBrokerIntakeMessage(err.message||'Unable to submit broker request.','err');
   }finally{
@@ -487,6 +503,20 @@ function toggleCompanyCard(){
   if(btn)btn.textContent=open?'Hide details ▴':'Show details ▾';
   if(summary)summary.setAttribute('aria-expanded',String(open));
 }
+function collapsePicker(){
+  const body=document.getElementById('pickerBody');
+  const bar=document.getElementById('pickerCollapsedBar');
+  const nameEl=document.getElementById('pickerCollapsedName');
+  if(body)body.hidden=true;
+  if(nameEl)nameEl.textContent=selectedCompanyName||'—';
+  if(bar)bar.hidden=false;
+}
+function expandPicker(){
+  const body=document.getElementById('pickerBody');
+  const bar=document.getElementById('pickerCollapsedBar');
+  if(body)body.hidden=false;
+  if(bar)bar.hidden=true;
+}
 function renderCard(company){
   if(!company){card.hidden=true;return;}
   card.hidden=false;
@@ -538,13 +568,11 @@ pickerSelect.addEventListener('change',()=>selectCompany(pickerSelect.value));
 $('pickerContinueBtn').addEventListener('click',()=>{
   const company=companies.find(c=>c.id===selectedId)||null;
   if(!company){alert('Please select a transportation company.');return;}
-  console.log('Selected company:',company);
-  // Scroll to and focus the first broker form field
+  // Collapse the entire picker to just the company name bar
+  collapsePicker();
+  // Scroll to the first broker form field
   const firstField=$('brokerReference');
   if(firstField){firstField.closest('.formRow')?.scrollIntoView({behavior:'smooth',block:'start'});}
-  // Update message
-  const msg=$('pickerContinueMsg');
-  msg.textContent=`✓ Request assigned to ${company.name}`;msg.style.color='#067647';
 });
 $('togglePickerAddForm').addEventListener('click',()=>{
   const f=$('pickerAddForm');f.hidden=!f.hidden;
