@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Nexus Driver">
-<meta name="description" content="Nexus Medical Transit Driver App â€” shift management, pre-trip inspection, mileage tracking, and trip workflow.">
+<meta name="description" content="Nexus Medical Transit Driver App - shift management, pre-trip inspection, mileage tracking, and trip workflow.">
 <title>Driver App | Nexus Medical Transit</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/assets/icon-192.png">
@@ -76,6 +76,9 @@ a{color:var(--blue);text-decoration:none}
 .field input:focus,.field select:focus,.field textarea:focus{outline:3px solid rgba(10,107,153,.2);border-color:var(--blue)}
 .field textarea{min-height:80px;resize:vertical}
 .fieldRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.passwordField{position:relative}
+.passwordField input{padding-right:58px}
+.passwordToggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--blue);font:700 13px/1.2 Manrope,sans-serif;cursor:pointer;padding:0}
 
 /* â”€â”€ Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;border:0;padding:0 20px;font:800 15px/1 Manrope,sans-serif;cursor:pointer;min-height:52px;letter-spacing:-.01em;transition:transform .1s,box-shadow .1s}
@@ -179,7 +182,7 @@ a{color:var(--blue);text-decoration:none}
     <div id="loginNotice" class="notice err" hidden></div>
     <form id="loginForm" autocomplete="on" novalidate>
       <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" name="email" autocomplete="username" placeholder="you@nexusmt.com" required></div>
-      <div class="field"><label for="loginPassword">Password</label><input id="loginPassword" type="password" name="password" autocomplete="current-password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required></div>
+      <div class="field"><label for="loginPassword">Password</label><div class="passwordField"><input id="loginPassword" type="password" name="password" autocomplete="current-password" placeholder="Enter your password" required><button type="button" class="passwordToggle" data-target="loginPassword" aria-label="Show password">Show</button></div></div>
       <button id="loginBtn" class="btn primary" type="submit" style="margin-top:8px">Sign In</button>
     </form>
     <p style="margin:14px 0 0;text-align:center"><button type="button" id="showForgotBtn" style="background:0;border:0;color:var(--blue);font-size:14px;cursor:pointer;text-decoration:underline">Forgot password?</button></p>
@@ -204,8 +207,8 @@ a{color:var(--blue);text-decoration:none}
     <p style="margin:0 0 16px;color:var(--muted);font-size:14px;text-align:center">Choose a strong password of at least 8 characters.</p>
     <div id="resetNotice" class="notice err" hidden></div>
     <form id="resetForm" novalidate>
-      <div class="field"><label for="resetPassword">New password</label><input id="resetPassword" type="password" placeholder="New password (min 8 chars)" required></div>
-      <div class="field"><label for="resetConfirm">Confirm password</label><input id="resetConfirm" type="password" placeholder="Re-enter new password" required></div>
+      <div class="field"><label for="resetPassword">New password</label><div class="passwordField"><input id="resetPassword" type="password" placeholder="New password (min 8 chars)" required><button type="button" class="passwordToggle" data-target="resetPassword" aria-label="Show password">Show</button></div></div>
+      <div class="field"><label for="resetConfirm">Confirm password</label><div class="passwordField"><input id="resetConfirm" type="password" placeholder="Re-enter new password" required><button type="button" class="passwordToggle" data-target="resetConfirm" aria-label="Show password">Show</button></div></div>
       <button id="resetBtn" class="btn ok" type="submit">Save New Password</button>
     </form>
   </div>
@@ -231,7 +234,7 @@ a{color:var(--blue);text-decoration:none}
 
       <!-- Shift card -->
       <div class="card">
-        <div class="cardHead"><div><div class="eyebrow">Today's shift</div><h2 id="dashDriverName">Loadingâ€¦</h2></div><span id="dashVehicle" class="badge gray">â€”</span></div>
+        <div class="cardHead"><div><div class="eyebrow">Today's shift</div><h2 id="dashDriverName">Loading...</h2></div><span id="dashVehicle" class="badge gray">--</span></div>
         <div class="cardBody">
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
             <div style="text-align:center;padding:10px 6px;background:var(--bg);border-radius:10px;border:1px solid var(--line)"><strong style="display:block;font:800 20px/1 Manrope,sans-serif" id="statHours">0:00</strong><span style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Hours</span></div>
@@ -255,12 +258,12 @@ a{color:var(--blue);text-decoration:none}
 
       <!-- Active trip quick card -->
       <div id="activeTripCard" class="card" hidden>
-        <div class="cardHead"><div><div class="eyebrow">Active trip</div><h2 id="activeTripTitle">â€”</h2></div><span id="activeTripBadge" class="badge blue">En Route</span></div>
+        <div class="cardHead"><div><div class="eyebrow">Active trip</div><h2 id="activeTripTitle">--</h2></div><span id="activeTripBadge" class="badge blue">En Route</span></div>
         <div class="cardBody">
           <p id="activeTripSub" style="margin:0 0 12px;color:var(--muted);font-size:14px"></p>
           <div class="btnRow">
             <button id="btnGoActiveTrip" class="btn navy sm">Manage Trip</button>
-            <button id="btnNavActiveTrip" class="btn ghost sm">ðŸ—º Navigate</button>
+            <button id="btnNavActiveTrip" class="btn ghost sm">Navigate</button>
           </div>
         </div>
       </div>
@@ -341,7 +344,7 @@ a{color:var(--blue);text-decoration:none}
       <div id="manifestNotice" class="notice info" hidden></div>
     </div>
     <div id="manifestList" class="card" style="border-radius:16px;margin:0 14px;overflow:hidden">
-      <div class="empty"><p>Loading tripsâ€¦</p></div>
+      <div class="empty"><p>Loading trips...</p></div>
     </div>
     <div style="height:14px"></div>
   </div>
@@ -353,8 +356,8 @@ a{color:var(--blue);text-decoration:none}
       <div class="card">
         <div class="cardBody">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
-            <div><div class="eyebrow" id="tripRef">â€”</div><h2 id="tripPatient" style="margin:4px 0 0;font:800 20px/1.1 Manrope,sans-serif">â€”</h2></div>
-            <span id="tripStatusBadge" class="badge blue">â€”</span>
+            <div><div class="eyebrow" id="tripRef">--</div><h2 id="tripPatient" style="margin:4px 0 0;font:800 20px/1.1 Manrope,sans-serif">--</h2></div>
+            <span id="tripStatusBadge" class="badge blue">--</span>
           </div>
           <div style="background:var(--bg);border-radius:12px;padding:12px;border:1px solid var(--line)">
             <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
@@ -379,7 +382,7 @@ a{color:var(--blue);text-decoration:none}
         <div class="cardHead"><div class="eyebrow">Trip status</div></div>
         <div id="tripWorkflow" style="padding:0 0 4px"></div>
         <div class="cardBody" style="padding-top:4px">
-          <button id="btnAdvanceTrip" class="btn navy" disabled>â€”</button>
+          <button id="btnAdvanceTrip" class="btn navy" disabled>--</button>
         </div>
       </div>
 
@@ -407,7 +410,7 @@ a{color:var(--blue);text-decoration:none}
       <div class="card">
         <div class="cardHead"><div><div class="eyebrow">Comments</div><h2>Trip notes</h2></div></div>
         <div class="cardBody">
-          <div class="field"><textarea id="tripComments" placeholder="Patient condition, delays, special circumstances, incidentsâ€¦" rows="3"></textarea></div>
+          <div class="field"><textarea id="tripComments" placeholder="Patient condition, delays, special circumstances, incidents..." rows="3"></textarea></div>
           <button id="btnSaveComments" class="btn ghost sm">Save Notes</button>
         </div>
       </div>
@@ -443,19 +446,19 @@ a{color:var(--blue);text-decoration:none}
     <div class="padded">
       <div class="notice warn">Review your shift summary before signing out. This data is submitted to Dispatch and Fleet.</div>
       <div class="card">
-        <div class="cardHead"><div><div class="eyebrow">Shift complete</div><h2 id="endDriverName">â€”</h2></div></div>
+        <div class="cardHead"><div><div class="eyebrow">Shift complete</div><h2 id="endDriverName">--</h2></div></div>
         <div class="summaryGrid">
           <div class="summaryItem"><strong id="endHours">0:00</strong><span>Hours worked</span></div>
           <div class="summaryItem"><strong id="endTrips">0</strong><span>Trips completed</span></div>
           <div class="summaryItem"><strong id="endMiles">0.0</strong><span>Total miles</span></div>
-          <div class="summaryItem"><strong id="endVehicle">â€”</strong><span>Vehicle unit</span></div>
+          <div class="summaryItem"><strong id="endVehicle">--</strong><span>Vehicle unit</span></div>
         </div>
         <div class="cardBody">
           <div class="fieldRow">
             <div class="field"><label for="endOdo">Final odometer</label><input id="endOdo" type="number" inputmode="numeric" placeholder="45198"></div>
             <div class="field"><label for="endFuel">Fuel level %</label><input id="endFuel" type="number" min="0" max="100" placeholder="75"></div>
           </div>
-          <div class="field"><label for="endNotes">End-of-shift notes</label><textarea id="endNotes" placeholder="Vehicle condition, incidents, handoff notes for next driverâ€¦" rows="3"></textarea></div>
+          <div class="field"><label for="endNotes">End-of-shift notes</label><textarea id="endNotes" placeholder="Vehicle condition, incidents, handoff notes for next driver..." rows="3"></textarea></div>
           <div style="display:grid;gap:8px;margin-top:4px">
             <button id="btnConfirmEndShift" class="btn primary">Sign Out &amp; Submit Shift</button>
             <button id="btnCancelEndShift" class="btn ghost">Back to Dashboard</button>

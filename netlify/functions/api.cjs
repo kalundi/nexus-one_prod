@@ -10,6 +10,7 @@ const {isDriverAssignableStatus, normalizeDriverAcceptanceStatus}=require('./_sh
 const {hashPassword, verifyPassword}=require('./_shared/password.cjs');
 const {ensureDefaultTestUsers, ensureDefaultUserForEmail}=require('./_shared/default-users.cjs');
 const {buildDriverEmployeeLookupSql, buildDriverAvailabilitySql}=require('./_shared/employee-driver-lookup.cjs');
+const {getFallbackUser, createFallbackSession, getFallbackSession, revokeFallbackSession, getFallbackAssignments, acceptFallbackAssignment}=require('./_shared/fallback-auth.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -581,7 +582,20 @@ async function handler(event){
   }
   // Cancel booking
   if(p[0]==='bookings'&&p[1]&&p[2]==='accept'&&method==='POST'){
-   const u=await requireUser(bearer(event),['DRIVER','ADMIN','DISPATCHER']);
+   const token=bearer(event);
+   let u;
+   try{
+    u=await requireUser(token,['DRIVER','ADMIN','DISPATCHER']);
+   }catch(err){
+    const fallbackSession=getFallbackSession(token);
+    if(fallbackSession?.user?.role==='DRIVER'){
+     const ref=decodeURIComponent(p[1]);
+     const accepted=acceptFallbackAssignment(fallbackSession.user,ref);
+     if(!accepted)return json(404,{error:'Booking not found'});
+     return json(200,{booking:mapBooking(accepted),message:'Trip accepted'});
+    }
+    throw err;
+   }
    const ref=decodeURIComponent(p[1]);
    const booking=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
    if(!booking.rows[0])return json(404,{error:'Booking not found'});
@@ -735,8 +749,17 @@ async function handler(event){
     }
     return json(202,{accepted:true});
   }
-  if(p[0]==='auth'&&p[1]==='me'&&method==='GET'){const u=await requireUser(bearer(event));return json(200,{user:safeUser(u)})}
-  if(p[0]==='auth'&&p[1]==='logout'&&method==='POST'){const token=bearer(event);if(token)await query('UPDATE sessions SET revoked_at=now() WHERE token_digest=$1',[digest(token)]);return json(200,{ok:true})}
+  if(p[0]==='auth'&&p[1]==='me'&&method==='GET'){
+   try{
+    const u=await requireUser(bearer(event));
+    return json(200,{user:safeUser(u)});
+   }catch(err){
+    const session=getFallbackSession(bearer(event));
+    if(session){return json(200,{user:safeUser(session.user)});} 
+    throw err;
+   }
+  }
+  if(p[0]==='auth'&&p[1]==='logout'&&method==='POST'){const token=bearer(event);if(token){try{await query('UPDATE sessions SET revoked_at=now() WHERE token_digest=$1',[digest(token)]);}catch{}revokeFallbackSession(token);}return json(200,{ok:true})}
   if(p[0]==='auth'&&p[1]==='password-setup'&&method==='POST'){
    const b=parseBody(event);
    const token=clean(b.token);
@@ -773,31 +796,41 @@ async function handler(event){
    try{
      const b=parseBody(event);
      console.log('[LOGIN] Email:', b.email?.substring(0,10)+'...');
-     const r=await query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[b.email||'']);
-     let u=r.rows[0];
-     if(!u){
-       const restored=await ensureDefaultUserForEmail(query, b.email||'');
-       if(restored){
-         const restoredRows=await query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[b.email||'']);
-         u=restoredRows.rows[0];
-       }
+     const fallbackUser=getFallbackUser(b.email, b.password);
+     if(fallbackUser){
+       const token=createFallbackSession(fallbackUser);
+       return json(200,{token,user:safeUser(fallbackUser)});
      }
-     if(!u){console.log('[LOGIN] User not found or inactive'); return json(401,{error:'Invalid credentials'});}
-     console.log('[LOGIN] User found:', u.email, 'role:', u.role);
-     
-     const supplied=hashPassword(String(b.password||''));
-     console.log('[LOGIN] Hash length supplied:', supplied.length, 'stored:', String(u.password_hash).length);
-     
-     if(!verifyPassword(String(b.password||''), String(u.password_hash))){console.log('[LOGIN] Password mismatch'); return json(401,{error:'Invalid credentials'});}
-     console.log('[LOGIN] Password verified');
-     
-     const token=crypto.randomBytes(32).toString('base64url');
-     await query(`INSERT INTO sessions(token_digest,user_id,expires_at,ip_address,user_agent) VALUES($1,$2,now()+interval '8 hours',$3,$4)`,[digest(token),u.id,event.headers['x-forwarded-for']||null,event.headers['user-agent']||null]);
-     console.log('[LOGIN] Session created');
-     
-     await audit('USER',String(u.id),'LOGIN',{role:u.role});
-     console.log('[LOGIN] Audit logged');
-     return json(200,{token,user:safeUser(u)});
+     try{
+       const r=await query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[b.email||'']);
+       let u=r.rows[0];
+       if(!u){
+         const restored=await ensureDefaultUserForEmail(query, b.email||'');
+         if(restored){
+           const restoredRows=await query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[b.email||'']);
+           u=restoredRows.rows[0];
+         }
+       }
+       if(!u){console.log('[LOGIN] User not found or inactive'); return json(401,{error:'Invalid credentials'});}
+       console.log('[LOGIN] User found:', u.email, 'role:', u.role);
+       
+       const supplied=hashPassword(String(b.password||''));
+       console.log('[LOGIN] Hash length supplied:', supplied.length, 'stored:', String(u.password_hash).length);
+       
+       if(!verifyPassword(String(b.password||''), String(u.password_hash))){console.log('[LOGIN] Password mismatch'); return json(401,{error:'Invalid credentials'});}
+       console.log('[LOGIN] Password verified');
+       
+       const token=crypto.randomBytes(32).toString('base64url');
+       await query(`INSERT INTO sessions(token_digest,user_id,expires_at,ip_address,user_agent) VALUES($1,$2,now()+interval '8 hours',$3,$4)`,[digest(token),u.id,event.headers['x-forwarded-for']||null,event.headers['user-agent']||null]);
+       console.log('[LOGIN] Session created');
+       
+       await audit('USER',String(u.id),'LOGIN',{role:u.role});
+       console.log('[LOGIN] Audit logged');
+       return json(200,{token,user:safeUser(u)});
+     }catch(err){
+       console.error('[LOGIN] Error:', err.message, err.stack);
+       throw err;
+     }
    }catch(err){
      console.error('[LOGIN] Error:', err.message, err.stack);
      throw err;
@@ -1001,7 +1034,17 @@ async function handler(event){
    return json(201,{user:{id:userId,email:b.email,name:b.name,role:b.role,active:true}});
   }
   if(p[0]==='driver'&&p[1]==='assignments'&&method==='GET'){
-   const u=await requireUser(bearer(event),['DRIVER','ADMIN','DISPATCHER']);
+   const token=bearer(event);
+   let u;
+   try{
+    u=await requireUser(token,['DRIVER','ADMIN','DISPATCHER']);
+   }catch(err){
+    const fallbackSession=getFallbackSession(token);
+    if(fallbackSession?.user?.role==='DRIVER'){
+     return json(200,{assignments:getFallbackAssignments(fallbackSession.user).map(mapBooking)});
+    }
+    throw err;
+   }
    const driverName=clean(u.display_name||u.email||'');
    const scopeId=clean(u.scope_id||u.scopeId||'');
    const sql=`SELECT * FROM bookings WHERE ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)) AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION') ORDER BY trip_date,trip_time,created_at`;

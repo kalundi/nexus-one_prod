@@ -69,6 +69,19 @@
   function showLoginView(){const l=$('#loginView'),a=$('#appShell');if(l)l.hidden=false;if(a)a.hidden=true;}
   function hideLoginView(){const l=$('#loginView'),a=$('#appShell');if(l)l.hidden=true;if(a)a.hidden=false;}
   function showLoginErr(m){const el=$('#loginNotice');if(el){el.hidden=false;el.textContent=m;}}
+  function bindPasswordToggles(){
+    $$('.passwordToggle').forEach((btn)=>{
+      btn.addEventListener('click',()=>{
+        const target=document.getElementById(btn.dataset.target);
+        if(!target)return;
+        const show=target.type==='password';
+        target.type=show?'text':'password';
+        btn.textContent=show?'Hide':'Show';
+        btn.setAttribute('aria-label', show?'Hide password':'Show password');
+      });
+    });
+  }
+  bindPasswordToggles();
 
   $('#loginForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
@@ -622,7 +635,9 @@
         distMi:b.distanceMiles!=null?Number(b.distanceMiles).toFixed(1):null,
         comments:'',
       }));
-      updateBadge();renderDash();
+      updateBadge();
+      renderDash();
+      if($('#manifestView')?.classList.contains('active'))renderManifest();
     }catch(e){console.error('[DRIVER]',e);}
   }
 
