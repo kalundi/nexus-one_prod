@@ -95,7 +95,7 @@
       <!-- Transportation Company Picker -->
       <div id="transportationPickerBlock" class="transportation-picker">
         <!-- Collapsed summary — shown after Continue, hidden initially -->
-        <div id="pickerCollapsedBar" hidden style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:#f0f7fc;border:1px solid #cce0f0;border-radius:12px;cursor:pointer" onclick="expandPicker()">
+        <div id="pickerCollapsedBar" hidden style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:#f0f7fc;border:1px solid #cce0f0;border-radius:12px;cursor:pointer" onclick="window.expandPicker()">
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:13px;color:#667085;font-weight:700">Company:</span>
             <strong id="pickerCollapsedName" style="font-size:14px;color:#082f49"></strong>
@@ -157,7 +157,7 @@
         <!-- Company Card — collapsed by default, expandable -->
         <div id="pickerCompanyCard" hidden>
           <!-- Compact summary row (always visible once company selected) -->
-          <div id="pickerCardSummary" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:10px 14px;background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;cursor:pointer" onclick="toggleCompanyCard()" aria-expanded="false">
+          <div id="pickerCardSummary" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:10px 14px;background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;cursor:pointer" onclick="window.toggleCompanyCard()" aria-expanded="false">
             <div style="display:flex;align-items:center;gap:10px;min-width:0">
               <span id="pickerCardBadge" class="category-badge" style="margin:0;flex-shrink:0"></span>
               <strong id="pickerCardName" style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></strong>
@@ -390,13 +390,17 @@ async function submitBrokerRequest(event){
   try{
     const res=await fetch('/api/broker-requests',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
     const data=await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(data.error||'Unable to submit broker request');
+    if(!res.ok) {
+      const message = data?.error || data?.message || `Request rejected by the server (${res.status})`;
+      setBrokerIntakeMessage(message,'err');
+      return;
+    }
     setBrokerIntakeMessage(data.clientMessage||data.message||'Broker request received.','ok');
     form.reset();
     document.getElementById('brokerCalculatedRate').value='';
     document.getElementById('brokerWaitMinutes').value='0';
     // Re-expand picker for next request
-    expandPicker();
+    window.expandPicker();
     selectedId=''; selectedCompanyName='';
     document.getElementById('pickerCollapsedBar').hidden=true;
     document.getElementById('pickerCompanyCard').hidden=true;
@@ -577,6 +581,10 @@ function selectCompany(id){
   }
 }
 function refresh(){buildSelect();buildCategoryOptions();buildServiceOptions();}
+
+window.expandPicker = expandPicker;
+window.toggleCompanyCard = toggleCompanyCard;
+window.collapsePicker = collapsePicker;
 
 // Events
 pickerSearch.addEventListener('input',()=>{filterSearch=pickerSearch.value;buildSelect();});
