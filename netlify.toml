@@ -10,6 +10,7 @@
   SECRETS_SCAN_SMART_DETECTION_OMIT_KEYS = "DATABASE_URL"
   NEXUS_ADMIN_EMAIL = "admin@nexusmt.com"
   NEXUS_ADMIN_PASSWORD = "NexusAdmin042!"
+  ALLOW_FALLBACK_AUTH = "false"
   # TEAMS_WEBHOOK_URL = set in Netlify dashboard env vars (not here — keep secret)
   # To configure Teams: Admin_NMT channel → (...) → Connectors → Incoming Webhook → copy URL → add as TEAMS_WEBHOOK_URL in Netlify site settings
 
