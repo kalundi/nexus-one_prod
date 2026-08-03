@@ -15,6 +15,17 @@ const fallbackAssignments = new Map();
 const revokedTokens = new Set();
 const FALLBACK_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
 
+function isFallbackAuthEnabled() {
+  const explicit = String(process.env.ALLOW_FALLBACK_AUTH || '').trim().toLowerCase();
+  if (explicit === 'true' || explicit === '1' || explicit === 'yes') return true;
+  if (explicit === 'false' || explicit === '0' || explicit === 'no') return false;
+  const context = String(process.env.CONTEXT || '').trim().toLowerCase();
+  if (context === 'production') return false;
+  const nodeEnv = String(process.env.NODE_ENV || '').trim().toLowerCase();
+  if (nodeEnv === 'production') return false;
+  return true;
+}
+
 function fallbackSecret() {
   return String(process.env.FALLBACK_AUTH_SECRET || 'nexus-fallback-local-secret');
 }
@@ -83,6 +94,7 @@ function buildDefaultAssignments(user) {
 }
 
 function getFallbackAssignments(user) {
+  if (!isFallbackAuthEnabled()) return [];
   const key = String(user?.email || '').toLowerCase();
   if (!key) return [];
   if (!fallbackAssignments.has(key)) {
@@ -92,6 +104,7 @@ function getFallbackAssignments(user) {
 }
 
 function acceptFallbackAssignment(user, reference) {
+  if (!isFallbackAuthEnabled()) return null;
   const key = String(user?.email || '').toLowerCase();
   if (!key || !fallbackAssignments.has(key)) return null;
   const list = fallbackAssignments.get(key);
@@ -107,6 +120,7 @@ function acceptFallbackAssignment(user, reference) {
 }
 
 function getFallbackUser(email, password) {
+  if (!isFallbackAuthEnabled()) return null;
   const user = findFallbackUserByEmail(email);
   if (!user) return null;
   const matchingSource = FALLBACK_USERS.find((item) => item.email.toLowerCase() === user.email.toLowerCase());
@@ -116,6 +130,7 @@ function getFallbackUser(email, password) {
 }
 
 function createFallbackSession(user) {
+  if (!isFallbackAuthEnabled()) return null;
   const issuedAt = Date.now();
   const payload = {
     type: 'fallback',
@@ -130,6 +145,7 @@ function createFallbackSession(user) {
 }
 
 function getFallbackSession(token) {
+  if (!isFallbackAuthEnabled()) return null;
   const raw = String(token || '');
   if (!raw || revokedTokens.has(raw)) return null;
   const parts = raw.split('.');
