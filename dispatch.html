@@ -164,9 +164,8 @@
       </div>
       <!-- /Transportation Company Picker -->
 
-      <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+      <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
         <div class="formField"><label for="brokerReference">Referral ID</label><input id="brokerReference" name="reference" type="text" readonly></div>
-        <div class="formField"><label for="brokerName">Broker name</label><input id="brokerName" name="brokerName" type="text" required></div>
         <div class="formField"><label for="brokerPatientName">Patient name</label><input id="brokerPatientName" name="patientName" type="text"></div>
         <div class="formField"><label for="brokerSubmitterEmail">Submitter email</label><input id="brokerSubmitterEmail" name="submitterEmail" type="email" placeholder="broker@example.com"></div>
       </div>
@@ -332,7 +331,7 @@ async function submitBrokerRequest(event){
   syncBrokerPickupTime(true);
   const form=document.getElementById('brokerIntakeForm');
   const payload={
-    broker_name: document.getElementById('brokerName').value.trim(),
+    broker_name: document.getElementById('pickerCardName')?.textContent?.trim() || selectedCompanyName || 'Unknown',
     referral_id: document.getElementById('brokerReference').value.trim(),
     patient_name: document.getElementById('brokerPatientName').value.trim(),
     patient_phone: document.getElementById('brokerPatientPhone').value.trim(),
@@ -353,7 +352,7 @@ async function submitBrokerRequest(event){
     notes: document.getElementById('brokerNotes').value.trim(),
     is_return_trip: document.getElementById('brokerReturnTrip').checked
   };
-  if(!payload.broker_name||!payload.pickup||!payload.destination||!payload.trip_date||!payload.trip_time||!payload.broker_quoted_rate||!payload.platform_calculated_rate){
+  if(!payload.pickup||!payload.destination||!payload.trip_date||!payload.trip_time||!payload.broker_quoted_rate||!payload.platform_calculated_rate){
     setBrokerIntakeMessage('Please complete the required fields before submitting.','err');
     return;
   }
@@ -429,6 +428,7 @@ const COMPANIES=[
 ];
 let companies=[...COMPANIES];
 let selectedId='';
+let selectedCompanyName='';
 let filterSearch='',filterCat='All',filterSvc='All';
 
 const $=id=>document.getElementById(id);
@@ -515,9 +515,8 @@ function renderCard(company){
 function selectCompany(id){
   selectedId=id;
   const company=companies.find(c=>c.id===id)||null;
+  selectedCompanyName=company?.name||'';
   renderCard(company);
-  // Auto-fill broker name field
-  if(company){const n=$('brokerName');if(n&&!n.value)n.value=company.name;}
   // Enable/disable Continue button
   const btn=$('pickerContinueBtn');
   const msg=$('pickerContinueMsg');
