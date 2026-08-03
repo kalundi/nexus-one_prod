@@ -36,6 +36,7 @@
   function tod() { const h=new Date().getHours(); return h<12?'morning':h<17?'afternoon':'evening'; }
   function totalMiles() { return miles.legs.reduce((s,l)=>s+(Number(l.miles)||0),0); }
   function normalizeBookingStatus(status) { return String(status || 'SCHEDULED').trim().toUpperCase().replaceAll('-', '_'); }
+  function tripNeedsAcceptance(trip) { return ['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED'].includes(normalizeBookingStatus(trip?.status)); }
   function dashNotice(msg,type) { const el=$('#dashNotice');if(!el)return; el.className=`notice ${type||'info'}`;el.textContent=msg;el.hidden=false; setTimeout(()=>{el.hidden=true;},5000); }
 
   // ── View routing ──────────────────────────────────────────────
@@ -162,6 +163,12 @@
   $('#btnStartShift')?.addEventListener('click',()=>{
     if(!shift.inspectionDone){showView('inspectionView');return;}
     beginShift();
+  });
+  $('#btnLogOff')?.addEventListener('click',()=>{
+    clearSess();
+    $('#loginEmail').value='';
+    $('#loginPassword').value='';
+    showLoginView();
   });
   function beginShift(){
     const unit=shift.vehicleUnit||prompt('Enter your assigned vehicle unit (e.g. SE-254-01):');
@@ -839,6 +846,22 @@
     if(sc)sc.hidden=shift.onDuty;
     if(oc){oc.hidden=!shift.onDuty;oc.style.display=shift.onDuty?'grid':'none';}
     const bb=$('#btnBreak');if(bb)bb.textContent=shift.onBreak?'End Break':'Take Break';
+    const startBtn=$('#btnStartShift');
+    if(startBtn){
+      const pendingToday=trips.filter(t=>t.date===new Date().toISOString().slice(0,10) && tripNeedsAcceptance(t));
+      startBtn.textContent=pendingToday.length?'Continue to Shift':'Start Shift';
+    }
+    const logBtn=$('#btnLogOff');
+    if(logBtn)logBtn.hidden=shift.onDuty;
+    const notice=$('#dashNotice');
+    const pendingToday=trips.filter(t=>t.date===new Date().toISOString().slice(0,10) && tripNeedsAcceptance(t));
+    if(notice){
+      if(pendingToday.length && !shift.onDuty){
+        notice.hidden=false; notice.className='notice info'; notice.textContent=`You have ${pendingToday.length} trip${pendingToday.length===1?'':'s'} waiting to be accepted today.`;
+      } else if(!shift.onDuty){
+        notice.hidden=true;
+      }
+    }
     // Active trip
     const active=trips.find(t=>t.ref===activeRef&&!['COMPLETED','DELIVERED','CANCELLED'].includes(t.status))
                 ||trips.find(t=>!['COMPLETED','DELIVERED','CANCELLED','SCHEDULED'].includes(t.status));
@@ -853,7 +876,7 @@
     }else if(atc)atc.hidden=true;
     // Next upcoming
     const today=new Date().toISOString().slice(0,10);
-    const next=trips.filter(t=>t.date>=today&&t.status==='SCHEDULED').sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))[0];
+    const next=trips.filter(t=>t.date>=today&&tripNeedsAcceptance(t)).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))[0];
     const nb=$('#nextTripBody');
     if(nb&&next){nb.innerHTML=`<p style="margin:0 0 4px;font:700 15px Manrope,sans-serif">${next.patient}</p>
       <p style="margin:0 0 4px;font-size:13px;color:var(--muted)">${fmtDate(next.date)} at ${next.time}</p>
