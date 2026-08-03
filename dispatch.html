@@ -138,18 +138,23 @@
           </div>
         </div>
 
-        <!-- Company Card -->
-        <div id="pickerCompanyCard" hidden class="company-card">
-          <div class="company-card-heading">
-            <div>
-              <span id="pickerCardBadge" class="category-badge"></span>
-              <h3 id="pickerCardName"></h3>
+        <!-- Company Card — collapsed by default, expandable -->
+        <div id="pickerCompanyCard" hidden>
+          <!-- Compact summary row (always visible once company selected) -->
+          <div id="pickerCardSummary" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:10px 14px;background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;cursor:pointer" onclick="toggleCompanyCard()" aria-expanded="false">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <span id="pickerCardBadge" class="category-badge" style="margin:0;flex-shrink:0"></span>
+              <strong id="pickerCardName" style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></strong>
+              <span id="pickerCardProviderStatus" class="provider-status" style="flex-shrink:0"></span>
             </div>
-            <span id="pickerCardProviderStatus" class="provider-status"></span>
+            <button type="button" id="pickerCardToggle" style="border:0;background:0;color:#667085;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer;padding:0">Show details ▾</button>
           </div>
-          <div id="pickerCardDetails" class="company-details"></div>
-          <div id="pickerCardServices" class="service-list"></div>
-          <div id="pickerCardActions" class="company-actions"></div>
+          <!-- Full details — hidden until expanded -->
+          <div id="pickerCardFull" hidden class="company-card" style="margin-top:4px;border-radius:12px">
+            <div id="pickerCardDetails" class="company-details"></div>
+            <div id="pickerCardServices" class="service-list"></div>
+            <div id="pickerCardActions" class="company-actions"></div>
+          </div>
         </div>
 
         <div style="display:flex;align-items:center;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid #e4e7ec">
@@ -472,9 +477,24 @@ function buildSelect(){
   const lbl=document.getElementById('filterSummaryLabel');
   if(lbl)lbl.textContent=`Filter companies (${filtered.length} shown)`;
 }
+function toggleCompanyCard(){
+  const full=document.getElementById('pickerCardFull');
+  const btn=document.getElementById('pickerCardToggle');
+  const summary=document.getElementById('pickerCardSummary');
+  if(!full)return;
+  const open=full.hidden;
+  full.hidden=!open;
+  if(btn)btn.textContent=open?'Hide details ▴':'Show details ▾';
+  if(summary)summary.setAttribute('aria-expanded',String(open));
+}
 function renderCard(company){
   if(!company){card.hidden=true;return;}
   card.hidden=false;
+  // Always collapse detail panel when switching company
+  const full=document.getElementById('pickerCardFull');
+  const btn=document.getElementById('pickerCardToggle');
+  if(full)full.hidden=true;
+  if(btn)btn.textContent='Show details ▾';
   $('pickerCardBadge').textContent=company.category;
   $('pickerCardName').textContent=company.name;
   const st=$('pickerCardProviderStatus');
