@@ -1,31 +1,37 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#082f49"><meta name="description" content="Coordinate requests, assign drivers and vehicles, monitor progress and communicate with patients and facilities."><title>Dispatch Center | NEXUS ONE</title><style>html{visibility:hidden}body{visibility:hidden}</style>
   <link rel="stylesheet" href="./platform.css">
   <style>
-.transportation-picker{width:min(100%,1100px);margin:0 auto;padding:28px;border:1px solid #e4e7ec;border-radius:24px;background:#ffffff;box-shadow:0 18px 50px rgba(16,24,40,.08);font-family:Inter,Arial,sans-serif;color:#172033}
-.picker-header,.company-card-heading,.company-actions{display:flex;align-items:center;justify-content:space-between;gap:20px}
+:root{--sp:16px}
+.transportation-picker{width:min(100%,1100px);margin:0 auto;padding:var(--sp);border:1px solid #e4e7ec;border-radius:16px;background:#ffffff;box-shadow:0 8px 24px rgba(16,24,40,.06);font-family:Inter,Arial,sans-serif;color:#172033}
+.picker-header,.company-card-heading,.company-actions{display:flex;align-items:center;justify-content:space-between;gap:var(--sp)}
 .picker-header h2,.company-card h3{margin:0}
-.description{max-width:720px;margin:8px 0 0;color:#667085;line-height:1.6}
-.filter-grid,.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
+.description{max-width:720px;margin:6px 0 0;color:#667085;line-height:1.5;font-size:14px}
+.filter-grid,.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp);margin-top:var(--sp)}
 .form-grid{grid-template-columns:repeat(2,1fr)}
-.company-select-label{margin-top:24px}
-.add-company-form{margin-top:24px;padding:22px;border-radius:18px;background:#f8fafc}
-.add-company-form h3{margin-top:0}
-.primary-button,.secondary-button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;border-radius:11px;padding:10px 17px;font-weight:800;text-decoration:none;cursor:pointer}
+.company-select-label{display:block;margin-top:var(--sp);font-size:13px;font-weight:700;color:#344054}
+.add-company-form{margin-top:var(--sp);padding:var(--sp);border-radius:12px;background:#f8fafc}
+.add-company-form h3{margin:0 0 var(--sp)}
+.primary-button,.secondary-button{display:inline-flex;min-height:40px;align-items:center;justify-content:center;border-radius:10px;padding:9px 16px;font-weight:800;text-decoration:none;cursor:pointer;font-size:14px}
 .primary-button{border:1px solid #7f1422;background:#9f1d2d;color:white}
 .secondary-button{border:1px solid #d0d5dd;background:white;color:#344054}
-.add-company-form .primary-button{margin-top:18px}
-.company-card{margin-top:22px;padding:24px;border:1px solid #e4e7ec;border-radius:18px;background:linear-gradient(145deg,#ffffff,#f9fafb)}
-.category-badge,.provider-status,.service-list span{display:inline-flex;border-radius:999px;padding:6px 10px;font-size:.76rem;font-weight:800}
-.category-badge{margin-bottom:8px;background:#f2f4f7;color:#344054}
+.add-company-form .primary-button{margin-top:var(--sp)}
+.company-card{margin-top:var(--sp);padding:var(--sp);border:1px solid #e4e7ec;border-radius:12px;background:#ffffff}
+.category-badge,.provider-status,.service-list span{display:inline-flex;border-radius:999px;padding:4px 10px;font-size:.75rem;font-weight:800}
+.category-badge{margin-bottom:6px;background:#f2f4f7;color:#344054}
 .provider-status.accepting{background:#ecfdf3;color:#067647}
 .provider-status.verify{background:#fffaeb;color:#b54708}
-.company-details{margin-top:18px}
-.company-details p{margin:8px 0}
+.company-details{margin-top:var(--sp)}
+.company-details p{margin:6px 0}
 .company-details a{color:#9f1d2d}
-.service-list{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}
+.service-list{display:flex;flex-wrap:wrap;gap:6px;margin:var(--sp) 0}
 .service-list span{background:#fff1f3;color:#9f1d2d}
-.company-actions{justify-content:flex-start;flex-wrap:wrap}
-@media(max-width:760px){.transportation-picker{padding:18px;border-radius:18px}.picker-header,.company-card-heading{align-items:flex-start;flex-direction:column}.filter-grid,.form-grid{grid-template-columns:1fr}.company-actions a{width:100%}}
+.company-actions{justify-content:flex-start;flex-wrap:wrap;gap:8px}
+.formGrid{gap:var(--sp) !important}
+.formRow{display:grid;gap:var(--sp)}
+.formField{display:grid;gap:5px}
+.formField label{font-size:13px;font-weight:700;color:#344054}
+.formField input,.formField select,.formField textarea{border:1px solid #d0d5dd;border-radius:9px;padding:9px 11px;font-size:14px;width:100%;box-sizing:border-box}
+@media(max-width:760px){.transportation-picker{padding:var(--sp);border-radius:12px}.picker-header,.company-card-heading{align-items:flex-start;flex-direction:column}.filter-grid,.form-grid{grid-template-columns:1fr}.company-actions a{width:100%}}
   </style>
   <script src="/trustedsite.js" defer></script>
   <script src="/i18n.js" defer></script>
@@ -78,13 +84,13 @@
 </div></section><main id="main" class="shell moduleMain" tabindex="-1">
 <section class="card" style="margin-top:20px">
   <div class="toolbar"><div><div class="eyebrow">Dispatch intake hub</div><h2>Broker, customer and facility request intake</h2><p style="margin:6px 0 0;color:var(--muted)">Modernized intake with service-aware rates, return-trip wait-time logic and shared dispatch standards.</p></div></div>
-  <div class="pillTabs" role="tablist" aria-label="Intake forms" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+  <div class="pillTabs" role="tablist" aria-label="Intake forms" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px">
     <button type="button" class="button secondary" data-intake-tab="broker" role="tab" aria-selected="true">Broker intake</button>
     <button type="button" class="button secondary" data-intake-tab="customer" role="tab" aria-selected="false">Customer intake</button>
     <button type="button" class="button secondary" data-intake-tab="facility" role="tab" aria-selected="false">Facility intake</button>
   </div>
   <div id="brokerIntakePanel" class="intakePanel" data-intake-panel="broker" role="tabpanel" style="margin-top:16px">
-    <form id="brokerIntakeForm" class="formGrid" style="display:grid;gap:14px">
+    <form id="brokerIntakeForm" class="formGrid" style="display:grid;gap:16px">
 
       <!-- Transportation Company Picker -->
       <div id="transportationPickerBlock" class="transportation-picker">
@@ -167,7 +173,7 @@
           </div>
         </div>
 
-        <div style="display:flex;align-items:center;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid #e4e7ec">
+        <div style="display:flex;align-items:center;gap:12px;margin-top:var(--sp,16px);padding-top:var(--sp,16px);border-top:1px solid #e4e7ec">
           <button type="button" id="pickerContinueBtn" class="primary-button" disabled style="opacity:.45;cursor:not-allowed">Continue</button>
           <span id="pickerContinueMsg" style="font-size:13px;color:#667085">Select a company to continue.</span>
         </div>
