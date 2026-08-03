@@ -1074,10 +1074,29 @@ async function handler(event){
   }
   if(p[0]==='facilities'&&method==='GET'){const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','FACILITY']);const r=await query(u.role==='FACILITY'?'SELECT * FROM facilities WHERE facility_code=$1':'SELECT * FROM facilities ORDER BY name',[...(u.role==='FACILITY'?[u.scope_id]:[])]);return json(200,{facilities:r.rows})}
   if(p[0]==='patients'&&method==='GET'){const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','FACILITY']);const r=await query(u.role==='FACILITY'?'SELECT * FROM patients WHERE facility_code=$1 AND active=true ORDER BY display_name':'SELECT * FROM patients WHERE active=true ORDER BY display_name',[...(u.role==='FACILITY'?[u.scope_id]:[])]);return json(200,{patients:r.rows})}
-  // Update trip details (name, service, pickup, destination, email, alternate contacts)
+  // Update trip details/status.
+  // - Authenticated DRIVER/DISPATCHER/ADMIN path: status/vehicle updates via token.
+  // - Passenger path: requires booking phone verification and allows contact/detail edits.
   if(p[0]==='bookings'&&p[1]&&p[2]==='update'&&method==='POST'){
-   const b=parseBody(event);const phone=clean(b.phone);if(!phone)return json(400,{error:'Phone number is required to update'});
    const ref=decodeURIComponent(p[1]);
+   const token=bearer(event);
+   const b=parseBody(event);
+   if(token){
+    const u=await requireUser(token,['DRIVER','ADMIN','DISPATCHER']);
+    if(u.role==='DRIVER'&&(b.name||b.service||b.pickup||b.destination||b.email||b.alternatePhone||b.alternateEmail||Object.prototype.hasOwnProperty.call(b,'estimatedFare')))return json(403,{error:'Drivers may only update trip status and vehicle data'});
+    const statusInput=b.status?String(b.status).toUpperCase().replaceAll('-','_'):null;
+    const vehicleUnitInput=clean(b.vehicleUnit)||null;
+    const driverNameInput=u.role==='DRIVER'?(clean(u.display_name||u.email||'Driver')||null):(clean(b.driverName)||null);
+    const driverScopeInput=u.role==='DRIVER'?(clean(u.scope_id||u.scopeId||null)||null):null;
+    const updated=await query(`UPDATE bookings SET status=COALESCE($2,status),vehicle_unit=COALESCE($3,vehicle_unit),driver_name=COALESCE($4,driver_name),driver_scope_id=COALESCE($5,driver_scope_id),updated_at=now() WHERE reference=$1 RETURNING *`,[ref,statusInput,vehicleUnitInput,driverNameInput,driverScopeInput]);
+    if(!updated.rows[0])return json(404,{error:'Booking not found'});
+    const note=clean(b.note)||null;
+    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),note,u.display_name||u.email||u.role]);
+    await audit('BOOKING',ref,'UPDATED',{by:u.role,status:updated.rows[0].status,vehicleUnit:updated.rows[0].vehicle_unit||null});
+    return json(200,{booking:mapBooking(updated.rows[0]),message:'Trip updated successfully'});
+   }
+
+   const phone=clean(b.phone);if(!phone)return json(400,{error:'Phone number is required to update'});
    const r=await query('SELECT * FROM bookings WHERE reference=$1 AND regexp_replace(phone,\'\\D\',\'\',\'g\')=regexp_replace($2,\'\\D\',\'\',\'g\')',[ref,phone]);
    if(!r.rows[0])return json(404,{error:'Booking not found or phone number does not match'});
    if(['CANCELLED','COMPLETED','IN_TRANSIT','ARRIVED'].includes(r.rows[0].status))return json(400,{error:`Cannot update a booking with status: ${r.rows[0].status}`});
