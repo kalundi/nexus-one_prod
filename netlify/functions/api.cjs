@@ -1085,12 +1085,12 @@ async function handler(event){
     if(typeof token==='string'&&token.startsWith('fb.')){
      const fallbackSession=getFallbackSession(token);
      if(!fallbackSession)return json(401,{error:'Session expired or invalid'});
-     const role=String(fallbackSession.role||'').toUpperCase();
+    const role=String(fallbackSession.user?.role||'').toUpperCase();
      if(!['DRIVER','ADMIN','DISPATCHER'].includes(role))return json(403,{error:'Forbidden'});
      const statusInput=b.status?String(b.status).toUpperCase().replaceAll('-','_'):null;
      if(role==='DRIVER'&&!statusInput)return json(400,{error:'Status is required'});
      if(role==='DRIVER'&&(b.name||b.service||b.pickup||b.destination||b.email||b.alternatePhone||b.alternateEmail||Object.prototype.hasOwnProperty.call(b,'estimatedFare')))return json(403,{error:'Drivers may only update trip status and vehicle data'});
-     const updatedFallback=updateFallbackAssignmentStatus({email:fallbackSession.email},ref,statusInput||'');
+    const updatedFallback=updateFallbackAssignmentStatus({email:fallbackSession.user?.email},ref,statusInput||'');
      if(!updatedFallback)return json(404,{error:'Booking not found'});
      return json(200,{booking:mapBooking(updatedFallback),message:'Trip updated successfully'});
     }
