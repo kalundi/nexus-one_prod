@@ -183,6 +183,25 @@
     $('#loginPassword').value='';
     showLoginView();
   });
+  $('#shiftBadge')?.addEventListener('click',()=>{
+    if(!shift.onDuty){
+      if(!shift.inspectionDone){showView('inspectionView');return;}
+      beginShift();
+      return;
+    }
+    if(!shift.onBreak){
+      shift.onBreak=true;
+      shift.breakStart=Date.now();
+      dashNotice('Break started. Tap the header badge again to end break.','info');
+    }else{
+      shift.breakMs+=Date.now()-shift.breakStart;
+      shift.breakStart=null;
+      shift.onBreak=false;
+      dashNotice('Break ended. You are available again.','ok');
+    }
+    saveShift();
+    renderDash();
+  });
   function beginShift(){
     const unit=shift.vehicleUnit||prompt('Enter your assigned vehicle unit (e.g. SE-254-01):');
     if(!unit?.trim())return;
@@ -669,21 +688,34 @@
     if(!list.length){el.innerHTML='<div class="empty"><p>No assigned trips in this period.</p></div>';return;}
     const sc={SCHEDULED:'gray',ASSIGNED:'blue',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',ARRIVED_PICKUP:'amber',DEPARTED:'amber',ARRIVED_DESTINATION:'amber',DELIVERED:'green',COMPLETED:'green',CANCELLED:'red'};
     const canAccept=t=>['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED'].includes(t.status);
-    el.innerHTML=`<div class="card" style="margin-bottom:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px">
-      <div>
-        <strong>Assigned trip queue</strong>
-        <div style="font-size:12px;color:var(--muted);margin-top:3px">Accept each trip or accept all pending assignments.</div>
-      </div>
-      <button class="btn primary sm" id="acceptAllBtn" ${list.filter(canAccept).length?'':'disabled'}>Accept All</button>
-    </div>`+list.map(t=>`
-      <div class="tripCard${t.ref===activeRef?' active-trip':''}" data-ref="${t.ref}" role="button" tabindex="0">
+    const isCompleted=t=>['COMPLETED','DELIVERED'].includes(t.status);
+    const upcoming=list.filter(t=>!isCompleted(t));
+    const completed=list.filter(isCompleted);
+
+    const row=(t)=>`<div class="tripCard${t.ref===activeRef?' active-trip':''}" data-ref="${t.ref}" role="button" tabindex="0">
         <div class="tripTime"><strong>${t.time||'—'}</strong><small>${fmtDate(t.date)}</small></div>
         <div class="tripInfo"><strong>${t.patient}</strong><span>${t.pickup}</span><span>to ${t.destination}</span></div>
         <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
           <span class="badge ${sc[t.status]||'gray'}">${t.status.replace(/_/g,' ')}</span>
-          ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">Accept</button>`:'<span style="font-size:11px;color:var(--muted)">In progress</span>'}
+          ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">Accept</button>`:'<span style="font-size:11px;color:var(--muted)">'+(isCompleted(t)?'Completed':'In progress')+'</span>'}
         </div>
-      </div>`).join('');
+      </div>`;
+
+    el.innerHTML=`<div class="card" style="margin-bottom:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <div>
+        <strong>Upcoming trips</strong>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">Accept pending assignments and advance active trips.</div>
+      </div>
+      <button class="btn primary sm" id="acceptAllBtn" ${upcoming.filter(canAccept).length?'':'disabled'}>Accept All</button>
+    </div>`+
+    (upcoming.length?upcoming.map(row).join(''):'<div class="empty"><p>No upcoming trips in this period.</p></div>')+
+    `<div class="card" style="margin:12px 0 8px;padding:12px 14px;background:#f8fafc;border-style:dashed">
+      <div>
+        <strong>Completed trips</strong>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">Trips move here after Patient Delivered and Trip Complete.</div>
+      </div>
+    </div>`+
+    (completed.length?completed.map(row).join(''):'<div class="empty"><p>No completed trips yet in this period.</p></div>');
     $$('.tripCard',el).forEach(c=>{
       const open=()=>openTrip(c.dataset.ref);
       c.addEventListener('click',open);
@@ -692,7 +724,7 @@
     $$('.btn[data-accept-ref]',el).forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();acceptTrip(btn.dataset.acceptRef);}));
     const acceptAllBtn=$('#acceptAllBtn');
     if(acceptAllBtn){acceptAllBtn.addEventListener('click',async()=>{
-      const pending=list.filter(canAccept);
+      const pending=upcoming.filter(canAccept);
       if(!pending.length)return;
       acceptAllBtn.disabled=true;acceptAllBtn.textContent='Accepting…';
       try{
@@ -901,7 +933,12 @@
     if($('#statTrips'))$('#statTrips').textContent=shift.completedTrips;
     if($('#statMiles'))$('#statMiles').textContent=totalMiles().toFixed(1);
     const badge=$('#shiftBadge');
-    if(badge){badge.textContent=shift.onBreak?'On Break':shift.onDuty?'On Duty':'Off Duty';badge.className='topBadge '+(shift.onBreak?'break':shift.onDuty?'on':'off');}
+    if(badge){
+      badge.textContent=shift.onBreak?'On Break':shift.onDuty?'On Duty':'Off Duty';
+      badge.className='topBadge '+(shift.onBreak?'break':shift.onDuty?'on':'off');
+      badge.title=shift.onDuty?(shift.onBreak?'Click to end break':'Click to start break'):'Click to start shift';
+      badge.setAttribute('aria-label',badge.title);
+    }
     const sc=$('#shiftControls'),oc=$('#onDutyControls');
     if(sc)sc.hidden=shift.onDuty;
     if(oc){oc.hidden=!shift.onDuty;oc.style.display=shift.onDuty?'grid':'none';}
