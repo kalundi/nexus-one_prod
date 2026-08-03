@@ -2,6 +2,7 @@ const crypto=require('crypto');
 const {query,getPool}=require('./_shared/db.cjs');
 const {json,parseBody,bearer,routePath}=require('./_shared/http.cjs');
 const {digest,safeUser,requireUser,audit}=require('./_shared/auth.cjs');
+const {buildBrokerBookingPayload,getBrokerAutoBookStatus}=require('./_shared/broker-auto-book.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -54,6 +55,19 @@ async function autoAssign(booking){
   await query(`UPDATE bookings SET driver_name=COALESCE($1,driver_name),vehicle_unit=COALESCE($2,vehicle_unit),status=CASE WHEN status='SCHEDULED' THEN 'ASSIGNED' ELSE status END,updated_at=now() WHERE reference=$3`,[driverName,vehicleUnit,booking.reference]);
   return {assigned:true,driverName,vehicleUnit,message:`Assigned to ${driverName||'—'} / ${vehicleUnit||'—'}`};
  }catch(e){console.error('[AUTO-ASSIGN]',e.message);return {assigned:false,message:'Auto-assign error: '+e.message};}
+}
+
+async function createBookingFromBrokerRequest(requestBody,requestRow){
+ const bookingReference=clean(requestBody?.booking_reference||requestRow?.booking_reference||reference());
+ const payload=buildBrokerBookingPayload(requestRow||{},requestBody||{},bookingReference);
+ const bookingResult=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,created_at,updated_at)
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,now(),now()) RETURNING *`,[payload.reference,payload.name,payload.phone,payload.email,payload.service,payload.pickup,payload.destination,payload.trip_date,payload.trip_time,payload.notes,payload.pickup_lat,payload.pickup_lng,payload.destination_lat,payload.destination_lng,null,null,payload.estimated_fare||null,payload.booking_source]);
+ const booking=bookingResult.rows[0];
+ await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[booking.reference,'SUBMITTED','submitted','Broker request materialized into a booking','DISPATCH']);
+ const autoAssignResult=await autoAssign(booking);
+ const requestStatus=getBrokerAutoBookStatus(autoAssignResult.assigned);
+ await query('UPDATE broker_requests SET booking_reference=$2,request_status=$3,updated_at=now() WHERE id=$1',[requestRow.id,booking.reference,requestStatus]);
+ return {booking,requestStatus,autoAssignResult};
 }
 
 const DEFAULT_PRICING={
@@ -384,14 +398,19 @@ async function calculateBrokerRate(brokerId,service,miles){
 }
 async function sendBrokerRequestToDispatch(br){
  const dispatchEmail=process.env.COMPANY_EMAIL||'dispatch@nexusmt.com';
- const text=`Broker request: ${br.broker_name} - ${br.pickup} to ${br.destination} on ${br.trip_date} at ${br.trip_time}. Broker: $${Number(br.broker_quoted_rate||0).toFixed(2)} vs Platform: $${Number(br.platform_calculated_rate||0).toFixed(2)}.`;
- const html=`<h2>Broker Request</h2><p><strong>Broker:</strong> ${br.broker_name}</p><p><strong>Route:</strong> ${br.pickup} to ${br.destination}</p><p><strong>Date/Time:</strong> ${br.trip_date} at ${br.trip_time}</p><p>Broker rate: $${Number(br.broker_quoted_rate||0).toFixed(2)} | Platform rate: $${Number(br.platform_calculated_rate||0).toFixed(2)} | Delta: $${Number(br.rate_delta||0).toFixed(2)}</p><p>Status: ${br.request_status}</p>`;
+ const statusLabel=br.request_status==='AUTO_BOOKED'?'AUTO-BOOKED':'PENDING REVIEW';
+ const text=`Broker request: ${br.broker_name} - ${br.pickup} to ${br.destination} on ${br.trip_date} at ${br.trip_time}. Broker: $${Number(br.broker_quoted_rate||0).toFixed(2)} vs Platform: $${Number(br.platform_calculated_rate||0).toFixed(2)}. Status: ${statusLabel}`;
+ const html=`<h2>Broker Request</h2><p><strong>Broker:</strong> ${br.broker_name}</p><p><strong>Route:</strong> ${br.pickup} to ${br.destination}</p><p><strong>Date/Time:</strong> ${br.trip_date} at ${br.trip_time}</p><p>Broker rate: $${Number(br.broker_quoted_rate||0).toFixed(2)} | Platform rate: $${Number(br.platform_calculated_rate||0).toFixed(2)} | Delta: $${Number(br.rate_delta||0).toFixed(2)}</p><p>Status: ${statusLabel}</p>`;
  await Promise.allSettled([sendSms(process.env.DISPATCH_PHONE,text),sendEmail(dispatchEmail,`Broker: ${br.broker_name}`,html)]).catch(()=>{});
 }
 
 async function sendBrokerRequestConfirmation(br,toEmail,brokerName){
- const subject=`Nexus broker request received — ${br.broker_name || brokerName || 'Broker request'}`;
- const html=`<h2>Broker request received</h2><p>Your request for <strong>${br.pickup}</strong> to <strong>${br.destination}</strong> on <strong>${br.trip_date}</strong> at <strong>${br.trip_time}</strong> has been received.</p><p>Status: <strong>${br.request_status || 'AUTO_CONFIRMED'}</strong></p><p>We will review it and follow up with you shortly.</p>`;
+ const subject=br.request_status==='AUTO_BOOKED'?
+  `Nexus broker request auto-booked — ${br.broker_name || brokerName || 'Broker request'}`:
+  `Nexus broker request received — ${br.broker_name || brokerName || 'Broker request'}`;
+ const statusLabel=br.request_status==='AUTO_BOOKED'?'AUTO_BOOKED':'PENDING REVIEW';
+ const message=br.request_status==='AUTO_BOOKED'?'Your request has been automatically booked and dispatch has the trip details.':'We will review it and follow up with you shortly.';
+ const html=`<h2>${br.request_status==='AUTO_BOOKED'?'Broker request auto-booked':'Broker request received'}</h2><p>Your request for <strong>${br.pickup}</strong> to <strong>${br.destination}</strong> on <strong>${br.trip_date}</strong> at <strong>${br.trip_time}</strong> ${br.request_status==='AUTO_BOOKED'?'has been automatically booked':'has been received'}.</p><p>Status: <strong>${statusLabel}</strong></p><p>${message}</p>`;
  const results=await Promise.allSettled([sendEmail(toEmail,subject,html)]);
  return {email:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message}};
 }
@@ -1014,14 +1033,23 @@ async function handler(event){
    const delta=brokerRate-platformRate;
    const r=await query('INSERT INTO broker_requests(broker_id,booking_reference,broker_name,service,pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,trip_date,trip_time,broker_quoted_rate,platform_calculated_rate,rate_delta,submission_method,submitted_by,request_status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *',[brokerId,clean(b.booking_reference)||null,clean(b.broker_name)||'Unknown',clean(b.service),clean(b.pickup),clean(b.destination),Number(b.pickup_lat)||null,Number(b.pickup_lng)||null,Number(b.destination_lat)||null,Number(b.destination_lng)||null,b.trip_date,b.trip_time,brokerRate,platformRate,delta,clean(b.submission_method)||'FORM',clean(b.submitted_by)||'ANONYMOUS','AUTO_CONFIRMED']);
    const req=r.rows[0];
-   await sendBrokerRequestToDispatch(req).catch(e=>console.error('[BROKER_NOTIFY]',e.message));
+   let requestState=req;
+   try{
+    const autoBookResult=await createBookingFromBrokerRequest(b,req);
+    requestState=(await query('SELECT * FROM broker_requests WHERE id=$1',[req.id])).rows[0];
+    if(autoBookResult.autoAssignResult?.assigned){
+     await sendBrokerRequestToDispatch(requestState).catch(e=>console.error('[BROKER_NOTIFY]',e.message));
+    }else{
+     await sendBrokerRequestToDispatch(requestState).catch(e=>console.error('[BROKER_NOTIFY]',e.message));
+    }
+   }catch(e){console.error('[BROKER_AUTO_BOOK]',e.message);}
    const submitterEmail=clean(b.submitted_by)||clean(b.contact_email)||null;
    if(submitterEmail){
-    await sendBrokerRequestConfirmation(req,submitterEmail,clean(b.broker_name)||'Broker request').catch(e=>console.error('[BROKER_CONFIRM]',e.message));
+    await sendBrokerRequestConfirmation(requestState,submitterEmail,clean(b.broker_name)||'Broker request').catch(e=>console.error('[BROKER_CONFIRM]',e.message));
    }
-   const confirmationMessage='Your broker request has been received and is being reviewed. We will follow up shortly.';
-   await audit('BROKER_REQUEST',req.id,'SUBMITTED',{method:b.submission_method,broker:b.broker_name});
-   return json(201,{request:req,autoConfirmed:true,clientMessage:confirmationMessage,message:confirmationMessage});
+   const confirmationMessage=requestState.request_status==='AUTO_BOOKED'?'Your broker request was automatically booked and dispatch has the trip details.':'Your broker request has been received and is pending review. It has not been booked yet. Dispatch will confirm the next steps.';
+   await audit('BROKER_REQUEST',req.id,'SUBMITTED',{method:b.submission_method,broker:b.broker_name,autoBooked:Boolean(requestState.request_status==='AUTO_BOOKED')});
+   return json(201,{request:requestState,autoConfirmed:true,autoBooked:Boolean(requestState.request_status==='AUTO_BOOKED'),bookingReference:requestState.booking_reference||null,clientMessage:confirmationMessage,message:confirmationMessage});
   }
   if(p[0]==='admin'&&p[1]==='broker-requests'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN','DISPATCHER']);
@@ -1035,8 +1063,18 @@ async function handler(event){
    const b=parseBody(event);required(b,['dispatch_status']);
    const r=await query('UPDATE broker_requests SET request_status=$2,dispatch_reviewed=true,dispatch_reviewed_at=now(),dispatch_reviewed_by=$3,dispatch_notes=$4,updated_at=now() WHERE id=$1 RETURNING *',[reqId,clean(b.dispatch_status),u.display_name,clean(b.dispatch_notes)||null]);
    if(!r.rows[0])return json(404,{error:'Request not found'});
+   let requestState=r.rows[0];
+   if(clean(b.dispatch_status)==='APPROVED'&&!requestState.booking_reference){
+    try{
+     const autoBookResult=await createBookingFromBrokerRequest({broker_name:requestState.broker_name,service:requestState.service,pickup:requestState.pickup,destination:requestState.destination,trip_date:requestState.trip_date,trip_time:requestState.trip_time,broker_quoted_rate:requestState.broker_quoted_rate,platform_calculated_rate:requestState.platform_calculated_rate,booking_reference:requestState.booking_reference},requestState);
+     requestState=(await query('SELECT * FROM broker_requests WHERE id=$1',[reqId])).rows[0];
+     if(autoBookResult.autoAssignResult?.assigned){
+      await sendBrokerRequestToDispatch(requestState).catch(e=>console.error('[BROKER_NOTIFY]',e.message));
+     }
+    }catch(e){console.error('[BROKER_AUTO_BOOK_APPROVAL]',e.message);}
+   }
    await audit('BROKER_REQUEST',reqId,'REVIEWED',{status:b.dispatch_status,reviewedBy:u.display_name});
-   return json(200,{request:r.rows[0]});
+   return json(200,{request:requestState});
   }
   // ========== TRANSPORTATION COMPANIES ==========
   if(p.join('/')==='transportation-companies'&&method==='GET'){

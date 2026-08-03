@@ -142,7 +142,7 @@ exports.handler=async(event)=>{
   const insertResult=await query('INSERT INTO broker_requests(broker_id,broker_name,service,pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,trip_date,trip_time,broker_quoted_rate,platform_calculated_rate,rate_delta,submission_method,submitted_by,request_status) VALUES($1,$2,$3,$4,$5,null,null,null,null,$6,$7,$8,0,0,$9,$10,$11) RETURNING *',[brokerId,brokerName,parsed.service,parsed.pickup,parsed.destination,parsed.trip_date,parsed.trip_time,parsed.broker_quoted_rate,'EMAIL',clean(senderEmail),'AUTO_CONFIRMED']);
   const req=insertResult.rows[0];
   await query('INSERT INTO audit_log(entity_type,entity_id,action,details,created_by) VALUES($1,$2,$3,$4,$5)',['BROKER_REQUEST',req.id,'EMAIL_RECEIVED',JSON.stringify({from:senderEmail,parsed}),senderEmail]);
-  const confirmationMessage='Your broker request has been received and is being reviewed. We will follow up shortly.';
+  const confirmationMessage='Your broker request has been received and is pending review. It has not been booked yet. Dispatch will confirm the next steps.';
   if(clean(senderEmail) && senderEmail !== 'unknown@broker.local'){
    await sendBrokerRequestConfirmation(req,clean(senderEmail),brokerName).catch(()=>{});
   }
