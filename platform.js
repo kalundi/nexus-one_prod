@@ -262,3 +262,37 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 		popAll(); setInterval(popAll,60000);
 	}
 }());
+
+// ── Session inactivity timeout (non-driver pages only) ────────────────────
+// If the authenticated user is inactive for 60 minutes, clear the session
+// and redirect them to the login page. The driver app manages its own session
+// and is excluded here (it uses /driver-app.html which doesn't load platform.js).
+(function(){
+  const TIMEOUT_MS = 60 * 60 * 1000; // 1 hour
+  const CHECK_MS   = 5  * 60 * 1000; // check every 5 minutes
+  const TOKEN_KEY  = 'nexusAccessToken';
+  const ACTIVITY_KEY = 'nexusLastActivity';
+
+  // Only run when a session is active
+  if (!sessionStorage.getItem(TOKEN_KEY)) return;
+
+  function touch(){ localStorage.setItem(ACTIVITY_KEY, Date.now()); }
+  function idle(){ return Date.now() - Number(localStorage.getItem(ACTIVITY_KEY)||0); }
+
+  // Record activity on any interaction
+  ['mousemove','keydown','click','touchstart','scroll'].forEach(ev =>
+    document.addEventListener(ev, touch, { passive: true })
+  );
+  touch(); // record now as baseline
+
+  setInterval(function(){
+    const token = sessionStorage.getItem(TOKEN_KEY);
+    if (!token) return; // already signed out
+    if (idle() > TIMEOUT_MS){
+      sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem('nexusUser');
+      const redirect = encodeURIComponent(location.pathname + location.search);
+      location.href = '/livecare.html?redirect=' + redirect + '&reason=timeout';
+    }
+  }, CHECK_MS);
+}());

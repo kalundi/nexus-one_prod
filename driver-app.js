@@ -38,7 +38,7 @@
   function dashNotice(msg,type) { const el=$('#dashNotice');if(!el)return; el.className=`notice ${type||'info'}`;el.textContent=msg;el.hidden=false; setTimeout(()=>{el.hidden=true;},5000); }
 
   // ── View routing ──────────────────────────────────────────────
-  const VT = { dashView:'Dashboard', inspectionView:'Pre-Trip Inspection', manifestView:'Trip Manifest', milesView:'Mileage Log', tripView:'Trip Detail', endView:'End Shift' };
+  const VT = { dashView:'Dashboard', inspectionView:'Pre-Trip Inspection', manifestView:'Trip Manifest', milesView:'Mileage Log', tripView:'Trip Detail', endView:'Sign Out', changePasswordView:'Change Password' };
   function showView(id) {
     $$('.view').forEach(v=>v.classList.remove('active'));
     $$('.navBtn').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
@@ -79,9 +79,82 @@
       if(!['DRIVER','ADMIN','DISPATCHER'].includes(j.user?.role))throw new Error('This app is for drivers only.');
       sessionStorage.setItem('nexusAccessToken',j.token);
       sessionStorage.setItem('nexusUser',JSON.stringify(j.user));
-      hideLoginView();await initApp();
+      hideLoginView();
+      if(j.user?.mustChangePassword){showChangePassword(true);return;}
+      await initApp();
     }catch(err){showLoginErr(err.message);}
     finally{btn.disabled=false;btn.textContent='Sign In';}
+  });
+
+  // ── Forgot password ───────────────────────────────────────
+  $('#showForgotBtn')?.addEventListener('click',()=>{
+    const fp=$('#forgotPanel');if(fp)fp.style.display='block';
+    const fe=$('#forgotEmail');if(fe)fe.value=$('#loginEmail')?.value||'';
+  });
+  $('#backToLoginBtn')?.addEventListener('click',()=>{const fp=$('#forgotPanel');if(fp)fp.style.display='none';});
+  $('#forgotForm')?.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const btn=$('#forgotBtn'),email=$('#forgotEmail').value.trim();
+    btn.disabled=true;btn.textContent='Sending…';
+    try{
+      const r=await fetch('/api/auth/forgot-password',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email})});
+      const j=await r.json();
+      const n=$('#forgotNotice');n.hidden=false;n.className='notice ok';n.textContent=j.message||'Check your email for a reset link.';
+      $('#forgotForm').reset();
+    }catch{const n=$('#forgotNotice');n.hidden=false;n.className='notice err';n.textContent='Unable to send. Try again or call (888) 760-4990.';}
+    finally{btn.disabled=false;btn.textContent='Send Reset Link';}
+  });
+
+  // ── Reset password via token (URL: ?action=reset&token=...) ──
+  function checkResetToken(){
+    const params=new URLSearchParams(window.location.search);
+    if(params.get('action')==='reset'&&params.get('token')){
+      const rp=$('#resetPanel');if(rp)rp.style.display='block';
+      window.__resetToken=params.get('token');
+    }
+  }
+  $('#resetForm')?.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const np=$('#resetPassword').value,cp=$('#resetConfirm').value,n=$('#resetNotice');
+    if(np!==cp){n.hidden=false;n.className='notice err';n.textContent='Passwords do not match.';return;}
+    if(np.length<8){n.hidden=false;n.className='notice err';n.textContent='Password must be at least 8 characters.';return;}
+    const btn=$('#resetBtn');btn.disabled=true;btn.textContent='Saving…';
+    try{
+      const r=await fetch('/api/auth/reset-password',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:window.__resetToken,newPassword:np})});
+      const j=await r.json();if(!r.ok)throw new Error(j.error||'Reset failed');
+      n.hidden=false;n.className='notice ok';n.textContent='Password updated! You can now sign in.';
+      $('#resetForm').reset();const rp=$('#resetPanel');if(rp)rp.style.display='none';
+      window.history.replaceState({},'',window.location.pathname);
+    }catch(err){n.hidden=false;n.className='notice err';n.textContent=err.message;}
+    finally{btn.disabled=false;btn.textContent='Save New Password';}
+  });
+
+  // ── Change password (in-app or first-time forced) ─────────
+  function showChangePassword(forced=false){
+    const banner=$('#changePasswordBanner'),curF=$('#currentPasswordField');
+    if(banner)banner.hidden=!forced;
+    if(curF)curF.hidden=forced;
+    showView('changePasswordView');
+  }
+  $('#btnShowChangePassword')?.addEventListener('click',()=>showChangePassword(false));
+  $('#btnCancelChangePassword')?.addEventListener('click',()=>{if(!usr().mustChangePassword)showView('endView');});
+  $('#changePasswordForm')?.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const np=$('#newPassword').value,cp=$('#confirmPassword').value,cur=$('#currentPassword').value,n=$('#changePasswordNotice');
+    n.hidden=true;
+    if(np!==cp){n.hidden=false;n.className='notice err';n.textContent='Passwords do not match.';return;}
+    if(np.length<8){n.hidden=false;n.className='notice err';n.textContent='Password must be at least 8 characters.';return;}
+    const btn=$('#btnSavePassword');btn.disabled=true;btn.textContent='Saving…';
+    try{
+      const body=usr().mustChangePassword?{newPassword:np}:{currentPassword:cur,newPassword:np};
+      const r=await fetch('/api/auth/change-password',{method:'POST',headers:ah(),body:JSON.stringify(body)});
+      const j=await r.json();if(!r.ok)throw new Error(j.error||'Password change failed');
+      const u=usr();u.mustChangePassword=false;sessionStorage.setItem('nexusUser',JSON.stringify(u));
+      n.hidden=false;n.className='notice ok';n.textContent='Password updated!';
+      $('#changePasswordForm').reset();
+      setTimeout(()=>{hideLoginView();initApp();},1200);
+    }catch(err){n.hidden=false;n.className='notice err';n.textContent=err.message;}
+    finally{btn.disabled=false;btn.textContent='Save New Password';}
   });
 
   // ── Shift ─────────────────────────────────────────────────────
@@ -769,6 +842,7 @@
 
   // ── Init ──────────────────────────────────────────────────────
   async function initApp(){
+    checkResetToken(); // Check for ?action=reset&token= in URL
     const ok=await checkAuth();if(!ok)return;
     hideLoginView();renderDash();renderInspection();loadFleetForInspection();
     await loadTrips();

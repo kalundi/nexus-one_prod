@@ -182,7 +182,32 @@ a{color:var(--blue);text-decoration:none}
       <div class="field"><label for="loginPassword">Password</label><input id="loginPassword" type="password" name="password" autocomplete="current-password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required></div>
       <button id="loginBtn" class="btn primary" type="submit" style="margin-top:8px">Sign In</button>
     </form>
-    <p style="margin:16px 0 0;text-align:center;font-size:13px;color:var(--muted)">Need help? Call <a href="tel:+18887604990">(888) 760-4990</a></p>
+    <p style="margin:14px 0 0;text-align:center"><button type="button" id="showForgotBtn" style="background:0;border:0;color:var(--blue);font-size:14px;cursor:pointer;text-decoration:underline">Forgot password?</button></p>
+    <p style="margin:8px 0 0;text-align:center;font-size:13px;color:var(--muted)">Need help? Call <a href="tel:+18887604990">(888) 760-4990</a></p>
+  </div>
+
+  <!-- Forgot password panel (shown inline) -->
+  <div id="forgotPanel" class="loginCard" style="margin-top:12px;display:none">
+    <h2 style="margin:0 0 6px;font:800 18px Manrope,sans-serif;text-align:center">Forgot password</h2>
+    <p style="margin:0 0 16px;color:var(--muted);font-size:14px;text-align:center">Enter your email and we'll send a reset link.</p>
+    <div id="forgotNotice" class="notice ok" hidden></div>
+    <form id="forgotForm" novalidate>
+      <div class="field"><label for="forgotEmail">Email</label><input id="forgotEmail" type="email" name="email" autocomplete="username" placeholder="you@nexusmt.com" required></div>
+      <button id="forgotBtn" class="btn navy" type="submit">Send Reset Link</button>
+    </form>
+    <p style="margin:10px 0 0;text-align:center"><button type="button" id="backToLoginBtn" style="background:0;border:0;color:var(--blue);font-size:14px;cursor:pointer">Back to sign in</button></p>
+  </div>
+
+  <!-- Reset password panel (shown when ?action=reset&token=... in URL) -->
+  <div id="resetPanel" class="loginCard" style="margin-top:12px;display:none">
+    <h2 style="margin:0 0 6px;font:800 18px Manrope,sans-serif;text-align:center">Create new password</h2>
+    <p style="margin:0 0 16px;color:var(--muted);font-size:14px;text-align:center">Choose a strong password of at least 8 characters.</p>
+    <div id="resetNotice" class="notice err" hidden></div>
+    <form id="resetForm" novalidate>
+      <div class="field"><label for="resetPassword">New password</label><input id="resetPassword" type="password" placeholder="New password (min 8 chars)" required></div>
+      <div class="field"><label for="resetConfirm">Confirm password</label><input id="resetConfirm" type="password" placeholder="Re-enter new password" required></div>
+      <button id="resetBtn" class="btn ok" type="submit">Save New Password</button>
+    </form>
   </div>
 </div>
 
@@ -431,7 +456,30 @@ a{color:var(--blue);text-decoration:none}
           <div style="display:grid;gap:8px;margin-top:4px">
             <button id="btnConfirmEndShift" class="btn primary">Sign Out &amp; Submit Shift</button>
             <button id="btnCancelEndShift" class="btn ghost">Back to Dashboard</button>
+            <button id="btnShowChangePassword" class="btn ghost" style="font-size:13px">Change my password</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CHANGE PASSWORD VIEW ───────────────────────────── -->
+  <div id="changePasswordView" class="view">
+    <div class="padded">
+      <div id="changePasswordBanner" class="notice warn" style="margin-bottom:12px">You are using a temporary password. Please create your own password before continuing.</div>
+      <div class="card">
+        <div class="cardHead"><div><div class="eyebrow">Account security</div><h2>Change password</h2></div></div>
+        <div class="cardBody">
+          <div id="changePasswordNotice" class="notice ok" hidden></div>
+          <form id="changePasswordForm" novalidate>
+            <div class="field" id="currentPasswordField"><label for="currentPassword">Current password</label><input id="currentPassword" type="password" autocomplete="current-password" placeholder="Your current password"></div>
+            <div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters"></div>
+            <div class="field"><label for="confirmPassword">Confirm new password</label><input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Re-enter new password"></div>
+            <div style="display:grid;gap:8px;margin-top:8px">
+              <button id="btnSavePassword" class="btn ok" type="submit">Save New Password</button>
+              <button type="button" id="btnCancelChangePassword" class="btn ghost">Cancel</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

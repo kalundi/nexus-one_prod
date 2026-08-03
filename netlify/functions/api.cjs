@@ -9,6 +9,53 @@ const clean=v=>String(v??'').trim();
 const required=(body,fields)=>{for(const f of fields)if(!clean(body[f]))throw Object.assign(new Error(`${f} is required`),{statusCode:400})};
 const reference=()=>`NMT-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${crypto.randomInt(1000,9999)}`;
 
+// Service → preferred vehicle unit prefixes (ordered by preference)
+const SERVICE_VEHICLE_PREFS={
+ ambulatory:     ['SE-254-01','SUV-254-01','SH-254-01'],
+ wheelchair:     ['WV-254-01','SH-254-01'],
+ stretcher:      ['ST-254-01'],
+ bls:            ['AMB-254-01'],
+ als1:           ['AMB-254-02','AMB-254-01'],
+ als2:           ['AMB-254-02'],
+ facility_transfer:         ['WV-254-01','SH-254-01','SE-254-01','SUV-254-01'],
+ facility_transfer_critical:['AMB-254-02','AMB-254-01'],
+ bariatric:      ['WV-254-01'],
+ broda:          ['WV-254-01','SH-254-01'],
+ hospital_discharge:        ['SE-254-01','SUV-254-01','WV-254-01'],
+};
+async function autoAssign(booking){
+ try{
+  const svc=(booking.service||'').toLowerCase().replace(/-/g,'_');
+  const prefs=SERVICE_VEHICLE_PREFS[svc]||SERVICE_VEHICLE_PREFS.ambulatory;
+  // Find first AVAILABLE vehicle from preference list
+  const vRows=await query(`SELECT unit_number FROM vehicles WHERE unit_number=ANY($1) AND status='AVAILABLE' ORDER BY array_position($1,unit_number) LIMIT 1`,[prefs]);
+  const vehicleUnit=vRows.rows[0]?.unit_number||null;
+  // Find available driver (on shift for the trip date, not on an active trip today)
+  const tripDate=booking.trip_date||new Date().toISOString().slice(0,10);
+  const tripTime=booking.trip_time||'08:00';
+  const weekday=new Date(tripDate+'T12:00:00').getDay()||7;
+  const dRows=await query(`
+   SELECT e.display_name, e.scope_id FROM employees e
+   INNER JOIN employee_shifts es ON e.id=es.employee_id
+   WHERE e.employee_type='DRIVER' AND e.active=true AND es.active=true
+     AND es.weekday_iso=$1
+     AND es.start_time::time<=$2::time AND es.end_time::time>=$2::time
+   ORDER BY e.display_name LIMIT 5
+  `,[weekday,tripTime]);
+  // Pick driver not already on an active trip at the same time
+  let driverName=null;
+  for(const d of dRows.rows){
+   const busy=await query(`SELECT 1 FROM bookings WHERE driver_name=$1 AND trip_date=$2 AND status NOT IN ('CANCELLED','COMPLETED','DELIVERED') LIMIT 1`,[d.display_name,tripDate]);
+   if(!busy.rows[0]){driverName=d.display_name;break;}
+  }
+  if(!driverName&&dRows.rows[0])driverName=dRows.rows[0].display_name; // fallback: take first on shift
+  if(!vehicleUnit&&!driverName)return {assigned:false,message:'No available vehicle or driver found for this service type.'};
+  // Update booking
+  await query(`UPDATE bookings SET driver_name=COALESCE($1,driver_name),vehicle_unit=COALESCE($2,vehicle_unit),status=CASE WHEN status='SCHEDULED' THEN 'ASSIGNED' ELSE status END,updated_at=now() WHERE reference=$3`,[driverName,vehicleUnit,booking.reference]);
+  return {assigned:true,driverName,vehicleUnit,message:`Assigned to ${driverName||'—'} / ${vehicleUnit||'—'}`};
+ }catch(e){console.error('[AUTO-ASSIGN]',e.message);return {assigned:false,message:'Auto-assign error: '+e.message};}
+}
+
 const DEFAULT_PRICING={
  wheelchair:{label:'Wheelchair Transportation',base:95,includedMiles:10,perMile:4.25,waitPer15:25},
  ambulatory:{label:'Ambulatory Transportation',base:65,includedMiles:5,perMile:3.25,waitPer15:20},
@@ -429,6 +476,8 @@ async function handler(event){
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,'SUBMITTED','submitted','Online transportation request received',bookingSource==='STAFF'?bookingActor.display_name:'PUBLIC']);
    await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource});
    const booking=mapBooking(r.rows[0]);
+   // Auto-assign driver + vehicle (fire-and-forget, does not block response)
+   autoAssign(r.rows[0]).catch(()=>{});
    let notifications;
    if(bookingSource==='STAFF'){
     // Non-customer path: send invoice, skip online payment prompt
@@ -662,6 +711,67 @@ async function handler(event){
      throw err;
    }
   }
+  // Forgot password — send reset link via email
+  if(p[0]==='auth'&&p[1]==='forgot-password'&&method==='POST'){
+   const b=parseBody(event);
+   const email=clean(b.email).toLowerCase();
+   if(!email)return json(400,{error:'Email is required'});
+   const r=await query('SELECT id,email,role FROM users WHERE lower(email)=$1 AND active=true',[email]);
+   // Always return success to prevent email enumeration
+   if(r.rows[0]){
+    const resetToken=crypto.randomBytes(32).toString('base64url');
+    const expires=new Date(Date.now()+60*60*1000); // 1 hour
+    await query('UPDATE users SET password_reset_token=$1,password_reset_expires=$2,password_reset_used=false,updated_at=now() WHERE id=$3',[resetToken,expires.toISOString(),r.rows[0].id]);
+    const base=String(process.env.SITE_URL||process.env.URL||'https://nexusmt.com').replace(/\/$/,'');
+    const isDriver=r.rows[0].role==='DRIVER';
+    const resetUrl=isDriver
+      ?`${base}/driver-app.html?action=reset&token=${encodeURIComponent(resetToken)}`
+      :`${base}/livecare.html?action=reset&token=${encodeURIComponent(resetToken)}`;
+    await sendEmail(r.rows[0].email,'Reset your Nexus password',
+      `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+       <h2 style="color:#082f49">Reset your password</h2>
+       <p>We received a request to reset your Nexus Medical Transit password.</p>
+       <p style="margin:24px 0"><a href="${resetUrl}" style="background:#d61f1f;color:#fff;padding:13px 22px;border-radius:10px;text-decoration:none;font-weight:700">Reset Password</a></p>
+       <p style="color:#666;font-size:13px">This link expires in 1 hour. If you did not request this, you can ignore this email.</p>
+       <p style="color:#666;font-size:13px">Or copy this link: ${resetUrl}</p>
+      </div>`
+    ).catch(()=>{});
+   }
+   return json(200,{message:'If that email is registered you will receive a reset link shortly.'});
+  }
+  // Reset password via token
+  if(p[0]==='auth'&&p[1]==='reset-password'&&method==='POST'){
+   const b=parseBody(event);
+   const token=clean(b.token);
+   const newPass=clean(b.newPassword);
+   if(!token||!newPass)return json(400,{error:'Token and new password are required'});
+   if(newPass.length<8)return json(400,{error:'Password must be at least 8 characters'});
+   const r=await query('SELECT id,role FROM users WHERE password_reset_token=$1 AND password_reset_used=false AND password_reset_expires>now()',[token]);
+   if(!r.rows[0])return json(400,{error:'Reset link is invalid or has expired. Please request a new one.'});
+   const newHash=crypto.createHash('sha256').update(newPass).digest('hex');
+   await query('UPDATE users SET password_hash=$1,must_change_password=false,password_reset_token=null,password_reset_expires=null,password_reset_used=true,updated_at=now() WHERE id=$2',[newHash,r.rows[0].id]);
+   await audit('USER',r.rows[0].id,'PASSWORD_RESET',{via:'token'});
+   return json(200,{message:'Password updated successfully. You can now sign in.'});
+  }
+  // Change password (authenticated — first-time or in-app change)
+  if(p[0]==='auth'&&p[1]==='change-password'&&method==='POST'){
+   const u=await requireUser(bearer(event));
+   const b=parseBody(event);
+   const newPass=clean(b.newPassword);
+   if(!newPass||newPass.length<8)return json(400,{error:'New password must be at least 8 characters'});
+   // If not a forced change, verify current password
+   if(!u.must_change_password){
+    const current=clean(b.currentPassword);
+    if(!current)return json(400,{error:'Current password is required'});
+    const supplied=crypto.createHash('sha256').update(current).digest('hex');
+    if(!crypto.timingSafeEqual(Buffer.from(supplied,'hex'),Buffer.from(String(u.password_hash),'hex')))
+     return json(401,{error:'Current password is incorrect'});
+   }
+   const newHash=crypto.createHash('sha256').update(newPass).digest('hex');
+   await query('UPDATE users SET password_hash=$1,must_change_password=false,updated_at=now() WHERE id=$2',[newHash,u.id]);
+   await audit('USER',u.id,'PASSWORD_CHANGED',{forced:!!u.must_change_password});
+   return json(200,{message:'Password updated successfully.'});
+  }
   if(p[0]==='portal'&&p[1]==='trips'&&method==='GET'){
    try{
      const u=await requireUser(bearer(event));
@@ -700,6 +810,17 @@ async function handler(event){
   }
   if(p[0]==='fleet'&&p[1]==='live'&&method==='GET'){
    let u=null;try{if(bearer(event))u=await requireUser(bearer(event))}catch{}const r=await query(`SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at FROM vehicles WHERE last_seen_at IS NULL OR last_seen_at>now()-interval '24 hours' ORDER BY unit_number`);return json(200,{generatedAt:new Date().toISOString(),role:u?.role||'PUBLIC',vehicles:r.rows.map(v=>({id:v.unit_number,unit:v.unit_number,type:v.vehicle_type,status:v.status,lat:Number(v.latitude),lng:Number(v.longitude),heading:Number(v.heading||0),speed:Number(v.speed_mph||0),lastSeen:v.last_seen_at}))});
+  }
+  // Auto-assign: find best available driver + vehicle for a booking
+  if(p[0]==='dispatch'&&p[1]==='auto-assign'&&method==='POST'){
+   await requireUser(bearer(event),['DISPATCHER','ADMIN']);
+   const b=parseBody(event);
+   const ref=clean(b.bookingReference);
+   if(!ref)return json(400,{error:'bookingReference required'});
+   const booking=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
+   if(!booking.rows[0])return json(404,{error:'Booking not found'});
+   const result=await autoAssign(booking.rows[0]);
+   return json(result.assigned?200:409,result);
   }
   if(p[0]==='dispatch'&&p[1]==='drivers'&&method==='GET'){
    await requireUser(bearer(event),['DISPATCHER','ADMIN']);
