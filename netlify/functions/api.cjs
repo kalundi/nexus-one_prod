@@ -8,6 +8,7 @@ const {buildEmailRecipients,buildSmsRecipients}=require('./_shared/notification-
 const {resolveAssignedStatus}=require('./_shared/assignment-status.cjs');
 const {hashPassword, verifyPassword}=require('./_shared/password.cjs');
 const {ensureDefaultTestUsers}=require('./_shared/default-users.cjs');
+const {buildDriverEmployeeLookupSql, buildDriverAvailabilitySql}=require('./_shared/employee-driver-lookup.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -40,10 +41,12 @@ async function autoAssign(booking){
   const tripDate=booking.trip_date||new Date().toISOString().slice(0,10);
   const tripTime=booking.trip_time||'08:00';
   const weekday=new Date(tripDate+'T12:00:00').getDay()||7;
+  const driverLookup=buildDriverEmployeeLookupSql();
   const dRows=await query(`
-   SELECT e.display_name, e.scope_id, e.email, e.phone FROM employees e
+   SELECT ${driverLookup.select} FROM employees e
    INNER JOIN employee_shifts es ON e.id=es.employee_id
-   WHERE e.employee_type='DRIVER' AND e.active=true AND es.active=true
+   ${driverLookup.join}
+   WHERE e.role='DRIVER' AND e.active=true AND es.active=true
      AND es.weekday_iso=$1
      AND es.start_time::time<=$2::time AND es.end_time::time>=$2::time
    ORDER BY e.display_name LIMIT 5
@@ -869,7 +872,7 @@ async function handler(event){
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const next=STATUS_FLOW[current.rows[0].status]||current.rows[0].status;
-   const availabilityCheck=await query(`SELECT COUNT(DISTINCT e.id) as driver_count FROM employees e INNER JOIN employee_shifts es ON e.id=es.employee_id WHERE e.employee_type='DRIVER' AND e.active=true AND es.active=true AND es.weekday_iso=$1 AND es.start_time::time<=$2::time AND es.end_time::time>$2::time`,[new Date((current.rows[0].trip_date||new Date().toISOString().slice(0,10))+'T12:00:00').getDay()||7,(current.rows[0].trip_time||'08:00')]);
+   const availabilityCheck=await query(buildDriverAvailabilitySql(),[new Date((current.rows[0].trip_date||new Date().toISOString().slice(0,10))+'T12:00:00').getDay()||7,(current.rows[0].trip_time||'08:00')]);
    const vehicleCheck=await query(`SELECT COUNT(*) as vehicle_count FROM vehicles WHERE active=true AND status='AVAILABLE'`,[]);
    const availability={available:Number(availabilityCheck.rows[0]?.driver_count||0)>0&&Number(vehicleCheck.rows[0]?.vehicle_count||0)>0,drivers:{available:Number(availabilityCheck.rows[0]?.driver_count||0)},vehicles:{available:Number(vehicleCheck.rows[0]?.vehicle_count||0)}};
    const approval=canAdvanceBookingForAvailability({currentStatus:current.rows[0].status,nextStatus:next,availability});
@@ -905,17 +908,18 @@ async function handler(event){
    const weekday=now.getDay()||7; // ISO weekday: Mon=1 … Sun=7
    // Drivers on shift right now (shift covers current time on today's weekday)
    const onShift=await query(`
-    SELECT e.id, e.name, e.scope_id, e.active,
+    SELECT e.id, e.display_name AS name, u.scope_id, e.active,
            es.start_time::text AS shift_start, es.end_time::text AS shift_end,
            v.unit_number AS vehicle_unit, v.vehicle_type, v.status AS vehicle_status
     FROM employees e
     INNER JOIN employee_shifts es ON e.id=es.employee_id
-    LEFT JOIN vehicles v ON v.driver_scope_id=e.scope_id
-    WHERE e.employee_type='DRIVER' AND e.active=true AND es.active=true
+    LEFT JOIN users u ON e.user_id=u.id
+    LEFT JOIN vehicles v ON v.driver_scope_id=u.scope_id
+    WHERE e.role='DRIVER' AND e.active=true AND es.active=true
       AND es.weekday_iso=$1
       AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
       AND (es.effective_end_date IS NULL OR es.effective_end_date>=$3)
-    ORDER BY e.name
+    ORDER BY e.display_name
    `,[weekday,nowTime,todayIso]);
    // Trip counts today per driver scope_id
    const tripCounts=await query(`

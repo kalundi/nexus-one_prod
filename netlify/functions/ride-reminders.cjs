@@ -58,8 +58,8 @@ exports.handler = async () => {
         e.phone AS driver_phone
       FROM bookings b
       LEFT JOIN employees e
-        ON (e.scope_id IS NOT NULL AND e.scope_id = b.driver_scope_id)
-        OR (e.display_name IS NOT NULL AND lower(trim(e.display_name)) = lower(trim(b.driver_name)))
+        ON (e.display_name IS NOT NULL AND lower(trim(e.display_name)) = lower(trim(b.driver_name)))
+      LEFT JOIN users u ON e.user_id = u.id
       WHERE b.status NOT IN ('CANCELLED', 'COMPLETED', 'DELIVERED')
         AND (b.reminder_sent IS NULL OR b.reminder_sent = false)
         AND b.trip_date IS NOT NULL
