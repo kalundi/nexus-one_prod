@@ -709,13 +709,13 @@
 
   // ── Trip detail + workflow ────────────────────────────────────
   const WORKFLOW=[
-    {label:'En Route to Pickup',    status:'EN_ROUTE'},
-    {label:'Arrived at Pickup',     status:'ARRIVED_PICKUP'},
-    {label:'Patient On Board',      status:'PATIENT_ON_BOARD'},
-    {label:'Departed',              status:'DEPARTED'},
-    {label:'Arrived at Destination',status:'ARRIVED_DESTINATION'},
-    {label:'Patient Delivered',     status:'DELIVERED'},
-    {label:'Trip Complete',         status:'COMPLETED'},
+    {label:'En Route to Pickup',    status:'EN_ROUTE',            hint:'Start navigation to pickup and call dispatch if traffic or delay exceeds 10 minutes.'},
+    {label:'Arrived at Pickup',     status:'ARRIVED_PICKUP',      hint:'Park safely, confirm passenger name and destination, and assist with secure boarding.'},
+    {label:'Patient On Board',      status:'PATIENT_ON_BOARD',    hint:'Verify seatbelt or restraint is secured, then confirm everyone is ready to depart.'},
+    {label:'Departed',              status:'DEPARTED',            hint:'Drive to destination and report any route, safety, or condition changes to dispatch.'},
+    {label:'Arrived at Destination',status:'ARRIVED_DESTINATION', hint:'Stop at the correct entrance, assist unloading, and confirm handoff location.'},
+    {label:'Patient Delivered',     status:'DELIVERED',           hint:'Confirm patient handoff is complete and capture any notes before closing trip.'},
+    {label:'Trip Complete',         status:'COMPLETED',           hint:'Log final mileage and notes so billing and compliance records are complete.'},
   ];
   const WF_STATUS=WORKFLOW.map(w=>w.status);
   function wfIdx(s){return WF_STATUS.indexOf(normalizeBookingStatus(s));}
@@ -752,14 +752,19 @@
     const next=nextWorkflowStep(t.status);
     const wfEl=$('#tripWorkflow');if(!wfEl)return;
     wfEl.innerHTML=WORKFLOW.map((w,i)=>{
-      const st=i<idx?'done':i===idx?'current':'';
+      const st=i<idx?'done':i===idx?'current':'pending';
       return `<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line)${i===WORKFLOW.length-1?';border-bottom:0':''}">
         <div style="width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:800 12px Manrope,sans-serif;flex:0 0 auto;background:${st==='done'?'var(--ok)':st==='current'?'var(--navy)':'var(--line)'};color:${st?'#fff':'var(--muted)'}">
           ${st==='done'?'✓':i+1}
         </div>
-        <span style="font:${st==='current'?'700':'500'} 14px Source Sans 3,sans-serif;color:${st==='done'?'var(--ok)':st==='current'?'var(--ink)':'var(--muted)'}">
-          ${w.label}
-        </span>
+        <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+          <span style="font:${st==='current'?'700':'500'} 14px Source Sans 3,sans-serif;color:${st==='done'?'var(--ok)':st==='current'?'var(--ink)':'var(--muted)'}">
+            ${w.label}
+          </span>
+          <span style="font:500 12px Source Sans 3,sans-serif;color:${st==='pending'?'var(--muted)':'var(--ink-soft)'}">
+            ${w.hint}
+          </span>
+        </div>
       </div>`;
     }).join('');
     const btn=$('#btnAdvanceTrip');if(!btn)return;
