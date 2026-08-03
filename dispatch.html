@@ -90,7 +90,7 @@
     <button type="button" class="button secondary" data-intake-tab="facility" role="tab" aria-selected="false">Facility intake</button>
   </div>
   <div id="brokerIntakePanel" class="intakePanel" data-intake-panel="broker" role="tabpanel" style="margin-top:16px">
-    <form id="brokerIntakeForm" class="formGrid" style="display:grid;gap:16px">
+    <form id="brokerIntakeForm" class="formGrid" style="display:grid;gap:16px" novalidate>
 
       <!-- Transportation Company Picker -->
       <div id="transportationPickerBlock" class="transportation-picker">
@@ -210,8 +210,8 @@
       </div>
       <div class="formRow" style="grid-template-columns:1fr 1fr 1fr">
         <div class="formField"><label for="brokerPickupTime">Pickup time</label><input id="brokerPickupTime" name="pickupTime" type="time"></div>
-        <div class="formField"><label for="brokerQuotedRate">Broker quoted rate ($)</label><input id="brokerQuotedRate" name="brokerQuotedRate" type="number" min="0" step="0.01" required></div>
-        <div class="formField"><label for="brokerCalculatedRate">Platform rate ($)</label><input id="brokerCalculatedRate" name="platformCalculatedRate" type="number" min="0" step="0.01" required></div>
+        <div class="formField"><label for="brokerQuotedRate">Broker quoted rate ($)</label><input id="brokerQuotedRate" name="brokerQuotedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="formField"><label for="brokerCalculatedRate">Platform rate ($) <small style="color:var(--muted);font-weight:400">(auto)</small></label><input id="brokerCalculatedRate" name="platformCalculatedRate" type="number" min="0" step="0.01" readonly style="background:var(--soft,#f8fafc)"></div>
       </div>
       <div class="formField"><label for="brokerNotes">Notes</label><input id="brokerNotes" name="notes" type="text" placeholder="Special instructions, equipment needs, patient condition…"></div>
 
@@ -364,9 +364,19 @@ async function submitBrokerRequest(event){
     notes: document.getElementById('brokerNotes').value.trim(),
     is_return_trip: document.getElementById('brokerReturnTrip').checked
   };
-  if(!payload.pickup||!payload.destination||!payload.trip_date||!payload.trip_time||!payload.broker_quoted_rate||!payload.platform_calculated_rate){
-    setBrokerIntakeMessage('Please complete the required fields before submitting.','err');
+  const missing=[];
+  if(!payload.pickup)missing.push('Pickup address');
+  if(!payload.destination)missing.push('Destination address');
+  if(!payload.trip_date)missing.push('Appointment date');
+  if(!payload.trip_time)missing.push('Appointment time');
+  if(!payload.broker_name||payload.broker_name==='Unknown')missing.push('Transportation company (select a company and click Continue)');
+  if(missing.length){
+    setBrokerIntakeMessage('Missing: '+missing.join(', '),'err');
     return;
+  }
+  // Auto-calculate platform rate if not set
+  if(!payload.platform_calculated_rate){
+    payload.platform_calculated_rate=getDispatchRate(payload.service,payload.wait_minutes,payload.is_return_trip)||0;
   }
   const btn=document.getElementById('submitBrokerRequest');
   btn.disabled=true;btn.textContent='Submitting...';
