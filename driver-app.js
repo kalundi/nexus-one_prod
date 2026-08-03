@@ -718,7 +718,12 @@
     {label:'Trip Complete',         status:'COMPLETED'},
   ];
   const WF_STATUS=WORKFLOW.map(w=>w.status);
-  function wfIdx(s){const i=WF_STATUS.indexOf(s);return i===-1?0:i;}
+  function wfIdx(s){return WF_STATUS.indexOf(normalizeBookingStatus(s));}
+  function nextWorkflowStep(status){
+    const i=wfIdx(status);
+    if(i===-1)return WORKFLOW[0]||null;
+    return WORKFLOW[i+1]||null;
+  }
 
   function openTrip(ref){
     const t=trips.find(x=>x.ref===ref);if(!t)return;
@@ -744,6 +749,7 @@
   function renderTripWorkflow(t){
     const done=['COMPLETED','DELIVERED','CANCELLED'].includes(t.status);
     const idx=wfIdx(t.status);
+    const next=nextWorkflowStep(t.status);
     const wfEl=$('#tripWorkflow');if(!wfEl)return;
     wfEl.innerHTML=WORKFLOW.map((w,i)=>{
       const st=i<idx?'done':i===idx?'current':'';
@@ -758,12 +764,12 @@
     }).join('');
     const btn=$('#btnAdvanceTrip');if(!btn)return;
     if(done){btn.textContent='Trip Complete';btn.disabled=true;}
-    else{btn.textContent=(WORKFLOW[idx]?.label||'Advance').toUpperCase();btn.disabled=!shift.onDuty||!WORKFLOW[idx];}
+    else{btn.textContent=(next?.label||'Advance').toUpperCase();btn.disabled=!shift.onDuty||!next;}
   }
 
   $('#btnAdvanceTrip')?.addEventListener('click',async()=>{
     const t=trips.find(x=>x.ref===activeRef);if(!t)return;
-    const idx=wfIdx(t.status),next=WORKFLOW[idx];if(!next)return;
+    const next=nextWorkflowStep(t.status);if(!next)return;
     const btn=$('#btnAdvanceTrip');btn.disabled=true;btn.textContent='Updating…';
     try{
       const r=await fetch(`/api/bookings/${encodeURIComponent(t.ref)}/update`,{method:'POST',headers:ah(),body:JSON.stringify({status:next.status,vehicleUnit:shift.vehicleUnit||undefined})});
