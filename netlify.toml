@@ -45,8 +45,13 @@
 
 [[redirects]]
   from = "/driver"
-  to = "/driver.html"
+  to = "/driver-app.html"
   status = 200
+
+[[redirects]]
+  from = "/driver.html"
+  to = "/driver-app.html"
+  status = 301
 
 [[redirects]]
   from = "/driver-app"
