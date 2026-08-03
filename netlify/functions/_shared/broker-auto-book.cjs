@@ -24,11 +24,16 @@ function buildBrokerBookingPayload(request, body = {}, bookingReference) {
   };
 }
 
-function getBrokerAutoBookStatus(autoAssigned) {
-  return autoAssigned ? 'AUTO_BOOKED' : 'AUTO_CONFIRMED';
+function getBrokerAutoBookStatus() {
+  return 'PENDING_DISPATCH_CONFIRMATION';
+}
+
+function resolveBrokerRequestStatus() {
+  return 'PENDING_DISPATCH_CONFIRMATION';
 }
 
 module.exports = {
   buildBrokerBookingPayload,
-  getBrokerAutoBookStatus
+  getBrokerAutoBookStatus,
+  resolveBrokerRequestStatus
 };

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildBrokerBookingPayload, getBrokerAutoBookStatus } = require('../netlify/functions/_shared/broker-auto-book.cjs');
+const { buildBrokerBookingPayload, getBrokerAutoBookStatus, resolveBrokerRequestStatus } = require('../netlify/functions/_shared/broker-auto-book.cjs');
 
 test('buildBrokerBookingPayload maps broker request data into a booking payload', () => {
   const request = {
@@ -31,7 +31,13 @@ test('buildBrokerBookingPayload maps broker request data into a booking payload'
   assert.equal(payload.status, 'SCHEDULED');
 });
 
-test('getBrokerAutoBookStatus returns AUTO_BOOKED when assignment succeeds', () => {
-  assert.equal(getBrokerAutoBookStatus(true), 'AUTO_BOOKED');
-  assert.equal(getBrokerAutoBookStatus(false), 'AUTO_CONFIRMED');
+test('getBrokerAutoBookStatus keeps the request pending dispatch confirmation', () => {
+  assert.equal(getBrokerAutoBookStatus(true), 'PENDING_DISPATCH_CONFIRMATION');
+  assert.equal(getBrokerAutoBookStatus(false), 'PENDING_DISPATCH_CONFIRMATION');
+});
+
+test('resolveBrokerRequestStatus keeps the request pending dispatch confirmation until dispatch completes it', () => {
+  assert.equal(resolveBrokerRequestStatus({ bookingCreated: true, autoAssigned: false }), 'PENDING_DISPATCH_CONFIRMATION');
+  assert.equal(resolveBrokerRequestStatus({ bookingCreated: false, autoAssigned: true }), 'PENDING_DISPATCH_CONFIRMATION');
+  assert.equal(resolveBrokerRequestStatus({ bookingCreated: false, autoAssigned: false }), 'PENDING_DISPATCH_CONFIRMATION');
 });

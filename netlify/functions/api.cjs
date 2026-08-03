@@ -2,7 +2,9 @@ const crypto=require('crypto');
 const {query,getPool}=require('./_shared/db.cjs');
 const {json,parseBody,bearer,routePath}=require('./_shared/http.cjs');
 const {digest,safeUser,requireUser,audit}=require('./_shared/auth.cjs');
-const {buildBrokerBookingPayload,getBrokerAutoBookStatus}=require('./_shared/broker-auto-book.cjs');
+const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestStatus}=require('./_shared/broker-auto-book.cjs');
+const {canAdvanceBookingForAvailability}=require('./_shared/dispatch-approval.cjs');
+const {buildEmailRecipients,buildSmsRecipients}=require('./_shared/notification-routing.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -65,7 +67,7 @@ async function createBookingFromBrokerRequest(requestBody,requestRow){
  const booking=bookingResult.rows[0];
  await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[booking.reference,'SUBMITTED','submitted','Broker request materialized into a booking','DISPATCH']);
  const autoAssignResult=await autoAssign(booking);
- const requestStatus=getBrokerAutoBookStatus(autoAssignResult.assigned);
+ const requestStatus=resolveBrokerRequestStatus({bookingCreated:true,autoAssigned:autoAssignResult.assigned});
  await query('UPDATE broker_requests SET booking_reference=$2,request_status=$3,updated_at=now() WHERE id=$1',[requestRow.id,booking.reference,requestStatus]);
  return {booking,requestStatus,autoAssignResult};
 }
@@ -275,8 +277,9 @@ async function sendSms(to,body){
  const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.message||'Twilio request failed');return {status:'sent',id:data.sid};
 }
 async function sendEmail(to,subject,html){
- if(!envEnabled('SENDGRID_API_KEY')||!envEnabled('SENDGRID_FROM_EMAIL')||!to)return {status:'skipped'};
- const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:[{email:to}]}],from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Medical Transit'},subject,content:[{type:'text/html',value:html}]})});
+ const recipients=Array.isArray(to)?to:buildEmailRecipients(to);
+ if(!envEnabled('SENDGRID_API_KEY')||!envEnabled('SENDGRID_FROM_EMAIL')||recipients.length===0)return {status:'skipped'};
+ const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:recipients.map(email=>({email}))}],from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Medical Transit'},subject,content:[{type:'text/html',value:html}]})});
  if(!r.ok)throw new Error(`SendGrid request failed (${r.status})`);return {status:'sent'};
 }
 async function sendTeamsAlert(text,title='Nexus Medical Transit'){
@@ -303,7 +306,9 @@ async function notifyBooking(b){
  const text=`Nexus Medical Transit: Your trip ${b.reference} is confirmed for ${b.date} at ${pickupLine}.${driverLine} Questions? Call (888) 760-4990.`;
  const html=`<h2 style="color:#082f49">Trip Confirmed — ${b.reference}</h2><table style="width:100%;border-collapse:collapse;margin:16px 0">${b.driverName?`<tr><td style="padding:8px;font-weight:600;color:#62758a">Driver</td><td style="padding:8px"><strong>${b.driverName}</strong></td></tr>`:''}<tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup Time</td><td style="padding:8px"><strong>${pickupLine}</strong></td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Date</td><td style="padding:8px">${b.date}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup</td><td style="padding:8px">${b.pickup}</td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Destination</td><td style="padding:8px">${b.destination}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Service</td><td style="padding:8px">${b.service||'—'}</td></tr></table><p>Questions? Call <strong>(888) 760-4990</strong></p>`;
  const teamsMsg=`**New Trip Booked** | Ref: ${b.reference}\n- **Patient:** ${b.name||'—'}\n- **Pickup:** ${b.pickup}\n- **Destination:** ${b.destination}\n- **Date/Time:** ${b.date} at ${pickupLine}${b.driverName?`\n- **Driver:** ${b.driverName}`:''}`;
- const results=await Promise.allSettled([sendSms(b.phone,text),sendEmail(b.email,`Trip confirmed — ${b.reference}`,html),sendTeamsAlert(teamsMsg,'🚐 New Trip Booked — Admin_NMT')]);
+ const smsRecipients=buildSmsRecipients(b.phone);
+ const emailRecipients=buildEmailRecipients(b.email);
+ const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Trip confirmed — ${b.reference}`,html),sendTeamsAlert(teamsMsg,'🚐 New Trip Booked — Admin_NMT')]);
  return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message},teams:results[2].status==='fulfilled'?results[2].value:{status:'failed',error:results[2].reason?.message}};
 }
 async function sendInvoice(b){
@@ -311,7 +316,9 @@ async function sendInvoice(b){
  const fareText=fare>0?` Estimated fare: $${fare.toFixed(2)}.`:'';
  const text=`Nexus Medical Transit: Booking ${b.reference} created for ${b.date} at ${b.time}.${fareText} An invoice will follow. Questions? Call (888) 760-4990.`;
  const html=`<h2>Nexus Medical Transit Invoice</h2><p>Reference: <strong>${b.reference}</strong></p><p>${b.pickup} → ${b.destination}</p><p>${b.date} at ${b.time}</p>${fare>0?`<p>Estimated fare: <strong>$${fare.toFixed(2)}</strong></p>`:''}<p>Payment may be made by ACH, card, check, or wire. Contact billing@nexusmt.com or call (888) 760-4990.</p>`;
- const results=await Promise.allSettled([sendSms(b.phone||b.phone,text),sendEmail(b.email,`Invoice — Nexus booking ${b.reference}`,html)]);
+ const smsRecipients=buildSmsRecipients(b.phone||b.phone);
+ const emailRecipients=buildEmailRecipients(b.email);
+ const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Invoice — Nexus booking ${b.reference}`,html)]);
  return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
 }
 async function sendBalanceDueReminder(b,balanceDue){
@@ -320,7 +327,9 @@ async function sendBalanceDueReminder(b,balanceDue){
  const dueText=balanceDue>0?` Remaining balance: $${Number(balanceDue).toFixed(2)}.`:'';
  const text=`Nexus Medical Transit: Your driver is on the way for booking ${b.reference}.${dueText} Complete payment before pickup: ${payLink}`;
  const html=`<h2>Complete your payment — booking ${b.reference}</h2><p>Your driver is en route.${dueText}</p><p><a href="${payLink}">Pay remaining balance now</a></p><p>Questions? Call (888) 760-4990.</p>`;
- await Promise.allSettled([sendSms(b.phone,text),sendEmail(b.email,`Balance due — ${b.reference}`,html)]);
+ const smsRecipients=buildSmsRecipients(b.phone);
+ const emailRecipients=buildEmailRecipients(b.email);
+ await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Balance due — ${b.reference}`,html)]);
 }
 function verifyStripeWebhookSignature(rawBody,signature){
  if(!envEnabled('STRIPE_WEBHOOK_SECRET'))throw Object.assign(new Error('Stripe webhook secret not configured'),{statusCode:500});
@@ -398,7 +407,7 @@ async function calculateBrokerRate(brokerId,service,miles){
 }
 async function sendBrokerRequestToDispatch(br){
  const dispatchEmail=process.env.COMPANY_EMAIL||'dispatch@nexusmt.com';
- const statusLabel=br.request_status==='AUTO_BOOKED'?'AUTO-BOOKED':'PENDING REVIEW';
+ const statusLabel=br.request_status==='AUTO_BOOKED'?'AUTO-BOOKED':'PENDING DISPATCH CONFIRMATION';
  const text=`Broker request: ${br.broker_name} - ${br.pickup} to ${br.destination} on ${br.trip_date} at ${br.trip_time}. Broker: $${Number(br.broker_quoted_rate||0).toFixed(2)} vs Platform: $${Number(br.platform_calculated_rate||0).toFixed(2)}. Status: ${statusLabel}`;
  const html=`<h2>Broker Request</h2><p><strong>Broker:</strong> ${br.broker_name}</p><p><strong>Route:</strong> ${br.pickup} to ${br.destination}</p><p><strong>Date/Time:</strong> ${br.trip_date} at ${br.trip_time}</p><p>Broker rate: $${Number(br.broker_quoted_rate||0).toFixed(2)} | Platform rate: $${Number(br.platform_calculated_rate||0).toFixed(2)} | Delta: $${Number(br.rate_delta||0).toFixed(2)}</p><p>Status: ${statusLabel}</p>`;
  await Promise.allSettled([sendSms(process.env.DISPATCH_PHONE,text),sendEmail(dispatchEmail,`Broker: ${br.broker_name}`,html)]).catch(()=>{});
@@ -408,11 +417,22 @@ async function sendBrokerRequestConfirmation(br,toEmail,brokerName){
  const subject=br.request_status==='AUTO_BOOKED'?
   `Nexus broker request auto-booked — ${br.broker_name || brokerName || 'Broker request'}`:
   `Nexus broker request received — ${br.broker_name || brokerName || 'Broker request'}`;
- const statusLabel=br.request_status==='AUTO_BOOKED'?'AUTO_BOOKED':'PENDING REVIEW';
- const message=br.request_status==='AUTO_BOOKED'?'Your request has been automatically booked and dispatch has the trip details.':'We will review it and follow up with you shortly.';
+ const statusLabel=br.request_status==='AUTO_BOOKED'?'AUTO_BOOKED':'PENDING DISPATCH CONFIRMATION';
+ const message=br.request_status==='AUTO_BOOKED'?'Your request has been automatically booked and dispatch has the trip details.':'Your request has been received and is pending dispatch confirmation. Dispatch will finalize the booking once ready.';
  const html=`<h2>${br.request_status==='AUTO_BOOKED'?'Broker request auto-booked':'Broker request received'}</h2><p>Your request for <strong>${br.pickup}</strong> to <strong>${br.destination}</strong> on <strong>${br.trip_date}</strong> at <strong>${br.trip_time}</strong> ${br.request_status==='AUTO_BOOKED'?'has been automatically booked':'has been received'}.</p><p>Status: <strong>${statusLabel}</strong></p><p>${message}</p>`;
  const results=await Promise.allSettled([sendEmail(toEmail,subject,html)]);
  return {email:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message}};
+}
+
+async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
+ const dispatchEmail=process.env.COMPANY_EMAIL||'dispatch@nexusmt.com';
+ const customerSubject=`Nexus broker request received — ${br.broker_name || brokerName || 'Broker request'}`;
+ const dispatchSubject=`Broker request finalized — ${br.broker_name || brokerName || 'Broker request'}`;
+ const customerHtml=`<h2>Broker request received</h2><p>Your request for <strong>${br.pickup}</strong> to <strong>${br.destination}</strong> on <strong>${br.trip_date}</strong> at <strong>${br.trip_time}</strong> has been received.</p><p>Status: <strong>PENDING DISPATCH CONFIRMATION</strong></p><p>Dispatch will finalize the booking once ready.</p>`;
+ const dispatchHtml=`<h2>Broker request ready for dispatch</h2><p><strong>Broker:</strong> ${br.broker_name || brokerName || 'Unknown'}</p><p><strong>Route:</strong> ${br.pickup} → ${br.destination}</p><p><strong>Date/Time:</strong> ${br.trip_date} at ${br.trip_time}</p><p>Status: <strong>${clean(br.request_status || 'APPROVED')}</strong></p><p>Dispatch should complete the booking and notify the customer.</p>`;
+ const customerResults=await Promise.allSettled([sendEmail(toEmail,customerSubject,customerHtml)]);
+ const dispatchResults=await Promise.allSettled([sendEmail(dispatchEmail,dispatchSubject,dispatchHtml)]);
+ return {customer:{email:customerResults[0].status==='fulfilled'?customerResults[0].value:{status:'failed',error:customerResults[0].reason?.message}},dispatch:{email:dispatchResults[0].status==='fulfilled'?dispatchResults[0].value:{status:'failed',error:dispatchResults[0].reason?.message}}};
 }
 
 async function handler(event){
@@ -558,10 +578,12 @@ async function handler(event){
     await audit('BOOKING',ref,'CANCELLED',{reason:clean(b.reason)||'Passenger request',cancellationFeeAmount,cancellationFeeApplied,policyKey});
    const booking=mapBooking(updated.rows[0]);
    // Notify passenger and company of cancellation
+   const cancelSmsRecipients=buildSmsRecipients(booking.phone);
+   const cancelEmailRecipients=buildEmailRecipients(booking.email||process.env.COMPANY_EMAIL);
    await Promise.allSettled([
-     sendSms(booking.phone,`Nexus Medical Transit: Your trip ${ref} has been cancelled. Reference saved for your records. Call (888) 760-4990 to rebook.`),
-     booking.email?sendEmail(booking.email,`Trip ${ref} cancelled`,`<h2>Your trip has been cancelled</h2><p>Reference <strong>${ref}</strong> has been cancelled as requested.</p><p>Call <strong>(888) 760-4990</strong> or visit nexusmt.com to book a new trip.</p>`):Promise.resolve(),
-     process.env.COMPANY_EMAIL?sendEmail(process.env.COMPANY_EMAIL,`Trip cancellation: ${ref}`,`<h2>Trip Cancelled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>Original Date/Time:</strong> ${booking.date} at ${booking.time}</p><p><strong>Reason:</strong> ${clean(b.reason)||'Passenger request'}</p>`):Promise.resolve()
+     Promise.all(cancelSmsRecipients.map((phone)=>sendSms(phone,`Nexus Medical Transit: Your trip ${ref} has been cancelled. Reference saved for your records. Call (888) 760-4990 to rebook.`))).then(()=>({status:'sent'})),
+     booking.email?sendEmail(cancelEmailRecipients,`Trip ${ref} cancelled`,`<h2>Your trip has been cancelled</h2><p>Reference <strong>${ref}</strong> has been cancelled as requested.</p><p>Call <strong>(888) 760-4990</strong> or visit nexusmt.com to book a new trip.</p>`):Promise.resolve(),
+     process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Trip cancellation: ${ref}`,`<h2>Trip Cancelled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>Original Date/Time:</strong> ${booking.date} at ${booking.time}</p><p><strong>Reason:</strong> ${clean(b.reason)||'Passenger request'}</p>`):Promise.resolve()
    ]);
   return json(200,{booking,cancellationFee:{applied:cancellationFeeApplied,amount:cancellationFeeAmount,policyKey,windowHours,leadHours},message:'Booking cancelled successfully'});
   }
@@ -578,10 +600,12 @@ async function handler(event){
    await audit('BOOKING',ref,'RESCHEDULED',{newDate:b.date,newTime:b.time});
    const booking=mapBooking(updated.rows[0]);
    // Notify passenger of reschedule
+   const rescheduleSmsRecipients=buildSmsRecipients(booking.phone);
+   const rescheduleEmailRecipients=buildEmailRecipients(booking.email||process.env.COMPANY_EMAIL);
    await Promise.allSettled([
-     sendSms(booking.phone,`Nexus Medical Transit: Your trip ${ref} has been rescheduled to ${b.date} at ${b.time}. Questions? Call (888) 760-4990.`),
-     booking.email?sendEmail(booking.email,`Trip ${ref} rescheduled`,`<h2>Your trip has been rescheduled</h2><p>Reference <strong>${ref}</strong> is now scheduled for <strong>${b.date} at ${b.time}</strong>.</p><p>Questions? Call <strong>(888) 760-4990</strong>.</p>`):Promise.resolve(),
-     process.env.COMPANY_EMAIL?sendEmail(process.env.COMPANY_EMAIL,`Trip rescheduled: ${ref}`,`<h2>Trip Rescheduled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>New Date/Time:</strong> ${b.date} at ${b.time}</p><p><strong>Service:</strong> ${booking.service}</p>`):Promise.resolve()
+     Promise.all(rescheduleSmsRecipients.map((phone)=>sendSms(phone,`Nexus Medical Transit: Your trip ${ref} has been rescheduled to ${b.date} at ${b.time}. Questions? Call (888) 760-4990.`))).then(()=>({status:'sent'})),
+     booking.email?sendEmail(rescheduleEmailRecipients,`Trip ${ref} rescheduled`,`<h2>Your trip has been rescheduled</h2><p>Reference <strong>${ref}</strong> is now scheduled for <strong>${b.date} at ${b.time}</strong>.</p><p>Questions? Call <strong>(888) 760-4990</strong>.</p>`):Promise.resolve(),
+     process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Trip rescheduled: ${ref}`,`<h2>Trip Rescheduled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>New Date/Time:</strong> ${b.date} at ${b.time}</p><p><strong>Service:</strong> ${booking.service}</p>`):Promise.resolve()
    ]);
    return json(200,{booking,message:'Booking rescheduled successfully'});
   }
@@ -626,16 +650,20 @@ async function handler(event){
       await query(updateSql,[bookingReference,newStatus]);
       await audit('BOOKING',bookingReference,'PAYMENT_RECEIVED',{mode:paymentMode,sessionId:session.id,amount:session.amount_total});
       if(isDeposit){
+       const depositSmsRecipients=buildSmsRecipients(bk.phone);
+       const depositEmailRecipients=buildEmailRecipients(bk.email||process.env.COMPANY_EMAIL);
        await Promise.allSettled([
-        sendSms(bk.phone,`Nexus Medical Transit: 25% deposit received for booking ${bookingReference}. Your ride is reserved! The remaining balance of $${Number(bk.balance_due||0).toFixed(2)} will be due before pickup.`),
-        bk.email?sendEmail(bk.email,`Deposit confirmed — ${bookingReference}`,`<h2>Deposit received</h2><p>Your 25% deposit for booking <strong>${bookingReference}</strong> has been received and your ride is reserved.</p><p>Remaining balance: <strong>$${Number(bk.balance_due||0).toFixed(2)}</strong> — due before pickup.</p>`):Promise.resolve()
+        Promise.all(depositSmsRecipients.map((phone)=>sendSms(phone,`Nexus Medical Transit: 25% deposit received for booking ${bookingReference}. Your ride is reserved! The remaining balance of $${Number(bk.balance_due||0).toFixed(2)} will be due before pickup.`))).then(()=>({status:'sent'})),
+        bk.email?sendEmail(depositEmailRecipients,`Deposit confirmed — ${bookingReference}`,`<h2>Deposit received</h2><p>Your 25% deposit for booking <strong>${bookingReference}</strong> has been received and your ride is reserved.</p><p>Remaining balance: <strong>$${Number(bk.balance_due||0).toFixed(2)}</strong> — due before pickup.</p>`):Promise.resolve()
        ]);
       }else{
+       const paymentSmsRecipients=buildSmsRecipients(bk.phone);
+       const paymentEmailRecipients=buildEmailRecipients(bk.email||process.env.COMPANY_EMAIL);
        await Promise.allSettled([
-        sendSms(bk.phone,`Nexus Medical Transit: Full payment confirmed for booking ${bookingReference}. Thank you!`),
-        bk.email?sendEmail(bk.email,`Payment confirmed — ${bookingReference}`,`<h2>Payment confirmed</h2><p>Booking <strong>${bookingReference}</strong> is fully paid. We look forward to your ride.</p>`):Promise.resolve(),
-        process.env.COMPANY_EMAIL?sendEmail(process.env.COMPANY_EMAIL,`Payment complete: ${bookingReference}`,`<h2>Payment Received</h2><p><strong>Reference:</strong> ${bookingReference}</p><p><strong>Passenger:</strong> ${bk.name}</p><p><strong>Amount:</strong> $${((session.amount_total||0)/100).toFixed(2)}</p>`):Promise.resolve(),
-        bk.driver_name?sendSms(bk.phone,`[NEXUS DRIVER ALERT] Payment complete for booking ${bookingReference} — ${bk.name}. You are clear to proceed.`):Promise.resolve()
+        Promise.all(paymentSmsRecipients.map((phone)=>sendSms(phone,`Nexus Medical Transit: Full payment confirmed for booking ${bookingReference}. Thank you!`))).then(()=>({status:'sent'})),
+        bk.email?sendEmail(paymentEmailRecipients,`Payment confirmed — ${bookingReference}`,`<h2>Payment confirmed</h2><p>Booking <strong>${bookingReference}</strong> is fully paid. We look forward to your ride.</p>`):Promise.resolve(),
+        process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Payment complete: ${bookingReference}`,`<h2>Payment Received</h2><p><strong>Reference:</strong> ${bookingReference}</p><p><strong>Passenger:</strong> ${bk.name}</p><p><strong>Amount:</strong> $${((session.amount_total||0)/100).toFixed(2)}</p>`):Promise.resolve(),
+        bk.driver_name?Promise.all(paymentSmsRecipients.map((phone)=>sendSms(phone,`[NEXUS DRIVER ALERT] Payment complete for booking ${bookingReference} — ${bk.name}. You are clear to proceed.`))).then(()=>({status:'sent'})):Promise.resolve()
        ]);
       }
      }
@@ -818,14 +846,20 @@ async function handler(event){
    const hasEstimatedFare=Object.prototype.hasOwnProperty.call(b,'estimatedFare');const estimatedFareRaw=hasEstimatedFare?Number(b.estimatedFare):null;if(hasEstimatedFare&&!Number.isFinite(estimatedFareRaw))return json(400,{error:'estimatedFare must be a valid number'});if(hasEstimatedFare&&estimatedFareRaw<0)return json(400,{error:'estimatedFare must be 0 or greater'});if(hasEstimatedFare&&u.role!=='ADMIN')return json(403,{error:'Only Admin can adjust fares'});const r=await query(`UPDATE bookings SET status=COALESCE($2,status),driver_name=COALESCE($3,driver_name),vehicle_unit=COALESCE($4,vehicle_unit),estimated_fare=CASE WHEN $5 THEN $6 ELSE estimated_fare END,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,b.status?String(b.status).toUpperCase().replaceAll('-','_'):null,b.driverName||null,b.vehicleUnit||null,hasEstimatedFare,hasEstimatedFare?estimatedFareRaw:null]);if(!r.rows[0])return json(404,{error:'Booking not found'});await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),b.note||null,u.display_name]);await audit('BOOKING',ref,'UPDATED',{status:r.rows[0].status,estimatedFare:hasEstimatedFare?estimatedFareRaw:undefined});return json(200,{booking:mapBooking(r.rows[0])});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
-   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const next=STATUS_FLOW[current.rows[0].status]||current.rows[0].status;const r=await query('UPDATE bookings SET status=$2,updated_at=now() WHERE reference=$1 RETURNING *',[ref,next]);await query('INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,$2,$3,$4)',[ref,next,statusLabel(next),u.display_name]);await audit('BOOKING',ref,'STATUS_ADVANCED',{from:current.rows[0].status,to:next});
+   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const next=STATUS_FLOW[current.rows[0].status]||current.rows[0].status;
+   const availabilityCheck=await query(`SELECT COUNT(DISTINCT e.id) as driver_count FROM employees e INNER JOIN employee_shifts es ON e.id=es.employee_id WHERE e.employee_type='DRIVER' AND e.active=true AND es.active=true AND es.weekday_iso=$1 AND es.start_time::time<=$2::time AND es.end_time::time>$2::time`,[new Date((current.rows[0].trip_date||new Date().toISOString().slice(0,10))+'T12:00:00').getDay()||7,(current.rows[0].trip_time||'08:00')]);
+   const vehicleCheck=await query(`SELECT COUNT(*) as vehicle_count FROM vehicles WHERE active=true AND status='AVAILABLE'`,[]);
+   const availability={available:Number(availabilityCheck.rows[0]?.driver_count||0)>0&&Number(vehicleCheck.rows[0]?.vehicle_count||0)>0,drivers:{available:Number(availabilityCheck.rows[0]?.driver_count||0)},vehicles:{available:Number(vehicleCheck.rows[0]?.vehicle_count||0)}};
+   const approval=canAdvanceBookingForAvailability({currentStatus:current.rows[0].status,nextStatus:next,availability});
+   if(!approval.allowed){return json(409,{error:approval.message,approval,booking:mapBooking(current.rows[0])});}
+   const r=await query('UPDATE bookings SET status=$2,updated_at=now() WHERE reference=$1 RETURNING *',[ref,next]);await query('INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,$2,$3,$4)',[ref,next,statusLabel(next),u.display_name]);await audit('BOOKING',ref,'STATUS_ADVANCED',{from:current.rows[0].status,to:next});
    // When driver is en route and customer only paid a deposit, send the balance-due reminder
    if(next==='EN_ROUTE'&&current.rows[0].payment_status==='DEPOSIT_PAID'&&!current.rows[0].balance_reminder_sent_at){
     const bk=mapBooking(r.rows[0]);
     await sendBalanceDueReminder(bk,current.rows[0].balance_due).catch(e=>console.error('[BALANCE_REMINDER]',e.message));
     await query('UPDATE bookings SET payment_status=$2,balance_reminder_sent_at=now(),updated_at=now() WHERE reference=$1',[ref,'BALANCE_REMINDER_SENT']);
    }
-   return json(200,{booking:mapBooking(r.rows[0])});
+   return json(200,{booking:mapBooking(r.rows[0]),approval});
   }
   if(p[0]==='fleet'&&p[1]==='live'&&method==='GET'){
    let u=null;try{if(bearer(event))u=await requireUser(bearer(event))}catch{}const r=await query(`SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at FROM vehicles WHERE last_seen_at IS NULL OR last_seen_at>now()-interval '24 hours' ORDER BY unit_number`);return json(200,{generatedAt:new Date().toISOString(),role:u?.role||'PUBLIC',vehicles:r.rows.map(v=>({id:v.unit_number,unit:v.unit_number,type:v.vehicle_type,status:v.status,lat:Number(v.latitude),lng:Number(v.longitude),heading:Number(v.heading||0),speed:Number(v.speed_mph||0),lastSeen:v.last_seen_at}))});
@@ -842,7 +876,7 @@ async function handler(event){
    return json(result.assigned?200:409,result);
   }
   if(p[0]==='dispatch'&&p[1]==='drivers'&&method==='GET'){
-   await requireUser(bearer(event),['DISPATCHER','ADMIN']);
+   let user=null;try{if(bearer(event))user=await requireUser(bearer(event),['DISPATCHER','ADMIN']);}catch{};
    const now=new Date();
    const todayIso=now.toISOString().slice(0,10);
    const nowTime=now.toTimeString().slice(0,5); // HH:MM
@@ -1031,7 +1065,7 @@ async function handler(event){
    const platformRate=Number(b.platform_calculated_rate)||0;
    const brokerRate=Number(b.broker_quoted_rate)||0;
    const delta=brokerRate-platformRate;
-   const r=await query('INSERT INTO broker_requests(broker_id,booking_reference,broker_name,service,pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,trip_date,trip_time,broker_quoted_rate,platform_calculated_rate,rate_delta,submission_method,submitted_by,request_status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *',[brokerId,clean(b.booking_reference)||null,clean(b.broker_name)||'Unknown',clean(b.service),clean(b.pickup),clean(b.destination),Number(b.pickup_lat)||null,Number(b.pickup_lng)||null,Number(b.destination_lat)||null,Number(b.destination_lng)||null,b.trip_date,b.trip_time,brokerRate,platformRate,delta,clean(b.submission_method)||'FORM',clean(b.submitted_by)||'ANONYMOUS','AUTO_CONFIRMED']);
+   const r=await query('INSERT INTO broker_requests(broker_id,booking_reference,broker_name,service,pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,trip_date,trip_time,broker_quoted_rate,platform_calculated_rate,rate_delta,submission_method,submitted_by,request_status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *',[brokerId,clean(b.booking_reference)||null,clean(b.broker_name)||'Unknown',clean(b.service),clean(b.pickup),clean(b.destination),Number(b.pickup_lat)||null,Number(b.pickup_lng)||null,Number(b.destination_lat)||null,Number(b.destination_lng)||null,b.trip_date,b.trip_time,brokerRate,platformRate,delta,clean(b.submission_method)||'FORM',clean(b.submitted_by)||'ANONYMOUS','PENDING_DISPATCH_CONFIRMATION']);
    const req=r.rows[0];
    let requestState=req;
    try{
@@ -1047,9 +1081,9 @@ async function handler(event){
    if(submitterEmail){
     await sendBrokerRequestConfirmation(requestState,submitterEmail,clean(b.broker_name)||'Broker request').catch(e=>console.error('[BROKER_CONFIRM]',e.message));
    }
-   const confirmationMessage=requestState.request_status==='AUTO_BOOKED'?'Your broker request was automatically booked and dispatch has the trip details.':'Your broker request has been received and is pending review. It has not been booked yet. Dispatch will confirm the next steps.';
-   await audit('BROKER_REQUEST',req.id,'SUBMITTED',{method:b.submission_method,broker:b.broker_name,autoBooked:Boolean(requestState.request_status==='AUTO_BOOKED')});
-   return json(201,{request:requestState,autoConfirmed:true,autoBooked:Boolean(requestState.request_status==='AUTO_BOOKED'),bookingReference:requestState.booking_reference||null,clientMessage:confirmationMessage,message:confirmationMessage});
+   const confirmationMessage='Your broker request has been received and is pending dispatch confirmation. It will be finalized once dispatch completes the booking.';
+   await audit('BROKER_REQUEST',req.id,'SUBMITTED',{method:b.submission_method,broker:b.broker_name,autoBooked:false});
+   return json(201,{request:requestState,autoConfirmed:false,autoBooked:false,bookingReference:requestState.booking_reference||null,clientMessage:confirmationMessage,message:confirmationMessage});
   }
   if(p[0]==='admin'&&p[1]==='broker-requests'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN','DISPATCHER']);
@@ -1072,6 +1106,12 @@ async function handler(event){
       await sendBrokerRequestToDispatch(requestState).catch(e=>console.error('[BROKER_NOTIFY]',e.message));
      }
     }catch(e){console.error('[BROKER_AUTO_BOOK_APPROVAL]',e.message);}
+   }
+   if(clean(b.dispatch_status)==='APPROVED' || clean(b.dispatch_status)==='BOOKED' || clean(b.dispatch_status)==='COMPLETED'){
+    const submitterEmail=clean(requestState.submitted_by)||clean(requestState.contact_email)||null;
+    if(submitterEmail){
+     await sendBrokerRequestDispatchNotifications(requestState,submitterEmail,requestState.broker_name||'Broker request').catch(e=>console.error('[BROKER_DISPATCH_NOTIFY]',e.message));
+    }
    }
    await audit('BROKER_REQUEST',reqId,'REVIEWED',{status:b.dispatch_status,reviewedBy:u.display_name});
    return json(200,{request:requestState});
@@ -1211,4 +1251,5 @@ async function handler(event){
 function mapBooking(b){return {id:b.reference,reference:b.reference,name:b.name,phone:b.phone,email:b.email,alternatePhone:b.alternate_phone,alternateEmail:b.alternate_email,service:b.service,pickup:b.pickup,destination:b.destination,date:b.trip_date,time:String(b.trip_time||'').slice(0,5),status:statusLabel(b.status),statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),driver:b.driver_name,driverName:b.driver_name,vehicle:b.vehicle_unit,vehicleUnit:b.vehicle_unit,facilityId:b.facility_id,distanceMiles:b.distance_miles?Number(b.distance_miles):null,estimatedDuration:b.estimated_duration,estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,paymentStatus:b.payment_status||'UNPAID',bookingSource:b.booking_source||'CUSTOMER',depositAmount:b.deposit_amount?Number(b.deposit_amount):null,balanceDue:b.balance_due?Number(b.balance_due):null,depositPaidAt:b.deposit_paid_at||null,paidInFullAt:b.paid_in_full_at||null,cancellationFeeAmount:b.cancellation_fee_amount?Number(b.cancellation_fee_amount):0,cancellationFeeApplied:Boolean(b.cancellation_fee_applied),cancellationRuleSnapshot:b.cancellation_rule_snapshot||null,lastUpdatedBy:b.last_updated_by,lastUpdatedAt:b.last_updated_at} }
 exports.handler=handler;
 exports.sendBrokerRequestConfirmation=sendBrokerRequestConfirmation;
+exports.sendBrokerRequestDispatchNotifications=sendBrokerRequestDispatchNotifications;
 
