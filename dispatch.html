@@ -181,9 +181,10 @@
       </div>
       <!-- /Transportation Company Picker -->
 
-      <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+      <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
         <div class="formField"><label for="brokerReference">Referral ID</label><input id="brokerReference" name="reference" type="text" readonly></div>
         <div class="formField"><label for="brokerPatientName">Patient name</label><input id="brokerPatientName" name="patientName" type="text"></div>
+        <div class="formField"><label for="brokerPatientPhone">Patient phone</label><input id="brokerPatientPhone" name="patientPhone" type="tel" placeholder="(555) 123-4567"></div>
         <div class="formField"><label for="brokerSubmitterEmail">Submitter email</label><input id="brokerSubmitterEmail" name="submitterEmail" type="email" placeholder="broker@example.com"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch">
@@ -352,7 +353,7 @@ async function submitBrokerRequest(event){
     broker_name: document.getElementById('pickerCardName')?.textContent?.trim() || selectedCompanyName || 'Unknown',
     referral_id: document.getElementById('brokerReference').value.trim(),
     patient_name: document.getElementById('brokerPatientName').value.trim(),
-    patient_phone: document.getElementById('brokerPatientPhone').value.trim(),
+    patient_phone: document.getElementById('brokerPatientPhone')?.value?.trim()||'',
     pickup: document.getElementById('brokerPickup').value.trim(),
     pickup_location: document.getElementById('brokerPickupLocation').value.trim(),
     pickup_phone: document.getElementById('brokerPickupPhone').value.trim(),
