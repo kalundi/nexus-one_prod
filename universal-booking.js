@@ -263,8 +263,9 @@
       const destParent=destInput.closest('div,fieldset,label')||destInput.parentElement;
       destParent.insertAdjacentElement('afterend',mapWrap);
     }
-    // Show the container
-    mapWrap.style.display='block';
+    // Show the container and clear placeholder text
+    mapWrap.style.display='flex';
+    mapWrap.style.alignItems='stretch';
     const key=apiKey||'';
     if(!key)return;
     const origin=encodeURIComponent(pickup);
