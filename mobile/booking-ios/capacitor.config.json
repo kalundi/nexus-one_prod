@@ -1,0 +1,13 @@
+{
+  "appId": "com.nexusmt.booking",
+  "appName": "Nexus Booking",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://nexusmt.com/booking-app.html",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always"
+  }
+}

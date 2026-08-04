@@ -1,0 +1,13 @@
+{
+  "appId": "com.nexusmt.driver",
+  "appName": "Nexus Driver",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://nexusmt.com/driver-app.html",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always"
+  }
+}
