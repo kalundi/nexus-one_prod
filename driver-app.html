@@ -190,6 +190,13 @@ a{color:var(--blue);text-decoration:none}
 .view{display:none;flex:1;flex-direction:column}
 .view.active{display:flex;flex-direction:column;animation:fadeUp .25s ease-out}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* Modal */
+.modalBackdrop{position:fixed;inset:0;background:rgba(7,20,44,.55);display:grid;place-items:end center;padding:16px;z-index:120}
+.modalCard{width:min(480px,100%);background:#fff;border:1px solid var(--line);border-radius:16px 16px 12px 12px;box-shadow:0 -10px 30px rgba(7,20,44,.22);padding:14px}
+.modalCard h3{margin:0 0 8px;font:800 18px/1.2 Manrope,sans-serif;color:var(--ink)}
+.modalCard p{margin:0 0 10px;font-size:14px;line-height:1.4;color:var(--muted)}
+@media(min-width:700px){.modalBackdrop{place-items:center}.modalCard{border-radius:16px}}
 </style>
 </head>
 <body>
@@ -301,6 +308,21 @@ a{color:var(--blue);text-decoration:none}
           <div class="analyticsHead">
             <div>
               <div class="eyebrow">Driver insights</div>
+            <div id="earlyReasonModal" class="modalBackdrop" hidden>
+              <div class="modalCard" role="dialog" aria-modal="true" aria-labelledby="earlyReasonTitle" aria-describedby="earlyReasonMessage">
+                <h3 id="earlyReasonTitle">Early pickup reason required</h3>
+                <p id="earlyReasonMessage">Please provide why this trip is starting early.</p>
+                <div class="field" style="margin-top:8px">
+                  <label for="earlyReasonInput">Reason</label>
+                  <textarea id="earlyReasonInput" rows="3" placeholder="Patient requested earlier pickup, provider requested schedule change, etc."></textarea>
+                </div>
+                <div class="btnRow" style="margin-top:8px">
+                  <button id="earlyReasonCancel" class="btn ghost" type="button">Cancel</button>
+                  <button id="earlyReasonSubmit" class="btn navy" type="button">Continue</button>
+                </div>
+              </div>
+            </div>
+
               <h2 style="margin:4px 0 0;font:800 18px/1.1 Manrope,sans-serif">Performance trends</h2>
             </div>
             <div class="analyticsTabs" id="analyticsRangeTabs" role="tablist" aria-label="Insights period">

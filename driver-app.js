@@ -964,6 +964,35 @@
     if(toggle)toggle.textContent='Hide AI Help';
   }
 
+  function askEarlyPickupReason(message){
+    return new Promise((resolve)=>{
+      const modal=$('#earlyReasonModal');
+      const text=$('#earlyReasonInput');
+      const msg=$('#earlyReasonMessage');
+      const ok=$('#earlyReasonSubmit');
+      const cancel=$('#earlyReasonCancel');
+      if(!modal||!text||!msg||!ok||!cancel){
+        resolve('');
+        return;
+      }
+      msg.textContent=message||'Please provide why this trip is starting early.';
+      text.value='';
+      modal.hidden=false;
+      setTimeout(()=>text.focus(),30);
+
+      const close=(value)=>{
+        modal.hidden=true;
+        ok.removeEventListener('click',onOk);
+        cancel.removeEventListener('click',onCancel);
+        resolve(String(value||'').trim());
+      };
+      const onOk=()=>close(text.value);
+      const onCancel=()=>close('');
+      ok.addEventListener('click',onOk);
+      cancel.addEventListener('click',onCancel);
+    });
+  }
+
   function openTrip(ref){
     const t=trips.find(x=>x.ref===ref);if(!t)return;
     activeRef=ref;
@@ -1083,12 +1112,13 @@
     const t=trips.find(x=>x.ref===activeRef);if(!t)return;
     const next=nextWorkflowStep(t.status);if(!next)return;
     const btn=$('#btnAdvanceTrip');btn.disabled=true;btn.textContent='Updating…';
+    const startNotice=$('#tripStartNotice');
     try{
       let earlyPickupReason='';
       if(next.status==='EN_ROUTE'){
         const policy=tripStartPolicy(t);
         if(!policy.allowed){
-          earlyPickupReason=prompt(`${policy.message}\n\nIf the patient requested an early pickup, enter the driver or dispatch reason now:`,'')?.trim()||'';
+          earlyPickupReason=await askEarlyPickupReason(`${policy.message} If the patient requested an earlier pickup, enter the driver or dispatch reason now:`);
           if(!earlyPickupReason){throw new Error('Early pickup reason is required before starting this trip.');}
         }
       }
@@ -1096,8 +1126,15 @@
       if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||`HTTP ${r.status}`);}
       t.status=next.status;
       if(next.status==='COMPLETED'){shift.completedTrips++;saveShift();}
+      if(startNotice){startNotice.hidden=true;startNotice.textContent='';}
       renderTripWorkflow(t);renderStepHints(t);updateBadge();renderManifest();
-    }catch(err){alert('Update failed: '+err.message);renderTripWorkflow(t);}
+    }catch(err){
+      if(startNotice){
+        startNotice.hidden=false;
+        startNotice.textContent='Update failed: '+err.message;
+      }
+      renderTripWorkflow(t);
+    }
   });
 
   $('#btnSaveComments')?.addEventListener('click',()=>{
