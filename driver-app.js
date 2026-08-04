@@ -688,7 +688,7 @@
     if(!list.length){el.innerHTML='<div class="empty"><p>No assigned trips in this period.</p></div>';return;}
     const sc={SCHEDULED:'gray',ASSIGNED:'blue',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',ARRIVED_PICKUP:'amber',DEPARTED:'amber',ARRIVED_DESTINATION:'amber',DELIVERED:'green',COMPLETED:'green',CANCELLED:'red'};
     const canAccept=t=>['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED'].includes(t.status);
-    const isCompleted=t=>['COMPLETED','DELIVERED'].includes(t.status);
+    const isCompleted=t=>['COMPLETED'].includes(t.status);
     const upcoming=list.filter(t=>!isCompleted(t));
     const completed=list.filter(isCompleted);
 
@@ -712,7 +712,7 @@
     `<div class="card" style="margin:12px 0 8px;padding:12px 14px;background:#f8fafc;border-style:dashed">
       <div>
         <strong>Completed trips</strong>
-        <div style="font-size:12px;color:var(--muted);margin-top:3px">Trips move here after Patient Delivered and Trip Complete.</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">Trips move here only after Trip Complete.</div>
       </div>
     </div>`+
     (completed.length?completed.map(row).join(''):'<div class="empty"><p>No completed trips yet in this period.</p></div>');
@@ -804,7 +804,7 @@
   }
 
   function renderTripWorkflow(t){
-    const done=['COMPLETED','DELIVERED','CANCELLED'].includes(t.status);
+    const done=['COMPLETED','CANCELLED'].includes(t.status);
     const idx=wfIdx(t.status);
     const next=nextWorkflowStep(t.status);
     const wfEl=$('#tripWorkflow');if(!wfEl)return;
@@ -846,7 +846,7 @@
       const r=await fetch(`/api/bookings/${encodeURIComponent(t.ref)}/update`,{method:'POST',headers:ah(),body:JSON.stringify({status:next.status,vehicleUnit:shift.vehicleUnit||undefined})});
       if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||`HTTP ${r.status}`);}
       t.status=next.status;
-      if(['COMPLETED','DELIVERED'].includes(next.status)){shift.completedTrips++;saveShift();}
+      if(next.status==='COMPLETED'){shift.completedTrips++;saveShift();}
       renderTripWorkflow(t);renderStepHints(t);updateBadge();renderManifest();
     }catch(err){alert('Update failed: '+err.message);renderTripWorkflow(t);}
   });
