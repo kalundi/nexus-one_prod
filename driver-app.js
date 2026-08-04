@@ -705,9 +705,17 @@
 
   function renderManifest(){
     const now=new Date();
-    const start=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-    const end=new Date(start.getTime()+manifestDays*86400000);
-    const list=trips.filter(t=>{if(!t.date)return false;const d=new Date(t.date+'T00:00:00');return d>=start&&d<end;})
+    const startOfToday=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    const dayEnd=new Date(startOfToday.getTime()+manifestDays*86400000);
+    const rollingEnd=new Date(now.getTime()+manifestDays*86400000);
+    const list=trips.filter(t=>{
+      if(!t.date)return false;
+      const tripDt=new Date(`${t.date}T${(t.time||'00:00').slice(0,5)}:00`);
+      if(Number.isNaN(tripDt.getTime()))return false;
+      if(manifestDays===1)return tripDt>=now&&tripDt<rollingEnd;
+      const tripDay=new Date(t.date+'T00:00:00');
+      return tripDay>=startOfToday&&tripDay<dayEnd;
+    })
       .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
     const el=$('#manifestList');if(!el)return;
     if(!list.length){el.innerHTML='<div class="empty"><p>No assigned trips in this period.</p></div>';return;}
