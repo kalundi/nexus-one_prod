@@ -24,6 +24,7 @@
   let trips = [];
   let activeRef = null;
   let manifestDays = 1;
+  let analyticsDays = 7;
   let gpsId = null;
   let aiHelpOpen = false;
 
@@ -63,6 +64,102 @@
     };
   }
   function dashNotice(msg,type) { const el=$('#dashNotice');if(!el)return; el.className=`notice ${type||'info'}`;el.textContent=msg;el.hidden=false; setTimeout(()=>{el.hidden=true;},5000); }
+  function tripDateKey(trip){ return String(trip?.date||'').trim(); }
+  function dayLabel(key){ const d=new Date(`${key}T00:00:00`); return Number.isNaN(d.getTime()) ? '--' : d.toLocaleDateString([], { month:'numeric', day:'numeric' }); }
+  function recentDayKeys(days){
+    const out=[];
+    for(let i=days-1;i>=0;i--){
+      out.push(new Date(Date.now()-i*86400000).toISOString().slice(0,10));
+    }
+    return out;
+  }
+  function acceptedStatus(status){
+    return ['ASSIGNED','EN_ROUTE','ARRIVED_PICKUP','PATIENT_ON_BOARD','DEPARTED','ARRIVED_DESTINATION','DELIVERED','COMPLETED','NO_SHOW','MISSED'].includes(normalizeBookingStatus(status));
+  }
+  function completedStatus(status){
+    return ['COMPLETED','DELIVERED'].includes(normalizeBookingStatus(status));
+  }
+  function renderBars(targetId, values, labels, color){
+    const el=$(targetId); if(!el) return;
+    if(!values.length){ el.innerHTML=''; return; }
+    const max=Math.max(1,...values);
+    el.innerHTML=values.map((v,idx)=>{
+      const h=Math.max(6,Math.round((Number(v)||0)/max*100));
+      const label=(labels[idx]||'').slice(0,5);
+      const title=`${labels[idx]||''}: ${Number(v||0).toFixed(1)}`;
+      return `<div class="analyticsBar" data-label="${label}" title="${title}" style="height:${h}%;background:${color}"></div>`;
+    }).join('');
+  }
+  function bindAnalyticsTabs(){
+    const tabs=$$('#analyticsRangeTabs button');
+    if(!tabs.length) return;
+    tabs.forEach((btn)=>{
+      btn.addEventListener('click',()=>{
+        analyticsDays=Number(btn.dataset.days)||7;
+        tabs.forEach((b)=>b.classList.remove('active'));
+        btn.classList.add('active');
+        renderDriverAnalytics();
+      });
+    });
+  }
+  function renderDriverAnalytics(){
+    const wrap=$('#driverAnalyticsCard'); if(!wrap) return;
+    const keys=recentDayKeys(analyticsDays);
+    const idxByKey=new Map(keys.map((k,i)=>[k,i]));
+    const accepted=new Array(keys.length).fill(0);
+    const completed=new Array(keys.length).fill(0);
+    const milesPerDay=new Array(keys.length).fill(0);
+    const closed=new Array(keys.length).fill(0);
+    const onTimeClosed=new Array(keys.length).fill(0);
+
+    trips.forEach((t)=>{
+      const k=tripDateKey(t);
+      const i=idxByKey.get(k);
+      if(i==null) return;
+      const st=normalizeBookingStatus(t.status);
+      if(acceptedStatus(st)||t.accepted) accepted[i]+=1;
+      if(completedStatus(st)) completed[i]+=1;
+      if(['COMPLETED','DELIVERED','NO_SHOW','MISSED'].includes(st)){
+        closed[i]+=1;
+        if(['COMPLETED','DELIVERED'].includes(st)) onTimeClosed[i]+=1;
+      }
+    });
+
+    miles.legs.forEach((leg)=>{
+      const k=String(leg?.time||'').slice(0,10);
+      const i=idxByKey.get(k);
+      if(i==null) return;
+      milesPerDay[i]+=Number(leg?.miles)||0;
+    });
+
+    const onTimePct=closed.map((c,i)=>c?Math.round((onTimeClosed[i]/c)*100):0);
+    const totalAccepted=accepted.reduce((s,v)=>s+v,0);
+    const totalCompleted=completed.reduce((s,v)=>s+v,0);
+    const totalMiles=milesPerDay.reduce((s,v)=>s+v,0);
+    const closedTotal=closed.reduce((s,v)=>s+v,0);
+    const onTimeTotal=onTimeClosed.reduce((s,v)=>s+v,0);
+    const onTimeRate=closedTotal?Math.round((onTimeTotal/closedTotal)*100):0;
+
+    if($('#acceptedTripsMetric'))$('#acceptedTripsMetric').textContent=String(totalAccepted);
+    if($('#completedMetric'))$('#completedMetric').textContent=String(totalCompleted);
+    if($('#milesMetric'))$('#milesMetric').textContent=totalMiles.toFixed(1);
+    if($('#onTimeMetric'))$('#onTimeMetric').textContent=`${onTimeRate}%`;
+
+    const labels=keys.map(dayLabel);
+    renderBars('#acceptedTripsChart',accepted,labels,'#93c5fd');
+    renderBars('#completedTripsChart',completed,labels,'#86efac');
+    renderBars('#milesChart',milesPerDay,labels,'#fcd34d');
+    renderBars('#onTimeChart',onTimePct,labels,'#c4b5fd');
+
+    const peakAccepted=Math.max(...accepted,0);
+    const peakMiles=Math.max(...milesPerDay,0);
+    const peakAcceptedDay=peakAccepted?labels[accepted.indexOf(peakAccepted)]:'--';
+    const peakMilesDay=peakMiles?labels[milesPerDay.indexOf(peakMiles)]:'--';
+    const insight=$('#analyticsInsight');
+    if(insight){
+      insight.textContent = `In the last ${analyticsDays} days: peak accepted volume was ${peakAccepted} trip${peakAccepted===1?'':'s'} on ${peakAcceptedDay}; peak mileage was ${peakMiles.toFixed(1)} mi on ${peakMilesDay}; overall on-time completion rate is ${onTimeRate}%.`;
+    }
+  }
 
   // ── View routing ──────────────────────────────────────────────
   const VT = { dashView:'Dashboard', inspectionView:'Pre-Trip Inspection', manifestView:'Trip Manifest', milesView:'Mileage Log', tripView:'Trip Detail', endView:'Sign Out', changePasswordView:'Change Password' };
@@ -1133,6 +1230,7 @@
       <p style="margin:0;font-size:13px;color:var(--muted)">${next.pickup} to ${next.destination}</p>
       <div style="margin-top:10px"><button class="btn ghost sm" onclick="window.__ot('${next.ref}')">Open Trip</button></div>`;}
     else if(nb)nb.innerHTML='<p style="color:var(--muted);margin:0;font-size:14px">No upcoming trips. Check your manifest.</p>';
+    renderDriverAnalytics();
   }
   window.__ot=ref=>openTrip(ref);
 
@@ -1150,7 +1248,7 @@
   async function initApp(){
     checkResetToken(); // Check for ?action=reset&token= in URL
     const ok=await checkAuth();if(!ok)return;
-    hideLoginView();renderDash();renderInspection();loadFleetForInspection();
+    hideLoginView();renderDash();renderInspection();loadFleetForInspection();bindAnalyticsTabs();
     await loadTrips();
     if(shift.onDuty)startGPS();
     setInterval(()=>{if(shift.onDuty)renderDash();},30000);
