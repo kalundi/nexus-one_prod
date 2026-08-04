@@ -44,7 +44,7 @@ a{color:var(--blue);text-decoration:none}
 /* â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .topBar{background:var(--navy);color:#fff;padding:env(safe-area-inset-top,0) 0 0;position:sticky;top:0;z-index:50}
 .topBarInner{display:flex;align-items:center;gap:10px;padding:14px 16px;min-height:60px}
-.topLogo{height:28px;filter:brightness(0) invert(1)}
+.topLogo{display:block;width:150px;height:28px;object-fit:contain;filter:none;flex:0 0 auto}
 .topTitle{font:800 16px/1 Manrope,sans-serif;letter-spacing:-.01em;flex:1}
 .topBadge{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;font:800 11px/1 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;border:0;cursor:pointer}
 .topBadge.on{background:rgba(22,163,74,.25);color:#86efac}
@@ -222,7 +222,7 @@ a{color:var(--blue);text-decoration:none}
   <!-- Top bar -->
   <header class="topBar">
     <div class="topBarInner">
-      <img class="topLogo" src="./nexus-logo.png" alt="Nexus">
+      <img class="topLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit">
       <span class="topTitle" id="topViewTitle">Dashboard</span>
       <button id="shiftBadge" class="topBadge off" type="button" title="Quick shift action">Off Duty</button>
     </div>
