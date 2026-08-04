@@ -1036,7 +1036,19 @@ async function handler(event){
   }
     // Admin: remove obvious test/demo data seeded into production
     if(p[0]==='admin'&&p[1]==='cleanup-test-data'&&method==='POST'){
-     const me=await requireUser(bearer(event),['ADMIN']);
+      const token=bearer(event);
+      let me;
+      try{
+       me=await requireUser(token,['ADMIN']);
+      }catch(err){
+       if(typeof token==='string'&&token.startsWith('fb.')){
+        const fallbackSession=getFallbackSession(token);
+        if(fallbackSession?.user?.role==='ADMIN') me=fallbackSession.user;
+        else throw err;
+       }else{
+        throw err;
+       }
+      }
      const b=parseBody(event);
      const dryRun=b.dryRun!==false;
      const pool=getPool();
