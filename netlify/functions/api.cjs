@@ -1076,7 +1076,21 @@ async function handler(event){
    }
    const driverName=clean(u.display_name||u.email||'');
    const scopeId=clean(u.scope_id||u.scopeId||'');
-   const sql=`SELECT * FROM bookings WHERE ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)) AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION') ORDER BY trip_date,trip_time,created_at`;
+   await query(
+    `WITH marked AS (
+       UPDATE bookings
+       SET status='MISSED', updated_at=now()
+       WHERE ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2))
+         AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION')
+         AND (trip_date::text || ' ' || COALESCE(trip_time::text,'00:00'))::timestamp < now()
+       RETURNING reference
+     )
+     INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor)
+     SELECT reference,'MISSED','missed','Trip auto-marked as MISSED because scheduled time passed without completion.','SYSTEM'
+     FROM marked`,
+    [driverName,scopeId]
+   );
+  const sql=`SELECT * FROM bookings WHERE ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)) AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION','EN_ROUTE','ARRIVED_PICKUP','PATIENT_ON_BOARD','DEPARTED','ARRIVED_DESTINATION','DELIVERED','COMPLETED','NO_SHOW','MISSED','CANCELLED') ORDER BY trip_date,trip_time,created_at`;
    const r=await query(sql,[driverName,scopeId]);
    return json(200,{assignments:r.rows.map(mapBooking)});
   }

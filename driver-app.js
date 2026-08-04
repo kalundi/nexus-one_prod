@@ -37,7 +37,8 @@
   function tod() { const h=new Date().getHours(); return h<12?'morning':h<17?'afternoon':'evening'; }
   function totalMiles() { return miles.legs.reduce((s,l)=>s+(Number(l.miles)||0),0); }
   function normalizeBookingStatus(status) { return String(status || 'SCHEDULED').trim().toUpperCase().replaceAll('-', '_'); }
-  function tripNeedsAcceptance(trip) { return ['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED'].includes(normalizeBookingStatus(trip?.status)); }
+  function tripNeedsAcceptance(trip) { return ['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION'].includes(normalizeBookingStatus(trip?.status)); }
+  function isTerminalStatus(status) { return ['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(normalizeBookingStatus(status)); }
   function tripStartWindowHours(trip){ return Number(trip?.distanceMiles ?? trip?.distMi ?? 0) >= 30 ? 2 : 1; }
   function parseTripDateTime(trip){
     const tripDate=String(trip?.date||'').trim();
@@ -699,12 +700,13 @@
 
   function updateBadge(){
     const today=new Date().toISOString().slice(0,10);
-    const n=trips.filter(t=>t.date===today&&!['COMPLETED','DELIVERED','CANCELLED'].includes(t.status)).length;
+    const n=trips.filter(t=>t.date===today&&!isTerminalStatus(t.status)).length;
     const b=$('#manifestBadge');if(b){b.hidden=n===0;b.textContent=n;}
   }
 
   function renderManifest(){
     const now=new Date();
+    const todayIso=new Date().toISOString().slice(0,10);
     const startOfToday=new Date(now.getFullYear(),now.getMonth(),now.getDate());
     const dayEnd=new Date(startOfToday.getTime()+manifestDays*86400000);
     const rollingEnd=new Date(now.getTime()+manifestDays*86400000);
@@ -712,16 +714,20 @@
       if(!t.date)return false;
       const tripDt=new Date(`${t.date}T${(t.time||'00:00').slice(0,5)}:00`);
       if(Number.isNaN(tripDt.getTime()))return false;
-      if(manifestDays===1)return tripDt>=now&&tripDt<rollingEnd;
+      if(manifestDays===1){
+        if(tripDt>=now&&tripDt<rollingEnd)return true;
+        if(isTerminalStatus(t.status)&&t.date===todayIso)return true;
+        return false;
+      }
       const tripDay=new Date(t.date+'T00:00:00');
       return tripDay>=startOfToday&&tripDay<dayEnd;
     })
       .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
     const el=$('#manifestList');if(!el)return;
     if(!list.length){el.innerHTML='<div class="empty"><p>No assigned trips in this period.</p></div>';return;}
-    const sc={SCHEDULED:'gray',ASSIGNED:'blue',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',ARRIVED_PICKUP:'amber',DEPARTED:'amber',ARRIVED_DESTINATION:'amber',DELIVERED:'green',COMPLETED:'green',CANCELLED:'red'};
-    const canAccept=t=>['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED'].includes(t.status);
-    const isCompleted=t=>['COMPLETED'].includes(t.status);
+    const sc={SCHEDULED:'gray',REQUESTED:'gray',SUBMITTED:'gray',PENDING_DISPATCH_CONFIRMATION:'gray',ASSIGNED:'blue',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',ARRIVED_PICKUP:'amber',DEPARTED:'amber',ARRIVED_DESTINATION:'amber',DELIVERED:'green',COMPLETED:'green',MISSED:'red',NO_SHOW:'red',CANCELLED:'red'};
+    const canAccept=t=>['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION'].includes(t.status);
+    const isCompleted=t=>['COMPLETED','NO_SHOW','MISSED','CANCELLED'].includes(t.status);
     const upcoming=list.filter(t=>!isCompleted(t));
     const completed=list.filter(isCompleted);
 
@@ -731,7 +737,7 @@
         <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
           <span class="badge ${sc[t.status]||'gray'}">${t.status.replace(/_/g,' ')}</span>
           <span style="font:800 11px/1 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${t.distMi!=null?`${t.distMi} mi`:'Miles n/a'}</span>
-          ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">Accept</button>`:'<span style="font-size:11px;color:var(--muted)">'+(isCompleted(t)?'Completed':'In progress')+'</span>'}
+          ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">Accept</button>`:'<span style="font-size:11px;color:var(--muted)">'+(isCompleted(t)?'Closed':'In progress')+'</span>'}
         </div>
       </div>`;
 
@@ -746,7 +752,7 @@
     `<div class="card" style="margin:12px 0 8px;padding:12px 14px;background:#f8fafc;border-style:dashed">
       <div>
         <strong>Completed trips</strong>
-        <div style="font-size:12px;color:var(--muted);margin-top:3px">Trips move here only after Trip Complete.</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">Trips move here after completion, no-show, cancellation, or missed status.</div>
       </div>
     </div>`+
     (completed.length?completed.map(row).join(''):'<div class="empty"><p>No completed trips yet in this period.</p></div>');
@@ -868,7 +874,7 @@
     $('#tripDestination').textContent=t.destination;
     $('#tripServiceBadge').textContent=t.service;
     $('#tripDateBadge').textContent=`${fmtDate(t.date)} ${t.time}`;
-    const sc={COMPLETED:'green',DELIVERED:'green',CANCELLED:'red',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',DEPARTED:'amber'};
+    const sc={COMPLETED:'green',DELIVERED:'green',CANCELLED:'red',MISSED:'red',NO_SHOW:'red',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',DEPARTED:'amber'};
     $('#tripStatusBadge').textContent=t.status.replace(/_/g,' ');
     $('#tripStatusBadge').className=`badge ${sc[t.status]||'blue'}`;
     $('#tripComments').value=t.comments||'';
@@ -883,13 +889,18 @@
   }
 
   function renderTripWorkflow(t){
-    const done=['COMPLETED','CANCELLED'].includes(t.status);
+    const done=['COMPLETED','CANCELLED','NO_SHOW','MISSED'].includes(t.status);
     const idx=wfIdx(t.status);
     const next=nextWorkflowStep(t.status);
     const wfEl=$('#tripWorkflow');if(!wfEl)return;
     const startNotice=$('#tripStartNotice');
     const startPolicy=next?.status==='EN_ROUTE'?tripStartPolicy(t):null;
     if(startNotice){
+      if(done){
+        startNotice.hidden=true;
+        startNotice.textContent='';
+      }
+      else
       if(next?.status==='EN_ROUTE'&&!startPolicy.allowed){
         startNotice.hidden=false;
         startNotice.textContent=startPolicy.message;
@@ -914,9 +925,34 @@
     const btn=$('#btnAdvanceTrip');if(!btn)return;
     if(done){btn.textContent='Trip Complete';btn.disabled=true;}
     else{btn.textContent=next?.status==='EN_ROUTE'?'START TRIP':(next?.label||'Advance').toUpperCase();btn.disabled=!shift.onDuty||!next;}
+    const noShowBtn=$('#btnMarkNoShow');
+    if(noShowBtn){
+      noShowBtn.disabled=done;
+      noShowBtn.textContent=done?'No Show Marked':'Mark No Show';
+    }
     if(stepHintsOpen)renderStepHints(t);
     if(aiHelpOpen)renderAiHelp(t);
   }
+
+  async function markTripNoShow(){
+    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    if(['COMPLETED','CANCELLED','NO_SHOW','MISSED'].includes(t.status))return;
+    const reason=prompt('Enter no-show details (optional):','')?.trim()||'';
+    const btn=$('#btnMarkNoShow');
+    if(btn){btn.disabled=true;btn.textContent='Marking…';}
+    try{
+      const r=await fetch(`/api/bookings/${encodeURIComponent(t.ref)}/update`,{method:'POST',headers:ah(),body:JSON.stringify({status:'NO_SHOW',note:reason||undefined})});
+      if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||`HTTP ${r.status}`);}
+      t.status='NO_SHOW';
+      renderTripWorkflow(t);renderStepHints(t);updateBadge();renderManifest();
+      dashNotice('Trip marked as No Show.','ok');
+    }catch(err){alert('No-show update failed: '+err.message);renderTripWorkflow(t);}
+    finally{
+      if(btn){btn.disabled=false;btn.textContent='Mark No Show';}
+    }
+  }
+
+  $('#btnMarkNoShow')?.addEventListener('click',markTripNoShow);
 
   $('#btnTripStepHelp')?.addEventListener('click',()=>{
     const t=trips.find(x=>x.ref===activeRef);if(!t)return;

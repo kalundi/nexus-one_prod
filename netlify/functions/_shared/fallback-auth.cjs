@@ -77,6 +77,34 @@ function futureDateTime(offsetMinutes) {
   return { date, time: `${hh}:${mm}` };
 }
 
+function isFallbackTerminalStatus(status) {
+  return ['COMPLETED', 'DELIVERED', 'CANCELLED', 'NO_SHOW', 'MISSED'].includes(String(status || '').toUpperCase());
+}
+
+function shouldAutoMarkFallbackMissed(item) {
+  const status = String(item?.status || '').toUpperCase();
+  if (isFallbackTerminalStatus(status)) return false;
+  if (!['ASSIGNED', 'SCHEDULED', 'REQUESTED', 'SUBMITTED', 'PENDING_DISPATCH_CONFIRMATION'].includes(status)) return false;
+  const tripDate = String(item?.trip_date || item?.date || '').trim();
+  const tripTime = String(item?.trip_time || item?.time || '00:00').trim();
+  if (!tripDate) return false;
+  const parsed = new Date(`${tripDate}T${tripTime.length === 5 ? `${tripTime}:00` : tripTime}`);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.getTime() < Date.now();
+}
+
+function autoMarkFallbackMissed(list) {
+  const input = Array.isArray(list) ? list : [];
+  return input.map((item) => {
+    if (!shouldAutoMarkFallbackMissed(item)) return item;
+    return {
+      ...item,
+      status: 'MISSED',
+      notes: item?.notes ? `${item.notes} | Auto-marked MISSED after scheduled time passed.` : 'Auto-marked MISSED after scheduled time passed.'
+    };
+  });
+}
+
 function mergeMissingAssignments(existingList, templateList) {
   const existing = Array.isArray(existingList) ? existingList : [];
   const template = Array.isArray(templateList) ? templateList : [];
@@ -144,7 +172,9 @@ function getFallbackAssignments(user) {
     const merged = mergeMissingAssignments(fallbackAssignments.get(key), template);
     fallbackAssignments.set(key, merged);
   }
-  return fallbackAssignments.get(key).map((item) => ({ ...item }));
+  const normalized = autoMarkFallbackMissed(fallbackAssignments.get(key));
+  fallbackAssignments.set(key, normalized);
+  return normalized.map((item) => ({ ...item }));
 }
 
 function acceptFallbackAssignment(user, reference) {
@@ -159,7 +189,7 @@ function acceptFallbackAssignment(user, reference) {
   const idx = list.findIndex((item) => String(item.reference) === String(reference));
   if (idx === -1) return null;
   const current = list[idx];
-  if (['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(String(current.status || '').toUpperCase())) {
+  if (['COMPLETED', 'DELIVERED', 'CANCELLED', 'NO_SHOW', 'MISSED'].includes(String(current.status || '').toUpperCase())) {
     return null;
   }
   list[idx] = { ...current, status: 'ASSIGNED' };
@@ -181,7 +211,7 @@ function updateFallbackAssignmentStatus(user, reference, status, meta = {}) {
   const idx = list.findIndex((item) => String(item.reference) === String(reference));
   if (idx === -1) return null;
   const current = list[idx];
-  if (['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(String(current.status || '').toUpperCase())) {
+  if (['COMPLETED', 'DELIVERED', 'CANCELLED', 'NO_SHOW', 'MISSED'].includes(String(current.status || '').toUpperCase())) {
     return null;
   }
   list[idx] = {
