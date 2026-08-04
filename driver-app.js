@@ -693,7 +693,7 @@
       if(!r.ok)throw new Error(j.error||'Unable to accept trip');
       t.status=normalizeBookingStatus(j.booking?.status||'ASSIGNED');
       renderManifest();renderDash();
-      dashNotice('Trip accepted. It stays assigned until the start window opens.','ok');
+      dashNotice('Trip accepted. Acceptance is allowed regardless of scheduled time.','ok');
     }catch(err){dashNotice(err.message,'err');}
   }
 
