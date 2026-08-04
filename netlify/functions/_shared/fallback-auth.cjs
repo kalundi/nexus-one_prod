@@ -69,11 +69,32 @@ function addDaysIso(days) {
   return new Date(Date.now() + (Number(days) || 0) * 86400000).toISOString().slice(0, 10);
 }
 
+function futureDateTime(offsetMinutes) {
+  const dt = new Date(Date.now() + (Number(offsetMinutes) || 0) * 60000);
+  const date = dt.toISOString().slice(0, 10);
+  const hh = String(dt.getHours()).padStart(2, '0');
+  const mm = String(dt.getMinutes()).padStart(2, '0');
+  return { date, time: `${hh}:${mm}` };
+}
+
+function mergeMissingAssignments(existingList, templateList) {
+  const existing = Array.isArray(existingList) ? existingList : [];
+  const template = Array.isArray(templateList) ? templateList : [];
+  const seen = new Set(existing.map((item) => String(item.reference || '')));
+  const additions = template.filter((item) => !seen.has(String(item.reference || '')));
+  return [...existing, ...additions];
+}
+
 function buildDefaultAssignments(user) {
   const name = user.display_name || 'Assigned Driver';
+  const quick1 = futureDateTime(30);
+  const quick2 = futureDateTime(90);
+  const quick3 = futureDateTime(165);
   const trips = [
-    { reference: 'NMT-DRV-DEMO-1001', offset: 0,  time: '09:30', patient: 'Preview Rider One',   service: 'WHEELCHAIR', pickup: 'Washington Hospital Center', destination: 'Sibley Memorial Hospital', distanceMiles: 18.4 },
-    { reference: 'NMT-DRV-DEMO-1002', offset: 0,  time: '13:15', patient: 'Preview Rider Two',   service: 'AMBULATORY', pickup: 'MedStar Georgetown University Hospital', destination: 'Inova Fairfax Medical Campus', distanceMiles: 24.9 },
+    { reference: 'NMT-DRV-DEMO-2001', date: quick1.date, time: quick1.time, patient: 'Quick Test Rider One',   service: 'WHEELCHAIR', pickup: 'Washington Hospital Center', destination: 'Sibley Memorial Hospital', distanceMiles: 18.4, note: `Testing trip within next hour for ${name}` },
+    { reference: 'NMT-DRV-DEMO-2002', date: quick2.date, time: quick2.time, patient: 'Quick Test Rider Two',   service: 'AMBULATORY', pickup: 'MedStar Georgetown University Hospital', destination: 'Inova Fairfax Medical Campus', distanceMiles: 24.9, note: `Testing trip within next 2 hours for ${name}` },
+    { reference: 'NMT-DRV-DEMO-2003', date: quick3.date, time: quick3.time, patient: 'Quick Test Rider Three', service: 'STRETCHER',   pickup: 'Holy Cross Hospital', destination: 'Suburban Hospital', distanceMiles: 31.2, note: `Testing trip within next 3 hours for ${name}` },
+
     { reference: 'NMT-DRV-DEMO-1003', offset: 1,  time: '08:00', patient: 'Preview Rider Three', service: 'STRETCHER',   pickup: 'Holy Cross Hospital', destination: 'Suburban Hospital', distanceMiles: 31.2 },
     { reference: 'NMT-DRV-DEMO-1004', offset: 3,  time: '10:45', patient: 'Preview Rider Four',  service: 'AMBULATORY',  pickup: 'George Washington University Hospital', destination: 'MedStar Washington Hospital Center', distanceMiles: 12.1 },
     { reference: 'NMT-DRV-DEMO-1005', offset: 5,  time: '07:50', patient: 'Preview Rider Five',  service: 'WHEELCHAIR',  pickup: 'Sibley Memorial Hospital', destination: 'Children\'s National Hospital', distanceMiles: 28.7 },
@@ -85,26 +106,38 @@ function buildDefaultAssignments(user) {
     { reference: 'NMT-DRV-DEMO-1011', offset: 23, time: '12:30', patient: 'Preview Rider Eleven', service: 'AMBULATORY',  pickup: 'Holy Cross Germantown Hospital', destination: 'Inova Fairfax Medical Campus', distanceMiles: 9.7 },
     { reference: 'NMT-DRV-DEMO-1012', offset: 27, time: '16:10', patient: 'Preview Rider Twelve', service: 'STRETCHER',   pickup: 'Children\'s National Hospital', destination: 'MedStar Washington Hospital Center', distanceMiles: 36.4 }
   ];
-  return trips.map((trip) => ({
-    reference: trip.reference,
-    name: trip.patient,
-    service: trip.service,
-    pickup: trip.pickup,
-    destination: trip.destination,
-    trip_date: addDaysIso(trip.offset),
-    trip_time: trip.time,
-    status: 'ASSIGNED',
-    notes: `Assigned to ${name} for local preview`,
-    distanceMiles: trip.distanceMiles
-  }));
+  const unique = new Set();
+  const normalized = [];
+  for (const trip of trips) {
+    const reference = String(trip.reference || '').trim();
+    if (!reference || unique.has(reference)) continue;
+    unique.add(reference);
+    normalized.push({
+      reference,
+      name: trip.patient,
+      service: trip.service,
+      pickup: trip.pickup,
+      destination: trip.destination,
+      trip_date: trip.date || addDaysIso(trip.offset),
+      trip_time: trip.time,
+      status: 'ASSIGNED',
+      notes: trip.note || `Assigned to ${name} for local preview`,
+      distanceMiles: trip.distanceMiles
+    });
+  }
+  return normalized;
 }
 
 function getFallbackAssignments(user) {
   if (!isFallbackAuthEnabled()) return [];
   const key = String(user?.email || '').toLowerCase();
   if (!key) return [];
+  const template = buildDefaultAssignments(user);
   if (!fallbackAssignments.has(key)) {
-    fallbackAssignments.set(key, buildDefaultAssignments(user));
+    fallbackAssignments.set(key, template);
+  } else {
+    const merged = mergeMissingAssignments(fallbackAssignments.get(key), template);
+    fallbackAssignments.set(key, merged);
   }
   return fallbackAssignments.get(key).map((item) => ({ ...item }));
 }
