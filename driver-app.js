@@ -697,6 +697,7 @@
         <div class="tripInfo"><strong>${t.patient}</strong><span>${t.pickup}</span><span>to ${t.destination}</span></div>
         <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
           <span class="badge ${sc[t.status]||'gray'}">${t.status.replace(/_/g,' ')}</span>
+          <span style="font:800 11px/1 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${t.distMi!=null?`${t.distMi} mi`:'Miles n/a'}</span>
           ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">Accept</button>`:'<span style="font-size:11px;color:var(--muted)">'+(isCompleted(t)?'Completed':'In progress')+'</span>'}
         </div>
       </div>`;
