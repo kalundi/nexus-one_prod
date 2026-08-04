@@ -678,6 +678,7 @@
         status:normalizeBookingStatus(b.status||'SCHEDULED'),notes:b.notes||'',
         distanceMiles:b.distanceMiles!=null?Number(b.distanceMiles):null,
         distMi:b.distanceMiles!=null?Number(b.distanceMiles).toFixed(1):null,
+        accepted:false,
         comments:'',
       }));
       updateBadge();
@@ -693,6 +694,7 @@
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(j.error||'Unable to accept trip');
       t.status=normalizeBookingStatus(j.booking?.status||'ASSIGNED');
+      t.accepted=true;
       renderManifest();renderDash();
       dashNotice('Trip accepted. Acceptance is allowed regardless of scheduled time.','ok');
     }catch(err){dashNotice(err.message,'err');}
@@ -726,7 +728,7 @@
     const el=$('#manifestList');if(!el)return;
     if(!list.length){el.innerHTML='<div class="empty"><p>No assigned trips in this period.</p></div>';return;}
     const sc={SCHEDULED:'gray',REQUESTED:'gray',SUBMITTED:'gray',PENDING_DISPATCH_CONFIRMATION:'gray',ASSIGNED:'blue',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',ARRIVED_PICKUP:'amber',DEPARTED:'amber',ARRIVED_DESTINATION:'amber',DELIVERED:'green',COMPLETED:'green',MISSED:'red',NO_SHOW:'red',CANCELLED:'red'};
-    const canAccept=t=>['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION'].includes(t.status);
+    const canAccept=t=>['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION'].includes(t.status)&&!t.accepted;
     const isCompleted=t=>['COMPLETED','NO_SHOW','MISSED','CANCELLED'].includes(t.status);
     const upcoming=list.filter(t=>!isCompleted(t));
     const completed=list.filter(isCompleted);
@@ -737,7 +739,7 @@
         <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
           <span class="badge ${sc[t.status]||'gray'}">${t.status.replace(/_/g,' ')}</span>
           <span style="font:800 11px/1 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${t.distMi!=null?`${t.distMi} mi`:'Miles n/a'}</span>
-          ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">Accept</button>`:'<span style="font-size:11px;color:var(--muted)">'+(isCompleted(t)?'Closed':'In progress')+'</span>'}
+          ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">Accept</button>`:'<span style="font-size:11px;color:var(--muted)">'+(t.accepted?'Accepted':(isCompleted(t)?'Closed':'In progress'))+'</span>'}
         </div>
       </div>`;
 
