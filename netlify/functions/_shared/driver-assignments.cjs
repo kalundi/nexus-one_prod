@@ -6,7 +6,7 @@ function isDriverAssignableStatus(status) {
 }
 
 function normalizeDriverAcceptanceStatus(status) {
-  return isDriverAssignableStatus(status) ? 'EN_ROUTE' : String(status || '').trim().toUpperCase().replaceAll('-', '_') || 'EN_ROUTE';
+  return isDriverAssignableStatus(status) ? 'ASSIGNED' : String(status || '').trim().toUpperCase().replaceAll('-', '_') || 'ASSIGNED';
 }
 
 module.exports = {

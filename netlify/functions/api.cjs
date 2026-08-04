@@ -17,6 +17,35 @@ const envEnabled=name=>Boolean(process.env[name]);
 const clean=v=>String(v??'').trim();
 const required=(body,fields)=>{for(const f of fields)if(!clean(body[f]))throw Object.assign(new Error(`${f} is required`),{statusCode:400})};
 const reference=()=>`NMT-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${crypto.randomInt(1000,9999)}`;
+function tripStartWindowHours(distanceMiles){return Number(distanceMiles)>=30?2:1;}
+function parseTripDateTime(booking){
+ const tripDate=clean(booking?.trip_date||booking?.date||'');
+ const tripTime=clean(booking?.trip_time||booking?.time||'00:00');
+ const parsed=new Date(`${tripDate}T${tripTime.length===5?`${tripTime}:00`:tripTime}`);
+ return {tripDate,tripTime,parsed};
+}
+function getTripStartPolicy(booking,earlyPickupReason=''){
+ const {tripDate,tripTime,parsed}=parseTripDateTime(booking);
+ const miles=Number(booking?.distance_miles??booking?.distanceMiles);
+ const windowHours=tripStartWindowHours(Number.isFinite(miles)?miles:0);
+ const windowStart=new Date(parsed.getTime()-windowHours*3600000);
+ const reason=clean(earlyPickupReason);
+ if(reason){
+  return {allowed:true,reason,windowHours,tripDate,tripTime,windowStart};
+ }
+ if(!tripDate||Number.isNaN(parsed.getTime())){
+  return {allowed:true,windowHours,tripDate,tripTime,windowStart};
+ }
+ const todayIso=new Date().toISOString().slice(0,10);
+ if(todayIso!==tripDate){
+  return {allowed:false,windowHours,tripDate,tripTime,windowStart,message:`This trip can only start on ${tripDate}. Enter an early pickup reason if the patient requested an earlier pickup.`};
+ }
+ if(Date.now()>=windowStart.getTime()){
+  return {allowed:true,windowHours,tripDate,tripTime,windowStart};
+ }
+ const readableTime=windowStart.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+ return {allowed:false,windowHours,tripDate,tripTime,windowStart,message:`This trip cannot start yet. It unlocks ${windowHours} hour${windowHours===1?'':'s'} before pickup (${readableTime}). Enter an early pickup reason if the patient requested an earlier pickup.`};
+}
 
 // Service → preferred vehicle unit prefixes (ordered by preference)
 const SERVICE_VEHICLE_PREFS={
@@ -590,7 +619,7 @@ async function handler(event){
     const fallbackSession=getFallbackSession(token);
     if(fallbackSession?.user?.role==='DRIVER'){
      const ref=decodeURIComponent(p[1]);
-     const accepted=acceptFallbackAssignment(fallbackSession.user,ref);
+    const accepted=acceptFallbackAssignment(fallbackSession.user,ref);
      if(!accepted)return json(404,{error:'Booking not found'});
      return json(200,{booking:mapBooking(accepted),message:'Trip accepted'});
     }
@@ -600,7 +629,7 @@ async function handler(event){
    const booking=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
    if(!booking.rows[0])return json(404,{error:'Booking not found'});
    if(!isDriverAssignableStatus(booking.rows[0].status))return json(409,{error:'This booking is not currently available for acceptance'});
-   const nextStatus=normalizeDriverAcceptanceStatus(booking.rows[0].status);
+  const nextStatus=normalizeDriverAcceptanceStatus(booking.rows[0].status);
    const updated=await query(`UPDATE bookings SET status=$2, driver_name=COALESCE($3,driver_name), driver_scope_id=COALESCE($4,driver_scope_id), updated_at=now() WHERE reference=$1 RETURNING *`,[ref,nextStatus,clean(u.display_name||u.email||'Driver')||null,clean(u.scope_id||u.scopeId||null)||null]);
    if(!updated.rows[0])return json(404,{error:'Booking not found'});
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,nextStatus,statusLabel(nextStatus),`Accepted by ${u.display_name||u.email||'driver'}`,'DRIVER']);
@@ -1081,6 +1110,7 @@ async function handler(event){
    const ref=decodeURIComponent(p[1]);
    const token=bearer(event);
    const b=parseBody(event);
+    const earlyPickupReason=clean(b.earlyPickupReason||b.earlyPickupRequestReason||b.earlyPickupNote||b.note||'');
    if(token){
     if(typeof token==='string'&&token.startsWith('fb.')){
      const fallbackSession=getFallbackSession(token);
@@ -1090,7 +1120,13 @@ async function handler(event){
      const statusInput=b.status?String(b.status).toUpperCase().replaceAll('-','_'):null;
      if(role==='DRIVER'&&!statusInput)return json(400,{error:'Status is required'});
      if(role==='DRIVER'&&(b.name||b.service||b.pickup||b.destination||b.email||b.alternatePhone||b.alternateEmail||Object.prototype.hasOwnProperty.call(b,'estimatedFare')))return json(403,{error:'Drivers may only update trip status and vehicle data'});
-    const updatedFallback=updateFallbackAssignmentStatus({email:fallbackSession.user?.email},ref,statusInput||'');
+     const currentFallback=getFallbackAssignments(fallbackSession.user).find((item)=>String(item.reference)===String(ref));
+     if(!currentFallback)return json(404,{error:'Booking not found'});
+     if(statusInput==='EN_ROUTE'){
+      const startPolicy=getTripStartPolicy(currentFallback,earlyPickupReason);
+      if(!startPolicy.allowed)return json(409,{error:startPolicy.message});
+     }
+    const updatedFallback=updateFallbackAssignmentStatus({email:fallbackSession.user?.email},ref,statusInput||'',{earlyPickupReason});
      if(!updatedFallback)return json(404,{error:'Booking not found'});
      return json(200,{booking:mapBooking(updatedFallback),message:'Trip updated successfully'});
     }
@@ -1101,9 +1137,15 @@ async function handler(event){
     const vehicleUnitInput=clean(b.vehicleUnit)||null;
     const driverNameInput=u.role==='DRIVER'?(clean(u.display_name||u.email||'Driver')||null):(clean(b.driverName)||null);
     const driverScopeInput=u.role==='DRIVER'?(clean(u.scope_id||u.scopeId||null)||null):null;
+    const currentBooking=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
+    if(!currentBooking.rows[0])return json(404,{error:'Booking not found'});
+    if(statusInput==='EN_ROUTE'){
+     const startPolicy=getTripStartPolicy(currentBooking.rows[0],earlyPickupReason);
+     if(!startPolicy.allowed)return json(409,{error:startPolicy.message});
+    }
     const updated=await query(`UPDATE bookings SET status=COALESCE($2,status),vehicle_unit=COALESCE($3,vehicle_unit),driver_name=COALESCE($4,driver_name),driver_scope_id=COALESCE($5,driver_scope_id),updated_at=now() WHERE reference=$1 RETURNING *`,[ref,statusInput,vehicleUnitInput,driverNameInput,driverScopeInput]);
     if(!updated.rows[0])return json(404,{error:'Booking not found'});
-    const note=clean(b.note)||null;
+    const note=earlyPickupReason||null;
     await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),note,u.display_name||u.email||u.role]);
     await audit('BOOKING',ref,'UPDATED',{by:u.role,status:updated.rows[0].status,vehicleUnit:updated.rows[0].vehicle_unit||null});
     return json(200,{booking:mapBooking(updated.rows[0]),message:'Trip updated successfully'});
@@ -1353,7 +1395,7 @@ async function handler(event){
   return json(404,{error:'Route not found'});
  }catch(err){console.error(err);return json(err.statusCode||500,{error:err.statusCode?err.message:'Internal server error',requestId:crypto.randomUUID()})}
 }
-function mapBooking(b){return {id:b.reference,reference:b.reference,name:b.name,phone:b.phone,email:b.email,alternatePhone:b.alternate_phone,alternateEmail:b.alternate_email,service:b.service,pickup:b.pickup,destination:b.destination,date:b.trip_date,time:String(b.trip_time||'').slice(0,5),status:statusLabel(b.status),statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),driver:b.driver_name,driverName:b.driver_name,vehicle:b.vehicle_unit,vehicleUnit:b.vehicle_unit,facilityId:b.facility_id,distanceMiles:b.distance_miles?Number(b.distance_miles):null,estimatedDuration:b.estimated_duration,estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,paymentStatus:b.payment_status||'UNPAID',bookingSource:b.booking_source||'CUSTOMER',depositAmount:b.deposit_amount?Number(b.deposit_amount):null,balanceDue:b.balance_due?Number(b.balance_due):null,depositPaidAt:b.deposit_paid_at||null,paidInFullAt:b.paid_in_full_at||null,cancellationFeeAmount:b.cancellation_fee_amount?Number(b.cancellation_fee_amount):0,cancellationFeeApplied:Boolean(b.cancellation_fee_applied),cancellationRuleSnapshot:b.cancellation_rule_snapshot||null,lastUpdatedBy:b.last_updated_by,lastUpdatedAt:b.last_updated_at} }
+function mapBooking(b){return {id:b.reference,reference:b.reference,name:b.name,phone:b.phone,email:b.email,alternatePhone:b.alternate_phone,alternateEmail:b.alternate_email,service:b.service,pickup:b.pickup,destination:b.destination,date:b.trip_date||b.date,time:String(b.trip_time||b.time||'').slice(0,5),status:statusLabel(b.status),statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),driver:b.driver_name,driverName:b.driver_name,vehicle:b.vehicle_unit,vehicleUnit:b.vehicle_unit,facilityId:b.facility_id,distanceMiles:b.distance_miles!=null?Number(b.distance_miles):b.distanceMiles!=null?Number(b.distanceMiles):null,estimatedDuration:b.estimated_duration,estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,paymentStatus:b.payment_status||'UNPAID',bookingSource:b.booking_source||'CUSTOMER',depositAmount:b.deposit_amount?Number(b.deposit_amount):null,balanceDue:b.balance_due?Number(b.balance_due):null,depositPaidAt:b.deposit_paid_at||null,paidInFullAt:b.paid_in_full_at||null,cancellationFeeAmount:b.cancellation_fee_amount?Number(b.cancellation_fee_amount):0,cancellationFeeApplied:Boolean(b.cancellation_fee_applied),cancellationRuleSnapshot:b.cancellation_rule_snapshot||null,lastUpdatedBy:b.last_updated_by,lastUpdatedAt:b.last_updated_at,notes:b.notes||null} }
 exports.handler=handler;
 exports.sendBrokerRequestConfirmation=sendBrokerRequestConfirmation;
 exports.sendBrokerRequestDispatchNotifications=sendBrokerRequestDispatchNotifications;

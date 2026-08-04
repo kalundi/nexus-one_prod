@@ -25,6 +25,7 @@
   let activeRef = null;
   let manifestDays = 1;
   let gpsId = null;
+  let aiHelpOpen = false;
 
   function elapsed() {
     if (!shift.onDuty || !shift.startedAt) return 0;
@@ -37,6 +38,29 @@
   function totalMiles() { return miles.legs.reduce((s,l)=>s+(Number(l.miles)||0),0); }
   function normalizeBookingStatus(status) { return String(status || 'SCHEDULED').trim().toUpperCase().replaceAll('-', '_'); }
   function tripNeedsAcceptance(trip) { return ['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED'].includes(normalizeBookingStatus(trip?.status)); }
+  function tripStartWindowHours(trip){ return Number(trip?.distanceMiles ?? trip?.distMi ?? 0) >= 30 ? 2 : 1; }
+  function parseTripDateTime(trip){
+    const tripDate=String(trip?.date||'').trim();
+    const tripTime=String(trip?.time||'00:00').trim();
+    const parsed=new Date(`${tripDate}T${tripTime.length===5?`${tripTime}:00`:tripTime}`);
+    return {tripDate,tripTime,parsed};
+  }
+  function tripStartPolicy(trip){
+    const {parsed}=parseTripDateTime(trip);
+    if(Number.isNaN(parsed.getTime())) return {allowed:true,windowHours:tripStartWindowHours(trip)};
+    const windowHours=tripStartWindowHours(trip);
+    const windowStart=new Date(parsed.getTime()-windowHours*3600000);
+    const todayIso=new Date().toISOString().slice(0,10);
+    const tripDate=String(trip?.date||'').trim();
+    const allowed=todayIso===tripDate && Date.now()>=windowStart.getTime();
+    const readable=windowStart.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+    return {
+      allowed,
+      windowHours,
+      windowStart,
+      message: allowed ? '' : `This trip cannot start yet. It unlocks ${windowHours} hour${windowHours===1?'':'s'} before pickup (${readable}). Enter an early pickup reason if the patient requested an earlier pickup.`
+    };
+  }
   function dashNotice(msg,type) { const el=$('#dashNotice');if(!el)return; el.className=`notice ${type||'info'}`;el.textContent=msg;el.hidden=false; setTimeout(()=>{el.hidden=true;},5000); }
 
   // ── View routing ──────────────────────────────────────────────
@@ -651,6 +675,7 @@
         pickup:b.pickup||'',destination:b.destination||'',
         patient:b.name||'Patient',service:b.service||'',
         status:normalizeBookingStatus(b.status||'SCHEDULED'),notes:b.notes||'',
+        distanceMiles:b.distanceMiles!=null?Number(b.distanceMiles):null,
         distMi:b.distanceMiles!=null?Number(b.distanceMiles).toFixed(1):null,
         comments:'',
       }));
@@ -666,9 +691,9 @@
       const r=await fetch(`/api/bookings/${encodeURIComponent(ref)}/accept`,{method:'POST',headers:ah(),cache:'no-store'});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(j.error||'Unable to accept trip');
-      t.status=normalizeBookingStatus(j.booking?.status||'EN_ROUTE');
+      t.status=normalizeBookingStatus(j.booking?.status||'ASSIGNED');
       renderManifest();renderDash();
-      dashNotice('Trip accepted. You can advance it from the manifest.','ok');
+      dashNotice('Trip accepted. It stays assigned until the start window opens.','ok');
     }catch(err){dashNotice(err.message,'err');}
   }
 
@@ -782,6 +807,50 @@
     if(toggle)toggle.textContent=stepHintsOpen?'Hide Step Hints':'Show Step Hints';
   }
 
+  function buildAiHintLines(trip){
+    const driverName=usr().display_name||usr().email||'Driver';
+    const lines=[];
+    lines.push(`Driver on file: ${driverName}.`);
+    if(trip){
+      const next=nextWorkflowStep(trip.status);
+      const policy=next?.status==='EN_ROUTE'?tripStartPolicy(trip):null;
+      lines.push(`Active trip: ${trip.patient} (${trip.ref}).`);
+      lines.push(`Route: ${trip.pickup} to ${trip.destination}.`);
+      if(next?.status==='EN_ROUTE'){
+        lines.push(policy?.allowed ? 'You can start this trip now.' : policy?.message || 'Start window is not open yet.');
+      } else if(next?.label){
+        lines.push(`Next step: ${next.label}.`);
+      }
+    } else {
+      lines.push('Open a trip to get step-by-step guidance.');
+    }
+    const recs=(window.NexusAI?.recommendations?.(trips)||[]).slice(0,2);
+    if(recs.length){
+      lines.push('System suggestions:');
+      recs.forEach((rec)=>lines.push(`${rec.priority}: ${rec.title} — ${rec.detail}`));
+    }
+    return lines;
+  }
+
+  function renderAiHelp(trip, question=''){
+    const panel=$('#tripAiHelp');
+    const body=$('#tripAiHelpBody');
+    if(!panel||!body)return;
+    if(!aiHelpOpen){
+      panel.hidden=true;
+      return;
+    }
+    panel.hidden=false;
+    const q=String(question||$('#tripAiHelpQuestion')?.value||'').trim();
+    const lines=q?[
+      `You asked: ${q}`,
+      ...buildAiHintLines(trip)
+    ]:buildAiHintLines(trip);
+    body.innerHTML=lines.map((line,i)=>`<div style="padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:${i===0&&q?'#eff6ff':'#fff'};font-size:13px;line-height:1.4;color:var(--ink)">${line}</div>`).join('');
+    const toggle=$('#btnTripAiHelp');
+    if(toggle)toggle.textContent='Hide AI Help';
+  }
+
   function openTrip(ref){
     const t=trips.find(x=>x.ref===ref);if(!t)return;
     activeRef=ref;
@@ -797,6 +866,7 @@
     $('#tripComments').value=t.comments||'';
     renderTripWorkflow(t);
     renderStepHints(t);
+    renderAiHelp(t);
     const last=miles.legs[miles.legs.length-1];
     if(last?.odoEnd&&$('#legOdoStart'))$('#legOdoStart').value=last.odoEnd;
     const inTrip=['PATIENT_ON_BOARD','DEPARTED'].includes(t.status);
@@ -809,6 +879,17 @@
     const idx=wfIdx(t.status);
     const next=nextWorkflowStep(t.status);
     const wfEl=$('#tripWorkflow');if(!wfEl)return;
+    const startNotice=$('#tripStartNotice');
+    const startPolicy=next?.status==='EN_ROUTE'?tripStartPolicy(t):null;
+    if(startNotice){
+      if(next?.status==='EN_ROUTE'&&!startPolicy.allowed){
+        startNotice.hidden=false;
+        startNotice.textContent=startPolicy.message;
+      } else {
+        startNotice.hidden=true;
+        startNotice.textContent='';
+      }
+    }
     wfEl.innerHTML=WORKFLOW.map((w,i)=>{
       const st=i<idx?'done':i===idx?'current':'pending';
       return `<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line)${i===WORKFLOW.length-1?';border-bottom:0':''}">
@@ -824,8 +905,9 @@
     }).join('');
     const btn=$('#btnAdvanceTrip');if(!btn)return;
     if(done){btn.textContent='Trip Complete';btn.disabled=true;}
-    else{btn.textContent=(next?.label||'Advance').toUpperCase();btn.disabled=!shift.onDuty||!next;}
+    else{btn.textContent=next?.status==='EN_ROUTE'?'START TRIP':(next?.label||'Advance').toUpperCase();btn.disabled=!shift.onDuty||!next;}
     if(stepHintsOpen)renderStepHints(t);
+    if(aiHelpOpen)renderAiHelp(t);
   }
 
   $('#btnTripStepHelp')?.addEventListener('click',()=>{
@@ -839,12 +921,35 @@
     renderStepHints(t);
   });
 
+  $('#btnTripAiHelp')?.addEventListener('click',()=>{
+    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    aiHelpOpen=!aiHelpOpen;
+    renderAiHelp(t);
+  });
+  $('#btnTripAiHelpClose')?.addEventListener('click',()=>{
+    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    aiHelpOpen=false;
+    renderAiHelp(t);
+  });
+  $('#btnTripAiHelpAsk')?.addEventListener('click',()=>{
+    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    renderAiHelp(t,$('#tripAiHelpQuestion')?.value||'');
+  });
+
   $('#btnAdvanceTrip')?.addEventListener('click',async()=>{
     const t=trips.find(x=>x.ref===activeRef);if(!t)return;
     const next=nextWorkflowStep(t.status);if(!next)return;
     const btn=$('#btnAdvanceTrip');btn.disabled=true;btn.textContent='Updating…';
     try{
-      const r=await fetch(`/api/bookings/${encodeURIComponent(t.ref)}/update`,{method:'POST',headers:ah(),body:JSON.stringify({status:next.status,vehicleUnit:shift.vehicleUnit||undefined})});
+      let earlyPickupReason='';
+      if(next.status==='EN_ROUTE'){
+        const policy=tripStartPolicy(t);
+        if(!policy.allowed){
+          earlyPickupReason=prompt(`${policy.message}\n\nIf the patient requested an early pickup, enter the driver or dispatch reason now:`,'')?.trim()||'';
+          if(!earlyPickupReason){throw new Error('Early pickup reason is required before starting this trip.');}
+        }
+      }
+      const r=await fetch(`/api/bookings/${encodeURIComponent(t.ref)}/update`,{method:'POST',headers:ah(),body:JSON.stringify({status:next.status,vehicleUnit:shift.vehicleUnit||undefined,earlyPickupReason:earlyPickupReason||undefined})});
       if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||`HTTP ${r.status}`);}
       t.status=next.status;
       if(next.status==='COMPLETED'){shift.completedTrips++;saveShift();}
@@ -927,7 +1032,7 @@
 
   // ── Dashboard ─────────────────────────────────────────────────
   function renderDash(){
-    const u=usr(),name=u.display_name?.split(' ')[0]||'Driver';
+    const u=usr(),name=u.display_name||u.email?.split('@')[0]||'Driver';
     if($('#dashDriverName'))$('#dashDriverName').textContent=`Good ${tod()}, ${name}`;
     if($('#dashVehicle')){$('#dashVehicle').textContent=shift.vehicleUnit||'No vehicle';$('#dashVehicle').className='badge '+(shift.vehicleUnit?'blue':'gray');}
     if($('#statHours'))$('#statHours').textContent=fmtH(elapsed());
@@ -971,6 +1076,7 @@
       if($('#activeTripBadge')){$('#activeTripBadge').textContent=active.status.replace(/_/g,' ');$('#activeTripBadge').className=`badge ${asc[active.status]||'blue'}`;}
       if($('#activeTripSub'))$('#activeTripSub').textContent=`${active.pickup} to ${active.destination}`;
       if(!activeRef)activeRef=active.ref;
+      if(aiHelpOpen)renderAiHelp(active);
     }else if(atc)atc.hidden=true;
     // Next upcoming
     const today=new Date().toISOString().slice(0,10);

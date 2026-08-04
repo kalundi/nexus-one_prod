@@ -382,14 +382,30 @@ a{color:var(--blue);text-decoration:none}
       <div class="card">
         <div class="cardHead"><div class="eyebrow">Trip status</div></div>
         <div id="tripWorkflow" style="padding:0 0 4px"></div>
+        <div id="tripStartNotice" class="notice info" hidden style="margin:0 16px 10px"></div>
         <div class="cardBody" style="padding-top:4px">
-          <button id="btnTripStepHelp" class="btn ghost sm" type="button" style="width:100%;margin-bottom:8px">Show Step Hints</button>
+          <div class="btnRow" style="margin-bottom:8px">
+            <button id="btnTripStepHelp" class="btn ghost sm" type="button">Show Step Hints</button>
+            <button id="btnTripAiHelp" class="btn ghost sm" type="button">AI Help</button>
+          </div>
           <div id="tripStepHints" class="notice info" hidden style="margin-bottom:10px">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
               <strong style="font:800 13px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase">Driver Hints</strong>
               <button id="btnTripStepHelpClose" class="btn ghost sm" type="button" style="min-height:30px;padding:0 10px">Hide</button>
             </div>
             <div id="tripStepHintsBody" style="display:grid;gap:8px"></div>
+          </div>
+          <div id="tripAiHelp" class="notice info" hidden style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+              <strong style="font:800 13px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase">AI Helper</strong>
+              <button id="btnTripAiHelpClose" class="btn ghost sm" type="button" style="min-height:30px;padding:0 10px">Hide</button>
+            </div>
+            <div id="tripAiHelpBody" style="display:grid;gap:8px"></div>
+            <div class="field" style="margin-top:10px">
+              <label for="tripAiHelpQuestion">Ask for a hint</label>
+              <textarea id="tripAiHelpQuestion" rows="2" placeholder="Ask what to do next, how to start, or what to check"></textarea>
+            </div>
+            <button id="btnTripAiHelpAsk" class="btn primary sm" type="button" style="width:100%;margin-top:8px">Get Hint</button>
           </div>
           <button id="btnAdvanceTrip" class="btn navy" disabled>--</button>
         </div>
@@ -531,6 +547,7 @@ a{color:var(--blue);text-decoration:none}
 
 </div><!-- #appShell -->
 
+<script src="./nexus-ai.js"></script>
 <script src="./driver-app.js"></script>
 </body>
 </html>

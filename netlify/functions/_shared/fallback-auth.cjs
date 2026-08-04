@@ -65,32 +65,38 @@ function tomorrowIso() {
   return new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 }
 
+function addDaysIso(days) {
+  return new Date(Date.now() + (Number(days) || 0) * 86400000).toISOString().slice(0, 10);
+}
+
 function buildDefaultAssignments(user) {
   const name = user.display_name || 'Assigned Driver';
-  return [
-    {
-      reference: 'NMT-DRV-DEMO-1001',
-      name: 'Preview Rider One',
-      service: 'WHEELCHAIR',
-      pickup: 'Washington Hospital Center',
-      destination: 'Sibley Memorial Hospital',
-      trip_date: todayIso(),
-      trip_time: '09:30',
-      status: 'ASSIGNED',
-      notes: `Assigned to ${name} for local preview`
-    },
-    {
-      reference: 'NMT-DRV-DEMO-1002',
-      name: 'Preview Rider Two',
-      service: 'AMBULATORY',
-      pickup: 'MedStar Georgetown University Hospital',
-      destination: 'Inova Fairfax Medical Campus',
-      trip_date: tomorrowIso(),
-      trip_time: '13:15',
-      status: 'SCHEDULED',
-      notes: `Assigned to ${name} for local preview`
-    }
+  const trips = [
+    { reference: 'NMT-DRV-DEMO-1001', offset: 0,  time: '09:30', patient: 'Preview Rider One',   service: 'WHEELCHAIR', pickup: 'Washington Hospital Center', destination: 'Sibley Memorial Hospital', distanceMiles: 18.4 },
+    { reference: 'NMT-DRV-DEMO-1002', offset: 0,  time: '13:15', patient: 'Preview Rider Two',   service: 'AMBULATORY', pickup: 'MedStar Georgetown University Hospital', destination: 'Inova Fairfax Medical Campus', distanceMiles: 24.9 },
+    { reference: 'NMT-DRV-DEMO-1003', offset: 1,  time: '08:00', patient: 'Preview Rider Three', service: 'STRETCHER',   pickup: 'Holy Cross Hospital', destination: 'Suburban Hospital', distanceMiles: 31.2 },
+    { reference: 'NMT-DRV-DEMO-1004', offset: 3,  time: '10:45', patient: 'Preview Rider Four',  service: 'AMBULATORY',  pickup: 'George Washington University Hospital', destination: 'MedStar Washington Hospital Center', distanceMiles: 12.1 },
+    { reference: 'NMT-DRV-DEMO-1005', offset: 5,  time: '07:50', patient: 'Preview Rider Five',  service: 'WHEELCHAIR',  pickup: 'Sibley Memorial Hospital', destination: 'Children\'s National Hospital', distanceMiles: 28.7 },
+    { reference: 'NMT-DRV-DEMO-1006', offset: 7,  time: '14:20', patient: 'Preview Rider Six',    service: 'AMBULATORY',  pickup: 'Inova Fairfax Medical Campus', destination: 'Reston Hospital Center', distanceMiles: 34.6 },
+    { reference: 'NMT-DRV-DEMO-1007', offset: 10, time: '11:10', patient: 'Preview Rider Seven',  service: 'WHEELCHAIR',  pickup: 'Adventist HealthCare White Oak Medical Center', destination: 'Washington Hospital Center', distanceMiles: 16.8 },
+    { reference: 'NMT-DRV-DEMO-1008', offset: 13, time: '09:00', patient: 'Preview Rider Eight',  service: 'AMBULATORY',  pickup: 'Prince George\'s Hospital Center', destination: 'MedStar Georgetown University Hospital', distanceMiles: 21.5 },
+    { reference: 'NMT-DRV-DEMO-1009', offset: 16, time: '15:25', patient: 'Preview Rider Nine',   service: 'BLS',         pickup: 'University of Maryland Medical Center', destination: 'Union Station', distanceMiles: 41.3 },
+    { reference: 'NMT-DRV-DEMO-1010', offset: 19, time: '08:40', patient: 'Preview Rider Ten',    service: 'WHEELCHAIR',  pickup: 'Suburban Hospital', destination: 'Sibley Memorial Hospital', distanceMiles: 29.8 },
+    { reference: 'NMT-DRV-DEMO-1011', offset: 23, time: '12:30', patient: 'Preview Rider Eleven', service: 'AMBULATORY',  pickup: 'Holy Cross Germantown Hospital', destination: 'Inova Fairfax Medical Campus', distanceMiles: 9.7 },
+    { reference: 'NMT-DRV-DEMO-1012', offset: 27, time: '16:10', patient: 'Preview Rider Twelve', service: 'STRETCHER',   pickup: 'Children\'s National Hospital', destination: 'MedStar Washington Hospital Center', distanceMiles: 36.4 }
   ];
+  return trips.map((trip) => ({
+    reference: trip.reference,
+    name: trip.patient,
+    service: trip.service,
+    pickup: trip.pickup,
+    destination: trip.destination,
+    trip_date: addDaysIso(trip.offset),
+    trip_time: trip.time,
+    status: 'ASSIGNED',
+    notes: `Assigned to ${name} for local preview`,
+    distanceMiles: trip.distanceMiles
+  }));
 }
 
 function getFallbackAssignments(user) {
@@ -114,12 +120,12 @@ function acceptFallbackAssignment(user, reference) {
   if (['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(String(current.status || '').toUpperCase())) {
     return null;
   }
-  list[idx] = { ...current, status: 'EN_ROUTE' };
+  list[idx] = { ...current, status: 'ASSIGNED' };
   fallbackAssignments.set(key, list);
   return { ...list[idx] };
 }
 
-function updateFallbackAssignmentStatus(user, reference, status) {
+function updateFallbackAssignmentStatus(user, reference, status, meta = {}) {
   if (!isFallbackAuthEnabled()) return null;
   const key = String(user?.email || '').toLowerCase();
   if (!key) return null;
@@ -136,7 +142,11 @@ function updateFallbackAssignmentStatus(user, reference, status) {
   if (['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(String(current.status || '').toUpperCase())) {
     return null;
   }
-  list[idx] = { ...current, status: normalizedStatus };
+  list[idx] = {
+    ...current,
+    status: normalizedStatus,
+    earlyPickupReason: normalizedStatus === 'EN_ROUTE' && meta?.earlyPickupReason ? String(meta.earlyPickupReason).trim() : current.earlyPickupReason || null
+  };
   fallbackAssignments.set(key, list);
   return { ...list[idx] };
 }
