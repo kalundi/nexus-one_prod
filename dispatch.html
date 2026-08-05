@@ -1136,9 +1136,20 @@ $('saveCustomCompany').addEventListener('click',()=>{
     </div>
     <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
       <div class="formField"><label>Date</label><input id="dispatchEditDate" type="date"></div>
-      <div class="formField"><label>Time</label><input id="dispatchEditTime" type="time"></div>
+      <div class="formField"><label>Appointment time</label><input id="dispatchEditAppointmentTime" type="time"></div>
+      <div class="formField"><label>Pickup time (calculated)</label><input id="dispatchEditCalcPickupTime" type="time" readonly></div>
+      <div class="formField"><label>Pickup time</label><input id="dispatchEditTime" type="time"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
       <div class="formField"><label>Driver</label><input id="dispatchEditDriver" type="text" placeholder="Driver name"></div>
       <div class="formField"><label>Vehicle</label><input id="dispatchEditVehicle" type="text" placeholder="Vehicle unit"></div>
+      <div class="formField"><label>Submitter type</label><select id="dispatchEditSubmitterType"><option value="CUSTOMER">Customer</option><option value="FACILITY">Facility</option><option value="BROKER">Broker</option><option value="DISPATCH">Dispatch</option><option value="PATIENT">Patient</option><option value="STAFF">Staff</option><option value="DRIVER_REFERRAL">Driver Referral</option></select></div>
+      <div class="formField"><label>Submitter login</label><input id="dispatchEditSubmitter" type="text" placeholder="email or entity login"></div>
+    </div>
+    <div class="formRow" id="dispatchEditBrokerRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px" hidden>
+      <div class="formField"><label>Broker company</label><select id="dispatchEditBrokerCompany"><option value="">Select company</option></select></div>
+      <div class="formField"><label>Our estimate</label><input id="dispatchEditOurEstimate" type="text" readonly></div>
+      <div class="formField"><label>Broker accepted rate</label><input id="dispatchEditBrokerAcceptedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
     </div>
     <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">
       <div class="formField"><label>Patient name</label><input id="dispatchEditName" type="text"></div>
@@ -1157,6 +1168,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const get=(id)=>document.getElementById(id);
   const msgEl=get('dispatchEditMsg');
   const detailsEl=get('dispatchEditDetails');
+  let lastCalculatedPickup='';
   let currentRef='';
 
   function setMsg(text,type){
@@ -1174,6 +1186,78 @@ $('saveCustomCompany').addEventListener('click',()=>{
     return match?match[0]:'';
   }
 
+  function extractAppointmentTime(note){
+    const text=String(note||'');
+    const m=text.match(/Appointment time:\s*([0-2]?\d:[0-5]\d)/i);
+    return m?m[1]:'';
+  }
+
+  function serviceLeadMinutes(service){
+    const s=String(service||'').toLowerCase();
+    if(s.includes('als2')) return 75;
+    if(s.includes('als1')) return 70;
+    if(s.includes('bls')) return 60;
+    if(s.includes('stretcher')) return 55;
+    if(s.includes('broda')) return 40;
+    if(s.includes('bariatric')) return 65;
+    if(s.includes('wheelchair')) return 35;
+    if(s.includes('facility_transfer_critical')) return 70;
+    if(s.includes('facility_transfer')) return 55;
+    return 25;
+  }
+
+  function shiftTimeBack(timeHHMM, minutesBack){
+    const m=String(timeHHMM||'').match(/^(\d{2}):(\d{2})$/);
+    if(!m) return '';
+    const total=Number(m[1])*60+Number(m[2]);
+    const shifted=((total-minutesBack)%1440+1440)%1440;
+    const hh=String(Math.floor(shifted/60)).padStart(2,'0');
+    const mm=String(shifted%60).padStart(2,'0');
+    return `${hh}:${mm}`;
+  }
+
+  function updatePickupFromAppointment(){
+    const appointment=get('dispatchEditAppointmentTime').value;
+    const service=get('dispatchEditService').value;
+    const calc=appointment?shiftTimeBack(appointment,serviceLeadMinutes(service)):'';
+    get('dispatchEditCalcPickupTime').value=calc;
+    const currentPickup=get('dispatchEditTime').value;
+    if(calc&&(currentPickup===''||currentPickup===lastCalculatedPickup)){
+      get('dispatchEditTime').value=calc;
+    }
+    lastCalculatedPickup=calc;
+  }
+
+  function toggleBrokerFields(){
+    const type=String(get('dispatchEditSubmitterType').value||'CUSTOMER').toUpperCase();
+    const isBroker=type==='BROKER';
+    const brokerRow=get('dispatchEditBrokerRow');
+    if(brokerRow) brokerRow.hidden=!isBroker;
+  }
+
+  async function loadBrokerCompanies(){
+    const select=get('dispatchEditBrokerCompany');
+    if(!select) return;
+    const names=[];
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    try{
+      const r=await fetch('/api/admin/brokers',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+      const j=await r.json().catch(()=>({}));
+      if(r.ok&&Array.isArray(j.brokers)){
+        j.brokers.forEach((b)=>{ if(b?.name) names.push(String(b.name)); });
+      }
+    }catch{}
+    if(!names.length){
+      try{
+        const r=await fetch('/api/transportation-companies',{cache:'no-store'});
+        const j=await r.json().catch(()=>[]);
+        if(r.ok&&Array.isArray(j)) j.forEach((c)=>{ if(c?.name) names.push(String(c.name)); });
+      }catch{}
+    }
+    const unique=[...new Set(names)].sort((a,b)=>a.localeCompare(b));
+    select.innerHTML='<option value="">Select company</option>'+unique.map((name)=>`<option value="${name}">${name}</option>`).join('');
+  }
+
   function applyEditorValues(b){
     get('dispatchEditRef').value=b.reference||currentRef||'';
     get('dispatchEditStatus').value=String((b.status||'SUBMITTED')).toUpperCase().replaceAll('-','_').replaceAll(' ','_');
@@ -1184,10 +1268,18 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditTime').value=String(b.time||'').slice(0,5);
     get('dispatchEditDriver').value=b.driverName||b.driver||'';
     get('dispatchEditVehicle').value=b.vehicleUnit||b.vehicle||'';
+    get('dispatchEditSubmitterType').value=String(b.bookingSource||'CUSTOMER').toUpperCase();
+    get('dispatchEditSubmitter').value=b.submitterEntity||'';
+    get('dispatchEditBrokerCompany').value=b.brokerCompanyName||'';
+    get('dispatchEditOurEstimate').value=b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'--';
+    get('dispatchEditBrokerAcceptedRate').value=b.brokerAcceptedRate!=null?String(Number(b.brokerAcceptedRate).toFixed(2)):'';
     get('dispatchEditName').value=b.name||'';
     get('dispatchEditPhone').value=b.phone||'';
     get('dispatchEditEmail').value=b.email||'';
     get('dispatchEditTripNotes').value=b.notes||'';
+    get('dispatchEditAppointmentTime').value=extractAppointmentTime(b.notes||'');
+    updatePickupFromAppointment();
+    toggleBrokerFields();
     updateEditorDetails(b);
   }
 
@@ -1195,6 +1287,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(!detailsEl) return;
     const details=[
       ['Booking source', b.bookingSource || 'CUSTOMER'],
+      ['Submitter login', b.submitterEntity || '—'],
+      ['Broker company', b.brokerCompanyName || '—'],
+      ['Broker accepted rate', b.brokerAcceptedRate!=null?`$${Number(b.brokerAcceptedRate).toFixed(2)}`:'—'],
       ['Payment status', b.paymentStatus || 'UNPAID'],
       ['Estimated fare', b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'—'],
       ['Distance miles', b.distanceMiles!=null?String(b.distanceMiles):'—'],
@@ -1251,6 +1346,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
       time:get('dispatchEditTime').value,
       driverName:get('dispatchEditDriver').value,
       vehicleUnit:get('dispatchEditVehicle').value,
+      bookingSource:get('dispatchEditSubmitterType').value,
+      submitterEntity:get('dispatchEditSubmitter').value,
+      brokerCompanyName:get('dispatchEditSubmitterType').value==='BROKER'?get('dispatchEditBrokerCompany').value:'',
+      brokerAcceptedRate:get('dispatchEditSubmitterType').value==='BROKER'?get('dispatchEditBrokerAcceptedRate').value:'',
       name:get('dispatchEditName').value,
       phone:get('dispatchEditPhone').value,
       email:get('dispatchEditEmail').value,
@@ -1276,6 +1375,11 @@ $('saveCustomCompany').addEventListener('click',()=>{
       button.textContent='Save trip update';
     }
   });
+
+  get('dispatchEditAppointmentTime').addEventListener('input',updatePickupFromAppointment);
+  get('dispatchEditService').addEventListener('input',updatePickupFromAppointment);
+  get('dispatchEditSubmitterType').addEventListener('change',toggleBrokerFields);
+  loadBrokerCompanies();
 })();
 </script></body></html>
 

@@ -129,8 +129,8 @@ async function createBookingFromBrokerRequest(requestBody,requestRow){
  const bookingReference=isDemoReference(requestedReference)?reference():requestedReference;
  const payload=buildBrokerBookingPayload(requestRow||{},requestBody||{},bookingReference);
  payload.booking_source=normalizeBookingSource(payload.booking_source);
- const bookingResult=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,created_at,updated_at)
-  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,now(),now()) RETURNING *`,[payload.reference,payload.name,payload.phone,payload.email,payload.service,payload.pickup,payload.destination,payload.trip_date,payload.trip_time,payload.notes,payload.pickup_lat,payload.pickup_lng,payload.destination_lat,payload.destination_lng,null,null,payload.estimated_fare||null,payload.booking_source]);
+ const bookingResult=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,now(),now()) RETURNING *`,[payload.reference,payload.name,payload.phone,payload.email,payload.service,payload.pickup,payload.destination,payload.trip_date,payload.trip_time,payload.notes,payload.pickup_lat,payload.pickup_lng,payload.destination_lat,payload.destination_lng,null,null,payload.estimated_fare||null,payload.booking_source,clean(requestBody?.submitted_by||requestRow?.submitted_by||payload.email||'')||null,clean(requestBody?.broker_name||requestRow?.broker_name||'')||null,payload.estimated_fare||null]);
  const booking=bookingResult.rows[0];
  await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[booking.reference,'SUBMITTED','submitted','Broker request materialized into a booking','DISPATCH']);
  const autoAssignResult=await autoAssign(booking);
@@ -608,6 +608,8 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
   if(clean(before.service)!==clean(after.service))changeParts.push(`Service: ${after.service||'—'}`);
   if(clean(before.name)!==clean(after.name)||clean(before.phone)!==clean(after.phone)||clean(before.email)!==clean(after.email))changeParts.push('Patient contact updated');
   if(clean(before.notes)!==clean(after.notes))changeParts.push('Trip notes updated');
+  if(clean(before.submitterEntity)!==clean(after.submitterEntity)||clean(before.bookingSource)!==clean(after.bookingSource))changeParts.push('Submitter/payment owner updated');
+  if(clean(before.brokerCompanyName)!==clean(after.brokerCompanyName)||String(before.brokerAcceptedRate??'')!==String(after.brokerAcceptedRate??''))changeParts.push('Broker terms updated');
   if(!changeParts.length&&editNote)changeParts.push('Trip details updated');
   if(!changeParts.length)return {status:'skipped-no-diff'};
 
@@ -860,8 +862,8 @@ async function handler(event){
   const composedNotes=[baseNotes,metadataNotes].filter(Boolean).join(baseNotes&&metadataNotes?'\n':'');
 
    const ref=reference();
-   const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,created_at,updated_at)
-   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,b.estimatedFare||null,bookingSource]);
+  const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,b.estimatedFare||null,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null]);
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,'SUBMITTED','submitted','Online transportation request received',bookingActor?.display_name||bookingSource||'PUBLIC']);
   await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource,requestedByRole,appointmentTime:appointmentTime||null,pickupTimeEstimate:pickupTimeEstimate||null,referralIncentiveEligible:bookingSource==='DRIVER_REFERRAL'});
   const mappedBooking=mapBooking(r.rows[0]);
@@ -1337,7 +1339,7 @@ async function handler(event){
 
    // DRIVER role: only allowed to update trip status.
    if(u.role==='DRIVER'){
-    const forbidden=['driverName','vehicleUnit','estimatedFare','pickup','destination','date','time','service','name','phone','email'];
+    const forbidden=['driverName','vehicleUnit','estimatedFare','pickup','destination','date','time','service','name','phone','email','submitterEntity','bookingSource','brokerCompanyName','brokerAcceptedRate'];
     if(forbidden.some((key)=>Object.prototype.hasOwnProperty.call(b,key)))return json(403,{error:'Drivers may only update trip status'});
    }
 
@@ -1358,6 +1360,21 @@ async function handler(event){
    const hasName=Object.prototype.hasOwnProperty.call(b,'name');
    const hasPhone=Object.prototype.hasOwnProperty.call(b,'phone');
    const hasEmail=Object.prototype.hasOwnProperty.call(b,'email');
+  const hasBookingSource=Object.prototype.hasOwnProperty.call(b,'bookingSource');
+  const hasSubmitterEntity=Object.prototype.hasOwnProperty.call(b,'submitterEntity');
+  const hasBrokerCompanyName=Object.prototype.hasOwnProperty.call(b,'brokerCompanyName');
+  const hasBrokerAcceptedRate=Object.prototype.hasOwnProperty.call(b,'brokerAcceptedRate');
+  const bookingSourceValue=hasBookingSource?normalizeBookingSource(b.bookingSource):null;
+  let brokerAcceptedRateValue=null;
+  if(hasBrokerAcceptedRate){
+   const raw=clean(b.brokerAcceptedRate);
+   if(raw==='')brokerAcceptedRateValue=null;
+   else{
+    const parsed=Number(b.brokerAcceptedRate);
+    if(!Number.isFinite(parsed)||parsed<0)return json(400,{error:'brokerAcceptedRate must be a valid number >= 0'});
+    brokerAcceptedRateValue=parsed;
+   }
+  }
 
    const r=await query(`
     UPDATE bookings
@@ -1374,6 +1391,10 @@ async function handler(event){
         name=CASE WHEN $19 THEN $20 ELSE name END,
         phone=CASE WHEN $21 THEN $22 ELSE phone END,
         email=CASE WHEN $23 THEN $24 ELSE email END,
+        booking_source=CASE WHEN $25 THEN $26 ELSE booking_source END,
+        submitter_entity=CASE WHEN $27 THEN $28 ELSE submitter_entity END,
+        broker_company_name=CASE WHEN $29 THEN $30 ELSE broker_company_name END,
+        broker_accepted_rate=CASE WHEN $31 THEN $32 ELSE broker_accepted_rate END,
         updated_at=now()
     WHERE reference=$1
     RETURNING *`,[
@@ -1400,7 +1421,15 @@ async function handler(event){
       hasPhone,
       hasPhone?clean(b.phone)||before.rows[0].phone:null,
       hasEmail,
-      hasEmail?clean(b.email)||before.rows[0].email:null
+      hasEmail?clean(b.email)||before.rows[0].email:null,
+      hasBookingSource,
+      hasBookingSource?bookingSourceValue:null,
+      hasSubmitterEntity,
+      hasSubmitterEntity?clean(b.submitterEntity)||null:null,
+      hasBrokerCompanyName,
+      hasBrokerCompanyName?clean(b.brokerCompanyName)||null:null,
+      hasBrokerAcceptedRate,
+      hasBrokerAcceptedRate?brokerAcceptedRateValue:null
     ]);
 
    if(!r.rows[0])return json(404,{error:'Booking not found'});
@@ -1416,6 +1445,10 @@ async function handler(event){
     time:hasTime?clean(b.time):undefined,
     driverName:b.driverName||undefined,
     vehicleUnit:b.vehicleUnit||undefined,
+    bookingSource:hasBookingSource?bookingSourceValue:undefined,
+    submitterEntity:hasSubmitterEntity?clean(b.submitterEntity):undefined,
+    brokerCompanyName:hasBrokerCompanyName?clean(b.brokerCompanyName):undefined,
+    brokerAcceptedRate:hasBrokerAcceptedRate?brokerAcceptedRateValue:undefined,
     by:u.role
    });
 
@@ -1911,6 +1944,9 @@ function mapBooking(b){
   estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,
   paymentStatus:b.payment_status||'UNPAID',
   bookingSource:b.booking_source||'CUSTOMER',
+  submitterEntity:b.submitter_entity||null,
+  brokerCompanyName:b.broker_company_name||null,
+  brokerAcceptedRate:b.broker_accepted_rate!=null?Number(b.broker_accepted_rate):null,
   depositAmount:b.deposit_amount?Number(b.deposit_amount):null,
   balanceDue:b.balance_due?Number(b.balance_due):null,
   depositPaidAt:b.deposit_paid_at||null,
