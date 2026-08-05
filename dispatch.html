@@ -787,6 +787,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   const baseRenderTrips = typeof window.renderTrips === 'function' ? window.renderTrips.bind(window) : null;
   const state = { allTrips: [] };
+  const selectedRefs = window.__dispatchSelectedRefs instanceof Set ? window.__dispatchSelectedRefs : new Set();
+  window.__dispatchSelectedRefs = selectedRefs;
   const now = new Date();
   calendarMonthInput.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   if(loadLocalBtn) loadLocalBtn.hidden = true;
@@ -948,7 +950,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
       const kind = classifyTrip(trip);
       const tone = kind === 'REAL' ? 'green' : 'amber';
       row.dataset.reference = ref;
-      cell.innerHTML = `${ref}<div style="margin-top:4px"><span class="status ${tone}" style="font-size:10px">${kind === 'REAL' ? 'REAL' : 'DEMO'}</span></div>`;
+      const isChecked = selectedRefs.has(ref);
+      row.classList.toggle('selected', isChecked);
+      cell.innerHTML = `<label style="display:flex;align-items:flex-start;gap:8px"><input class="dispatch-bulk-select" data-ref="${ref}" type="checkbox" ${isChecked?'checked':''} aria-label="Select ${ref} for bulk updates"><span>${ref}<div style="margin-top:4px"><span class="status ${tone}" style="font-size:10px">${kind === 'REAL' ? 'REAL' : 'DEMO'}</span></div></span></label>`;
       const advanceBtn = row.querySelector('[data-advance]');
       if(advanceBtn){
         const actionState = nextAdvanceLabel(trip);
@@ -961,6 +965,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         }
       }
     });
+    if(typeof window.__dispatchBulkSelectionChanged === 'function') window.__dispatchBulkSelectionChanged();
   }
 
   function updateSummary(filtered){
@@ -1090,6 +1095,18 @@ $('saveCustomCompany').addEventListener('click',()=>{
     }
   };
 
+  rowsEl.addEventListener('change',(event)=>{
+    const checkbox = event.target.closest('.dispatch-bulk-select');
+    if(!checkbox) return;
+    const ref = String(checkbox.dataset.ref || '').trim();
+    if(!ref) return;
+    if(checkbox.checked) selectedRefs.add(ref);
+    else selectedRefs.delete(ref);
+    const row = checkbox.closest('tr');
+    if(row) row.classList.toggle('selected', checkbox.checked);
+    if(typeof window.__dispatchBulkSelectionChanged === 'function') window.__dispatchBulkSelectionChanged();
+  });
+
   sourceFilter.addEventListener('change', renderFiltered);
   timeframeFilter.addEventListener('change', renderFiltered);
   refFilter.addEventListener('input', renderFiltered);
@@ -1119,11 +1136,41 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const refreshBtn=document.getElementById('loadTrips');
   if(!board||!rows||!refreshBtn) return;
 
+  const selectedRefs=window.__dispatchSelectedRefs instanceof Set ? window.__dispatchSelectedRefs : new Set();
+  window.__dispatchSelectedRefs=selectedRefs;
+
+  const bulkPanel=document.createElement('section');
+  bulkPanel.className='card';
+  bulkPanel.style.marginTop='14px';
+  bulkPanel.innerHTML=`
+    <div class="sectionHead" style="margin-bottom:10px"><div><p class="eyebrow">Dispatch Actions</p><h2 style="margin:0">Bulk trip update</h2></div><small class="subtle">Select trips from the table checkboxes, then apply updates.</small></div>
+    <div id="dispatchBulkMsg" class="msgBox" hidden></div>
+    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:8px">
+      <div class="formField"><label>Status</label><select id="dispatchBulkStatus"><option value="">No change</option><option value="SUBMITTED">Submitted</option><option value="SCHEDULED">Scheduled</option><option value="ASSIGNED">Assigned</option><option value="EN_ROUTE">En Route</option><option value="ARRIVED">Arrived</option><option value="IN_TRANSIT">In Transit</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option><option value="NO_SHOW">No Show</option></select></div>
+      <div class="formField"><label>Service</label><input id="dispatchBulkService" type="text" placeholder="No change"></div>
+      <div class="formField"><label>Date</label><input id="dispatchBulkDate" type="date"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Pickup time</label><input id="dispatchBulkTime" type="time"></div>
+      <div class="formField"><label>Driver</label><input id="dispatchBulkDriver" type="text" placeholder="No change"></div>
+      <div class="formField"><label>Vehicle</label><input id="dispatchBulkVehicle" type="text" placeholder="No change"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(1,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Dispatch communication note</label><input id="dispatchBulkNote" type="text" placeholder="Reason for this bulk update"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px">
+      <small id="dispatchBulkSelectedCount" class="subtle">Selected trips: 0</small>
+      <div style="display:flex;gap:10px"><button id="dispatchBulkClear" class="button ghost" type="button">Clear selection</button><button id="dispatchBulkApply" class="button primary" type="button">Apply bulk update</button></div>
+    </div>
+  `;
+  board.insertAdjacentElement('afterend',bulkPanel);
+
   const panel=document.createElement('section');
   panel.className='card';
   panel.style.marginTop='14px';
+  panel.hidden=true;
   panel.innerHTML=`
-    <div class="sectionHead" style="margin-bottom:10px"><div><p class="eyebrow">Dispatch Actions</p><h2 style="margin:0">Trip editor</h2></div><small class="subtle">Click a trip row to load and edit.</small></div>
+    <div class="sectionHead" style="margin-bottom:10px"><div><p class="eyebrow">Dispatch Actions</p><h2 style="margin:0">Trip editor</h2></div><div style="display:flex;align-items:center;gap:10px"><small class="subtle">Opens when a trip row is clicked.</small><button id="dispatchEditClose" class="button ghost" type="button">Close</button></div></div>
     <div id="dispatchEditMsg" class="msgBox" hidden></div>
     <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:8px">
       <div class="formField"><label>Reference</label><input id="dispatchEditRef" type="text" readonly></div>
@@ -1165,10 +1212,25 @@ $('saveCustomCompany').addEventListener('click',()=>{
   board.insertAdjacentElement('afterend',panel);
 
   const get=(id)=>document.getElementById(id);
+  const bulkMsgEl=get('dispatchBulkMsg');
+  const bulkSelectedCountEl=get('dispatchBulkSelectedCount');
   const msgEl=get('dispatchEditMsg');
   const detailsEl=get('dispatchEditDetails');
   let lastCalculatedPickup='';
   let currentRef='';
+
+  function setBulkMsg(text,type){
+    if(!bulkMsgEl) return;
+    bulkMsgEl.hidden=false;
+    bulkMsgEl.className=`msgBox ${type==='err'?'err':'ok'}`;
+    bulkMsgEl.textContent=text;
+  }
+
+  function updateBulkSelectionUi(){
+    if(bulkSelectedCountEl) bulkSelectedCountEl.textContent=`Selected trips: ${selectedRefs.size}`;
+  }
+  window.__dispatchBulkSelectionChanged=updateBulkSelectionUi;
+  updateBulkSelectionUi();
 
   function setMsg(text,type){
     if(!msgEl) return;
@@ -1330,7 +1392,13 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(!row) return;
     const ref=rowReference(row);
     if(!ref) return;
+    panel.hidden=false;
     try{await loadTrip(ref);}catch(err){setMsg(err.message||'Unable to load selected trip','err');}
+  });
+
+  get('dispatchEditClose').addEventListener('click',()=>{
+    panel.hidden=true;
+    currentRef='';
   });
 
   get('dispatchEditSave').addEventListener('click',async()=>{
@@ -1371,6 +1439,69 @@ $('saveCustomCompany').addEventListener('click',()=>{
     }finally{
       button.disabled=false;
       button.textContent='Save trip update';
+    }
+  });
+
+  get('dispatchBulkClear').addEventListener('click',()=>{
+    selectedRefs.clear();
+    rows.querySelectorAll('.dispatch-bulk-select').forEach((checkbox)=>{
+      checkbox.checked=false;
+      const row=checkbox.closest('tr');
+      if(row) row.classList.remove('selected');
+    });
+    updateBulkSelectionUi();
+    setBulkMsg('Selection cleared.','ok');
+  });
+
+  get('dispatchBulkApply').addEventListener('click',async()=>{
+    if(!selectedRefs.size){setBulkMsg('Select at least one trip for bulk update.','err');return;}
+    const payload={};
+    const status=get('dispatchBulkStatus').value;
+    const service=get('dispatchBulkService').value.trim();
+    const date=get('dispatchBulkDate').value;
+    const time=get('dispatchBulkTime').value;
+    const driverName=get('dispatchBulkDriver').value.trim();
+    const vehicleUnit=get('dispatchBulkVehicle').value.trim();
+    const dispatchNote=get('dispatchBulkNote').value.trim();
+    if(status) payload.status=status;
+    if(service) payload.service=service;
+    if(date) payload.date=date;
+    if(time) payload.time=time;
+    if(driverName) payload.driverName=driverName;
+    if(vehicleUnit) payload.vehicleUnit=vehicleUnit;
+    if(dispatchNote) payload.dispatchNote=dispatchNote;
+    if(!Object.keys(payload).length){setBulkMsg('Set at least one field before applying bulk update.','err');return;}
+
+    const refs=Array.from(selectedRefs);
+    const button=get('dispatchBulkApply');
+    button.disabled=true;
+    button.textContent='Applying...';
+    let success=0;
+    const failures=[];
+    try{
+      const token=sessionStorage.getItem('nexusAccessToken')||'';
+      for(const ref of refs){
+        const res=await fetch(`/api/admin/bookings/${encodeURIComponent(ref)}`,{method:'PATCH',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(payload)});
+        const data=await res.json().catch(()=>({}));
+        if(!res.ok){
+          failures.push(`${ref}: ${data.error||'Unable to update'}`);
+          continue;
+        }
+        selectedRefs.delete(ref);
+        success+=1;
+      }
+      updateBulkSelectionUi();
+      if(failures.length){
+        setBulkMsg(`Bulk update complete. Updated ${success}/${refs.length}. First error: ${failures[0]}`,'err');
+      }else{
+        setBulkMsg(`Bulk update complete. Updated ${success} trip${success===1?'':'s'}.`,'ok');
+      }
+      refreshBtn.click();
+    }catch(err){
+      setBulkMsg(err.message||'Bulk update failed.','err');
+    }finally{
+      button.disabled=false;
+      button.textContent='Apply bulk update';
     }
   });
 
