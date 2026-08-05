@@ -1510,7 +1510,6 @@ async function handler(event){
       hasDate?clean(b.date)||before.rows[0].trip_date:null,
       hasTime,
       hasTime?clean(b.time)||before.rows[0].trip_time:null,
-      hasNotes,
       hasNotes||hasAppointmentTime||hasCheckInTime,
       hasNotes||hasAppointmentTime||hasCheckInTime?notesValue:null,
       hasName,
