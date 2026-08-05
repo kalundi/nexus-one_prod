@@ -606,6 +606,8 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
   if(clean(before.vehicleUnit)!==clean(after.vehicleUnit))changeParts.push(`Vehicle: ${after.vehicleUnit||'Unassigned'}`);
   if(clean(before.pickup)!==clean(after.pickup)||clean(before.destination)!==clean(after.destination))changeParts.push('Route updated');
   if(clean(before.service)!==clean(after.service))changeParts.push(`Service: ${after.service||'—'}`);
+  if(clean(before.name)!==clean(after.name)||clean(before.phone)!==clean(after.phone)||clean(before.email)!==clean(after.email))changeParts.push('Patient contact updated');
+  if(clean(before.notes)!==clean(after.notes))changeParts.push('Trip notes updated');
   if(!changeParts.length&&editNote)changeParts.push('Trip details updated');
   if(!changeParts.length)return {status:'skipped-no-diff'};
 
@@ -1312,7 +1314,8 @@ async function handler(event){
    const hasDestination=Object.prototype.hasOwnProperty.call(b,'destination');
    const hasDate=Object.prototype.hasOwnProperty.call(b,'date');
    const hasTime=Object.prototype.hasOwnProperty.call(b,'time');
-   const hasNotes=Object.prototype.hasOwnProperty.call(b,'notes')||Object.prototype.hasOwnProperty.call(b,'note');
+  const hasNotes=Object.prototype.hasOwnProperty.call(b,'notes');
+  const hasDispatchNote=Object.prototype.hasOwnProperty.call(b,'dispatchNote')||Object.prototype.hasOwnProperty.call(b,'note');
    const hasName=Object.prototype.hasOwnProperty.call(b,'name');
    const hasPhone=Object.prototype.hasOwnProperty.call(b,'phone');
    const hasEmail=Object.prototype.hasOwnProperty.call(b,'email');
@@ -1352,7 +1355,7 @@ async function handler(event){
       hasTime,
       hasTime?clean(b.time)||before.rows[0].trip_time:null,
       hasNotes,
-      hasNotes?clean(b.notes??b.note)||null:null,
+      hasNotes?clean(b.notes)||null:null,
       hasName,
       hasName?clean(b.name)||before.rows[0].name:null,
       hasPhone,
@@ -1363,7 +1366,7 @@ async function handler(event){
 
    if(!r.rows[0])return json(404,{error:'Booking not found'});
 
-   const noteValue=clean(b.note||b.notes||'')||null;
+  const noteValue=clean((hasDispatchNote?(b.dispatchNote||b.note):b.note) || '')||null;
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),noteValue,u.display_name]);
    await audit('BOOKING',ref,'UPDATED',{
     status:r.rows[0].status,

@@ -748,8 +748,37 @@ $('saveCustomCompany').addEventListener('click',()=>{
   function classifyTrip(trip){
     const source = String(trip?.bookingSource || trip?.source || '').toUpperCase();
     const ref = refOf(trip).toUpperCase();
-    const isDemo = source.includes('DEMO') || source.includes('LOCAL') || source.includes('MOCK') || ref.includes('DEMO');
+    const name = String(trip?.name || '').toUpperCase();
+    const notes = String(trip?.notes || '').toUpperCase();
+    const isDemo =
+      source.includes('DEMO') || source.includes('LOCAL') || source.includes('MOCK') || source.includes('TEST') ||
+      ref.includes('DEMO') || ref.includes('LOCAL') ||
+      name.startsWith('PREVIEW RIDER') || name.startsWith('QUICK TEST RIDER') || name.startsWith('DEMO ') ||
+      notes.includes('LOCAL PREVIEW') || notes.includes('TESTING TRIP');
     return isDemo ? 'DEMO' : 'REAL';
+  }
+
+  function normalizedStatus(trip){
+    return String(trip?.status || '').trim().toUpperCase().replaceAll('-', '_');
+  }
+
+  function nextAdvanceLabel(trip){
+    const status = normalizedStatus(trip);
+    if(['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(status)){
+      return {label:'Closed', disabled:true, reason:'This trip is closed and cannot be advanced.'};
+    }
+    if(['SUBMITTED','SCHEDULED','REQUESTED'].includes(status)){
+      const hasAssignment = Boolean(String(trip?.driverName || '').trim()) || Boolean(String(trip?.vehicleUnit || '').trim());
+      if(!hasAssignment){
+        return {label:'Await Assignment', disabled:true, reason:'Assign a driver or vehicle before advancing this trip.'};
+      }
+      return {label:'Mark Assigned', disabled:false, reason:'Advance to Assigned.'};
+    }
+    if(status === 'ASSIGNED') return {label:'Start Trip', disabled:false, reason:'Advance to En Route.'};
+    if(status === 'EN_ROUTE') return {label:'Mark Arrived', disabled:false, reason:'Advance to Arrived.'};
+    if(status === 'ARRIVED') return {label:'Begin Transit', disabled:false, reason:'Advance to In Transit.'};
+    if(status === 'IN_TRANSIT') return {label:'Complete Trip', disabled:false, reason:'Advance to Completed.'};
+    return {label:'Advance', disabled:false, reason:'Advance to the next trip status.'};
   }
 
   function renderCalendar(trips){
@@ -840,8 +869,15 @@ $('saveCustomCompany').addEventListener('click',()=>{
       const tone = kind === 'REAL' ? 'green' : 'amber';
       cell.innerHTML = `${ref}<div style="margin-top:4px"><span class="status ${tone}" style="font-size:10px">${kind === 'REAL' ? 'REAL' : 'DEMO'}</span></div>`;
       const advanceBtn = row.querySelector('[data-advance]');
-      if(advanceBtn && kind === 'DEMO'){
-        advanceBtn.title = 'Demo trip: advances locally unless matching backend reference exists.';
+      if(advanceBtn){
+        const actionState = nextAdvanceLabel(trip);
+        advanceBtn.textContent = actionState.label;
+        advanceBtn.disabled = Boolean(actionState.disabled);
+        advanceBtn.title = actionState.reason;
+        if(kind === 'DEMO'){
+          advanceBtn.title = 'Demo trip: operational advance is disabled.';
+          advanceBtn.disabled = true;
+        }
       }
     });
   }
@@ -851,7 +887,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const realCount = state.allTrips.filter((trip) => classifyTrip(trip) === 'REAL').length;
     const demoCount = total - realCount;
     if(summaryEl){
-      summaryEl.textContent = `Showing ${filtered.length} of ${total} trips · Real: ${realCount} · Demo: ${demoCount}`;
+      summaryEl.textContent = `Showing ${filtered.length} of ${total} trips · Operational: ${realCount} · Demo excluded: ${demoCount}`;
     }
   }
 
@@ -927,8 +963,26 @@ $('saveCustomCompany').addEventListener('click',()=>{
   window.advanceTrip = async function(id){
     const reference = String(id || '').trim();
     if(!reference) return;
+    const trip = state.allTrips.find((t)=>refOf(t)===reference) || null;
+    const actionState = nextAdvanceLabel(trip || {});
+    if(actionState.disabled){
+      window.NexusTripPopup?.show({
+        title:'Advance unavailable',
+        message:`Trip ${reference} cannot be advanced yet.`,
+        detail:actionState.reason,
+        accent:'#b54708'
+      });
+      return;
+    }
     const button = document.querySelector(`[data-advance="${reference}"]`);
+    const originalText = button?.textContent || 'Advance';
     if(button){ button.disabled = true; button.textContent = 'Advancing...'; }
+    window.NexusTripPopup?.show({
+      title:'Advancing trip',
+      message:`Trip ${reference} is being advanced.`,
+      detail:`Action: ${actionState.label}. Updating status history, audit logs, and notifications.`,
+      accent:'#0f766e'
+    });
     try{
       const token = sessionStorage.getItem('nexusAccessToken') || '';
       const res = await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}/advance`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`}});
@@ -939,11 +993,18 @@ $('saveCustomCompany').addEventListener('click',()=>{
         state.allTrips = state.allTrips.map((trip)=>refOf(trip)===reference?{...trip,...updated}:trip);
         renderFiltered();
       }
-      window.NexusTripPopup?.show({title:'Trip advanced',message:`Trip ${reference} advanced successfully.`,detail:'Status history and audit logs were updated.',accent:'#0f766e'});
+      const notify = json.notifications?.recipients;
+      const notifyDetail = notify ? ` Notifications: SMS ${notify.sms||0}, Email ${notify.email||0}.` : '';
+      window.NexusTripPopup?.show({title:'Trip advanced',message:`Trip ${reference} advanced successfully.`,detail:`Status history and audit logs were updated.${notifyDetail}`,accent:'#0f766e'});
     }catch(err){
-      alert(err.message || 'Unable to advance trip');
+      window.NexusTripPopup?.show({
+        title:'Advance failed',
+        message:`Trip ${reference} could not be advanced.`,
+        detail:err.message || 'Unable to advance trip',
+        accent:'#b42318'
+      });
     }finally{
-      if(button){ button.disabled = false; button.textContent = 'Advance'; }
+      if(button){ button.disabled = false; button.textContent = originalText; }
     }
   };
 
@@ -1002,13 +1063,18 @@ $('saveCustomCompany').addEventListener('click',()=>{
       <div class="formField"><label>Patient phone</label><input id="dispatchEditPhone" type="text"></div>
       <div class="formField"><label>Patient email</label><input id="dispatchEditEmail" type="email"></div>
     </div>
-    <div class="formField" style="margin-top:10px"><label>Dispatch note</label><input id="dispatchEditNote" type="text" placeholder="Reason for update (shared with stakeholders)"></div>
+    <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Trip notes</label><input id="dispatchEditTripNotes" type="text" placeholder="Operational notes saved on the booking"></div>
+      <div class="formField"><label>Dispatch communication note</label><input id="dispatchEditNote" type="text" placeholder="Reason for update (shared with stakeholders)"></div>
+    </div>
+    <div id="dispatchEditDetails" style="margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"></div>
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px"><button id="dispatchEditSave" class="button primary" type="button">Save trip update</button></div>
   `;
   board.insertAdjacentElement('afterend',panel);
 
   const get=(id)=>document.getElementById(id);
   const msgEl=get('dispatchEditMsg');
+  const detailsEl=get('dispatchEditDetails');
   let currentRef='';
 
   function setMsg(text,type){
@@ -1020,8 +1086,27 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function rowReference(row){
     const txt=String(row?.cells?.[0]?.textContent||'');
-    const match=txt.match(/NMT-\d{8}-\d{4}/);
+    const match=txt.match(/NMT-[A-Z0-9-]+/i);
     return match?match[0]:'';
+  }
+
+  function updateEditorDetails(b){
+    if(!detailsEl) return;
+    const details=[
+      ['Booking source', b.bookingSource || 'CUSTOMER'],
+      ['Payment status', b.paymentStatus || 'UNPAID'],
+      ['Estimated fare', b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'—'],
+      ['Distance miles', b.distanceMiles!=null?String(b.distanceMiles):'—'],
+      ['Estimated duration', b.estimatedDuration || '—'],
+      ['Deposit amount', b.depositAmount!=null?`$${Number(b.depositAmount).toFixed(2)}`:'—'],
+      ['Balance due', b.balanceDue!=null?`$${Number(b.balanceDue).toFixed(2)}`:'—'],
+      ['Facility ID', b.facilityId || '—'],
+      ['Last updated by', b.lastUpdatedBy || '—'],
+      ['Last updated at', b.lastUpdatedAt || '—'],
+      ['Alternate phone', b.alternatePhone || '—'],
+      ['Alternate email', b.alternateEmail || '—']
+    ];
+    detailsEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${details.map(([k,v])=>`<div style="background:#fff;border:1px solid #d6e3ee;border-radius:10px;padding:8px"><div style="font-size:11px;color:#52677c">${k}</div><div style="font-weight:700;color:#0f172a;word-break:break-word">${String(v||'—')}</div></div>`).join('')}</div>`;
   }
 
   async function loadTrip(reference){
@@ -1044,7 +1129,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditName').value=b.name||'';
     get('dispatchEditPhone').value=b.phone||'';
     get('dispatchEditEmail').value=b.email||'';
+    get('dispatchEditTripNotes').value=b.notes||'';
     get('dispatchEditNote').value='';
+    updateEditorDetails(b);
     setMsg(`Loaded ${reference}. Edit fields and save to notify stakeholders.`,'ok');
   }
 
@@ -1072,7 +1159,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
       name:get('dispatchEditName').value,
       phone:get('dispatchEditPhone').value,
       email:get('dispatchEditEmail').value,
-      note:get('dispatchEditNote').value
+      notes:get('dispatchEditTripNotes').value,
+      dispatchNote:get('dispatchEditNote').value
     };
     const button=get('dispatchEditSave');
     button.disabled=true;
