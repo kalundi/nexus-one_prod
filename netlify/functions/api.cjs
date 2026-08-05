@@ -1266,6 +1266,42 @@ async function handler(event){
     await audit('BOOKING','DEMO_PURGE','RUN',{actor:u.email||u.display_name||'ADMIN',deleted:deletedRefs.length,references:deletedRefs.slice(0,200)});
     return json(200,{dryRun:false,deleted:deletedRefs.length,references:deletedRefs.slice(0,200)});
     }
+    if(p[0]==='admin'&&p[1]==='bookings'&&p[2]==='prune'&&method==='POST'){
+     const u=await requireUser(bearer(event),['ADMIN']);
+     const body=parseBody(event);
+     const dryRun=Boolean(body?.dryRun);
+     const keepNamesRaw=Array.isArray(body?.keepNames)?body.keepNames:[];
+     const keepReferencesRaw=Array.isArray(body?.keepReferences)?body.keepReferences:[];
+     const keepNames=keepNamesRaw.map((x)=>clean(x).toLowerCase()).filter(Boolean);
+     const keepReferences=keepReferencesRaw.map((x)=>clean(x)).filter(Boolean);
+     if(!keepNames.length&&!keepReferences.length)return json(400,{error:'Provide keepNames and/or keepReferences'});
+
+     const candidates=await query('SELECT reference,name FROM bookings ORDER BY trip_date DESC, trip_time DESC, reference DESC');
+     const toDelete=[];
+     const toKeep=[];
+     for(const row of candidates.rows||[]){
+      const reference=clean(row.reference);
+      const nameNorm=clean(row.name).toLowerCase();
+      const keepByRef=keepReferences.includes(reference);
+      const keepByName=keepNames.includes(nameNorm);
+      if(keepByRef||keepByName)toKeep.push(reference);
+      else toDelete.push(reference);
+     }
+
+     if(dryRun){
+      return json(200,{dryRun:true,total:candidates.rowCount||0,keep:toKeep.length,delete:toDelete.length,keepReferences:toKeep.slice(0,200),deleteReferences:toDelete.slice(0,200)});
+     }
+
+     if(!toDelete.length){
+      await audit('BOOKING','PRUNE','RUN',{actor:u.email||u.display_name||'ADMIN',deleted:0,kept:toKeep.length});
+      return json(200,{dryRun:false,total:candidates.rowCount||0,deleted:0,kept:toKeep.length,keepReferences:toKeep.slice(0,200),deleteReferences:[]});
+     }
+
+     const deleted=await query('DELETE FROM bookings WHERE reference = ANY($1::text[]) RETURNING reference',[toDelete]);
+     const deletedRefs=(deleted.rows||[]).map((row)=>clean(row.reference)).filter(Boolean);
+     await audit('BOOKING','PRUNE','RUN',{actor:u.email||u.display_name||'ADMIN',deleted:deletedRefs.length,kept:toKeep.length,keepNames:keepNamesRaw,keepReferences});
+     return json(200,{dryRun:false,total:candidates.rowCount||0,deleted:deletedRefs.length,kept:toKeep.length,keepReferences:toKeep.slice(0,200),deleteReferences:deletedRefs.slice(0,200)});
+    }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='GET'){await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);const ref=decodeURIComponent(p[2]);const r=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref]);if(!r.rows[0])return json(404,{error:'Booking not found'});return json(200,{booking:mapBooking(r.rows[0])})}
   if(p[0]==='admin'&&p[1]==='analytics'&&p[2]==='revenue'&&method==='GET'){
    const u=await requireUser(bearer(event),['ADMIN','EXECUTIVE','BILLING']);
