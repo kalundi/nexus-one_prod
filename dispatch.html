@@ -1514,10 +1514,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   function updateCheckInFromPickup(){
     const calculated=getDriverYardReportTime();
     if(calculated==='—') return;
-    const current=get('dispatchEditCheckInTime')?.value||'';
-    if(current===''||current===lastCalculatedCheckIn){
-      get('dispatchEditCheckInTime').value=calculated;
-    }
+    get('dispatchEditCheckInTime').value=calculated;
     lastCalculatedCheckIn=calculated;
   }
 
@@ -1574,15 +1571,16 @@ $('saveCustomCompany').addEventListener('click',()=>{
       currentRouteContext.durationMinutes=Math.max(0,Number(routeEstimate.minutes||0));
       currentRouteContext.trafficDurationMinutes=Math.max(0,Number(routeEstimate.trafficMinutes||routeEstimate.minutes||0));
     }
+    const fallbackRouteMinutes=Math.max(0,Math.ceil(getDynamicRouteMinutes()));
     const liveYardMinutes=Math.max(0,Number(yardEstimate.trafficMinutes||yardEstimate.minutes||0));
     if(liveYardMinutes>0){
       currentRouteContext.liveYardMinutes=Math.max(0,Number(yardEstimate.minutes||0));
       currentRouteContext.liveYardTrafficMinutes=Math.max(0,Number(yardEstimate.trafficMinutes||yardEstimate.minutes||0));
     }
     const dispatchBufferMinutes=15;
-    const calc=appointment?shiftTimeBack(appointment,Math.max(0,Math.ceil(liveRouteMinutes)+dispatchBufferMinutes)):'';
-    const currentPickup=get('dispatchEditTime').value;
-    if(calc&&(currentPickup===''||currentPickup===lastCalculatedPickup)){
+    const routeMinutes=Math.max(0,liveRouteMinutes||fallbackRouteMinutes);
+    const calc=appointment?shiftTimeBack(appointment,routeMinutes+dispatchBufferMinutes):'';
+    if(calc){
       get('dispatchEditTime').value=calc;
     }
     lastCalculatedPickup=calc;
@@ -1628,7 +1626,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     ).slice(0,5);
   }
 
-  function applyEditorValues(b){
+  async function applyEditorValues(b){
     currentRouteContext=parseRouteContextFromBooking(b);
     currentRouteContext.liveRouteMinutes=0;
     currentRouteContext.liveYardMinutes=0;
@@ -1653,14 +1651,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditTripNotes').value=b.notes||'';
     get('dispatchEditAppointmentTime').value=getBookingAppointmentTime(b);
     get('dispatchEditCheckInTime').value='';
-    updatePickupFromAppointment();
-    if(!get('dispatchEditTime').value && b.time){
+    await updatePickupFromAppointment();
+    if(!get('dispatchEditAppointmentTime').value && !get('dispatchEditTime').value && b.time){
       get('dispatchEditTime').value=String(b.time||'').slice(0,5);
       updateCheckInFromPickup();
-    }
-    if(get('dispatchEditAppointmentTime').value && b.checkInTime){
-      get('dispatchEditCheckInTime').value=String(b.checkInTime||'').slice(0,5);
-      lastCalculatedCheckIn=get('dispatchEditCheckInTime').value;
     }
     toggleBrokerFields();
     updateEditorDetails(b);
@@ -1702,7 +1696,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const cached=(window.__dispatchTripsCache||[]).find((trip)=>String(trip?.reference||trip?.id||'')===String(reference));
     if(cached){
       currentRef=reference;
-      applyEditorValues(cached);
+      await applyEditorValues(cached);
       setMsg(`Loaded ${reference}. Refreshing full trip details...`,'ok');
     }
     const token=sessionStorage.getItem('nexusAccessToken')||'';
@@ -1712,7 +1706,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const b=data.booking||{};
     if(!data.booking) throw new Error('Trip details response was incomplete. Please refresh and retry.');
     currentRef=reference;
-    applyEditorValues(b);
+    await applyEditorValues(b);
     get('dispatchEditNote').value='';
     setMsg(`Loaded ${reference}. Edit fields and save to notify stakeholders.`,'ok');
   }
@@ -1771,7 +1765,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       const recipientMsg=recipients?` Notifications sent (SMS: ${recipients.sms||0}, Email: ${recipients.email||0}).`:'';
       const saved=data.booking||null;
       if(saved){
-        applyEditorValues(saved);
+        await applyEditorValues(saved);
         get('dispatchEditNote').value='';
       }
       const savedAppointment=String(saved?.submittedAppointmentTime||saved?.appointmentTime||'').slice(0,5)||'MISSING';
