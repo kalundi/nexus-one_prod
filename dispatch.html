@@ -837,9 +837,19 @@ $('saveCustomCompany').addEventListener('click',()=>{
     return raw.toUpperCase().replaceAll('-', '_').replaceAll(' ', '_');
   }
 
+  function getTripAppointmentTime(trip){
+    return String(
+      trip?.submittedAppointmentTime ||
+      trip?.appointmentTime ||
+      trip?.time ||
+      extractAppointmentTime(trip?.notes || '') ||
+      ''
+    ).trim();
+  }
+
   function nextAdvanceLabel(trip){
     const status = normalizedStatus(trip);
-    if(trip?.appointmentMissing){
+    if(!getTripAppointmentTime(trip)){
       return {label:'Missing Appointment', disabled:true, reason:'Appointment time must be entered by the submitter before this trip can proceed.'};
     }
     const dt = parseTripDateTime(trip);
