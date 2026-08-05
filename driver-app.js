@@ -1020,6 +1020,15 @@
       updateBadge();
       renderDash();
       if($('#manifestView')?.classList.contains('active'))renderManifest();
+      if($('#tripView')?.classList.contains('active')&&activeRef){
+        const activeTrip=trips.find(x=>x.ref===activeRef);
+        if(activeTrip){
+          renderTripDetailPanel(activeTrip);
+        }else{
+          dashNotice('This trip was updated by dispatch and is no longer in your active list.','info');
+          showView('manifestView');
+        }
+      }
     }catch(e){console.error('[DRIVER]',e);}
   }
 
@@ -1463,9 +1472,8 @@
     setRouteFocus(true);
   }
 
-  function openTrip(ref){
-    const t=trips.find(x=>x.ref===ref);if(!t)return;
-    activeRef=ref;
+  function renderTripDetailPanel(t){
+    if(!t)return;
     $('#tripRef').textContent=t.ref;
     $('#tripPatient').textContent=t.patient;
     $('#tripPickup').textContent=t.pickup;
@@ -1483,6 +1491,12 @@
     if(last?.odoEnd&&$('#legOdoStart'))$('#legOdoStart').value=last.odoEnd;
     const inTrip=['PATIENT_ON_BOARD','DEPARTED'].includes(t.status);
     const lt=$('#legType');if(lt)lt.value=inTrip?'LOADED':'DEADHEAD';
+  }
+
+  function openTrip(ref){
+    const t=trips.find(x=>x.ref===ref);if(!t)return;
+    activeRef=ref;
+    renderTripDetailPanel(t);
     showView('tripView');
   }
 
@@ -1881,7 +1895,9 @@
     showView('dashView');
     if(shift.onDuty)startGPS();
     setInterval(()=>{if(shift.onDuty)renderDash();},30000);
-    setInterval(()=>{if(shift.onDuty)loadTrips();},120000);
+    setInterval(()=>{if(document.visibilityState==='visible')loadTrips();},30000);
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')loadTrips();});
+    window.addEventListener('focus',()=>loadTrips());
   }
   initApp();
 })();

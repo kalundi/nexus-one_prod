@@ -849,6 +849,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function nextAdvanceLabel(trip){
     const status = normalizedStatus(trip);
+    const prettyStatus = status
+      ? status.toLowerCase().replaceAll('_',' ').replace(/\b\w/g,(c)=>c.toUpperCase())
+      : 'Closed';
     if(!getTripAppointmentTime(trip)){
       return {label:'Missing Appointment', disabled:true, reason:'Appointment time must be entered by the submitter before this trip can proceed.'};
     }
@@ -858,7 +861,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       return {label:'Past Trip', disabled:true, reason:'This trip is in the past. Edit details or close it from the trip editor.'};
     }
     if(['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(status)){
-      return {label:'Closed', disabled:true, reason:'This trip is closed and cannot be advanced.'};
+      return {label:`${prettyStatus} (Closed)`, disabled:true, reason:`This trip is closed with status ${prettyStatus} and cannot be advanced.`};
     }
     if(['SUBMITTED','SCHEDULED','REQUESTED'].includes(status)){
       const hasAssignment =

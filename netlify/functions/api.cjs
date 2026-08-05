@@ -717,16 +717,32 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
   const smsText=`Nexus update for trip ${reference}: ${summary}. Updated by ${actorLabel}.${note?` Note: ${note}`:''}`;
   const html=`<h2>Trip updated — ${reference}</h2><p><strong>Updated by:</strong> ${actorLabel}</p><p><strong>Summary:</strong> ${summary}</p>${note?`<p><strong>Note:</strong> ${note}</p>`:''}<p><strong>Patient:</strong> ${after.name||'—'} (${after.phone||'—'})</p><p><strong>Schedule:</strong> ${after.date||'—'} at ${after.time||'—'}</p><p><strong>Route:</strong> ${after.pickup||'—'} → ${after.destination||'—'}</p><p><strong>Driver:</strong> ${after.driverName||'Unassigned'} | <strong>Vehicle:</strong> ${after.vehicleUnit||'Unassigned'}</p><p><strong>Status:</strong> ${after.statusLabel||after.status||'—'}</p>`;
 
-  const results=await Promise.allSettled([
-   Promise.all(Array.from(smsTargets).map((phone)=>sendSms(phone,smsText))).then(()=>({status:'sent'})),
-   sendEmail(Array.from(emailTargets),`Trip update — ${reference}`,html)
-  ]);
+  const smsList=Array.from(smsTargets);
+  const emailList=Array.from(emailTargets);
+  const smsPerTarget=await Promise.allSettled(smsList.map((phone)=>sendSms(phone,smsText)));
+  const smsSentCount=smsPerTarget.filter((item)=>item.status==='fulfilled'&&item.value?.status==='sent').length;
+  const smsFailed=smsPerTarget.find((item)=>item.status==='rejected');
+  const smsStatus=smsSentCount>0?'sent':(smsFailed?'failed':'skipped');
+  const smsResult=smsFailed
+    ? {status:'failed',error:smsFailed.reason?.message,sent:smsSentCount,total:smsList.length}
+    : {status:smsStatus,sent:smsSentCount,total:smsList.length};
+
+  let emailResult;
+  try{
+   emailResult=await sendEmail(emailList,`Trip update — ${reference}`,html);
+  }catch(err){
+   emailResult={status:'failed',error:err?.message||'Email send failed'};
+  }
+  const emailSentCount=emailResult?.status==='sent'?emailList.length:0;
+  const anySent=smsSentCount>0||emailSentCount>0;
+  const effectiveStatus=anySent?'sent':'skipped';
 
   return {
-   status:'sent',
-   sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},
-   email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message},
-   recipients:{sms:Array.from(smsTargets).length,email:Array.from(emailTargets).length}
+   status:effectiveStatus,
+   sms:smsResult,
+   email:emailResult,
+   recipients:anySent?{sms:smsSentCount,email:emailSentCount}:undefined,
+   targets:{sms:smsList.length,email:emailList.length}
   };
  }catch(error){
   console.error('[TRIP_UPDATE_NOTIFY]',error.message);
