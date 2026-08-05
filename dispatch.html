@@ -1511,6 +1511,15 @@ $('saveCustomCompany').addEventListener('click',()=>{
     select.innerHTML='<option value="">Select company</option>'+unique.map((name)=>`<option value="${name}">${name}</option>`).join('');
   }
 
+  function getBookingAppointmentTime(booking){
+    return String(
+      booking?.submittedAppointmentTime ||
+      booking?.appointmentTime ||
+      extractAppointmentTime(booking?.notes || '') ||
+      ''
+    ).slice(0,5);
+  }
+
   function applyEditorValues(b){
     currentRouteContext=parseRouteContextFromBooking(b);
     get('dispatchEditRef').value=b.reference||currentRef||'';
@@ -1531,10 +1540,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditPhone').value=b.phone||'';
     get('dispatchEditEmail').value=b.email||'';
     get('dispatchEditTripNotes').value=b.notes||'';
-    get('dispatchEditAppointmentTime').value=String(b.submittedAppointmentTime||b.appointmentTime||b.time||extractAppointmentTime(b.notes||'')).slice(0,5);
+    get('dispatchEditAppointmentTime').value=getBookingAppointmentTime(b);
     get('dispatchEditCheckInTime').value='';
     updatePickupFromAppointment();
-    if(get('dispatchEditAppointmentTime').value && b.time){
+    if(!get('dispatchEditTime').value && b.time){
       get('dispatchEditTime').value=String(b.time||'').slice(0,5);
       updateCheckInFromPickup();
     }
