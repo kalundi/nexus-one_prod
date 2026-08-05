@@ -1687,17 +1687,19 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditAppointmentTime').value=getBookingAppointmentTime(b);
     get('dispatchEditCheckInTime').value='';
     await updatePickupFromAppointment();
-    const persistedPickup=String(b.time||'').slice(0,5);
-    if(persistedPickup){
-      get('dispatchEditTime').value=persistedPickup;
-      lastCalculatedPickup=persistedPickup;
-    }
-    const persistedCheckIn=String(b.checkInTime||'').slice(0,5);
-    if(persistedCheckIn){
-      get('dispatchEditCheckInTime').value=persistedCheckIn;
-      lastCalculatedCheckIn=persistedCheckIn;
-    }else{
-      updateCheckInFromPickup();
+    if(!get('dispatchEditAppointmentTime').value){
+      const persistedPickup=String(b.time||'').slice(0,5);
+      if(persistedPickup){
+        get('dispatchEditTime').value=persistedPickup;
+        lastCalculatedPickup=persistedPickup;
+      }
+      const persistedCheckIn=String(b.checkInTime||'').slice(0,5);
+      if(persistedCheckIn){
+        get('dispatchEditCheckInTime').value=persistedCheckIn;
+        lastCalculatedCheckIn=persistedCheckIn;
+      }else{
+        updateCheckInFromPickup();
+      }
     }
     applyingEditorValues=false;
     markEditorBaseline();
