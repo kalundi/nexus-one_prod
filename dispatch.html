@@ -1139,28 +1139,34 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const selectedRefs=window.__dispatchSelectedRefs instanceof Set ? window.__dispatchSelectedRefs : new Set();
   window.__dispatchSelectedRefs=selectedRefs;
 
+  let importedBulkRows=[];
+
+  const bulkLauncher=document.createElement('section');
+  bulkLauncher.className='card';
+  bulkLauncher.style.marginTop='14px';
+  bulkLauncher.innerHTML=`
+    <div class="sectionHead" style="margin-bottom:0"><div><p class="eyebrow">Dispatch Actions</p><h2 style="margin:0">Bulk template import</h2></div><div style="display:flex;align-items:center;gap:10px"><small class="subtle">Hidden by default. Open only when needed.</small><button id="dispatchBulkOpen" class="button ghost" type="button">Open bulk import</button></div></div>
+  `;
+  board.insertAdjacentElement('afterend',bulkLauncher);
+
   const bulkPanel=document.createElement('section');
   bulkPanel.className='card';
   bulkPanel.style.marginTop='14px';
+  bulkPanel.hidden=true;
   bulkPanel.innerHTML=`
-    <div class="sectionHead" style="margin-bottom:10px"><div><p class="eyebrow">Dispatch Actions</p><h2 style="margin:0">Bulk trip update</h2></div><small class="subtle">Select trips from the table checkboxes, then apply updates.</small></div>
+    <div class="sectionHead" style="margin-bottom:10px"><div><p class="eyebrow">Dispatch Actions</p><h2 style="margin:0">Bulk template import</h2></div><div style="display:flex;align-items:center;gap:10px"><small class="subtle">Download selected trips to CSV, edit, then upload and submit.</small><button id="dispatchBulkClose" class="button ghost" type="button">Close</button></div></div>
     <div id="dispatchBulkMsg" class="msgBox" hidden></div>
-    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:8px">
-      <div class="formField"><label>Status</label><select id="dispatchBulkStatus"><option value="">No change</option><option value="SUBMITTED">Submitted</option><option value="SCHEDULED">Scheduled</option><option value="ASSIGNED">Assigned</option><option value="EN_ROUTE">En Route</option><option value="ARRIVED">Arrived</option><option value="IN_TRANSIT">In Transit</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option><option value="NO_SHOW">No Show</option></select></div>
-      <div class="formField"><label>Service</label><input id="dispatchBulkService" type="text" placeholder="No change"></div>
-      <div class="formField"><label>Date</label><input id="dispatchBulkDate" type="date"></div>
+    <div style="padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--soft);margin-top:8px">
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+        <div><strong style="font-size:12px;color:#0f172a">1. Select trips</strong><div class="subtle" style="margin-top:4px" id="dispatchBulkSelectedCount">Selected trips: 0</div></div>
+        <div><strong style="font-size:12px;color:#0f172a">2. Download template</strong><div class="subtle" style="margin-top:4px">CSV contains one row per selected trip.</div></div>
+        <div><strong style="font-size:12px;color:#0f172a">3. Upload and submit</strong><div class="subtle" style="margin-top:4px" id="dispatchBulkImportCount">Imported rows: 0</div></div>
+      </div>
     </div>
-    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">
-      <div class="formField"><label>Pickup time</label><input id="dispatchBulkTime" type="time"></div>
-      <div class="formField"><label>Driver</label><input id="dispatchBulkDriver" type="text" placeholder="No change"></div>
-      <div class="formField"><label>Vehicle</label><input id="dispatchBulkVehicle" type="text" placeholder="No change"></div>
-    </div>
-    <div class="formRow" style="grid-template-columns:repeat(1,minmax(0,1fr));margin-top:10px">
-      <div class="formField"><label>Dispatch communication note</label><input id="dispatchBulkNote" type="text" placeholder="Reason for this bulk update"></div>
-    </div>
+    <input id="dispatchBulkUpload" type="file" accept=".csv,text/csv" hidden>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px">
-      <small id="dispatchBulkSelectedCount" class="subtle">Selected trips: 0</small>
-      <div style="display:flex;gap:10px"><button id="dispatchBulkClear" class="button ghost" type="button">Clear selection</button><button id="dispatchBulkApply" class="button primary" type="button">Apply bulk update</button></div>
+      <small class="subtle">Editable CSV columns: status, service, date, time, driverName, vehicleUnit, bookingSource, submitterEntity, brokerCompanyName, brokerAcceptedRate, dispatchNote</small>
+      <div style="display:flex;gap:10px"><button id="dispatchBulkClear" class="button ghost" type="button">Clear selection</button><button id="dispatchBulkDownload" class="button ghost" type="button">Download CSV template</button><button id="dispatchBulkUploadBtn" class="button ghost" type="button">Upload CSV</button><button id="dispatchBulkSubmit" class="button primary" type="button">Submit imported updates</button></div>
     </div>
   `;
   board.insertAdjacentElement('afterend',bulkPanel);
@@ -1214,6 +1220,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const get=(id)=>document.getElementById(id);
   const bulkMsgEl=get('dispatchBulkMsg');
   const bulkSelectedCountEl=get('dispatchBulkSelectedCount');
+  const bulkImportCountEl=get('dispatchBulkImportCount');
   const msgEl=get('dispatchEditMsg');
   const detailsEl=get('dispatchEditDetails');
   let lastCalculatedPickup='';
@@ -1229,8 +1236,62 @@ $('saveCustomCompany').addEventListener('click',()=>{
   function updateBulkSelectionUi(){
     if(bulkSelectedCountEl) bulkSelectedCountEl.textContent=`Selected trips: ${selectedRefs.size}`;
   }
+
+  function updateImportCountUi(){
+    if(bulkImportCountEl) bulkImportCountEl.textContent=`Imported rows: ${importedBulkRows.length}`;
+  }
+
+  function csvEscape(value){
+    const v=String(value??'');
+    if(/[",\n]/.test(v)) return `"${v.replaceAll('"','""')}"`;
+    return v;
+  }
+
+  function parseCsvRow(line){
+    const out=[];
+    let current='';
+    let inQuotes=false;
+    for(let i=0;i<line.length;i+=1){
+      const ch=line[i];
+      if(ch==='"'){
+        if(inQuotes&&line[i+1]==='"'){current+='"';i+=1;continue;}
+        inQuotes=!inQuotes;
+        continue;
+      }
+      if(ch===','&&!inQuotes){out.push(current);current='';continue;}
+      current+=ch;
+    }
+    out.push(current);
+    return out.map((x)=>String(x||'').trim());
+  }
+
+  function parseCsv(text){
+    const lines=String(text||'').replace(/\r/g,'').split('\n').filter((line)=>line.trim().length>0);
+    if(!lines.length) return [];
+    const headers=parseCsvRow(lines[0]);
+    const rows=[];
+    for(let i=1;i<lines.length;i+=1){
+      const cells=parseCsvRow(lines[i]);
+      const row={};
+      headers.forEach((h,idx)=>{row[h]=cells[idx]??'';});
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  function openBulkPanel(){
+    bulkPanel.hidden=false;
+    updateBulkSelectionUi();
+    updateImportCountUi();
+  }
+
+  function closeBulkPanel(){
+    bulkPanel.hidden=true;
+  }
+
   window.__dispatchBulkSelectionChanged=updateBulkSelectionUi;
   updateBulkSelectionUi();
+  updateImportCountUi();
 
   function setMsg(text,type){
     if(!msgEl) return;
@@ -1442,6 +1503,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
     }
   });
 
+  get('dispatchBulkOpen').addEventListener('click',openBulkPanel);
+  get('dispatchBulkClose').addEventListener('click',closeBulkPanel);
+
   get('dispatchBulkClear').addEventListener('click',()=>{
     selectedRefs.clear();
     rows.querySelectorAll('.dispatch-bulk-select').forEach((checkbox)=>{
@@ -1453,55 +1517,126 @@ $('saveCustomCompany').addEventListener('click',()=>{
     setBulkMsg('Selection cleared.','ok');
   });
 
-  get('dispatchBulkApply').addEventListener('click',async()=>{
-    if(!selectedRefs.size){setBulkMsg('Select at least one trip for bulk update.','err');return;}
-    const payload={};
-    const status=get('dispatchBulkStatus').value;
-    const service=get('dispatchBulkService').value.trim();
-    const date=get('dispatchBulkDate').value;
-    const time=get('dispatchBulkTime').value;
-    const driverName=get('dispatchBulkDriver').value.trim();
-    const vehicleUnit=get('dispatchBulkVehicle').value.trim();
-    const dispatchNote=get('dispatchBulkNote').value.trim();
-    if(status) payload.status=status;
-    if(service) payload.service=service;
-    if(date) payload.date=date;
-    if(time) payload.time=time;
-    if(driverName) payload.driverName=driverName;
-    if(vehicleUnit) payload.vehicleUnit=vehicleUnit;
-    if(dispatchNote) payload.dispatchNote=dispatchNote;
-    if(!Object.keys(payload).length){setBulkMsg('Set at least one field before applying bulk update.','err');return;}
+  get('dispatchBulkDownload').addEventListener('click',()=>{
+    if(!selectedRefs.size){setBulkMsg('Select at least one trip before downloading template.','err');return;}
+    const selectedTrips=(window.__dispatchTripsCache||[]).filter((trip)=>selectedRefs.has(String(trip.reference||trip.id||'')));
+    if(!selectedTrips.length){setBulkMsg('Selected trips are not available in current filtered view. Refresh and retry.','err');return;}
+    const headers=['reference','status','service','date','time','driverName','vehicleUnit','bookingSource','submitterEntity','brokerCompanyName','brokerAcceptedRate','dispatchNote'];
+    const rows=[headers.join(',')];
+    selectedTrips.forEach((trip)=>{
+      const values=[
+        trip.reference||trip.id||'',
+        String(trip.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
+        trip.service||'',
+        String(trip.date||'').slice(0,10),
+        String(trip.time||'').slice(0,5),
+        trip.driverName||trip.driver||'',
+        trip.vehicleUnit||trip.vehicle||'',
+        trip.bookingSource||'',
+        trip.submitterEntity||'',
+        trip.brokerCompanyName||'',
+        trip.brokerAcceptedRate!=null?Number(trip.brokerAcceptedRate).toFixed(2):'',
+        ''
+      ];
+      rows.push(values.map(csvEscape).join(','));
+    });
+    const blob=new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;
+    link.download=`dispatch-bulk-template-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setBulkMsg(`Template downloaded for ${selectedTrips.length} selected trip${selectedTrips.length===1?'':'s'}.`,'ok');
+  });
 
-    const refs=Array.from(selectedRefs);
-    const button=get('dispatchBulkApply');
+  get('dispatchBulkUploadBtn').addEventListener('click',()=>get('dispatchBulkUpload').click());
+
+  get('dispatchBulkUpload').addEventListener('change',async(event)=>{
+    const file=event.target.files?.[0];
+    if(!file) return;
+    try{
+      const text=await file.text();
+      const parsed=parseCsv(text);
+      if(!parsed.length){setBulkMsg('Uploaded CSV is empty.','err');return;}
+      const hasReference=Object.keys(parsed[0]||{}).some((key)=>String(key).trim().toLowerCase()==='reference');
+      if(!hasReference){setBulkMsg('CSV must include a reference column.','err');return;}
+      importedBulkRows=parsed.map((row)=>{
+        const normalized={};
+        Object.keys(row).forEach((key)=>{normalized[String(key).trim()]=row[key];});
+        return normalized;
+      });
+      updateImportCountUi();
+      setBulkMsg(`CSV uploaded. ${importedBulkRows.length} row${importedBulkRows.length===1?'':'s'} ready to submit.`,'ok');
+    }catch(err){
+      setBulkMsg(err.message||'Unable to parse CSV file.','err');
+    }finally{
+      event.target.value='';
+    }
+  });
+
+  get('dispatchBulkSubmit').addEventListener('click',async()=>{
+    if(!importedBulkRows.length){setBulkMsg('Upload an edited CSV before submitting.','err');return;}
+    const button=get('dispatchBulkSubmit');
     button.disabled=true;
-    button.textContent='Applying...';
+    button.textContent='Submitting...';
     let success=0;
     const failures=[];
     try{
       const token=sessionStorage.getItem('nexusAccessToken')||'';
-      for(const ref of refs){
-        const res=await fetch(`/api/admin/bookings/${encodeURIComponent(ref)}`,{method:'PATCH',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(payload)});
+      for(const row of importedBulkRows){
+        const reference=String(row.reference||row.Reference||'').trim();
+        if(!reference){failures.push('Row missing reference.');continue;}
+        const payload={};
+        const status=String(row.status||row.Status||'').trim();
+        const service=String(row.service||row.Service||'').trim();
+        const date=String(row.date||row.Date||'').trim();
+        const time=String(row.time||row.Time||'').trim();
+        const driverName=String(row.driverName||row.DriverName||'').trim();
+        const vehicleUnit=String(row.vehicleUnit||row.VehicleUnit||'').trim();
+        const bookingSource=String(row.bookingSource||row.BookingSource||'').trim();
+        const submitterEntity=String(row.submitterEntity||row.SubmitterEntity||'').trim();
+        const brokerCompanyName=String(row.brokerCompanyName||row.BrokerCompanyName||'').trim();
+        const brokerAcceptedRate=String(row.brokerAcceptedRate||row.BrokerAcceptedRate||'').trim();
+        const dispatchNote=String(row.dispatchNote||row.DispatchNote||'').trim();
+        if(status) payload.status=status;
+        if(service) payload.service=service;
+        if(date) payload.date=date;
+        if(time) payload.time=time;
+        if(driverName) payload.driverName=driverName;
+        if(vehicleUnit) payload.vehicleUnit=vehicleUnit;
+        if(bookingSource) payload.bookingSource=bookingSource;
+        if(submitterEntity) payload.submitterEntity=submitterEntity;
+        if(brokerCompanyName) payload.brokerCompanyName=brokerCompanyName;
+        if(brokerAcceptedRate) payload.brokerAcceptedRate=brokerAcceptedRate;
+        if(dispatchNote) payload.dispatchNote=dispatchNote;
+        if(!Object.keys(payload).length) continue;
+
+        const res=await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}`,{method:'PATCH',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(payload)});
         const data=await res.json().catch(()=>({}));
         if(!res.ok){
-          failures.push(`${ref}: ${data.error||'Unable to update'}`);
+          failures.push(`${reference}: ${data.error||'Unable to update'}`);
           continue;
         }
-        selectedRefs.delete(ref);
+        selectedRefs.delete(reference);
         success+=1;
       }
       updateBulkSelectionUi();
+      importedBulkRows=[];
+      updateImportCountUi();
       if(failures.length){
-        setBulkMsg(`Bulk update complete. Updated ${success}/${refs.length}. First error: ${failures[0]}`,'err');
+        setBulkMsg(`Bulk import submitted. Updated ${success}. First error: ${failures[0]}`,'err');
       }else{
-        setBulkMsg(`Bulk update complete. Updated ${success} trip${success===1?'':'s'}.`,'ok');
+        setBulkMsg(`Bulk import submitted successfully. Updated ${success} trip${success===1?'':'s'}.`,'ok');
       }
       refreshBtn.click();
     }catch(err){
-      setBulkMsg(err.message||'Bulk update failed.','err');
+      setBulkMsg(err.message||'Bulk import submit failed.','err');
     }finally{
       button.disabled=false;
-      button.textContent='Apply bulk update';
+      button.textContent='Submit imported updates';
     }
   });
 
