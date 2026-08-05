@@ -16,6 +16,16 @@ async function ensureDefaultUserForEmail(query, email, {organizationId = null} =
   const match = DEFAULT_TEST_USERS.find((u) => u.email.toLowerCase() === normalizedEmail);
   if (!match) return null;
 
+  let resolvedOrganizationId = organizationId;
+  if (!resolvedOrganizationId) {
+    const adminOrg = await query("SELECT organization_id FROM users WHERE role='ADMIN' AND organization_id IS NOT NULL LIMIT 1");
+    resolvedOrganizationId = adminOrg.rows[0]?.organization_id || null;
+  }
+  if (!resolvedOrganizationId) {
+    const orgRow = await query("SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1");
+    resolvedOrganizationId = orgRow.rows[0]?.id || null;
+  }
+
   const passwordHash = hashPassword(match.password);
   const existing = await query('SELECT id FROM users WHERE lower(email)=lower($1)', [match.email]);
   if (existing.rows[0]) {
@@ -26,10 +36,10 @@ async function ensureDefaultUserForEmail(query, email, {organizationId = null} =
     return { email: match.email, created: false, updated: true };
   }
 
-  if (organizationId) {
+  if (resolvedOrganizationId) {
     await query(
       'INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())',
-      [crypto.randomUUID(), match.email, match.name, match.role, passwordHash, organizationId, crypto.randomUUID()]
+      [crypto.randomUUID(), match.email, match.name, match.role, passwordHash, resolvedOrganizationId, crypto.randomUUID()]
     );
   } else {
     await query(
