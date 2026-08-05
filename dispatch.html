@@ -1196,7 +1196,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     <div id="dispatchEditMsg" class="msgBox" hidden></div>
     <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:8px">
       <div class="formField"><label>Reference</label><input id="dispatchEditRef" type="text" readonly></div>
-      <div class="formField"><label>Status</label><select id="dispatchEditStatus"><option value="SUBMITTED">Submitted</option><option value="SCHEDULED">Scheduled</option><option value="ASSIGNED">Assigned</option><option value="EN_ROUTE">En Route</option><option value="ARRIVED">Arrived</option><option value="IN_TRANSIT">In Transit</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option><option value="NO_SHOW">No Show</option></select></div>
+      <div class="formField"><label>Status</label><select id="dispatchEditStatus"><option value="SUBMITTED">Submitted</option><option value="SCHEDULED">Scheduled</option><option value="ASSIGNED">Assigned</option><option value="EN_ROUTE">En Route</option><option value="ARRIVED">Arrived</option><option value="IN_TRANSIT">In Transit</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option><option value="NO_SHOW">No Show</option></select><small id="dispatchEditCurrentStatus" class="subtle">Current status: --</small></div>
       <div class="formField"><label>Service</label><input id="dispatchEditService" type="text" placeholder="wheelchair"></div>
     </div>
     <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px">
@@ -1212,11 +1212,11 @@ $('saveCustomCompany').addEventListener('click',()=>{
     <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
       <div class="formField"><label>Driver</label><input id="dispatchEditDriver" type="text" placeholder="Driver name"></div>
       <div class="formField"><label>Vehicle</label><input id="dispatchEditVehicle" type="text" placeholder="Vehicle unit"></div>
-      <div class="formField"><label>Submitter type</label><select id="dispatchEditSubmitterType"><option value="CUSTOMER">Customer</option><option value="FACILITY">Facility</option><option value="BROKER">Broker</option><option value="DISPATCH">Dispatch</option><option value="PATIENT">Patient</option><option value="STAFF">Staff</option><option value="DRIVER_REFERRAL">Driver Referral</option></select></div>
+      <div class="formField"><label>Submitter type</label><select id="dispatchEditSubmitterType"><option value="CUSTOMER">Customer</option><option value="FACILITY">Facility</option><option value="BROKER">Broker</option><option value="DISPATCH">Dispatch</option><option value="PATIENT">Patient</option><option value="STAFF">Staff</option><option value="DRIVER_REFERRAL">Driver Referral</option></select><small id="dispatchEditCurrentSubmitterType" class="subtle">Current submitter type: --</small></div>
       <div class="formField"><label>Submitter login</label><input id="dispatchEditSubmitter" type="text" placeholder="email or entity login"></div>
     </div>
     <div class="formRow" id="dispatchEditBrokerRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px" hidden>
-      <div class="formField"><label>Broker company</label><select id="dispatchEditBrokerCompany"><option value="">Select company</option></select></div>
+      <div class="formField"><label>Broker company</label><select id="dispatchEditBrokerCompany"><option value="">Select company</option></select><small id="dispatchEditCurrentBrokerCompany" class="subtle">Current broker company: --</small></div>
       <div class="formField"><label>Our estimate</label><input id="dispatchEditOurEstimate" type="text" readonly></div>
       <div class="formField"><label>Broker accepted rate</label><input id="dispatchEditBrokerAcceptedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
     </div>
@@ -1253,6 +1253,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   let mapsReadyPromise=null;
   let routeTimingRequestId=0;
   let currentRouteContext={distanceMiles:0,durationMinutes:0,trafficDurationMinutes:0,liveRouteMinutes:0,liveYardMinutes:0,liveYardTrafficMinutes:0};
+  let currentPersistedTripState={status:'',submitterType:'',brokerCompany:''};
 
   function setBulkMsg(text,type){
     if(!bulkMsgEl) return;
@@ -1326,6 +1327,27 @@ $('saveCustomCompany').addEventListener('click',()=>{
     msgEl.hidden=false;
     msgEl.className=`msgBox ${type==='err'?'err':'ok'}`;
     msgEl.textContent=text;
+  }
+
+  function prettyStatusValue(rawStatus){
+    const normalized=String(rawStatus||'').trim().toUpperCase().replaceAll('-','_').replaceAll(' ','_');
+    if(!normalized) return '--';
+    return normalized.toLowerCase().replaceAll('_',' ').replace(/\b\w/g,(c)=>c.toUpperCase());
+  }
+
+  function prettySubmitterType(rawType){
+    const normalized=String(rawType||'').trim().toUpperCase().replaceAll('-','_').replaceAll(' ','_');
+    if(!normalized) return '--';
+    return normalized.toLowerCase().replaceAll('_',' ').replace(/\b\w/g,(c)=>c.toUpperCase());
+  }
+
+  function updateCurrentTripStateLabels(){
+    const statusEl=get('dispatchEditCurrentStatus');
+    const submitterTypeEl=get('dispatchEditCurrentSubmitterType');
+    const brokerEl=get('dispatchEditCurrentBrokerCompany');
+    if(statusEl) statusEl.textContent=`Current status: ${prettyStatusValue(currentPersistedTripState.status)}`;
+    if(submitterTypeEl) submitterTypeEl.textContent=`Current submitter type: ${prettySubmitterType(currentPersistedTripState.submitterType)}`;
+    if(brokerEl) brokerEl.textContent=`Current broker company: ${currentPersistedTripState.brokerCompany||'--'}`;
   }
 
   function currentEditorSnapshot(){
@@ -1722,6 +1744,12 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   async function applyEditorValues(b){
     applyingEditorValues=true;
+    currentPersistedTripState={
+      status:String(b.status||''),
+      submitterType:String(b.bookingSource||'CUSTOMER'),
+      brokerCompany:String(b.brokerCompanyName||'')
+    };
+    updateCurrentTripStateLabels();
     currentRouteContext=parseRouteContextFromBooking(b);
     currentRouteContext.liveRouteMinutes=0;
     currentRouteContext.liveYardMinutes=0;
