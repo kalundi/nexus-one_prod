@@ -1232,7 +1232,11 @@ $('saveCustomCompany').addEventListener('click',()=>{
   let currentRef='';
   let companyYardAddress='22505 Gateway Center Dr, Clarksburg MD 20871';
   let preTripInspectionMinutes=45;
-  let currentRouteContext={distanceMiles:0,durationMinutes:0,trafficDurationMinutes:0};
+  let mapsEnabled=false;
+  let mapsBrowserKey='';
+  let mapsReadyPromise=null;
+  let routeTimingRequestId=0;
+  let currentRouteContext={distanceMiles:0,durationMinutes:0,trafficDurationMinutes:0,liveRouteMinutes:0,liveYardMinutes:0,liveYardTrafficMinutes:0};
 
   function setBulkMsg(text,type){
     if(!bulkMsgEl) return;
@@ -1386,33 +1390,102 @@ $('saveCustomCompany').addEventListener('click',()=>{
     };
   }
 
-  function trafficFactorForAppointment(appointmentHHMM){
-    const m=String(appointmentHHMM||'').match(/^(\d{2}):(\d{2})$/);
-    if(!m) return 1;
-    const mins=(Number(m[1])*60)+Number(m[2]);
-    if(mins>=390&&mins<=570) return 1.25; // 06:30-09:30
-    if(mins>=930&&mins<=1110) return 1.3; // 15:30-18:30
-    if(mins>=1110||mins<=300) return 1.1; // late night / very early
-    return 1;
+  function resolveRouteDepartureTime(tripDate, appointmentTime){
+    const date=String(tripDate||'').trim();
+    const time=String(appointmentTime||'').trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(date)&&/^\d{2}:\d{2}$/.test(time)){
+      const local=new Date(`${date}T${time}:00`);
+      if(!Number.isNaN(local.getTime())) return local;
+    }
+    return new Date();
+  }
+
+  async function loadMaps(){
+    if(mapsReadyPromise) return mapsReadyPromise;
+    mapsReadyPromise=new Promise((resolve,reject)=>{
+      if(window.google?.maps?.DirectionsService){ resolve(); return; }
+      if(!mapsEnabled||!mapsBrowserKey){ reject(new Error('Google Maps is not configured.')); return; }
+      const script=document.createElement('script');
+      script.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsBrowserKey)}&libraries=places`;
+      script.async=true;
+      script.defer=true;
+      script.onload=()=>resolve();
+      script.onerror=()=>reject(new Error('Could not load Google Maps.'));
+      document.head.appendChild(script);
+    });
+    return mapsReadyPromise;
+  }
+
+  async function estimateTripRouteMinutes(pickup, destination, tripDate, appointmentTime){
+    const cleanPickup=String(pickup||'').trim();
+    const cleanDestination=String(destination||'').trim();
+    if(!cleanPickup||!cleanDestination) return {minutes:0, trafficMinutes:0};
+    try{
+      await loadMaps();
+      const dirSvc=new google.maps.DirectionsService();
+      const departureTime=resolveRouteDepartureTime(tripDate, appointmentTime);
+      const result=await new Promise((resolve,reject)=>{
+        dirSvc.route({
+          origin: cleanPickup,
+          destination: cleanDestination,
+          travelMode: google.maps.TravelMode.DRIVING,
+          drivingOptions: { departureTime, trafficModel: google.maps.TrafficModel.BEST_GUESS },
+          unitSystem: google.maps.UnitSystem.IMPERIAL
+        }, (res, status) => status === 'OK' ? resolve(res) : reject(new Error(status)));
+      });
+      const legs=result.routes?.[0]?.legs || [];
+      const minutes=legs.reduce((sum, leg) => sum + (Number(leg?.duration?.value || 0) / 60), 0);
+      const trafficMinutes=legs.reduce((sum, leg) => sum + (Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60), 0);
+      return {
+        minutes: Math.max(0, Math.round(minutes)),
+        trafficMinutes: Math.max(0, Math.round(trafficMinutes || minutes))
+      };
+    }catch{
+      return {minutes:0, trafficMinutes:0};
+    }
+  }
+
+  async function estimateYardToPickupRoute(pickup, tripDate, appointmentTime){
+    const cleanPickup=String(pickup||'').trim();
+    if(!cleanPickup||!companyYardAddress) return {minutes:0, trafficMinutes:0};
+    try{
+      await loadMaps();
+      const dirSvc=new google.maps.DirectionsService();
+      const departureTime=resolveRouteDepartureTime(tripDate, appointmentTime);
+      const result=await new Promise((resolve,reject)=>{
+        dirSvc.route({
+          origin: companyYardAddress,
+          destination: cleanPickup,
+          travelMode: google.maps.TravelMode.DRIVING,
+          drivingOptions: { departureTime, trafficModel: google.maps.TrafficModel.BEST_GUESS },
+          unitSystem: google.maps.UnitSystem.IMPERIAL
+        }, (res, status) => status === 'OK' ? resolve(res) : reject(new Error(status)));
+      });
+      const legs=result.routes?.[0]?.legs || [];
+      const minutes=legs.reduce((sum, leg) => sum + (Number(leg?.duration?.value || 0) / 60), 0);
+      const trafficMinutes=legs.reduce((sum, leg) => sum + (Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60), 0);
+      return {
+        minutes: Math.max(0, Math.round(minutes)),
+        trafficMinutes: Math.max(0, Math.round(trafficMinutes || minutes))
+      };
+    }catch{
+      return {minutes:0, trafficMinutes:0};
+    }
   }
 
   function getDynamicRouteMinutes(){
-    const appointment=get('dispatchEditAppointmentTime')?.value||'';
-    const factor=trafficFactorForAppointment(appointment);
-    const distanceMiles=Math.max(0,Number(currentRouteContext.distanceMiles||0));
-    const durationMinutes=Math.max(0,Number(currentRouteContext.durationMinutes||0));
+    const liveMinutes=Math.max(0,Number(currentRouteContext.liveRouteMinutes||0));
+    if(liveMinutes>0) return liveMinutes;
     const trafficDurationMinutes=Math.max(0,Number(currentRouteContext.trafficDurationMinutes||0));
-    const fromDistance=distanceMiles>0?Math.round((distanceMiles/25)*60*factor):0;
-    const fromDuration=durationMinutes>0?Math.round(durationMinutes*factor):0;
-    const fromTraffic=trafficDurationMinutes>0?Math.round(trafficDurationMinutes*factor):0;
-    const routeMinutes=Math.max(fromTraffic,fromDuration,fromDistance);
+    const durationMinutes=Math.max(0,Number(currentRouteContext.durationMinutes||0));
+    const routeMinutes=Math.max(trafficDurationMinutes,durationMinutes);
     if(routeMinutes>0) return routeMinutes;
     return serviceLeadMinutes(get('dispatchEditService')?.value||'');
   }
 
   function getYardToPickupMinutes(){
-    const yardTraffic=Math.max(0,Number(currentRouteContext.yardToPickupTrafficMinutes||0));
-    const yardBase=Math.max(0,Number(currentRouteContext.yardToPickupMinutes||0));
+    const yardTraffic=Math.max(0,Number(currentRouteContext.liveYardTrafficMinutes||currentRouteContext.yardToPickupTrafficMinutes||0));
+    const yardBase=Math.max(0,Number(currentRouteContext.liveYardMinutes||currentRouteContext.yardToPickupMinutes||0));
     return Math.max(yardTraffic,yardBase);
   }
 
@@ -1440,14 +1513,20 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   async function loadDispatchOpsSettings(){
     try{
-      const r=await fetch('/api/settings/public',{cache:'no-store'});
-      const j=await r.json().catch(()=>({}));
-      if(r.ok&&j?.organization){
-        const yard=String(j.organization.yardAddress||'').trim();
+      const [settingsRes, integrationsRes] = await Promise.all([
+        fetch('/api/settings/public',{cache:'no-store'}),
+        fetch('/api/integrations/config',{cache:'no-store'})
+      ]);
+      const settings=await settingsRes.json().catch(()=>({}));
+      if(settingsRes.ok&&settings?.organization){
+        const yard=String(settings.organization.yardAddress||'').trim();
         if(yard) companyYardAddress=yard;
-        const preTrip=Number(j.organization.preTripInspectionMinutes);
+        const preTrip=Number(settings.organization.preTripInspectionMinutes);
         if(Number.isFinite(preTrip)) preTripInspectionMinutes=Math.max(0,Math.min(180,preTrip));
       }
+      const integrations=await integrationsRes.json().catch(()=>({}));
+      mapsEnabled=!!integrations.googleMapsEnabled;
+      mapsBrowserKey=String(integrations.googleMapsBrowserKey||'').trim();
     }catch{}
   }
 
@@ -1461,7 +1540,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
     return `${hh}:${mm}`;
   }
 
-  function updatePickupFromAppointment(){
+  async function updatePickupFromAppointment(){
+    const requestId=++routeTimingRequestId;
     const appointment=get('dispatchEditAppointmentTime').value;
     if(!appointment){
       get('dispatchEditTime').value='';
@@ -1470,9 +1550,27 @@ $('saveCustomCompany').addEventListener('click',()=>{
       lastCalculatedCheckIn='';
       return;
     }
-    const routeMinutes=getDynamicRouteMinutes();
+    const pickupValue=String(get('dispatchEditPickup').value||'').trim();
+    const destinationValue=String(get('dispatchEditDestination').value||'').trim();
+    const tripDate=String(get('dispatchEditDate').value||'').trim();
+    const [routeEstimate, yardEstimate]=await Promise.all([
+      estimateTripRouteMinutes(pickupValue,destinationValue,tripDate,appointment),
+      estimateYardToPickupRoute(pickupValue,tripDate,appointment)
+    ]);
+    if(requestId!==routeTimingRequestId) return;
+    const liveRouteMinutes=Math.max(0,Number(routeEstimate.trafficMinutes||routeEstimate.minutes||0));
+    if(liveRouteMinutes>0){
+      currentRouteContext.liveRouteMinutes=liveRouteMinutes;
+      currentRouteContext.durationMinutes=Math.max(0,Number(routeEstimate.minutes||0));
+      currentRouteContext.trafficDurationMinutes=Math.max(0,Number(routeEstimate.trafficMinutes||routeEstimate.minutes||0));
+    }
+    const liveYardMinutes=Math.max(0,Number(yardEstimate.trafficMinutes||yardEstimate.minutes||0));
+    if(liveYardMinutes>0){
+      currentRouteContext.liveYardMinutes=Math.max(0,Number(yardEstimate.minutes||0));
+      currentRouteContext.liveYardTrafficMinutes=Math.max(0,Number(yardEstimate.trafficMinutes||yardEstimate.minutes||0));
+    }
     const dispatchBufferMinutes=15;
-    const calc=appointment?shiftTimeBack(appointment,Math.max(0,Math.ceil(routeMinutes)+dispatchBufferMinutes)):'';
+    const calc=appointment?shiftTimeBack(appointment,Math.max(0,Math.ceil(liveRouteMinutes)+dispatchBufferMinutes)):'';
     const currentPickup=get('dispatchEditTime').value;
     if(calc&&(currentPickup===''||currentPickup===lastCalculatedPickup)){
       get('dispatchEditTime').value=calc;
@@ -1522,6 +1620,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function applyEditorValues(b){
     currentRouteContext=parseRouteContextFromBooking(b);
+    currentRouteContext.liveRouteMinutes=0;
+    currentRouteContext.liveYardMinutes=0;
+    currentRouteContext.liveYardTrafficMinutes=0;
     get('dispatchEditRef').value=b.reference||currentRef||'';
     get('dispatchEditStatus').value=String((b.status||'SUBMITTED')).toUpperCase().replaceAll('-','_').replaceAll(' ','_');
     get('dispatchEditService').value=b.service||'';
@@ -1822,6 +1923,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   get('dispatchEditAppointmentTime').addEventListener('input',updatePickupFromAppointment);
   get('dispatchEditService').addEventListener('input',updatePickupFromAppointment);
+  get('dispatchEditPickup').addEventListener('input',updatePickupFromAppointment);
+  get('dispatchEditDestination').addEventListener('input',updatePickupFromAppointment);
+  get('dispatchEditDate').addEventListener('change',updatePickupFromAppointment);
   get('dispatchEditTime').addEventListener('input',updateCheckInFromPickup);
   get('dispatchEditSubmitterType').addEventListener('change',toggleBrokerFields);
   loadDispatchOpsSettings();
