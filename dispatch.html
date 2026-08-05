@@ -1134,11 +1134,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
       <div class="formField"><label>Pickup</label><input id="dispatchEditPickup" type="text"></div>
       <div class="formField"><label>Destination</label><input id="dispatchEditDestination" type="text"></div>
     </div>
-    <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
+    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">
       <div class="formField"><label>Date</label><input id="dispatchEditDate" type="date"></div>
       <div class="formField"><label>Appointment time</label><input id="dispatchEditAppointmentTime" type="time"></div>
-      <div class="formField"><label>Pickup time (calculated)</label><input id="dispatchEditCalcPickupTime" type="time" readonly></div>
-      <div class="formField"><label>Pickup time</label><input id="dispatchEditTime" type="time"></div>
+      <div class="formField"><label>Pickup time (calculated)</label><input id="dispatchEditTime" type="time"></div>
     </div>
     <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
       <div class="formField"><label>Driver</label><input id="dispatchEditDriver" type="text" placeholder="Driver name"></div>
@@ -1220,7 +1219,6 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const appointment=get('dispatchEditAppointmentTime').value;
     const service=get('dispatchEditService').value;
     const calc=appointment?shiftTimeBack(appointment,serviceLeadMinutes(service)):'';
-    get('dispatchEditCalcPickupTime').value=calc;
     const currentPickup=get('dispatchEditTime').value;
     if(calc&&(currentPickup===''||currentPickup===lastCalculatedPickup)){
       get('dispatchEditTime').value=calc;
