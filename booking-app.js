@@ -152,6 +152,8 @@
       als2:{cancellationFee:300,noShowFee:390,trafficOverageFeePerHour:110,returnMilesInclusionPct:100,afterHoursSurchargePct:0,weekendSurchargePct:0,holidaySurchargePct:10}
     }
   };
+  const DEFAULT_YARD_ADDRESS = '22505 Gateway Center Dr, Clarksburg MD 20871';
+  const DEFAULT_PRETRIP_INSPECTION_MINUTES = 45;
 
   let mapsReadyPromise = null;
   let mapsEnabled = false;
@@ -173,6 +175,10 @@
   let currentUser = null;
   let platformPricing = null;
   let fareRules = { ...DEFAULT_FARE_RULES };
+  let companyYardAddress = DEFAULT_YARD_ADDRESS;
+  let preTripInspectionMinutes = DEFAULT_PRETRIP_INSPECTION_MINUTES;
+  let yardToPickupDurationMinutes = 0;
+  let yardToPickupTrafficDurationMinutes = 0;
   let currentBookingReference = '';
   let currentBookingFare = 0;
   let bookingSubmitted = false;
@@ -1316,7 +1322,50 @@
       if(data?.fareRules && typeof data.fareRules === 'object'){
         fareRules = { ...DEFAULT_FARE_RULES, ...data.fareRules };
       }
+      if(data?.organization && typeof data.organization === 'object'){
+        const yardAddress = String(data.organization.yardAddress || '').trim();
+        companyYardAddress = yardAddress || DEFAULT_YARD_ADDRESS;
+        const preTrip = Number(data.organization.preTripInspectionMinutes);
+        preTripInspectionMinutes = Number.isFinite(preTrip) ? Math.max(0, Math.min(180, preTrip)) : DEFAULT_PRETRIP_INSPECTION_MINUTES;
+      }
     }catch{}
+  }
+
+  function resolveRouteDepartureTime(tripDate, appointmentTime){
+    const date = String(tripDate || '').trim();
+    const time = String(appointmentTime || '').trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(time)){
+      const local = new Date(`${date}T${time}:00`);
+      if(!Number.isNaN(local.getTime())) return local;
+    }
+    return new Date();
+  }
+
+  async function estimateYardToPickupRoute(pickup, tripDate, appointmentTime){
+    if(!pickup || !companyYardAddress) return { minutes: 0, trafficMinutes: 0 };
+    try{
+      await loadMaps();
+      const dirSvc = new google.maps.DirectionsService();
+      const departureTime = resolveRouteDepartureTime(tripDate, appointmentTime);
+      const result = await new Promise((resolve, reject) => {
+        dirSvc.route({
+          origin: companyYardAddress,
+          destination: pickup,
+          travelMode: google.maps.TravelMode.DRIVING,
+          drivingOptions: { departureTime, trafficModel: google.maps.TrafficModel.BEST_GUESS },
+          unitSystem: google.maps.UnitSystem.IMPERIAL
+        }, (res, status) => status === 'OK' ? resolve(res) : reject(new Error(status)));
+      });
+      const legs = result.routes?.[0]?.legs || [];
+      const minutes = legs.reduce((sum, leg) => sum + (Number(leg?.duration?.value || 0) / 60), 0);
+      const trafficMinutes = legs.reduce((sum, leg) => sum + (Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60), 0);
+      return {
+        minutes: Math.max(0, Math.round(minutes)),
+        trafficMinutes: Math.max(0, Math.round(trafficMinutes || minutes))
+      };
+    }catch{
+      return { minutes: 0, trafficMinutes: 0 };
+    }
   }
 
   async function loadIntegrationConfig(){
@@ -1433,6 +1482,14 @@
     const traffic = Math.max(0, Number(estimateState.trafficDurationMinutes || 0));
     const scheduled = Math.max(0, Number(estimateState.durationMinutes || 0));
     return Math.max(traffic, scheduled);
+  }
+
+  function getDriverYardReportTime(){
+    const pickupMinutes = parseTimeToMinutes($('tripTime')?.value || '');
+    if(pickupMinutes == null) return '';
+    const yardTravel = Math.max(0, Number(yardToPickupTrafficDurationMinutes || yardToPickupDurationMinutes || 0));
+    const reportMinutes = pickupMinutes - Math.ceil(yardTravel) - Math.max(0, Number(preTripInspectionMinutes || 0));
+    return minutesToTime(reportMinutes);
   }
 
   function applyPickupEstimateFromAppointment(){
@@ -2111,6 +2168,8 @@
     let durationText = '';
     let durationMinutes = 0;
     let trafficDurationMinutes = 0;
+    yardToPickupDurationMinutes = 0;
+    yardToPickupTrafficDurationMinutes = 0;
 
     try{
       await loadMaps();
@@ -2137,6 +2196,12 @@
       const trafficText = String(legs.map((leg) => String(leg?.duration_in_traffic?.text || '').trim()).filter(Boolean).join(' + '));
       if(trafficText && trafficDurationMinutes > durationMinutes){
         durationText = `${durationText} (traffic ${trafficText})`;
+      }
+      const yardRoute = await estimateYardToPickupRoute(pickup, tripDate, String(appointmentTimeInput?.value || '').trim());
+      yardToPickupDurationMinutes = Math.max(0, Number(yardRoute.minutes || 0));
+      yardToPickupTrafficDurationMinutes = Math.max(0, Number(yardRoute.trafficMinutes || 0));
+      if(yardToPickupTrafficDurationMinutes > 0){
+        durationText = `${durationText} | Yard->Pickup ${yardToPickupTrafficDurationMinutes} min`;
       }
       renderCustomerRoute(result, pickup, destination);
     }catch(err){
@@ -2494,6 +2559,12 @@
       memberDiscountPct: token() ? MEMBER_DISCOUNT_PCT : 0,
       memberDiscountAmount: Number(estimateState.memberSavings || 0),
       pickupTimeEstimate: String($('tripTime')?.value || '').trim(),
+      yardAddress: companyYardAddress,
+      yardToPickupMinutes: Math.max(0, Number(yardToPickupDurationMinutes || 0)),
+      yardToPickupTrafficMinutes: Math.max(0, Number(yardToPickupTrafficDurationMinutes || 0)),
+      preTripInspectionMinutes: Math.max(0, Number(preTripInspectionMinutes || 0)),
+      checkInTime: getDriverYardReportTime(),
+      driverReportTime: getDriverYardReportTime(),
       paymentWindowLabel: 'Payment link window: 60 to 30 minutes before pickup',
       requestedByRole: String(currentUserRole || 'CUSTOMER').toUpperCase(),
       requestedByUser: String(currentUser?.email || '').trim() || null,

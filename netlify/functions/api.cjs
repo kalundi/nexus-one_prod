@@ -84,8 +84,29 @@ function upsertAppointmentNote(notes,appointmentTime){
  if(base.includes('\n')) return `${base}\n${appointmentLine}`;
  return `${base} | ${appointmentLine}`;
 }
+function extractCheckInTimeFromNotes(notes){
+ const text=clean(notes||'');
+ const match=text.match(/(?:Check-?in\s*time|Driver\s+yard\s+report\s+time):\s*([0-2]?\d:[0-5]\d(?:\s*(?:AM|PM))?)/i);
+ return match?normalizeOptionalTripTime(String(match[1])):'';
+}
+function upsertCheckInNote(notes,checkInTime){
+ const normalized=normalizeOptionalTripTime(checkInTime);
+ if(!normalized) return clean(notes||'')||null;
+ const label=appointmentNoteLabel(normalized);
+ const base=String(notes||'')
+  .replace(/(?:Check-?in\s*time|Driver\s+yard\s+report\s+time):\s*[0-2]?\d:[0-5]\d(?:\s*(?:AM|PM))?/ig,'')
+  .replace(/\s*\|\s*\|\s*/g,' | ')
+  .trim();
+ const checkInLine=`Check-in time: ${label}`;
+ if(!base) return checkInLine;
+ if(base.includes('\n')) return `${base}\n${checkInLine}`;
+ return `${base} | ${checkInLine}`;
+}
 function getSubmittedAppointmentTime(row){
  return normalizeOptionalTripTime(row?.appointment_time||row?.appointmentTime||extractAppointmentTimeFromNotes(row?.notes||''));
+}
+function getCheckInTime(row){
+ return normalizeOptionalTripTime(row?.check_in_time||row?.checkInTime||extractCheckInTimeFromNotes(row?.notes||''));
 }
 function parseTripDateTime(booking){
  const tripDate=normalizeTripDate(booking?.trip_date||booking?.date||'');
@@ -245,7 +266,9 @@ const DEFAULT_PLATFORM_SETTINGS={
   name:'Nexus Medical Transit',
   phone:'(888) 760-4990',
   email:'contact@nexusmt.com',
-  website:'https://nexusmt.com'
+  website:'https://nexusmt.com',
+  yardAddress:'22505 Gateway Center Dr, Clarksburg MD 20871',
+  preTripInspectionMinutes:45
  },
  activeServices:['AMBULANCE','WHEELCHAIR','STRETCHER','HOSPITAL_DISCHARGE','FACILITY_TRANSFER','FACILITY_TRANSFER_CRITICAL']
 };
@@ -521,7 +544,9 @@ function mergePlatformSettings(raw){
    name:clean(orgSrc.name)||DEFAULT_PLATFORM_SETTINGS.organization.name,
    phone:clean(orgSrc.phone)||DEFAULT_PLATFORM_SETTINGS.organization.phone,
    email:clean(orgSrc.email)||DEFAULT_PLATFORM_SETTINGS.organization.email,
-   website:clean(orgSrc.website)||DEFAULT_PLATFORM_SETTINGS.organization.website
+    website:clean(orgSrc.website)||DEFAULT_PLATFORM_SETTINGS.organization.website,
+    yardAddress:clean(orgSrc.yardAddress)||DEFAULT_PLATFORM_SETTINGS.organization.yardAddress,
+    preTripInspectionMinutes:clamp(n(orgSrc.preTripInspectionMinutes,DEFAULT_PLATFORM_SETTINGS.organization.preTripInspectionMinutes),0,180)
   },
   activeServices:normalizedServices
  };
@@ -889,6 +914,11 @@ async function handler(event){
   const appointmentTime=normalizeOptionalTripTime(b.appointmentTime||'');
   if(!appointmentTime)return json(400,{error:'Appointment time is required and must be valid (for example 2:00 PM).'});
   const pickupTimeEstimate=clean(b.pickupTimeEstimate||b.time||'');
+  const yardAddress=clean(b.yardAddress||'');
+  const yardToPickupMinutes=Number(b.yardToPickupMinutes);
+  const yardToPickupTrafficMinutes=Number(b.yardToPickupTrafficMinutes);
+  const checkInTime=normalizeOptionalTripTime(b.checkInTime||b.driverReportTime||'');
+  const preTripInspectionMinutes=Number(b.preTripInspectionMinutes);
   const requestedByRole=clean(b.requestedByRole||actorRole||'CUSTOMER').toUpperCase();
 
   let bookingSource='CUSTOMER';
@@ -902,10 +932,16 @@ async function handler(event){
   const baseNotes=clean(b.notes)||'';
   const metadataNotes=[
    pickupTimeEstimate?`Pickup estimate: ${pickupTimeEstimate}`:'',
+    yardAddress?`Yard start: ${yardAddress}`:'',
+    Number.isFinite(yardToPickupMinutes)&&yardToPickupMinutes>0?`Yard to pickup estimate: ${Math.round(yardToPickupMinutes)} min`:'',
+    Number.isFinite(yardToPickupTrafficMinutes)&&yardToPickupTrafficMinutes>0?`Yard to pickup traffic estimate: ${Math.round(yardToPickupTrafficMinutes)} min`:'',
+    checkInTime?`Check-in time: ${checkInTime}`:'',
+    Number.isFinite(preTripInspectionMinutes)&&preTripInspectionMinutes>=0?`Pre-trip inspection buffer: ${Math.round(preTripInspectionMinutes)} min`:'',
    requestedByRole?`Requested by role: ${requestedByRole}`:'',
    clean(b.paymentWindowLabel)?clean(b.paymentWindowLabel):''
   ].filter(Boolean).join(' | ');
-  const composedNotes=upsertAppointmentNote([baseNotes,metadataNotes].filter(Boolean).join(baseNotes&&metadataNotes?'\n':''),appointmentTime);
+  const notesWithAppointment=upsertAppointmentNote([baseNotes,metadataNotes].filter(Boolean).join(baseNotes&&metadataNotes?'\n':''),appointmentTime);
+  const composedNotes=upsertCheckInNote(notesWithAppointment,checkInTime);
 
    const ref=reference();
   const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
@@ -1385,7 +1421,7 @@ async function handler(event){
 
    // DRIVER role: only allowed to update trip status.
    if(u.role==='DRIVER'){
-    const forbidden=['driverName','vehicleUnit','estimatedFare','pickup','destination','date','time','service','name','phone','email','submitterEntity','bookingSource','brokerCompanyName','brokerAcceptedRate'];
+    const forbidden=['driverName','vehicleUnit','estimatedFare','pickup','destination','date','time','service','name','phone','email','submitterEntity','bookingSource','brokerCompanyName','brokerAcceptedRate','checkInTime'];
     if(forbidden.some((key)=>Object.prototype.hasOwnProperty.call(b,key)))return json(403,{error:'Drivers may only update trip status'});
    }
 
@@ -1409,6 +1445,9 @@ async function handler(event){
   const hasAppointmentTime=Object.prototype.hasOwnProperty.call(b,'appointmentTime');
   const appointmentTimeValue=hasAppointmentTime?normalizeOptionalTripTime(b.appointmentTime):'';
   if(hasAppointmentTime&&!appointmentTimeValue)return json(400,{error:'appointmentTime must be a valid time (for example 2:00 PM).'});
+  const hasCheckInTime=Object.prototype.hasOwnProperty.call(b,'checkInTime');
+  const checkInTimeValue=hasCheckInTime?normalizeOptionalTripTime(b.checkInTime):'';
+  if(hasCheckInTime&&!checkInTimeValue)return json(400,{error:'checkInTime must be a valid time (for example 12:00 PM).'});
   const existingAppointmentTime=getSubmittedAppointmentTime(before.rows[0]);
   if(!existingAppointmentTime&&!appointmentTimeValue)return json(409,{error:'Appointment time must be entered by the submitter before further actions can proceed. Enter appointment time and save first.'});
   const hasBookingSource=Object.prototype.hasOwnProperty.call(b,'bookingSource');
@@ -1428,7 +1467,8 @@ async function handler(event){
   }
 
   const notesBase=hasNotes?clean(b.notes)||null:before.rows[0].notes;
-  const notesValue=hasAppointmentTime?upsertAppointmentNote(notesBase,appointmentTimeValue):notesBase;
+  const notesWithAppointment=hasAppointmentTime?upsertAppointmentNote(notesBase,appointmentTimeValue):notesBase;
+  const notesValue=hasCheckInTime?upsertCheckInNote(notesWithAppointment,checkInTimeValue):notesWithAppointment;
 
    const r=await query(`
     UPDATE bookings
@@ -1469,8 +1509,8 @@ async function handler(event){
       hasTime,
       hasTime?clean(b.time)||before.rows[0].trip_time:null,
       hasNotes,
-      hasNotes||hasAppointmentTime,
-      hasNotes||hasAppointmentTime?notesValue:null,
+      hasNotes||hasAppointmentTime||hasCheckInTime,
+      hasNotes||hasAppointmentTime||hasCheckInTime?notesValue:null,
       hasName,
       hasName?clean(b.name)||before.rows[0].name:null,
       hasPhone,
@@ -1502,6 +1542,7 @@ async function handler(event){
     vehicleUnit:b.vehicleUnit||undefined,
     bookingSource:hasBookingSource?bookingSourceValue:undefined,
     appointmentTime:hasAppointmentTime?appointmentTimeValue:undefined,
+    checkInTime:hasCheckInTime?checkInTimeValue:undefined,
     submitterEntity:hasSubmitterEntity?clean(b.submitterEntity):undefined,
     brokerCompanyName:hasBrokerCompanyName?clean(b.brokerCompanyName):undefined,
     brokerAcceptedRate:hasBrokerAcceptedRate?brokerAcceptedRateValue:undefined,
@@ -1974,6 +2015,7 @@ async function handler(event){
 }
 function mapBooking(b){
  const submittedAppointmentTime=getSubmittedAppointmentTime(b);
+ const checkInTime=getCheckInTime(b);
  const linkedAppointmentTime=submittedAppointmentTime||normalizeOptionalTripTime(b.trip_time||b.time||'');
  return {
   id:b.reference,
@@ -1994,6 +2036,7 @@ function mapBooking(b){
   time:String(b.trip_time||b.time||'').slice(0,5),
   appointmentTime:linkedAppointmentTime,
   submittedAppointmentTime:submittedAppointmentTime||null,
+  checkInTime:checkInTime||null,
   appointmentMissing:!submittedAppointmentTime,
   status:statusLabel(b.status),
   statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),

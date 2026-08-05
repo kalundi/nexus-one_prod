@@ -1168,7 +1168,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     </div>
     <input id="dispatchBulkUpload" type="file" accept=".csv,text/csv" hidden>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px">
-      <small class="subtle">Editable CSV columns: appointmentTime, status, service, date, time, driverName, vehicleUnit, bookingSource, submitterEntity, brokerCompanyName, brokerAcceptedRate, dispatchNote</small>
+      <small class="subtle">Editable CSV columns: appointmentTime, checkInTime, status, service, date, time, driverName, vehicleUnit, bookingSource, submitterEntity, brokerCompanyName, brokerAcceptedRate, dispatchNote</small>
       <div style="display:flex;gap:10px"><button id="dispatchBulkClear" class="button ghost" type="button">Clear selection</button><button id="dispatchBulkDownload" class="button ghost" type="button">Download CSV template</button><button id="dispatchBulkUploadBtn" class="button ghost" type="button">Upload CSV</button><button id="dispatchBulkSubmit" class="button primary" type="button">Submit imported updates</button></div>
     </div>
   `;
@@ -1190,10 +1190,11 @@ $('saveCustomCompany').addEventListener('click',()=>{
       <div class="formField"><label>Pickup</label><input id="dispatchEditPickup" type="text"></div>
       <div class="formField"><label>Destination</label><input id="dispatchEditDestination" type="text"></div>
     </div>
-    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">
+    <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
       <div class="formField"><label>Date</label><input id="dispatchEditDate" type="date"></div>
       <div class="formField"><label>Appointment time</label><input id="dispatchEditAppointmentTime" type="time"></div>
       <div class="formField"><label>Pickup time (calculated)</label><input id="dispatchEditTime" type="time"></div>
+      <div class="formField"><label>Check-in Time</label><input id="dispatchEditCheckInTime" type="time"></div>
     </div>
     <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
       <div class="formField"><label>Driver</label><input id="dispatchEditDriver" type="text" placeholder="Driver name"></div>
@@ -1227,7 +1228,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const msgEl=get('dispatchEditMsg');
   const detailsEl=get('dispatchEditDetails');
   let lastCalculatedPickup='';
+  let lastCalculatedCheckIn='';
   let currentRef='';
+  let companyYardAddress='22505 Gateway Center Dr, Clarksburg MD 20871';
+  let preTripInspectionMinutes=45;
   let currentRouteContext={distanceMiles:0,durationMinutes:0,trafficDurationMinutes:0};
 
   function setBulkMsg(text,type){
@@ -1365,6 +1369,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
   function parseRouteContextFromBooking(booking){
     const estText=String(booking?.estimatedDuration||'');
     const trafficMatch=estText.match(/traffic[^\d]*(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)?/i);
+    const yardTrafficMatch=String(booking?.notes||'').match(/Yard to pickup traffic estimate:\s*(\d+(?:\.\d+)?)\s*min/i);
+    const yardBaseMatch=String(booking?.notes||'').match(/Yard to pickup estimate:\s*(\d+(?:\.\d+)?)\s*min/i);
     let trafficMinutes=0;
     if(trafficMatch){
       const value=Number(trafficMatch[1]||0);
@@ -1374,7 +1380,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
     return {
       distanceMiles:Math.max(0,Number(booking?.distanceMiles||0)||0),
       durationMinutes:Math.max(0,parseDurationTextToMinutes(estText)),
-      trafficDurationMinutes:Math.max(0,trafficMinutes)
+      trafficDurationMinutes:Math.max(0,trafficMinutes),
+      yardToPickupMinutes:Math.max(0,Number(yardBaseMatch?.[1]||0)||0),
+      yardToPickupTrafficMinutes:Math.max(0,Number(yardTrafficMatch?.[1]||0)||0)
     };
   }
 
@@ -1402,6 +1410,47 @@ $('saveCustomCompany').addEventListener('click',()=>{
     return serviceLeadMinutes(get('dispatchEditService')?.value||'');
   }
 
+  function getYardToPickupMinutes(){
+    const yardTraffic=Math.max(0,Number(currentRouteContext.yardToPickupTrafficMinutes||0));
+    const yardBase=Math.max(0,Number(currentRouteContext.yardToPickupMinutes||0));
+    return Math.max(yardTraffic,yardBase);
+  }
+
+  function getDriverYardReportTime(){
+    const pickup=get('dispatchEditTime')?.value||'';
+    const m=String(pickup).match(/^(\d{2}):(\d{2})$/);
+    if(!m) return '—';
+    const pickupTotal=(Number(m[1])*60)+Number(m[2]);
+    const yardTravel=Math.ceil(getYardToPickupMinutes());
+    const report=((pickupTotal-yardTravel-Math.max(0,Number(preTripInspectionMinutes||0)))%1440+1440)%1440;
+    const hh=String(Math.floor(report/60)).padStart(2,'0');
+    const mm=String(report%60).padStart(2,'0');
+    return `${hh}:${mm}`;
+  }
+
+  function updateCheckInFromPickup(){
+    const calculated=getDriverYardReportTime();
+    if(calculated==='—') return;
+    const current=get('dispatchEditCheckInTime')?.value||'';
+    if(current===''||current===lastCalculatedCheckIn){
+      get('dispatchEditCheckInTime').value=calculated;
+    }
+    lastCalculatedCheckIn=calculated;
+  }
+
+  async function loadDispatchOpsSettings(){
+    try{
+      const r=await fetch('/api/settings/public',{cache:'no-store'});
+      const j=await r.json().catch(()=>({}));
+      if(r.ok&&j?.organization){
+        const yard=String(j.organization.yardAddress||'').trim();
+        if(yard) companyYardAddress=yard;
+        const preTrip=Number(j.organization.preTripInspectionMinutes);
+        if(Number.isFinite(preTrip)) preTripInspectionMinutes=Math.max(0,Math.min(180,preTrip));
+      }
+    }catch{}
+  }
+
   function shiftTimeBack(timeHHMM, minutesBack){
     const m=String(timeHHMM||'').match(/^(\d{2}):(\d{2})$/);
     if(!m) return '';
@@ -1422,6 +1471,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       get('dispatchEditTime').value=calc;
     }
     lastCalculatedPickup=calc;
+    updateCheckInFromPickup();
   }
 
   function toggleBrokerFields(){
@@ -1475,6 +1525,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditEmail').value=b.email||'';
     get('dispatchEditTripNotes').value=b.notes||'';
     get('dispatchEditAppointmentTime').value=String(b.submittedAppointmentTime||extractAppointmentTime(b.notes||'')).slice(0,5);
+    get('dispatchEditCheckInTime').value=String(b.checkInTime||'').slice(0,5);
     updatePickupFromAppointment();
     toggleBrokerFields();
     updateEditorDetails(b);
@@ -1492,6 +1543,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
       ['Broker accepted rate', b.brokerAcceptedRate!=null?`$${Number(b.brokerAcceptedRate).toFixed(2)}`:'—'],
       ['Submitter appointment', b.submittedAppointmentTime || 'MISSING'],
       ['Route minutes used', String(getDynamicRouteMinutes() || '—')],
+      ['Company yard', companyYardAddress || '—'],
+      ['Yard to pickup minutes', getYardToPickupMinutes()>0?String(Math.round(getYardToPickupMinutes())):'—'],
+      ['Pre-trip inspection (min)', String(Math.round(preTripInspectionMinutes||0))],
+      ['Check-in Time', get('dispatchEditCheckInTime')?.value || getDriverYardReportTime()],
       ['Payment status', b.paymentStatus || 'UNPAID'],
       ['Estimated fare', b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'—'],
       ['Distance miles', b.distanceMiles!=null?String(b.distanceMiles):'—'],
@@ -1567,6 +1622,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
       notes:get('dispatchEditTripNotes').value,
       dispatchNote:get('dispatchEditNote').value
     };
+    const checkInTimeValue=get('dispatchEditCheckInTime').value;
+    if(checkInTimeValue) payload.checkInTime=checkInTimeValue;
     const button=get('dispatchEditSave');
     button.disabled=true;
     button.textContent='Saving...';
@@ -1605,12 +1662,13 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(!selectedRefs.size){setBulkMsg('Select at least one trip before downloading template.','err');return;}
     const selectedTrips=(window.__dispatchTripsCache||[]).filter((trip)=>selectedRefs.has(String(trip.reference||trip.id||'')));
     if(!selectedTrips.length){setBulkMsg('Selected trips are not available in current filtered view. Refresh and retry.','err');return;}
-    const headers=['reference','appointmentTime','status','service','date','time','driverName','vehicleUnit','bookingSource','submitterEntity','brokerCompanyName','brokerAcceptedRate','dispatchNote'];
+    const headers=['reference','appointmentTime','checkInTime','status','service','date','time','driverName','vehicleUnit','bookingSource','submitterEntity','brokerCompanyName','brokerAcceptedRate','dispatchNote'];
     const rows=[headers.join(',')];
     selectedTrips.forEach((trip)=>{
       const values=[
         trip.reference||trip.id||'',
         trip.submittedAppointmentTime||'',
+        trip.checkInTime||'',
         String(trip.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
         trip.service||'',
         String(trip.date||'').slice(0,10),
@@ -1677,6 +1735,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         const payload={};
         const status=String(row.status||row.Status||'').trim();
         const appointmentTime=String(row.appointmentTime||row.AppointmentTime||'').trim();
+        const checkInTime=String(row.checkInTime||row.CheckInTime||'').trim();
         const service=String(row.service||row.Service||'').trim();
         const date=String(row.date||row.Date||'').trim();
         const time=String(row.time||row.Time||'').trim();
@@ -1688,6 +1747,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         const brokerAcceptedRate=String(row.brokerAcceptedRate||row.BrokerAcceptedRate||'').trim();
         const dispatchNote=String(row.dispatchNote||row.DispatchNote||'').trim();
         if(appointmentTime) payload.appointmentTime=appointmentTime;
+        if(checkInTime) payload.checkInTime=checkInTime;
         if(status) payload.status=status;
         if(service) payload.service=service;
         if(date) payload.date=date;
@@ -1729,7 +1789,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   get('dispatchEditAppointmentTime').addEventListener('input',updatePickupFromAppointment);
   get('dispatchEditService').addEventListener('input',updatePickupFromAppointment);
+  get('dispatchEditTime').addEventListener('input',updateCheckInFromPickup);
   get('dispatchEditSubmitterType').addEventListener('change',toggleBrokerFields);
+  loadDispatchOpsSettings();
   loadBrokerCompanies();
 })();
 </script></body></html>
