@@ -1445,11 +1445,13 @@ async function handler(event){
   const hasAppointmentTime=Object.prototype.hasOwnProperty.call(b,'appointmentTime');
   const appointmentTimeValue=hasAppointmentTime?normalizeOptionalTripTime(b.appointmentTime):'';
   if(hasAppointmentTime&&!appointmentTimeValue)return json(400,{error:'appointmentTime must be a valid time (for example 2:00 PM).'});
+  const proposedTripTime=hasTime?normalizeOptionalTripTime(b.time):'';
   const hasCheckInTime=Object.prototype.hasOwnProperty.call(b,'checkInTime');
   const checkInTimeValue=hasCheckInTime?normalizeOptionalTripTime(b.checkInTime):'';
   if(hasCheckInTime&&!checkInTimeValue)return json(400,{error:'checkInTime must be a valid time (for example 12:00 PM).'});
   const existingAppointmentTime=getSubmittedAppointmentTime(before.rows[0]);
-  if(!existingAppointmentTime&&!appointmentTimeValue)return json(409,{error:'Appointment time must be entered by the submitter before further actions can proceed. Enter appointment time and save first.'});
+  const effectiveAppointmentTime=appointmentTimeValue||(!existingAppointmentTime?proposedTripTime:'');
+  if(!existingAppointmentTime&&!effectiveAppointmentTime)return json(409,{error:'Appointment time must be entered by the submitter before further actions can proceed. Enter appointment time and save first.'});
   const hasBookingSource=Object.prototype.hasOwnProperty.call(b,'bookingSource');
   const hasSubmitterEntity=Object.prototype.hasOwnProperty.call(b,'submitterEntity');
   const hasBrokerCompanyName=Object.prototype.hasOwnProperty.call(b,'brokerCompanyName');
@@ -1467,7 +1469,7 @@ async function handler(event){
   }
 
   const notesBase=hasNotes?clean(b.notes)||null:before.rows[0].notes;
-  const notesWithAppointment=hasAppointmentTime?upsertAppointmentNote(notesBase,appointmentTimeValue):notesBase;
+  const notesWithAppointment=(hasAppointmentTime||(!existingAppointmentTime&&proposedTripTime))?upsertAppointmentNote(notesBase,effectiveAppointmentTime):notesBase;
   const notesValue=hasCheckInTime?upsertCheckInNote(notesWithAppointment,checkInTimeValue):notesWithAppointment;
 
    const r=await query(`
@@ -1541,7 +1543,7 @@ async function handler(event){
     driverName:b.driverName||undefined,
     vehicleUnit:b.vehicleUnit||undefined,
     bookingSource:hasBookingSource?bookingSourceValue:undefined,
-    appointmentTime:hasAppointmentTime?appointmentTimeValue:undefined,
+    appointmentTime:(hasAppointmentTime||(!existingAppointmentTime&&proposedTripTime))?effectiveAppointmentTime:undefined,
     checkInTime:hasCheckInTime?checkInTimeValue:undefined,
     submitterEntity:hasSubmitterEntity?clean(b.submitterEntity):undefined,
     brokerCompanyName:hasBrokerCompanyName?clean(b.brokerCompanyName):undefined,

@@ -1463,6 +1463,13 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function updatePickupFromAppointment(){
     const appointment=get('dispatchEditAppointmentTime').value;
+    if(!appointment){
+      get('dispatchEditTime').value='';
+      get('dispatchEditCheckInTime').value='';
+      lastCalculatedPickup='';
+      lastCalculatedCheckIn='';
+      return;
+    }
     const routeMinutes=getDynamicRouteMinutes();
     const dispatchBufferMinutes=15;
     const calc=appointment?shiftTimeBack(appointment,Math.max(0,Math.ceil(routeMinutes)+dispatchBufferMinutes)):'';
@@ -1512,7 +1519,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditPickup').value=b.pickup||'';
     get('dispatchEditDestination').value=b.destination||'';
     get('dispatchEditDate').value=String(b.date||'').slice(0,10);
-    get('dispatchEditTime').value=String(b.time||'').slice(0,5);
+    get('dispatchEditTime').value='';
     get('dispatchEditDriver').value=b.driverName||b.driver||'';
     get('dispatchEditVehicle').value=b.vehicleUnit||b.vehicle||'';
     get('dispatchEditSubmitterType').value=String(b.bookingSource||'CUSTOMER').toUpperCase();
@@ -1525,8 +1532,16 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditEmail').value=b.email||'';
     get('dispatchEditTripNotes').value=b.notes||'';
     get('dispatchEditAppointmentTime').value=String(b.submittedAppointmentTime||extractAppointmentTime(b.notes||'')).slice(0,5);
-    get('dispatchEditCheckInTime').value=String(b.checkInTime||'').slice(0,5);
+    get('dispatchEditCheckInTime').value='';
     updatePickupFromAppointment();
+    if(get('dispatchEditAppointmentTime').value && b.time){
+      get('dispatchEditTime').value=String(b.time||'').slice(0,5);
+      updateCheckInFromPickup();
+    }
+    if(get('dispatchEditAppointmentTime').value && b.checkInTime){
+      get('dispatchEditCheckInTime').value=String(b.checkInTime||'').slice(0,5);
+      lastCalculatedCheckIn=get('dispatchEditCheckInTime').value;
+    }
     toggleBrokerFields();
     updateEditorDetails(b);
     if(b.appointmentMissing){
