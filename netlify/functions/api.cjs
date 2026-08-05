@@ -108,6 +108,49 @@ function getSubmittedAppointmentTime(row){
 function getCheckInTime(row){
  return normalizeOptionalTripTime(row?.check_in_time||row?.checkInTime||extractCheckInTimeFromNotes(row?.notes||''));
 }
+function formatHistoryValue(value){
+ const text=clean(value);
+ return text||'—';
+}
+function collectBookingFieldHistoryEntries(beforeRow,afterRow){
+ const before=mapBooking(beforeRow||{});
+ const after=mapBooking(afterRow||{});
+ const normalizeStatus=value=>String(value||'').trim().toUpperCase().replaceAll('-','_').replaceAll(' ','_');
+ const normalizeMoney=value=>{
+  if(value===null||value===undefined||clean(value)==='') return '';
+  const num=Number(value);
+  return Number.isFinite(num)?num.toFixed(2):clean(value);
+ };
+ const fields=[
+  {label:'Status',before:normalizeStatus(before.status),after:normalizeStatus(after.status),displayBefore:before.statusLabel||before.status,displayAfter:after.statusLabel||after.status},
+  {label:'Service',before:clean(before.service),after:clean(after.service)},
+  {label:'Pickup',before:clean(before.pickup),after:clean(after.pickup)},
+  {label:'Destination',before:clean(before.destination),after:clean(after.destination)},
+  {label:'Trip date',before:clean(before.date),after:clean(after.date)},
+  {label:'Pickup time',before:clean(before.time),after:clean(after.time)},
+  {label:'Appointment time',before:clean(before.submittedAppointmentTime),after:clean(after.submittedAppointmentTime)},
+  {label:'Check-in time',before:clean(before.checkInTime),after:clean(after.checkInTime)},
+  {label:'Driver',before:clean(before.driverName),after:clean(after.driverName)},
+  {label:'Vehicle',before:clean(before.vehicleUnit),after:clean(after.vehicleUnit)},
+  {label:'Booking source',before:clean(before.bookingSource).toUpperCase(),after:clean(after.bookingSource).toUpperCase()},
+  {label:'Submitter login',before:clean(before.submitterEntity),after:clean(after.submitterEntity)},
+  {label:'Broker company',before:clean(before.brokerCompanyName),after:clean(after.brokerCompanyName)},
+  {label:'Broker accepted rate',before:normalizeMoney(before.brokerAcceptedRate),after:normalizeMoney(after.brokerAcceptedRate)},
+  {label:'Patient name',before:clean(before.name),after:clean(after.name)},
+  {label:'Patient phone',before:clean(before.phone),after:clean(after.phone)},
+  {label:'Patient email',before:clean(before.email),after:clean(after.email)},
+  {label:'Trip notes',before:clean(before.notes),after:clean(after.notes)},
+  {label:'Estimated fare',before:normalizeMoney(before.estimatedFare),after:normalizeMoney(after.estimatedFare)}
+ ];
+ const entries=[];
+ for(const field of fields){
+  if(field.before===field.after) continue;
+  const fromValue=formatHistoryValue(field.displayBefore!=null?field.displayBefore:field.before);
+  const toValue=formatHistoryValue(field.displayAfter!=null?field.displayAfter:field.after);
+  entries.push(`${field.label} changed: ${fromValue} -> ${toValue}`);
+ }
+ return entries;
+}
 function parseTripDateTime(booking){
  const tripDate=normalizeTripDate(booking?.trip_date||booking?.date||'');
  const tripTime=normalizeTripTime(booking?.trip_time||booking?.time||'00:00');
@@ -1560,7 +1603,17 @@ async function handler(event){
    }
 
   const noteValue=clean((hasDispatchNote?(b.dispatchNote||b.note):b.note) || '')||null;
-   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),noteValue,u.display_name]);
+  const fieldHistoryEntries=collectBookingFieldHistoryEntries(before.rows[0],r.rows[0]);
+  if(fieldHistoryEntries.length){
+   for(const historyNote of fieldHistoryEntries){
+    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),historyNote,u.display_name]);
+   }
+   const summary=`Updated fields: ${fieldHistoryEntries.map((entry)=>entry.split(' changed:')[0]).join(', ')}`;
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),summary,u.display_name]);
+  }
+  if(noteValue){
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),`Dispatch note: ${noteValue}`,u.display_name]);
+  }
    await audit('BOOKING',ref,'UPDATED',{
     status:r.rows[0].status,
     estimatedFare:hasEstimatedFare?estimatedFareRaw:undefined,

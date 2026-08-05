@@ -1722,7 +1722,15 @@ $('saveCustomCompany').addEventListener('click',()=>{
       pickup:String(payload.pickup||''),
       destination:String(payload.destination||''),
       driverName:String(payload.driverName||''),
-      vehicleUnit:String(payload.vehicleUnit||'')
+      vehicleUnit:String(payload.vehicleUnit||''),
+      bookingSource:String(payload.bookingSource||'').toUpperCase(),
+      submitterEntity:String(payload.submitterEntity||''),
+      brokerCompanyName:String(payload.brokerCompanyName||''),
+      brokerAcceptedRate:String(payload.brokerAcceptedRate||''),
+      patientName:String(payload.name||''),
+      patientPhone:String(payload.phone||''),
+      patientEmail:String(payload.email||''),
+      notes:String(payload.notes||'')
     };
     const actual={
       appointmentTime:normalizeHHMM(getBookingAppointmentTime(saved)),
@@ -1734,8 +1742,20 @@ $('saveCustomCompany').addEventListener('click',()=>{
       pickup:String(saved?.pickup||''),
       destination:String(saved?.destination||''),
       driverName:String(saved?.driverName||saved?.driver||''),
-      vehicleUnit:String(saved?.vehicleUnit||saved?.vehicle||'')
+      vehicleUnit:String(saved?.vehicleUnit||saved?.vehicle||''),
+      bookingSource:String(saved?.bookingSource||'').toUpperCase(),
+      submitterEntity:String(saved?.submitterEntity||''),
+      brokerCompanyName:String(saved?.brokerCompanyName||''),
+      brokerAcceptedRate:String(saved?.brokerAcceptedRate!=null?Number(saved.brokerAcceptedRate).toFixed(2):''),
+      patientName:String(saved?.name||''),
+      patientPhone:String(saved?.phone||''),
+      patientEmail:String(saved?.email||''),
+      notes:String(saved?.notes||'')
     };
+    if(expected.brokerAcceptedRate){
+      const brokerAcceptedRateNum=Number(expected.brokerAcceptedRate);
+      expected.brokerAcceptedRate=Number.isFinite(brokerAcceptedRateNum)?brokerAcceptedRateNum.toFixed(2):expected.brokerAcceptedRate;
+    }
     Object.keys(expected).forEach((key)=>{
       if(expected[key]!==actual[key]) mismatches.push(key);
     });
@@ -1894,7 +1914,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       appointmentTime:appointmentTime,
       bookingSource:get('dispatchEditSubmitterType').value,
       submitterEntity:get('dispatchEditSubmitter').value,
-      brokerCompanyName:get('dispatchEditSubmitterType').value==='BROKER'?get('dispatchEditBrokerCompany').value:'',
+      brokerCompanyName:get('dispatchEditBrokerCompany').value,
       brokerAcceptedRate:get('dispatchEditSubmitterType').value==='BROKER'?get('dispatchEditBrokerAcceptedRate').value:'',
       name:get('dispatchEditName').value,
       phone:get('dispatchEditPhone').value,
