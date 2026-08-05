@@ -487,9 +487,13 @@ function matchAdminTimeframe(trip,timeframe){
 function applyAdminTripsFilters(){
   const sourceEl=document.getElementById('adminTripSourceFilter');
   const timeframeEl=document.getElementById('adminTripTimeframeFilter');
+  const referenceEl=document.getElementById('adminTripReferenceFilter');
   const source=String(sourceEl?.value || 'ALL').toUpperCase();
   const timeframe=String(timeframeEl?.value || 'ALL').toUpperCase();
+  const refQuery=String(referenceEl?.value || '').trim().toUpperCase();
   return adminTripsCache.filter((trip)=>{
+    const ref=adminTripRef(trip).toUpperCase();
+    if(refQuery && !ref.includes(refQuery)) return false;
     const kind=isDemoTripRecord(trip)?'DEMO':'REAL';
     if(source!=='ALL' && source!==kind) return false;
     return matchAdminTimeframe(trip,timeframe);
@@ -568,6 +572,7 @@ function showMsg(el,text,type){el.textContent=text;el.className='msgBox '+(type|
 document.getElementById('refreshAdminTrips')?.addEventListener('click',()=>{loadAdminTrips().catch((err)=>console.error(err));});
 document.getElementById('adminTripSourceFilter')?.addEventListener('change',renderAdminTripsRows);
 document.getElementById('adminTripTimeframeFilter')?.addEventListener('change',renderAdminTripsRows);
+document.getElementById('adminTripReferenceFilter')?.addEventListener('input',renderAdminTripsRows);
 document.getElementById('adminTripRows')?.addEventListener('click',(event)=>{
   const button=event.target?.closest?.('[data-admin-advance]');
   if(!button) return;
