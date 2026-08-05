@@ -42,6 +42,11 @@ function normalizeTripTime(value){
  const hhmm=raw.match(/^(\d{2}:\d{2})/);
  return hhmm?hhmm[1]:raw;
 }
+function extractAppointmentTimeFromNotes(notes){
+ const text=clean(notes||'');
+ const match=text.match(/Appointment time:\s*([0-2]?\d:[0-5]\d)/i);
+ return match?String(match[1]).padStart(5,'0'):'';
+}
 function parseTripDateTime(booking){
  const tripDate=normalizeTripDate(booking?.trip_date||booking?.date||'');
  const tripTime=normalizeTripTime(booking?.trip_time||booking?.time||'00:00');
@@ -1932,6 +1937,7 @@ function mapBooking(b){
   destinationLng:b.destination_lng!=null?Number(b.destination_lng):b.destinationLng!=null?Number(b.destinationLng):null,
   date:b.trip_date||b.date,
   time:String(b.trip_time||b.time||'').slice(0,5),
+  appointmentTime:normalizeTripTime(b.appointment_time||b.appointmentTime||extractAppointmentTimeFromNotes(b.notes||'')),
   status:statusLabel(b.status),
   statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),
   driver:b.driver_name,
