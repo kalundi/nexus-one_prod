@@ -1235,7 +1235,7 @@ async function handler(event){
      throw err;
    }
   }
-  if(p[0]==='admin'&&p[1]==='bookings'&&method==='GET'){await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);const r=await query('SELECT * FROM bookings ORDER BY trip_date DESC,trip_time DESC LIMIT 500');return json(200,{bookings:r.rows.map(mapBooking)})}
+  if(p[0]==='admin'&&p[1]==='bookings'&&!p[2]&&method==='GET'){await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);const r=await query('SELECT * FROM bookings ORDER BY trip_date DESC,trip_time DESC LIMIT 500');return json(200,{bookings:r.rows.map(mapBooking)})}
     if(p[0]==='admin'&&p[1]==='bookings'&&p[2]==='purge-demo'&&method==='POST'){
     const u=await requireUser(bearer(event),['ADMIN']);
     const body=parseBody(event);
@@ -1245,7 +1245,10 @@ async function handler(event){
      FROM bookings
      WHERE reference ~* '^NMT(?:-DRV)?-DEMO-'
        OR upper(COALESCE(booking_source,'')) IN ('DEMO','LOCAL','MOCK','TEST')
+       OR upper(COALESCE(name,'')) LIKE '%DEMO RIDER%'
+       OR upper(COALESCE(name,'')) LIKE 'FLETCHER DEMO%'
        OR upper(COALESCE(name,'')) LIKE 'PREVIEW RIDER%'
+       OR upper(COALESCE(notes,'')) LIKE '%DEMO%'
        OR upper(COALESCE(notes,'')) LIKE '%LOCAL PREVIEW%'
      ORDER BY reference
     `;

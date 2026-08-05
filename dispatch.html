@@ -753,8 +753,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const isDemo =
       source.includes('DEMO') || source.includes('LOCAL') || source.includes('MOCK') || source.includes('TEST') ||
       ref.includes('DEMO') || ref.includes('LOCAL') ||
+      name.includes('DEMO RIDER') || name.startsWith('FLETCHER DEMO') ||
       name.startsWith('PREVIEW RIDER') || name.startsWith('QUICK TEST RIDER') || name.startsWith('DEMO ') ||
-      notes.includes('LOCAL PREVIEW') || notes.includes('TESTING TRIP');
+      notes.includes('LOCAL PREVIEW') || notes.includes('TESTING TRIP') || notes.includes('DEMO');
     return isDemo ? 'DEMO' : 'REAL';
   }
 
@@ -1116,6 +1117,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const data=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error||'Unable to load trip details');
     const b=data.booking||{};
+    if(!data.booking) throw new Error('Trip details response was incomplete. Please refresh and retry.');
     currentRef=reference;
     get('dispatchEditRef').value=reference;
     get('dispatchEditStatus').value=String((b.status||'SUBMITTED')).toUpperCase().replaceAll('-','_');
