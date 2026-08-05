@@ -1956,7 +1956,13 @@ function mapBooking(b){
   destinationLng:b.destination_lng!=null?Number(b.destination_lng):b.destinationLng!=null?Number(b.destinationLng):null,
   date:b.trip_date||b.date,
   time:String(b.trip_time||b.time||'').slice(0,5),
-  appointmentTime:normalizeOptionalTripTime(b.appointment_time||b.appointmentTime||extractAppointmentTimeFromNotes(b.notes||'')),
+  appointmentTime:normalizeOptionalTripTime(
+   b.appointment_time||
+   b.appointmentTime||
+   extractAppointmentTimeFromNotes(b.notes||'')||
+   b.trip_time||
+   b.time||''
+  ),
   status:statusLabel(b.status),
   statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),
   driver:b.driver_name,

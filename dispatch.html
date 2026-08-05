@@ -1471,7 +1471,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditPhone').value=b.phone||'';
     get('dispatchEditEmail').value=b.email||'';
     get('dispatchEditTripNotes').value=b.notes||'';
-    get('dispatchEditAppointmentTime').value=String(b.appointmentTime||extractAppointmentTime(b.notes||'')).slice(0,5);
+    get('dispatchEditAppointmentTime').value=String(b.appointmentTime||b.time||extractAppointmentTime(b.notes||'')).slice(0,5);
     updatePickupFromAppointment();
     toggleBrokerFields();
     updateEditorDetails(b);
