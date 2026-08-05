@@ -760,16 +760,25 @@ $('saveCustomCompany').addEventListener('click',()=>{
   }
 
   function normalizedStatus(trip){
-    return String(trip?.status || '').trim().toUpperCase().replaceAll('-', '_');
+    const raw = String(trip?.status || trip?.statusLabel || '').trim();
+    if(!raw) return '';
+    return raw.toUpperCase().replaceAll('-', '_').replaceAll(' ', '_');
   }
 
   function nextAdvanceLabel(trip){
     const status = normalizedStatus(trip);
+    const dt = parseTripDateTime(trip);
+    const now = new Date();
+    if(dt && dt < now && ['SUBMITTED','SCHEDULED','REQUESTED'].includes(status)){
+      return {label:'Past Trip', disabled:true, reason:'This trip is in the past. Edit details or close it from the trip editor.'};
+    }
     if(['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(status)){
       return {label:'Closed', disabled:true, reason:'This trip is closed and cannot be advanced.'};
     }
     if(['SUBMITTED','SCHEDULED','REQUESTED'].includes(status)){
-      const hasAssignment = Boolean(String(trip?.driverName || '').trim()) || Boolean(String(trip?.vehicleUnit || '').trim());
+      const hasAssignment =
+        Boolean(String(trip?.driverName || trip?.driver || '').trim()) ||
+        Boolean(String(trip?.vehicleUnit || trip?.vehicle || '').trim());
       if(!hasAssignment){
         return {label:'Await Assignment', disabled:true, reason:'Assign a driver or vehicle before advancing this trip.'};
       }
@@ -868,6 +877,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       const ref = refOf(trip) || '—';
       const kind = classifyTrip(trip);
       const tone = kind === 'REAL' ? 'green' : 'amber';
+      row.dataset.reference = ref;
       cell.innerHTML = `${ref}<div style="margin-top:4px"><span class="status ${tone}" style="font-size:10px">${kind === 'REAL' ? 'REAL' : 'DEMO'}</span></div>`;
       const advanceBtn = row.querySelector('[data-advance]');
       if(advanceBtn){
@@ -894,6 +904,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function renderFiltered(){
     const filtered = applyFilters(state.allTrips);
+    window.__dispatchTripsCache = filtered;
     const viewType = String(viewTypeFilter.value || 'TABLE').toUpperCase();
     const useCalendar = viewType === 'CALENDAR';
     tableWrap.hidden = useCalendar;
@@ -1086,9 +1097,28 @@ $('saveCustomCompany').addEventListener('click',()=>{
   }
 
   function rowReference(row){
+    const fromDataset=String(row?.dataset?.reference||'').trim();
+    if(fromDataset) return fromDataset;
     const txt=String(row?.cells?.[0]?.textContent||'');
     const match=txt.match(/NMT-[A-Z0-9-]+/i);
     return match?match[0]:'';
+  }
+
+  function applyEditorValues(b){
+    get('dispatchEditRef').value=b.reference||currentRef||'';
+    get('dispatchEditStatus').value=String((b.status||'SUBMITTED')).toUpperCase().replaceAll('-','_').replaceAll(' ','_');
+    get('dispatchEditService').value=b.service||'';
+    get('dispatchEditPickup').value=b.pickup||'';
+    get('dispatchEditDestination').value=b.destination||'';
+    get('dispatchEditDate').value=String(b.date||'').slice(0,10);
+    get('dispatchEditTime').value=String(b.time||'').slice(0,5);
+    get('dispatchEditDriver').value=b.driverName||b.driver||'';
+    get('dispatchEditVehicle').value=b.vehicleUnit||b.vehicle||'';
+    get('dispatchEditName').value=b.name||'';
+    get('dispatchEditPhone').value=b.phone||'';
+    get('dispatchEditEmail').value=b.email||'';
+    get('dispatchEditTripNotes').value=b.notes||'';
+    updateEditorDetails(b);
   }
 
   function updateEditorDetails(b){
@@ -1112,6 +1142,12 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   async function loadTrip(reference){
     if(!reference)return;
+    const cached=(window.__dispatchTripsCache||[]).find((trip)=>String(trip?.reference||trip?.id||'')===String(reference));
+    if(cached){
+      currentRef=reference;
+      applyEditorValues(cached);
+      setMsg(`Loaded ${reference}. Refreshing full trip details...`,'ok');
+    }
     const token=sessionStorage.getItem('nexusAccessToken')||'';
     const res=await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
     const data=await res.json().catch(()=>({}));
@@ -1119,21 +1155,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const b=data.booking||{};
     if(!data.booking) throw new Error('Trip details response was incomplete. Please refresh and retry.');
     currentRef=reference;
-    get('dispatchEditRef').value=reference;
-    get('dispatchEditStatus').value=String((b.status||'SUBMITTED')).toUpperCase().replaceAll('-','_');
-    get('dispatchEditService').value=b.service||'';
-    get('dispatchEditPickup').value=b.pickup||'';
-    get('dispatchEditDestination').value=b.destination||'';
-    get('dispatchEditDate').value=String(b.date||'').slice(0,10);
-    get('dispatchEditTime').value=String(b.time||'').slice(0,5);
-    get('dispatchEditDriver').value=b.driverName||'';
-    get('dispatchEditVehicle').value=b.vehicleUnit||'';
-    get('dispatchEditName').value=b.name||'';
-    get('dispatchEditPhone').value=b.phone||'';
-    get('dispatchEditEmail').value=b.email||'';
-    get('dispatchEditTripNotes').value=b.notes||'';
+    applyEditorValues(b);
     get('dispatchEditNote').value='';
-    updateEditorDetails(b);
     setMsg(`Loaded ${reference}. Edit fields and save to notify stakeholders.`,'ok');
   }
 
