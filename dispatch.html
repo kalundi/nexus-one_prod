@@ -1660,6 +1660,63 @@ $('saveCustomCompany').addEventListener('click',()=>{
     ).slice(0,5);
   }
 
+  async function fetchBookingByReference(reference){
+    const ref=String(reference||'').trim();
+    if(!ref) return null;
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    const res=await fetch(`/api/admin/bookings/${encodeURIComponent(ref)}`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Unable to verify saved trip');
+    return data.booking||null;
+  }
+
+  function normalizeHHMM(value){
+    const raw=String(value||'').trim();
+    const m=raw.match(/^([0-2]?\d):([0-5]\d)(?:\s*(AM|PM))?$/i);
+    if(!m) return raw.slice(0,5);
+    let h=Number(m[1]);
+    const mm=Number(m[2]);
+    const meridiem=String(m[3]||'').toUpperCase();
+    if(meridiem){
+      if(meridiem==='AM'&&h===12) h=0;
+      if(meridiem==='PM'&&h!==12) h+=12;
+    }
+    if(!Number.isFinite(h)||h<0||h>23||!Number.isFinite(mm)||mm<0||mm>59) return raw.slice(0,5);
+    return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  }
+
+  function collectSaveMismatches(saved,payload){
+    const mismatches=[];
+    const expected={
+      appointmentTime:normalizeHHMM(payload.appointmentTime),
+      pickupTime:normalizeHHMM(payload.time),
+      checkInTime:normalizeHHMM(payload.checkInTime||''),
+      status:String(payload.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
+      service:String(payload.service||''),
+      date:String(payload.date||'').slice(0,10),
+      pickup:String(payload.pickup||''),
+      destination:String(payload.destination||''),
+      driverName:String(payload.driverName||''),
+      vehicleUnit:String(payload.vehicleUnit||'')
+    };
+    const actual={
+      appointmentTime:normalizeHHMM(getBookingAppointmentTime(saved)),
+      pickupTime:normalizeHHMM(String(saved?.time||'')),
+      checkInTime:normalizeHHMM(String(saved?.checkInTime||'')),
+      status:String(saved?.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
+      service:String(saved?.service||''),
+      date:String(saved?.date||'').slice(0,10),
+      pickup:String(saved?.pickup||''),
+      destination:String(saved?.destination||''),
+      driverName:String(saved?.driverName||saved?.driver||''),
+      vehicleUnit:String(saved?.vehicleUnit||saved?.vehicle||'')
+    };
+    Object.keys(expected).forEach((key)=>{
+      if(expected[key]!==actual[key]) mismatches.push(key);
+    });
+    return mismatches;
+  }
+
   async function applyEditorValues(b){
     applyingEditorValues=true;
     currentRouteContext=parseRouteContextFromBooking(b);
@@ -1783,6 +1840,17 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const appointmentTime=get('dispatchEditAppointmentTime').value;
     if(!appointmentTime){setMsg('Appointment time is required. Enter appointment time to proceed.','err');return;}
     await updatePickupFromAppointment();
+    const confirmUpdate=window.confirm(
+      `Confirm trip update for ${currentRef}?\n\n`+
+      `Appointment: ${get('dispatchEditAppointmentTime').value || '--:--'}\n`+
+      `Pickup: ${get('dispatchEditTime').value || '--:--'}\n`+
+      `Check-in: ${get('dispatchEditCheckInTime').value || '--:--'}\n\n`+
+      'Click OK to save and notify stakeholders.'
+    );
+    if(!confirmUpdate){
+      setMsg('Trip update canceled before save.','err');
+      return;
+    }
     const payload={
       status:get('dispatchEditStatus').value,
       service:get('dispatchEditService').value,
@@ -1827,16 +1895,40 @@ $('saveCustomCompany').addEventListener('click',()=>{
       }else if(notify.status){
         recipientMsg=` Notification status: ${notify.status}.`;
       }
-      const saved=data.booking||null;
+      let saved=data.booking||null;
+      try{
+        const verified=await fetchBookingByReference(currentRef);
+        if(verified) saved=verified;
+      }catch{}
       if(saved){
         await applyEditorValues(saved);
         get('dispatchEditNote').value='';
-        markEditorBaseline();
+        const mismatches=collectSaveMismatches(saved,payload);
+        if(mismatches.length){
+          editorHasUnsavedChanges=true;
+          const labelMap={
+            appointmentTime:'Appointment',
+            pickupTime:'Pickup',
+            checkInTime:'Check-in',
+            status:'Status',
+            service:'Service',
+            date:'Date',
+            pickup:'Pickup address',
+            destination:'Destination address',
+            driverName:'Driver',
+            vehicleUnit:'Vehicle'
+          };
+          const labels=mismatches.map((k)=>labelMap[k]||k).join(', ');
+          setMsg(`Trip ${currentRef} update response received, but server values differ for: ${labels}. Please review and save again.`,'err');
+          return;
+        }
       }
+      markEditorBaseline();
       const savedAppointment=String(saved?.submittedAppointmentTime||saved?.appointmentTime||'').slice(0,5)||'MISSING';
       const savedPickup=String(saved?.time||'').slice(0,5)||'--:--';
       const savedCheckIn=String(saved?.checkInTime||'').slice(0,5)||'--:--';
-      const persistedMsg=` Saved values -> Appointment: ${savedAppointment}; Pickup: ${savedPickup}; Check-in: ${savedCheckIn}.`;
+      const verifyMsg=saved?' Persisted values verified from database.':' Save succeeded but database verification was unavailable.';
+      const persistedMsg=` Saved values -> Appointment: ${savedAppointment}; Pickup: ${savedPickup}; Check-in: ${savedCheckIn}.${verifyMsg}`;
       setMsg(`Trip ${currentRef} updated successfully.${recipientMsg}${persistedMsg}`,'ok');
       refreshBtn.click();
     }catch(err){
