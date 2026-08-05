@@ -4,6 +4,7 @@
 const {query} = require('./_shared/db.cjs');
 
 const envEnabled = name => Boolean(process.env[name]);
+const siteBase = () => String(process.env.SITE_URL || process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://nexusmt.com').replace(/\/$/, '');
 
 async function sendSms(to, body) {
   if (!envEnabled('TWILIO_ACCOUNT_SID') || !envEnabled('TWILIO_AUTH_TOKEN') || !envEnabled('TWILIO_PHONE_NUMBER') || !to) return {status: 'skipped'};
@@ -65,12 +66,12 @@ exports.handler = async () => {
         AND b.trip_date IS NOT NULL
         AND b.trip_time IS NOT NULL
         AND (b.trip_date + b.trip_time) AT TIME ZONE 'America/New_York'
-            BETWEEN NOW() + INTERVAL '60 minutes'
-                AND NOW() + INTERVAL '75 minutes'
+            BETWEEN NOW() + INTERVAL '30 minutes'
+                AND NOW() + INTERVAL '60 minutes'
     `);
 
     if (!result.rows.length) {
-      console.log('[Reminders] No upcoming trips in the 60–75 min window.');
+      console.log('[Reminders] No upcoming trips in the 30-60 min window.');
       return {statusCode: 200, body: JSON.stringify({reminders: 0})};
     }
 
@@ -79,12 +80,17 @@ exports.handler = async () => {
       try {
         const driverName = b.driver_name || 'Your assigned driver';
         const pickupTime = b.trip_time || '';
+        const paymentCompleted = ['PAID_IN_FULL', 'DEPOSIT_PAID'].includes(String(b.payment_status || '').toUpperCase());
+        const invoicedBooking = ['FACILITY', 'STAFF'].includes(String(b.booking_source || '').toUpperCase());
+        const includePaymentLink = !invoicedBooking && !paymentCompleted;
+        const payLink = `${siteBase()}/booking-app.html?payBalance=1&bookingReference=${encodeURIComponent(b.reference)}`;
+        const paymentLinkText = includePaymentLink ? ` Complete payment before pickup: ${payLink}` : '';
         const dispatchEmail = process.env.COMPANY_EMAIL || 'dispatch@nexusmt.com';
         const dispatchPhone = process.env.DISPATCH_PHONE || null;
         const driverPhone = b.driver_phone || null;
         const driverEmail = b.driver_email || null;
 
-        const patientSms = `Nexus Medical Transit reminder: Your ride (${b.reference}) is in ~1 hour. Driver: ${driverName}. Pickup at ${pickupTime} from ${b.pickup}. Call (888) 760-4990 with questions.`;
+        const patientSms = `Nexus Medical Transit reminder: Your ride (${b.reference}) is in about 1 hour. Driver: ${driverName}. Pickup at ${pickupTime} from ${b.pickup}.${paymentLinkText} Call (888) 760-4990 with questions.`;
         const patientEmail = `
           <div style="font-family:sans-serif;max-width:560px;margin:auto">
             <h2 style="color:#082f49">Your ride is in 1 hour</h2>
@@ -96,6 +102,7 @@ exports.handler = async () => {
               <tr><td style="padding:8px;font-weight:600;color:#62758a">Destination</td><td style="padding:8px">${b.destination}</td></tr>
               <tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Service</td><td style="padding:8px">${b.service}</td></tr>
             </table>
+            ${includePaymentLink ? `<p><strong>Payment:</strong> <a href="${payLink}">Complete payment before pickup</a></p>` : ''}
             <p>Need to cancel or reschedule? Call <strong>(888) 760-4990</strong>.</p>
             <p style="color:#62758a;font-size:13px">Nexus Medical Transit · Washington Metropolitan Area</p>
           </div>`;

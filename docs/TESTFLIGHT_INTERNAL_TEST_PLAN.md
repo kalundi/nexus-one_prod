@@ -1,7 +1,7 @@
 # TestFlight Internal Test Plan
 
 ## Goal
-Validate Nexus Driver and Nexus Booking critical workflows before App Store review.
+Validate Nexus Driver, Nexus Booking, and Patient App critical workflows before App Store review.
 
 ## Test Cohorts
 
@@ -62,6 +62,14 @@ For each app build in TestFlight:
 4. Confirm booking appears correctly in downstream systems
 5. Error handling for missing/invalid fields
 
+## Patient App Test Cases
+
+1. Authentication and access
+2. Sign in with a patient account only
+3. Confirm non-patient accounts are rejected cleanly
+4. Verify next trip card and live status render
+5. Verify sign out and sign back in
+
 ## Device Coverage
 
 Minimum:
@@ -81,6 +89,7 @@ Pass if:
 
 Fail if:
 - Any blocker in sign-in, accept/start trip, status update, or booking submission
+- Any blocker in patient sign-in or trip visibility
 
 ## Defect Triage
 

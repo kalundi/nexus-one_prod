@@ -552,12 +552,22 @@ async function notifyBooking(b){
 async function sendInvoice(b){
  const fare=Number(b.estimatedFare||b.estimated_fare||0);
  const fareText=fare>0?` Estimated fare: $${fare.toFixed(2)}.`:'';
- const text=`Nexus Medical Transit: Booking ${b.reference} created for ${b.date} at ${b.time}.${fareText} An invoice will follow. Questions? Call (888) 760-4990.`;
- const html=`<h2>Nexus Medical Transit Invoice</h2><p>Reference: <strong>${b.reference}</strong></p><p>${b.pickup} → ${b.destination}</p><p>${b.date} at ${b.time}</p>${fare>0?`<p>Estimated fare: <strong>$${fare.toFixed(2)}</strong></p>`:''}<p>Payment may be made by ACH, card, check, or wire. Contact billing@nexusmt.com or call (888) 760-4990.</p>`;
+ const pickupLine=clean(b.pickupTime||b.time);
+ const text=`Nexus Medical Transit: Booking ${b.reference} created for ${b.date} at ${pickupLine}.${fareText} An invoice will follow. Questions? Call (888) 760-4990.`;
+ const html=`<h2>Nexus Medical Transit Invoice</h2><p>Reference: <strong>${b.reference}</strong></p><p>${b.pickup} → ${b.destination}</p><p>${b.date} at ${pickupLine}</p>${fare>0?`<p>Estimated fare: <strong>$${fare.toFixed(2)}</strong></p>`:''}<p>Payment may be made by ACH, card, check, or wire. Contact billing@nexusmt.com or call (888) 760-4990.</p>`;
  const smsRecipients=buildSmsRecipients(b.phone||b.phone);
  const emailRecipients=buildEmailRecipients(b.email);
  const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Invoice — Nexus booking ${b.reference}`,html)]);
  return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
+}
+
+async function sendDriverReferralIncentiveAlert(b,driverEmail){
+ const adminEmail='admin@nexusmt.com';
+ const referralDriver=clean(driverEmail||b.requestedByUser||'');
+ const html=`<h2>Driver Referral Incentive</h2><p>A driver-created booking qualifies for a $10 referral incentive.</p><p><strong>Booking:</strong> ${b.reference}</p><p><strong>Driver:</strong> ${referralDriver||'Unknown'}</p><p><strong>Patient:</strong> ${b.name||'—'} (${b.phone||'—'})</p><p><strong>Trip:</strong> ${b.date||'—'} at ${b.pickupTime||b.time||'—'}</p><p><strong>Route:</strong> ${b.pickup||'—'} → ${b.destination||'—'}</p><p>Please follow up for payout processing.</p>`;
+ const subject=`Driver referral incentive: $10 for ${b.reference}`;
+ const result=await Promise.allSettled([sendEmail([adminEmail],subject,html)]);
+ return {email:result[0].status==='fulfilled'?result[0].value:{status:'failed',error:result[0].reason?.message}};
 }
 async function sendBalanceDueReminder(b,balanceDue){
  const base=siteBase();
@@ -743,29 +753,62 @@ async function handler(event){
    if(phoneDigits.length!==10)return json(400,{error:'Phone number must be 10 digits'});
    // Validate email if provided
    if(b.email){const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;if(!emailPattern.test(b.email.trim()))return json(400,{error:'Please enter a valid email address'});}
-   // Detect booking source: staff users (authenticated) get invoiced; public customers pay online
+  // Detect booking source and billing behavior by role.
    let bookingActor=null;
    try{if(bearer(event))bookingActor=await requireUser(bearer(event))}catch{}
-   const bookingSource=bookingActor&&['ADMIN','DISPATCHER','FACILITY','BILLING'].includes(bookingActor.role)?'STAFF':'CUSTOMER';
+  const actorRole=String(bookingActor?.role||'CUSTOMER').toUpperCase();
+  const appointmentTime=clean(b.appointmentTime||'');
+  const pickupTimeEstimate=clean(b.pickupTimeEstimate||b.time||'');
+  const requestedByRole=clean(b.requestedByRole||actorRole||'CUSTOMER').toUpperCase();
+
+  let bookingSource='CUSTOMER';
+  if(actorRole==='FACILITY') bookingSource='FACILITY';
+  else if(actorRole==='DISPATCHER') bookingSource='DISPATCH';
+  else if(actorRole==='DRIVER') bookingSource='DRIVER_REFERRAL';
+  else if(actorRole==='PATIENT'||actorRole==='RIDER') bookingSource='PATIENT';
+  else if(actorRole==='ADMIN'||actorRole==='BILLING') bookingSource='STAFF';
+
+  const baseNotes=clean(b.notes)||'';
+  const metadataNotes=[
+   appointmentTime?`Appointment time: ${appointmentTime}`:'',
+   pickupTimeEstimate?`Pickup estimate: ${pickupTimeEstimate}`:'',
+   requestedByRole?`Requested by role: ${requestedByRole}`:'',
+   clean(b.paymentWindowLabel)?clean(b.paymentWindowLabel):''
+  ].filter(Boolean).join(' | ');
+  const composedNotes=[baseNotes,metadataNotes].filter(Boolean).join(baseNotes&&metadataNotes?'\n':'');
+
    const ref=reference();
    const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,created_at,updated_at)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,b.time,clean(b.notes)||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,b.estimatedFare||null,bookingSource]);
-   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,'SUBMITTED','submitted','Online transportation request received',bookingSource==='STAFF'?bookingActor.display_name:'PUBLIC']);
-   await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource});
-   const booking=mapBooking(r.rows[0]);
+   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,b.estimatedFare||null,bookingSource]);
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,'SUBMITTED','submitted','Online transportation request received',bookingActor?.display_name||bookingSource||'PUBLIC']);
+  await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource,requestedByRole,appointmentTime:appointmentTime||null,pickupTimeEstimate:pickupTimeEstimate||null,referralIncentiveEligible:bookingSource==='DRIVER_REFERRAL'});
+  const mappedBooking=mapBooking(r.rows[0]);
+  const booking={...mappedBooking,appointmentTime,pickupTime:pickupTimeEstimate||mappedBooking.time,requestedByRole,requestedByUser:clean(b.requestedByUser||bookingActor?.email||'')};
    // Auto-assign driver + vehicle (fire-and-forget, does not block response)
    autoAssign(r.rows[0]).catch(()=>{});
    let notifications;
-   if(bookingSource==='STAFF'){
-    // Non-customer path: send invoice, skip online payment prompt
-    notifications=await sendInvoice(booking);
+   const isFacilityInvoice=bookingSource==='FACILITY' || bookingSource==='STAFF';
+   const isDriverReferral=bookingSource==='DRIVER_REFERRAL';
+
+   if(isFacilityInvoice){
+    const invoiceTargetEmail=bookingSource==='FACILITY'
+      ? clean(bookingActor?.email||booking.email)
+      : clean(booking.email||bookingActor?.email);
+    notifications=await sendInvoice({...booking,email:invoiceTargetEmail||booking.email});
     await query('UPDATE bookings SET payment_status=$2,notification_status=$3::jsonb WHERE reference=$1',[ref,'INVOICED',JSON.stringify(notifications)]).catch(()=>{});
-    return json(201,{booking:{...booking,paymentStatus:'INVOICED',notifications},invoiceSent:true,requiresOnlinePayment:false});
-   }else{
-    notifications=await notifyBooking(booking);
-    await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[ref,JSON.stringify(notifications)]).catch(()=>{});
-    return json(201,{booking:{...booking,notifications},requiresOnlinePayment:true});
+    return json(201,{booking:{...booking,paymentStatus:'INVOICED',notifications},invoiceSent:true,requiresOnlinePayment:false,clientMessage:'Booking created. Invoice sent by email.'});
    }
+
+  notifications=await notifyBooking(booking);
+   const extra={};
+   if(isDriverReferral){
+    extra.driverReferral=await sendDriverReferralIncentiveAlert(booking,bookingActor?.email).catch((err)=>({email:{status:'failed',error:err.message}}));
+    await audit('BOOKING',ref,'DRIVER_REFERRAL_INCENTIVE',{amount:10,currency:'USD',driverEmail:clean(bookingActor?.email||''),status:extra.driverReferral?.email?.status||'queued'});
+   }
+   const mergedNotifications={...notifications,...extra};
+   await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[ref,JSON.stringify(mergedNotifications)]).catch(()=>{});
+   const paymentNotice='A secure payment link will be sent to the rider 60 to 30 minutes before pickup.';
+  return json(201,{booking:{...booking,notifications:mergedNotifications},requiresOnlinePayment:false,clientMessage:`Booking created. ${paymentNotice}`});
   }
   if(p[0]==='bookings'&&p[1]&&method==='GET'){
    const phone=clean(event.queryStringParameters?.phone);if(!phone)return json(400,{error:'Phone number is required'});

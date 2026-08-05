@@ -210,7 +210,23 @@ document.getElementById('manageTripSaveFare').addEventListener('click',async()=>
 });
 
 // Audit log
-const ACTION_ICONS={LOGIN:'🔑',CREATED:'➕',UPDATED:'✏️',ACTIVATED:'✅',DEACTIVATED:'🚫',STATUS_ADVANCED:'🔄',DEFAULT:'📋'};
+const ACTION_ICONS={LOGIN:'🔑',CREATED:'➕',UPDATED:'✏️',ACTIVATED:'✅',DEACTIVATED:'🚫',STATUS_ADVANCED:'🔄',DRIVER_REFERRAL_INCENTIVE:'💵',DEFAULT:'📋'};
+
+function summarizeAuditChanges(entry){
+  const changes=entry?.changes;
+  if(!changes||typeof changes!=='object')return '';
+  if(entry.action==='DRIVER_REFERRAL_INCENTIVE'){
+    const amount=Number(changes.amount||10).toFixed(2);
+    const currency=String(changes.currency||'USD').toUpperCase();
+    const driver=changes.driverEmail?` | Driver: ${changes.driverEmail}`:'';
+    return `Referral incentive: ${currency} ${amount}${driver}`;
+  }
+  if(entry.action==='CREATED'&&String(changes.bookingSource||'').toUpperCase()==='DRIVER_REFERRAL'){
+    return `Driver referral booking created${changes.pickupTimeEstimate?` | Pickup estimate: ${changes.pickupTimeEstimate}`:''}`;
+  }
+  const compact=JSON.stringify(changes);
+  return compact.length>120?`${compact.slice(0,117)}...`:compact;
+}
 
 async function loadAudit(){
   const container=document.getElementById('auditList');
@@ -230,7 +246,7 @@ async function loadAudit(){
         <div class="auditIcon">${ACTION_ICONS[e.action]||ACTION_ICONS.DEFAULT}</div>
         <div class="auditInfo">
           <strong>${e.action} - ${e.entityType}</strong>
-          <small>Entity: ${e.entityId}${e.changes?` - ${JSON.stringify(e.changes).slice(0,80)}`:''}</small>
+          <small>Entity: ${e.entityId}${summarizeAuditChanges(e)?` - ${summarizeAuditChanges(e)}`:''}</small>
         </div>
         <div class="auditTime">${e.createdAt?new Date(e.createdAt).toLocaleString():'--'}</div>
       </div>`).join('');

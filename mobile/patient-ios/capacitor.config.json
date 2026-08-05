@@ -1,0 +1,13 @@
+{
+  "appId": "com.nexusmt.patient",
+  "appName": "Patient App",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://nexusmt.com/patient.html",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always"
+  }
+}

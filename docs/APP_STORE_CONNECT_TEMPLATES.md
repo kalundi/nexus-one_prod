@@ -1,9 +1,10 @@
 # App Store Connect Submission Templates
 
-Use these templates for both iOS apps:
+Use these templates for the iOS apps:
 
 - Nexus Driver
 - Nexus Booking
+- Patient App
 
 ## 1) App Metadata
 
@@ -75,9 +76,43 @@ https://nexusmt.com
 #### Privacy Policy URL
 https://nexusmt.com/accessibility.html
 
+### Patient App
+
+- App Name: Patient App
+- Subtitle: Ride Tracking and Trip Updates
+- Category: Medical
+- Primary Language: English (U.S.)
+
+#### Promotional Text
+Patient App gives riders and caregivers a secure place to track transportation, review trip details, and stay updated in real time.
+
+#### Description
+Patient App is the rider-facing mobile workspace for Nexus Medical Transit.
+
+Key features:
+- Secure patient sign-in
+- Upcoming trip visibility
+- Live ride status and trip updates
+- Caregiver-friendly trip sharing workflows
+- Support access from a single transportation app
+
+Patient App is intended for authorized patient or rider accounts.
+
+#### Keywords
+patient transportation,medical ride tracking,trip updates,non-emergency transport,rider app,caregiver ride access
+
+#### Support URL
+https://nexusmt.com
+
+#### Marketing URL
+https://nexusmt.com
+
+#### Privacy Policy URL
+https://nexusmt.com/accessibility.html
+
 ## 2) App Review Notes Template
 
-Use for both apps:
+Use for all three apps:
 
 App review notes:
 
@@ -88,6 +123,7 @@ App review notes:
 3. Role behavior:
    - Driver app provides trip workflow, shift controls, and mileage logging.
    - Booking app provides transportation request and booking workflows.
+   - Patient app provides trip visibility, updates, and rider support workflows.
 4. Location usage (Driver app):
    - Location is used to support trip navigation and operational dispatch visibility.
 5. If needed, our support team can provide live walkthrough during review.
@@ -121,6 +157,12 @@ Capture these in iPhone simulator and real device where possible:
 - Booking form
 - Confirmation/status screen
 - History or active booking view
+
+### Patient App
+- Login screen
+- Home dashboard with next ride
+- Live trip status screen
+- Support or caregiver-sharing surface
 
 Recommended sizes:
 - 6.7-inch display

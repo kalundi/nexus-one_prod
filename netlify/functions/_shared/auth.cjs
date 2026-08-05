@@ -1,5 +1,6 @@
 const crypto=require('crypto');
 const {query}=require('./db.cjs');
+const {getFallbackSession}=require('./fallback-auth.cjs');
 const digest=v=>crypto.createHash('sha256').update(v).digest('hex');
 function safeUser(row){return {id:row.id,email:row.email,displayName:row.display_name,role:row.role,scopeId:row.scope_id||null,mustChangePassword:!!row.must_change_password}}
 
@@ -16,8 +17,14 @@ async function requireUser(token,roles=[]){
     // last_activity_at column may not exist yet — use safe fallback query
     r=await query(`SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_digest=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.active=true`,[digest(token)]);
   }
-  if(!r.rows[0]) throw Object.assign(new Error('Session expired or invalid'),{statusCode:401});
-  const u=r.rows[0];
+  let u=r.rows[0]||null;
+  if(!u){
+    const fallbackSession=getFallbackSession(token);
+    if(fallbackSession?.user){
+      u=fallbackSession.user;
+    }
+  }
+  if(!u) throw Object.assign(new Error('Session expired or invalid'),{statusCode:401});
   // Inactivity timeout — only when the column exists in the result
   if(u.last_activity_at&&u.session_id){
     const timeoutMs=INACTIVITY_MS[u.role]||INACTIVITY_MS.DEFAULT;

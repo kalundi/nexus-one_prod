@@ -46,6 +46,7 @@
   const fareMemberSavingsRow = $('fareMemberSavingsRow');
   const fareMemberSavings = $('fareMemberSavings');
   const rideTypeSummary = $('rideTypeSummary');
+  const appointmentTimeInput = $('appointmentTime');
   const bookingLoginSummary = $('bookingLoginSummary');
   const pickupDropoffSummary = $('pickupDropoffSummary');
   const confirmPickupDropoffBtn = $('confirmPickupDropoffBtn');
@@ -186,7 +187,7 @@
   let coreActionsBound = false;
   let authActionsBound = false;
   let manageActionsBound = false;
-  const PRIVILEGED_SERVICE_ROLES = new Set(['ADMIN','DISPATCHER','FACILITY']);
+  const PRIVILEGED_SERVICE_ROLES = new Set(['ADMIN','DISPATCHER','FACILITY','DRIVER']);
   const CUSTOMER_ALLOWED_SERVICES = new Set(['ambulatory','wheelchair','stretcher','bariatric']);
   const AUTO_COLLAPSIBLE_SECTION_IDS = ['pickupDropoffSection', 'rideTypeSection'];
   const PROGRESSIVE_SECTIONS_ORDER = ['riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'telemetrySection', 'fareSummarySection'];
@@ -196,8 +197,6 @@
   const riderDetailsInitiallyCollapsed = new Set(['riderDetailsSection']);
   const LOCATION_STATE_CODE = 'MD';
   const MARYLAND_SUFFIX = 'maryland';
-  const DEFAULT_ROUTE_PICKUP = '155 Limpkin Ave, Clarksburg, MD 20871';
-  const DEFAULT_ROUTE_DESTINATION = '2000 Medical Parkway, Annapolis, Maryland, 21401';
   const DEFAULT_MARYLAND_SUGGESTIONS = [
     '155 Limpkin Avenue, Clarksburg, Maryland, 20841',
     '2000 Medical Parkway, Annapolis, Maryland, 21401',
@@ -478,6 +477,7 @@
         ? `Member savings active: you are getting ${MEMBER_DISCOUNT_PCT}% off this ride and every ride.`
         : `Unlock instant ${MEMBER_DISCOUNT_PCT}% savings on every ride. Sign up now.`;
     }
+    applyPickupEstimateFromAppointment();
   }
 
   function refreshFareForMembership(){
@@ -691,6 +691,19 @@
         ? `Member savings active: you are getting ${MEMBER_DISCOUNT_PCT}% off this ride and every ride.`
         : `Unlock instant ${MEMBER_DISCOUNT_PCT}% savings on every ride. Sign up now.`;
     }
+    if(paymentChoiceHint){
+      if(role === 'FACILITY' || role === 'ADMIN' || role === 'BILLING'){
+        paymentChoiceHint.textContent = 'Facility and staff-entered invoice bookings are sent to the billing email on file.';
+      }else if(role === 'DISPATCHER'){
+        paymentChoiceHint.textContent = 'Dispatch-entered bookings send the rider a secure payment link before pickup.';
+      }else if(role === 'DRIVER'){
+        paymentChoiceHint.textContent = 'Driver-entered bookings send rider details and trigger a referral incentive alert for admin follow-up.';
+      }else if(isRiderRole(role)){
+        paymentChoiceHint.textContent = 'A secure payment link will be sent to your phone 60 to 30 minutes before pickup.';
+      }else{
+        paymentChoiceHint.textContent = 'A secure payment link is sent before pickup. You can also complete payment after booking confirmation.';
+      }
+    }
     applyServiceVisibility();
     applyRateVisibility();
     syncRiderIdentityMode();
@@ -734,7 +747,7 @@
   function getProgressState(){
     const riderDetailsComplete = riderDetailsConfirmed;
     const pickupComplete = riderDetailsComplete && Boolean(String($('pickup')?.value || '').trim() && getRouteDestinations().length > 0 && destinationConfirmed && areDestinationRowsFilled());
-    const rideTypeComplete = pickupComplete && Boolean(normalizeService($('service')?.value) && $('tripDate')?.value && $('tripTime')?.value);
+    const rideTypeComplete = pickupComplete && Boolean(normalizeService($('service')?.value) && $('tripDate')?.value && appointmentTimeInput?.value && $('tripTime')?.value);
     const allRequiredComplete = pickupComplete && rideTypeComplete && riderDetailsConfirmed;
     return {
       riderDetailsSection: riderDetailsComplete,
@@ -759,10 +772,11 @@
     if(rideTypeSummary){
       const selected = normalizeService($('service')?.value);
       const selectedChip = Array.from(serviceChips?.querySelectorAll('.chip') || []).find((chip) => normalizeService(chip.dataset.service) === selected);
-      const serviceLabel = String(selectedChip?.textContent || selected || 'Ambulatory').trim();
+      const serviceLabel = String(selectedChip?.textContent || selected || '-').trim() || '-';
       const dateLabel = String($('tripDate')?.value || '-').trim() || '-';
-      const timeLabel = String($('tripTime')?.value || '-').trim() || '-';
-      rideTypeSummary.textContent = `Service: ${serviceLabel} | Date: ${dateLabel} | Time: ${timeLabel}`;
+      const appointmentLabel = String(appointmentTimeInput?.value || '-').trim() || '-';
+      const pickupLabel = String($('tripTime')?.value || '-').trim() || '-';
+      rideTypeSummary.textContent = `Service: ${serviceLabel} | Date: ${dateLabel} | Appointment: ${appointmentLabel} | Pickup: ${pickupLabel}`;
     }
     if(bookingLoginSummary){
       const riderName = String($('name')?.value || '').trim();
@@ -799,7 +813,7 @@
         shouldUnlock = destinationConfirmed;
       }else if(sectionId === 'telemetrySection' || sectionId === 'fareSummarySection'){
         // Unlock when Type of Ride is complete (fields filled)
-        const rideTypeComplete = Boolean(normalizeService($('service')?.value) && $('tripDate')?.value && $('tripTime')?.value);
+        const rideTypeComplete = Boolean(normalizeService($('service')?.value) && $('tripDate')?.value && appointmentTimeInput?.value && $('tripTime')?.value);
         shouldUnlock = destinationConfirmed && rideTypeComplete;
       }
       
@@ -912,12 +926,13 @@
       });
     }
 
-    ['tripDate', 'tripTime', 'name', 'phone', 'email', 'notes'].forEach((id) => {
+    ['tripDate', 'appointmentTime', 'tripTime', 'name', 'phone', 'email', 'notes'].forEach((id) => {
       const field = $(id);
       if(!field) return;
       ['change', 'input', 'blur'].forEach((eventName) => {
         field.addEventListener(eventName, () => {
-          if(id === 'tripDate' || id === 'tripTime') expandedSections.delete('rideTypeSection');
+          if(id === 'tripDate' || id === 'appointmentTime' || id === 'tripTime') expandedSections.delete('rideTypeSection');
+          if(id === 'appointmentTime') applyPickupEstimateFromAppointment();
           if(id === 'name' || id === 'phone' || id === 'email' || id === 'notes'){
             riderDetailsInitiallyCollapsed.delete('riderDetailsSection');
             expandedSections.delete('riderDetailsSection');
@@ -1004,29 +1019,12 @@
       }
       return;
     }
-    telemetryRouteHint.textContent = `Default route preview: ${DEFAULT_ROUTE_PICKUP} -> ${DEFAULT_ROUTE_DESTINATION}`;
+    telemetryRouteHint.textContent = 'Route preview appears once pickup and destination are entered.';
     if(!telemetryMap){
       Promise.resolve(resolveFallbackRoutePoints()).then((routePoints) => {
         renderTelemetryFallback(lastTelemetryVehicles, lastTelemetryUsingLocalMock, routePoints);
       }).catch(() => {});
     }
-  }
-
-  function seedDefaultRouteIfEmpty(){
-    const pickupInput = $('pickup');
-    const destinationInput = $('destination');
-    if(!pickupInput || !destinationInput) return false;
-    let seeded = false;
-    if(!String(pickupInput.value || '').trim()){
-      pickupInput.value = DEFAULT_ROUTE_PICKUP;
-      seeded = true;
-    }
-    if(!String(destinationInput.value || '').trim()){
-      destinationInput.value = DEFAULT_ROUTE_DESTINATION;
-      seeded = true;
-    }
-    updateTelemetryRouteHint();
-    return seeded;
   }
 
   function isLocalHost(){
@@ -1128,7 +1126,10 @@
 
   async function resolveFallbackRoutePoints(){
     const stops = getRouteStops();
-    const normalizedStops = stops.length >= 2 ? stops : [DEFAULT_ROUTE_PICKUP, DEFAULT_ROUTE_DESTINATION];
+    const normalizedStops = stops.length >= 2 ? stops : [
+      'Medical Center, Maryland',
+      'Hospital Campus, Maryland'
+    ];
     const points = await Promise.all(normalizedStops.map((stop, index) => lookupLocationPoint(stop).then((point) => {
       if(point && Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng))) return point;
       return syntheticRoutePoint(stop, index, normalizedStops.length);
@@ -1163,7 +1164,8 @@
   }
 
   function normalizeService(value){
-    const raw = String(value || 'ambulatory').trim().toLowerCase();
+    const raw = String(value || '').trim().toLowerCase();
+    if(!raw) return '';
     if(raw === 'cct' || raw.includes('critical') || raw.includes('high-acuity') || raw.includes('high acuity') || raw.includes('icu')) return 'facility_transfer_critical';
     if(raw.includes('interfacility') && (raw.includes('als') || raw.includes('critical') || raw.includes('icu') || raw.includes('cct'))) return 'facility_transfer_critical';
     if(raw === 'ift' || raw === 'interfacility') return 'facility_transfer';
@@ -1295,6 +1297,14 @@
     return calculateFareBreakdown(service, miles, dateStr, timeStr, routeMetrics).total;
   }
 
+  function resolveFareTimeForEstimate(){
+    const pickupEstimate = String($('tripTime')?.value || '').trim();
+    if(pickupEstimate) return pickupEstimate;
+    const appointmentTime = String(appointmentTimeInput?.value || '').trim();
+    if(appointmentTime) return appointmentTime;
+    return '12:00';
+  }
+
   async function loadPlatformSettings(){
     try{
       const r = await fetch('/api/settings/public', { cache: 'no-store' });
@@ -1400,7 +1410,50 @@
     if(fareMemberSavingsRow) fareMemberSavingsRow.hidden = true;
     if(fareMemberSavings) fareMemberSavings.textContent = '-';
     if(memberDiscountNote) memberDiscountNote.textContent = `Unlock instant ${MEMBER_DISCOUNT_PCT}% savings on every ride. Sign up now.`;
+    if($('tripTime')) $('tripTime').value = '';
     clearCustomerRoute();
+  }
+
+  function parseTimeToMinutes(value){
+    const raw = String(value || '').trim();
+    if(!/^\d{2}:\d{2}$/.test(raw)) return null;
+    const [hh, mm] = raw.split(':').map((part) => Number(part));
+    if(!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    return (hh * 60) + mm;
+  }
+
+  function minutesToTime(totalMinutes){
+    const normalized = Math.max(0, Math.min((24 * 60) - 1, Number(totalMinutes) || 0));
+    const hh = String(Math.floor(normalized / 60)).padStart(2, '0');
+    const mm = String(normalized % 60).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+
+  function getEstimatedRouteMinutes(){
+    const traffic = Math.max(0, Number(estimateState.trafficDurationMinutes || 0));
+    const scheduled = Math.max(0, Number(estimateState.durationMinutes || 0));
+    return Math.max(traffic, scheduled);
+  }
+
+  function applyPickupEstimateFromAppointment(){
+    if(!appointmentTimeInput || !$('tripTime')) return;
+    const appointmentMinutes = parseTimeToMinutes(appointmentTimeInput.value);
+    if(appointmentMinutes == null){
+      $('tripTime').value = '';
+      syncSectionProgressUi();
+      return;
+    }
+    const routeMinutes = getEstimatedRouteMinutes();
+    if(!routeMinutes){
+      $('tripTime').value = '';
+      syncSectionProgressUi();
+      return;
+    }
+
+    const dispatchBufferMinutes = 15;
+    const pickupMinutes = appointmentMinutes - Math.ceil(routeMinutes) - dispatchBufferMinutes;
+    $('tripTime').value = minutesToTime(pickupMinutes);
+    syncSectionProgressUi();
   }
 
   function hidePaymentOptions(){
@@ -1419,9 +1472,11 @@
     currentBookingReference = String(reference || '').trim();
     currentBookingFare = Number(fare || 0);
     if(!paymentSection || !currentBookingReference) return;
-    // Staff-created bookings are invoiced; no online payment section shown
+    // Bookings configured for delayed or invoice-based billing do not show immediate checkout.
     if(!requiresOnlinePayment){
       paymentSection.hidden = true;
+      if(paymentSummary) paymentSummary.textContent = 'A secure payment link will be sent before pickup, or an invoice will be sent for facility billing.';
+      setPaymentMessage('No action is needed right now.');
       return;
     }
     paymentSection.hidden = false;
@@ -1721,15 +1776,28 @@
   function renderRateEditor(service){
     const taxRatePct = Math.max(0, Number(fareRules.taxRatePct || 0));
     const taxHint = taxRatePct > 0 ? ` Tax ${taxRatePct.toFixed(2)}% is added on top.` : ' Tax is not applied.';
+    const selectedService = normalizeService(service);
     if(!isAdminUser){
       rateBase.value = '';
       rateIncluded.value = '';
       ratePerMile.value = '';
       rateWait.value = '';
-      rateSourceLabel.textContent = `Fare estimate is calculated automatically.${taxHint}`;
+      if(selectedService){
+        rateSourceLabel.textContent = `Fare estimate is calculated automatically.${taxHint}`;
+      }else{
+        rateSourceLabel.textContent = 'Select a ride type to calculate an estimate.';
+      }
       return;
     }
-    const svc = normalizeService(service);
+    const svc = selectedService;
+    if(!svc){
+      rateBase.value = '';
+      rateIncluded.value = '';
+      ratePerMile.value = '';
+      rateWait.value = '';
+      rateSourceLabel.textContent = 'Select a ride type to view and edit rate settings.';
+      return;
+    }
     const r = getPricing(svc);
     rateBase.value = Number(r.base || 0);
     rateIncluded.value = Number(r.includedMiles || 0);
@@ -2022,10 +2090,17 @@
     const destination = destinations[destinations.length - 1] || '';
     const service = normalizeService($('service').value);
     const tripDate = $('tripDate').value;
+    const fareTime = resolveFareTimeForEstimate();
+
+    if(!service){
+      setStatus('Select a ride type before estimating fare.', 'err');
+      syncSectionProgressUi();
+      return estimateState;
+    }
 
     if(!pickup || !destination){
       markDestinationUnconfirmed();
-      const breakdown = calculateFareBreakdown(service, 0, tripDate, $('tripTime').value, { durationMinutes: 0, trafficDurationMinutes: 0 });
+      const breakdown = calculateFareBreakdown(service, 0, tripDate, fareTime, { durationMinutes: 0, trafficDurationMinutes: 0 });
       renderFareEstimateBreakdown(breakdown, 0, '-', 0, 0);
       setStatus('Enter pickup and destination stops to estimate route miles.', 'err');
       syncSectionProgressUi();
@@ -2067,21 +2142,22 @@
     }catch(err){
       const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations]);
       if(fallbackMiles){
-        const fallbackBreakdown = calculateFareBreakdown(service, fallbackMiles, tripDate, $('tripTime').value, { durationMinutes: 0, trafficDurationMinutes: 0 });
-        renderFareEstimateBreakdown(fallbackBreakdown, fallbackMiles, 'Estimated locally', 0, 0);
+        const fallbackDurationMinutes = Math.max(15, Math.round((fallbackMiles / 25) * 60));
+        const fallbackBreakdown = calculateFareBreakdown(service, fallbackMiles, tripDate, fareTime, { durationMinutes: 0, trafficDurationMinutes: 0 });
+        renderFareEstimateBreakdown(fallbackBreakdown, fallbackMiles, `Estimated locally (~${fallbackDurationMinutes} min)`, fallbackDurationMinutes, fallbackDurationMinutes);
         setStatus('Route estimated locally because Google Maps is unavailable.', 'ok');
         syncSectionProgressUi();
         return estimateState;
       }
       markDestinationUnconfirmed();
-      const fallbackBreakdown = calculateFareBreakdown(service, 0, tripDate, $('tripTime').value, { durationMinutes: 0, trafficDurationMinutes: 0 });
+      const fallbackBreakdown = calculateFareBreakdown(service, 0, tripDate, fareTime, { durationMinutes: 0, trafficDurationMinutes: 0 });
       renderFareEstimateBreakdown(fallbackBreakdown, 0, '-', 0, 0);
       setStatus(`Route estimate unavailable (${err.message}). You can still submit booking.`, 'err');
       syncSectionProgressUi();
       return estimateState;
     }
 
-    const breakdown = calculateFareBreakdown(service, miles, tripDate, $('tripTime').value, { durationMinutes, trafficDurationMinutes });
+    const breakdown = calculateFareBreakdown(service, miles, tripDate, fareTime, { durationMinutes, trafficDurationMinutes });
     renderFareEstimateBreakdown(breakdown, miles, durationText || '-', durationMinutes, trafficDurationMinutes);
     setStatus('Route and fare estimate updated.', 'ok');
     syncSectionProgressUi();
@@ -2228,6 +2304,16 @@
   function selectService(service){
     const clean = normalizeService(service);
     const allowed = allowedServicesForRole(currentUserRole);
+    if(!clean){
+      $('service').value = '';
+      serviceChips.querySelectorAll('.chip').forEach((chip) => {
+        chip.classList.remove('active');
+        chip.setAttribute('aria-pressed', 'false');
+      });
+      renderRateEditor('');
+      syncSectionProgressUi();
+      return;
+    }
     if(!allowed.has(clean)){
       const fallback = Array.from(allowed)[0] || 'ambulatory';
       $('service').value = fallback;
@@ -2398,6 +2484,7 @@
       stopCount: routeDestinations.length,
       routeStops,
       date: $('tripDate').value,
+      appointmentTime: String(appointmentTimeInput?.value || '').trim(),
       time: $('tripTime').value,
       notes: $('notes').value.trim(),
       distanceMiles: Number(estimateState.miles || 0),
@@ -2405,10 +2492,15 @@
       estimatedFareBeforeDiscount: Number(estimateState.preDiscountFare || estimateState.fare || 0),
       estimatedFare: Number(estimateState.fare || 0),
       memberDiscountPct: token() ? MEMBER_DISCOUNT_PCT : 0,
-      memberDiscountAmount: Number(estimateState.memberSavings || 0)
+      memberDiscountAmount: Number(estimateState.memberSavings || 0),
+      pickupTimeEstimate: String($('tripTime')?.value || '').trim(),
+      paymentWindowLabel: 'Payment link window: 60 to 30 minutes before pickup',
+      requestedByRole: String(currentUserRole || 'CUSTOMER').toUpperCase(),
+      requestedByUser: String(currentUser?.email || '').trim() || null,
+      referralSource: String(currentUserRole || '').toUpperCase() === 'DRIVER' ? 'DRIVER_REFERRAL' : ''
     };
 
-    if(!payload.name || !payload.phone || !payload.service || !payload.pickup || !routeDestinations.length || !payload.date || !payload.time || !destinationReady){
+    if(!payload.name || !payload.phone || !payload.service || !payload.pickup || !routeDestinations.length || !payload.date || !payload.appointmentTime || !payload.time || !destinationReady){
       setStatus('Please complete all required fields.', 'err');
       setBookingOutcome('Action required before booking', 'pending');
       if(!payload.name || !payload.phone){
@@ -2416,7 +2508,8 @@
       }else if(!payload.pickup || !routeDestinations.length || !destinationReady){
         revealSectionForAction('pickupDropoffSection', !payload.pickup ? 'pickup' : 'destination');
       }else{
-        revealSectionForAction('rideTypeSection', !payload.date ? 'tripDate' : 'tripTime');
+        const missingRideField = !payload.date ? 'tripDate' : (!payload.appointmentTime ? 'appointmentTime' : 'tripTime');
+        revealSectionForAction('rideTypeSection', missingRideField);
       }
       return;
     }
@@ -2794,15 +2887,10 @@
 
   async function init(){
     const now = new Date();
-    const hh = String(Math.max(8, now.getHours())).padStart(2, '0');
-    const mm = now.getMinutes() < 30 ? '30' : '45';
     const defaultDate = now.toISOString().slice(0,10);
-    const defaultTime = `${hh}:${mm}`;
-    $('tripDate').value = now.toISOString().slice(0,10);
-    $('tripTime').value = defaultTime;
-    bindManageTripActions(defaultDate, defaultTime);
+    bindManageTripActions(defaultDate, '');
+    if($('tripDate')) $('tripDate').min = defaultDate;
     bindAuthActions();
-    seedDefaultRouteIfEmpty();
 
     await loadIntegrationConfig();
     await loadPlatformSettings();
@@ -2846,11 +2934,11 @@
     if(payFullBtn) payFullBtn.addEventListener('click', () => startHostedPayment('stripe', 'full'));
     hidePaymentOptions();
 
-    ['tripDate','tripTime','pickup','destination'].forEach((id) => {
+    ['tripDate','appointmentTime','pickup','destination'].forEach((id) => {
       ['change','input'].forEach((evt) => {
         $(id).addEventListener(evt, () => {
           setBookingOutcome('', 'pending');
-          if((id === 'tripDate' || id === 'tripTime') && estimateState.miles > 0){
+          if((id === 'tripDate') && estimateState.miles > 0){
             const breakdown = calculateFareBreakdown(normalizeService($('service').value), estimateState.miles, $('tripDate').value, $('tripTime').value, { durationMinutes: estimateState.durationMinutes, trafficDurationMinutes: estimateState.trafficDurationMinutes });
             renderFareEstimateBreakdown(
               breakdown,
@@ -2860,6 +2948,7 @@
               estimateState.trafficDurationMinutes
             );
           }
+          if(id === 'appointmentTime') applyPickupEstimateFromAppointment();
           autoEstimate();
         });
       });

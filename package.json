@@ -28,7 +28,11 @@
     "mobile:booking:install": "npm --prefix mobile/booking-ios install",
     "mobile:booking:ios:add": "npm --prefix mobile/booking-ios run ios:add",
     "mobile:booking:ios:sync": "npm --prefix mobile/booking-ios run ios:sync",
-    "mobile:booking:ios:open": "npm --prefix mobile/booking-ios run ios:open"
+    "mobile:booking:ios:open": "npm --prefix mobile/booking-ios run ios:open",
+    "mobile:patient:install": "npm --prefix mobile/patient-ios install",
+    "mobile:patient:ios:add": "npm --prefix mobile/patient-ios run ios:add",
+    "mobile:patient:ios:sync": "npm --prefix mobile/patient-ios run ios:sync",
+    "mobile:patient:ios:open": "npm --prefix mobile/patient-ios run ios:open"
   },
   "dependencies": {
     "pg": "8.16.3"

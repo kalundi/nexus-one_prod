@@ -713,9 +713,9 @@ Destination: -</p>
 
       <section class="section sectionProgressive" id="rideTypeSection">
         <h2>Type of Ride</h2>
-        <p class="sectionSummary" id="rideTypeSummary">Service: Ambulatory | Date: - | Time: -</p>
+        <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
         <div class="serviceChips" id="serviceChips" role="radiogroup" aria-label="Service type">
-          <button class="chip active" type="button" data-service="ambulatory">Ambulatory</button>
+          <button class="chip" type="button" data-service="ambulatory">Ambulatory</button>
           <button class="chip" type="button" data-service="facility_transfer">IFT Routine</button>
           <button class="chip" type="button" data-service="facility_transfer_critical">IFT High-Acuity</button>
           <button class="chip" type="button" data-service="wheelchair">Wheelchair</button>
@@ -726,7 +726,7 @@ Destination: -</p>
           <button class="chip" type="button" data-service="als1">ALS 1</button>
           <button class="chip" type="button" data-service="als2">ALS 2</button>
         </div>
-        <input id="service" name="service" type="hidden" value="ambulatory">
+        <input id="service" name="service" type="hidden" value="">
 
         <div class="metaRow" style="margin-top:12px">
           <div class="field">
@@ -734,10 +734,17 @@ Destination: -</p>
             <input id="tripDate" name="tripDate" type="date" required>
           </div>
           <div class="field">
-            <label for="tripTime">Time</label>
-            <input id="tripTime" name="tripTime" type="time" required>
+            <label for="appointmentTime">Appointment Time</label>
+            <input id="appointmentTime" name="appointmentTime" type="time" required>
           </div>
         </div>
+        <div class="metaRow" style="margin-top:10px">
+          <div class="field">
+            <label for="tripTime">Pickup Time Estimate</label>
+            <input id="tripTime" name="tripTime" type="time" placeholder="Auto-calculated from appointment and route" readonly required>
+          </div>
+        </div>
+        <p class="subtle" style="margin-top:0">Pickup time estimate is calculated from appointment time plus route travel estimate and dispatch buffer.</p>
 
         <div class="estimate" aria-live="polite">
           <div class="line"><b>Distance</b><span id="estMiles">-</span></div>
@@ -806,7 +813,7 @@ Destination: -</p>
           <small class="subtle" style="margin:0">Blur other network vehicles</small>
         </div>
         <p class="subtle" id="telemetryStatus" hidden>Loading live telemetry...</p>
-        <p class="subtle" id="telemetryRouteHint" style="margin-top:8px">Default route preview will appear after pickup and destination are set.</p>
+        <p class="subtle" id="telemetryRouteHint" style="margin-top:8px">Route preview will appear after pickup and destination are set.</p>
         <div class="telemetryList" id="telemetryList" hidden></div>
       </section>
 
@@ -830,7 +837,7 @@ Destination: -</p>
           <button type="button" class="primary" id="payStripeBtn" hidden>Pay with Stripe</button>
           <button type="button" class="secondaryPay" id="paySquareBtn" hidden>Pay with Square</button>
         </div>
-        <p class="paymentChoiceHint" id="paymentChoiceHint">Reserve your ride now with a 25% deposit. The balance is due before pickup.</p>
+        <p class="paymentChoiceHint" id="paymentChoiceHint">For patient-direct billing, a secure payment link is sent before pickup. Facility bookings are invoiced by email.</p>
         <p class="subtle" id="paymentStatusMsg"></p>
       </section>
 
