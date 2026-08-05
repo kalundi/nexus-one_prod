@@ -45,7 +45,17 @@ function normalizeTripTime(value){
 function normalizeOptionalTripTime(value){
  const raw=clean(value||'');
  if(!raw) return '';
- const hhmm=raw.match(/^(\d{1,2}:\d{2})/);
+ const ampm=raw.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+ if(ampm){
+  let h=Number(ampm[1]);
+  const m=Number(ampm[2]);
+  const meridiem=String(ampm[3]||'').toUpperCase();
+  if(!Number.isFinite(h)||!Number.isFinite(m)||h<1||h>12||m<0||m>59) return '';
+  if(meridiem==='AM'&&h===12) h=0;
+  if(meridiem==='PM'&&h!==12) h+=12;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+ }
+ const hhmm=raw.match(/^(\d{1,2}):(\d{2})/);
  if(!hhmm) return '';
  const [h,m]=hhmm[1].split(':').map(Number);
  if(!Number.isFinite(h)||!Number.isFinite(m)||h<0||h>23||m<0||m>59) return '';
@@ -53,8 +63,8 @@ function normalizeOptionalTripTime(value){
 }
 function extractAppointmentTimeFromNotes(notes){
  const text=clean(notes||'');
- const match=text.match(/(?:Appointment\s*time|Appointment|Appt\s*time|Appt):\s*([0-2]?\d:[0-5]\d)/i);
- return match?String(match[1]).padStart(5,'0'):'';
+ const match=text.match(/(?:Appointment\s*time|Appointment|Appt\s*time|Appt):\s*([0-2]?\d:[0-5]\d(?:\s*(?:AM|PM))?)/i);
+ return match?normalizeOptionalTripTime(String(match[1])):'';
 }
 function parseTripDateTime(booking){
  const tripDate=normalizeTripDate(booking?.trip_date||booking?.date||'');

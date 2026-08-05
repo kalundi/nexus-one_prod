@@ -1311,8 +1311,25 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function extractAppointmentTime(note){
     const text=String(note||'');
-    const m=text.match(/Appointment time:\s*([0-2]?\d:[0-5]\d)/i);
-    return m?m[1]:'';
+    const m=text.match(/(?:Appointment\s*time|Appointment|Appt\s*time|Appt):\s*([0-2]?\d:[0-5]\d(?:\s*(?:AM|PM))?)/i);
+    if(!m) return '';
+    const raw=String(m[1]||'').trim();
+    const ampm=raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if(ampm){
+      let h=Number(ampm[1]);
+      const mm=Number(ampm[2]);
+      const meridiem=String(ampm[3]||'').toUpperCase();
+      if(!Number.isFinite(h)||!Number.isFinite(mm)||h<1||h>12||mm<0||mm>59) return '';
+      if(meridiem==='AM'&&h===12) h=0;
+      if(meridiem==='PM'&&h!==12) h+=12;
+      return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+    }
+    const hhmm=raw.match(/^(\d{1,2}):(\d{2})$/);
+    if(!hhmm) return '';
+    const h=Number(hhmm[1]);
+    const mm=Number(hhmm[2]);
+    if(!Number.isFinite(h)||!Number.isFinite(mm)||h<0||h>23||mm<0||mm>59) return '';
+    return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
   }
 
   function serviceLeadMinutes(service){
