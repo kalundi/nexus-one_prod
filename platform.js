@@ -269,8 +269,18 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 	}
 
 	// ===== Logo pop every 60 seconds =====
+	const LOGO_POP_SELECTOR='img.logo, img.topLogo, img.brandLogo, img.loginLogo, img[src*="nexus-logo"], img[src*="nexus-footer-logo"], header img[alt*="Nexus"]';
+	const LOGO_POP_STYLE_ID='nexusLogoPopStyle';
+	function ensureLogoPopStyle(){
+		if(document.getElementById(LOGO_POP_STYLE_ID)) return;
+		const style=document.createElement('style');
+		style.id=LOGO_POP_STYLE_ID;
+		style.textContent='@keyframes logoPop{0%{transform:scale(1) rotate(0deg)}15%{transform:scale(1.28) rotate(-4deg)}30%{transform:scale(1.35) rotate(4deg)}50%{transform:scale(1.25) rotate(-2deg)}70%{transform:scale(1.12) rotate(1.5deg)}85%{transform:scale(1.05) rotate(-0.5deg)}100%{transform:scale(1) rotate(0deg)}}.logo-pop{animation:logoPop .8s cubic-bezier(.36,.07,.19,.97) both !important;transform-origin:center center}@media (prefers-reduced-motion:reduce){.logo-pop{animation:none!important}}';
+		document.head.appendChild(style);
+	}
 	function popLogos(){
-		const logos=document.querySelectorAll('img.logo, img.topLogo');
+		ensureLogoPopStyle();
+		const logos=document.querySelectorAll(LOGO_POP_SELECTOR);
 		logos.forEach(logo=>{
 			logo.classList.remove('logo-pop');
 			void logo.offsetWidth; // force reflow to restart animation
@@ -283,8 +293,18 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 
 // ===== Standalone logo pop (runs independently of any IIFE) =====
 (function nexusLogoPop(){
+	const LOGO_POP_SELECTOR='img.logo, img.topLogo, img.brandLogo, img.loginLogo, img[src*="nexus-logo"], img[src*="nexus-footer-logo"], header img[alt*="Nexus"]';
+	const LOGO_POP_STYLE_ID='nexusLogoPopStyle';
+	function ensureLogoPopStyle(){
+		if(document.getElementById(LOGO_POP_STYLE_ID)) return;
+		const style=document.createElement('style');
+		style.id=LOGO_POP_STYLE_ID;
+		style.textContent='@keyframes logoPop{0%{transform:scale(1) rotate(0deg)}15%{transform:scale(1.28) rotate(-4deg)}30%{transform:scale(1.35) rotate(4deg)}50%{transform:scale(1.25) rotate(-2deg)}70%{transform:scale(1.12) rotate(1.5deg)}85%{transform:scale(1.05) rotate(-0.5deg)}100%{transform:scale(1) rotate(0deg)}}.logo-pop{animation:logoPop .8s cubic-bezier(.36,.07,.19,.97) both !important;transform-origin:center center}@media (prefers-reduced-motion:reduce){.logo-pop{animation:none!important}}';
+		document.head.appendChild(style);
+	}
 	function popAll(){
-		document.querySelectorAll('img.logo, img.topLogo').forEach(function(el){
+		ensureLogoPopStyle();
+		document.querySelectorAll(LOGO_POP_SELECTOR).forEach(function(el){
 			el.classList.remove('logo-pop');
 			void el.offsetWidth;
 			el.classList.add('logo-pop');
