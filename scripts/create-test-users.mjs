@@ -16,6 +16,7 @@ const testUsers = [
   { email: 'billing@nexusmt.com',    name: 'Test Billing',       role: 'BILLING',    password: 'Billing2026!'  },
   { email: 'qa@nexusmt.com',         name: 'Test QA',            role: 'QA',         password: 'Quality2026!'  },
   { email: 'executive@nexusmt.com',  name: 'Test Executive',     role: 'EXECUTIVE',  password: 'Exec2026!'     },
+  { email: 'patient@example.com',    name: 'Demo Patient',       role: 'PATIENT',    password: 'Patient123!'   },
 ];
 
 const pool = new Pool({

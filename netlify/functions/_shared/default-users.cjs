@@ -8,7 +8,8 @@ const DEFAULT_TEST_USERS = [
   { email: 'facility@nexusmt.com', name: 'Test Facility', role: 'FACILITY', password: 'Facility2026!' },
   { email: 'billing@nexusmt.com', name: 'Test Billing', role: 'BILLING', password: 'Billing2026!' },
   { email: 'qa@nexusmt.com', name: 'Test QA', role: 'QA', password: 'Quality2026!' },
-  { email: 'executive@nexusmt.com', name: 'Test Executive', role: 'EXECUTIVE', password: 'Exec2026!' }
+  { email: 'executive@nexusmt.com', name: 'Test Executive', role: 'EXECUTIVE', password: 'Exec2026!' },
+  { email: 'patient@example.com', name: 'Demo Patient', role: 'PATIENT', password: 'Patient123!' }
 ];
 
 async function ensureDefaultUserForEmail(query, email, {organizationId = null} = {}) {
