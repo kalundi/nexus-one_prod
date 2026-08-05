@@ -564,7 +564,7 @@ function renderTrips(trips){
 
   const heroTripList=document.getElementById('heroTripList');
   if(heroTripList){
-    heroTripList.innerHTML=list.slice(0,6).map(t=>`<div style="background:#fff;border:1px solid #d5e0e8;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="min-width:0"><strong style="font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name||'�'}</strong><small style="color:#52677c;font-size:11px">${t.service||'�'} � ${t.date||'�'}</small></div><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}" style="font-size:10px;flex-shrink:0">${t.statusLabel||t.status||'Requested'}</span></div>`).join('')||'<div style="text-align:center;padding:16px;color:#52677c">No trips yet.</div>';
+    heroTripList.innerHTML=list.slice(0,6).map(t=>`<div style="background:#fff;border:1px solid #d5e0e8;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="min-width:0"><strong style="font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name||'�'}</strong><small style="color:#52677c;font-size:11px">${t.service||'�'} � ${formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time)}</small></div><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}" style="font-size:10px;flex-shrink:0">${t.statusLabel||t.status||'Requested'}</span></div>`).join('')||'<div style="text-align:center;padding:16px;color:#52677c">No trips yet.</div>';
   }
 
   const rowsEl=document.getElementById('tripRows');
@@ -573,7 +573,7 @@ function renderTrips(trips){
       const ref=t.reference||t.id||'';
       const estimateNumber=Number(t.estimatedFare ?? t.estimated_fare ?? t.estimate ?? t.fare);
       const estimate=Number.isFinite(estimateNumber)?`$${estimateNumber.toFixed(2)}`:'--';
-      const shortDateTime=formatShortDateTime(t.date,t.time);
+      const shortDateTime=formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time);
       return `<tr><td>${ref||'�'}</td><td>${t.name||'�'}</td><td>${t.service||'�'}</td><td>${shortDateTime}</td><td><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}">${t.statusLabel||t.status||'Requested'}</span></td><td>${estimate}</td><td>${riskBadge(t)}</td><td><button class="button secondary" data-advance="${ref}" onclick="advanceTrip('${ref}')">Advance</button></td></tr>`;
     }).join('');
   }
@@ -1531,7 +1531,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditPhone').value=b.phone||'';
     get('dispatchEditEmail').value=b.email||'';
     get('dispatchEditTripNotes').value=b.notes||'';
-    get('dispatchEditAppointmentTime').value=String(b.submittedAppointmentTime||extractAppointmentTime(b.notes||'')).slice(0,5);
+    get('dispatchEditAppointmentTime').value=String(b.submittedAppointmentTime||b.appointmentTime||extractAppointmentTime(b.notes||'')).slice(0,5);
     get('dispatchEditCheckInTime').value='';
     updatePickupFromAppointment();
     if(get('dispatchEditAppointmentTime').value && b.time){
@@ -1544,7 +1544,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     }
     toggleBrokerFields();
     updateEditorDetails(b);
-    if(b.appointmentMissing){
+    if(b.appointmentMissing && !get('dispatchEditAppointmentTime').value){
       setMsg('Warning: Appointment time is missing from submitter data. Enter appointment time and save before any further actions.','err');
     }
   }
