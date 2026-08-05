@@ -115,51 +115,7 @@ function mergeMissingAssignments(existingList, templateList) {
 }
 
 function buildDefaultAssignments(user) {
-  const name = user.display_name || 'Assigned Driver';
-  const quick0 = futureDateTime(55);
-  const quick1 = futureDateTime(30);
-  const quick2 = futureDateTime(90);
-  const quick3 = futureDateTime(165);
-  const trips = [
-    { reference: 'NMT-DRV-DEMO-2000', date: quick0.date, time: quick0.time, patient: 'Quick Test Rider Zero',  service: 'AMBULATORY', pickup: 'Howard University Hospital', destination: 'George Washington University Hospital', distanceMiles: 11.6, note: `Testing trip within next 60 minutes for ${name}` },
-    { reference: 'NMT-DRV-DEMO-2001', date: quick1.date, time: quick1.time, patient: 'Quick Test Rider One',   service: 'WHEELCHAIR', pickup: 'Washington Hospital Center', destination: 'Sibley Memorial Hospital', distanceMiles: 18.4, note: `Testing trip within next hour for ${name}` },
-    { reference: 'NMT-DRV-DEMO-2002', date: quick2.date, time: quick2.time, patient: 'Quick Test Rider Two',   service: 'AMBULATORY', pickup: 'MedStar Georgetown University Hospital', destination: 'Inova Fairfax Medical Campus', distanceMiles: 24.9, note: `Testing trip within next 2 hours for ${name}` },
-    { reference: 'NMT-DRV-DEMO-2003', date: quick3.date, time: quick3.time, patient: 'Quick Test Rider Three', service: 'STRETCHER',   pickup: 'Holy Cross Hospital', destination: 'Suburban Hospital', distanceMiles: 31.2, note: `Testing trip within next 3 hours for ${name}` },
-
-    { reference: 'NMT-DRV-DEMO-1001', offset: 0,  time: '09:30', patient: 'Preview Rider One',   service: 'WHEELCHAIR', pickup: 'Washington Hospital Center', destination: 'Sibley Memorial Hospital', distanceMiles: 18.4 },
-    { reference: 'NMT-DRV-DEMO-1002', offset: 0,  time: '11:15', patient: 'Preview Rider Two',   service: 'AMBULATORY', pickup: 'MedStar Georgetown University Hospital', destination: 'Inova Fairfax Medical Campus', distanceMiles: 24.9 },
-
-    { reference: 'NMT-DRV-DEMO-1003', offset: 1,  time: '08:00', patient: 'Preview Rider Three', service: 'STRETCHER',   pickup: 'Holy Cross Hospital', destination: 'Suburban Hospital', distanceMiles: 31.2 },
-    { reference: 'NMT-DRV-DEMO-1004', offset: 3,  time: '10:45', patient: 'Preview Rider Four',  service: 'AMBULATORY',  pickup: 'George Washington University Hospital', destination: 'MedStar Washington Hospital Center', distanceMiles: 12.1 },
-    { reference: 'NMT-DRV-DEMO-1005', offset: 5,  time: '07:50', patient: 'Preview Rider Five',  service: 'WHEELCHAIR',  pickup: 'Sibley Memorial Hospital', destination: 'Children\'s National Hospital', distanceMiles: 28.7 },
-    { reference: 'NMT-DRV-DEMO-1006', offset: 7,  time: '14:20', patient: 'Preview Rider Six',    service: 'AMBULATORY',  pickup: 'Inova Fairfax Medical Campus', destination: 'Reston Hospital Center', distanceMiles: 34.6 },
-    { reference: 'NMT-DRV-DEMO-1007', offset: 10, time: '11:10', patient: 'Preview Rider Seven',  service: 'WHEELCHAIR',  pickup: 'Adventist HealthCare White Oak Medical Center', destination: 'Washington Hospital Center', distanceMiles: 16.8 },
-    { reference: 'NMT-DRV-DEMO-1008', offset: 13, time: '09:00', patient: 'Preview Rider Eight',  service: 'AMBULATORY',  pickup: 'Prince George\'s Hospital Center', destination: 'MedStar Georgetown University Hospital', distanceMiles: 21.5 },
-    { reference: 'NMT-DRV-DEMO-1009', offset: 16, time: '15:25', patient: 'Preview Rider Nine',   service: 'BLS',         pickup: 'University of Maryland Medical Center', destination: 'Union Station', distanceMiles: 41.3 },
-    { reference: 'NMT-DRV-DEMO-1010', offset: 19, time: '08:40', patient: 'Preview Rider Ten',    service: 'WHEELCHAIR',  pickup: 'Suburban Hospital', destination: 'Sibley Memorial Hospital', distanceMiles: 29.8 },
-    { reference: 'NMT-DRV-DEMO-1011', offset: 23, time: '12:30', patient: 'Preview Rider Eleven', service: 'AMBULATORY',  pickup: 'Holy Cross Germantown Hospital', destination: 'Inova Fairfax Medical Campus', distanceMiles: 9.7 },
-    { reference: 'NMT-DRV-DEMO-1012', offset: 27, time: '16:10', patient: 'Preview Rider Twelve', service: 'STRETCHER',   pickup: 'Children\'s National Hospital', destination: 'MedStar Washington Hospital Center', distanceMiles: 36.4 }
-  ];
-  const unique = new Set();
-  const normalized = [];
-  for (const trip of trips) {
-    const reference = String(trip.reference || '').trim();
-    if (!reference || unique.has(reference)) continue;
-    unique.add(reference);
-    normalized.push({
-      reference,
-      name: trip.patient,
-      service: trip.service,
-      pickup: trip.pickup,
-      destination: trip.destination,
-      trip_date: trip.date || addDaysIso(trip.offset),
-      trip_time: trip.time,
-      status: 'ASSIGNED',
-      notes: trip.note || `Assigned to ${name} for local preview`,
-      distanceMiles: trip.distanceMiles
-    });
-  }
-  return normalized;
+  return [];
 }
 
 function getFallbackAssignments(user) {

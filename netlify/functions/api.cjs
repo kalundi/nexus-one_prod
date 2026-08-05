@@ -15,8 +15,17 @@ const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',SCHEDULED:'ASSIGN
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
 const clean=v=>String(v??'').trim();
+const DEMO_SOURCES=new Set(['DEMO','LOCAL','MOCK','TEST']);
 const required=(body,fields)=>{for(const f of fields)if(!clean(body[f]))throw Object.assign(new Error(`${f} is required`),{statusCode:400})};
 const reference=()=>`NMT-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${crypto.randomInt(1000,9999)}`;
+function isDemoReference(value){
+ const ref=clean(value).toUpperCase();
+ return /^NMT(?:-DRV)?-DEMO-/.test(ref) || ref.includes('-DEMO-');
+}
+function normalizeBookingSource(value){
+ const source=clean(value).toUpperCase()||'CUSTOMER';
+ return DEMO_SOURCES.has(source)?'CUSTOMER':source;
+}
 function tripStartWindowHours(distanceMiles){return Number(distanceMiles)>=30?2:1;}
 function normalizeTripDate(value){
  if(value instanceof Date&&!Number.isNaN(value.getTime()))return value.toISOString().slice(0,10);
@@ -116,8 +125,10 @@ async function autoAssign(booking){
 }
 
 async function createBookingFromBrokerRequest(requestBody,requestRow){
- const bookingReference=clean(requestBody?.booking_reference||requestRow?.booking_reference||reference());
+ const requestedReference=clean(requestBody?.booking_reference||requestRow?.booking_reference||reference());
+ const bookingReference=isDemoReference(requestedReference)?reference():requestedReference;
  const payload=buildBrokerBookingPayload(requestRow||{},requestBody||{},bookingReference);
+ payload.booking_source=normalizeBookingSource(payload.booking_source);
  const bookingResult=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,created_at,updated_at)
   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,now(),now()) RETURNING *`,[payload.reference,payload.name,payload.phone,payload.email,payload.service,payload.pickup,payload.destination,payload.trip_date,payload.trip_time,payload.notes,payload.pickup_lat,payload.pickup_lng,payload.destination_lat,payload.destination_lng,null,null,payload.estimated_fare||null,payload.booking_source]);
  const booking=bookingResult.rows[0];
@@ -835,6 +846,7 @@ async function handler(event){
   else if(actorRole==='DRIVER') bookingSource='DRIVER_REFERRAL';
   else if(actorRole==='PATIENT'||actorRole==='RIDER') bookingSource='PATIENT';
   else if(actorRole==='ADMIN'||actorRole==='BILLING') bookingSource='STAFF';
+  bookingSource=normalizeBookingSource(bookingSource);
 
   const baseNotes=clean(b.notes)||'';
   const metadataNotes=[
@@ -881,18 +893,6 @@ async function handler(event){
   if(p[0]==='bookings'&&p[1]&&method==='GET'){
    const phone=clean(event.queryStringParameters?.phone);if(!phone)return json(400,{error:'Phone number is required'});
    const searchRef=decodeURIComponent(p[1]);
-   // Demo trips for testing (no database required)
-   const demoTrips={
-     'NMT-DEMO-0001':{phone:'2025550101',booking:{reference:'NMT-DEMO-0001',name:'James Mitchell',phone:'(202) 555-0101',email:'james.mitchell@example.com',service:'wheelchair',pickup:'3800 Reservoir Road NW, Washington, DC 20007',destination:'18101 Prince Philip Drive, Olney, MD 20832',date:new Date(Date.now()+86400000*2).toISOString().split('T')[0],time:'10:00',status:'confirmed',notes:'Regular dialysis appointment, requires accessible vehicle'}},
-     'NMT-DEMO-0002':{phone:'2025550108',booking:{reference:'NMT-DEMO-0002',name:'Jennifer Smith',phone:'(202) 555-0108',email:'jennifer.smith@example.com',service:'ambulatory',pickup:'110 Irving Street NW, Washington, DC 20010',destination:'2041 Georgia Avenue NW, Washington, DC 20060',date:new Date(Date.now()+86400000*3).toISOString().split('T')[0],time:'14:30',status:'confirmed',notes:'Online booking - routine appointment'}},
-     'NMT-DEMO-0003':{phone:'7035550103',booking:{reference:'NMT-DEMO-0003',name:'Robert Chen',phone:'(703) 555-0103',email:'robert.chen@example.com',service:'broda',pickup:'5255 Loughboro Road NW, Washington, DC 20016',destination:'1447 Kennedy Street NW, Washington, DC 20011',date:new Date(Date.now()+86400000).toISOString().split('T')[0],time:'09:00',status:'confirmed',notes:'Bariatric chair transfer required'}}
-   };
-   if(demoTrips[searchRef]){
-     const demo=demoTrips[searchRef];
-     const cleanPhone=phone.replace(/\D/g,'');
-     if(cleanPhone===demo.phone)return json(200,{booking:demo.booking});
-     return json(404,{error:'Request not found'});
-   }
    // Try matching by reference first, then by name
    let r=await query('SELECT * FROM bookings WHERE reference=$1 AND regexp_replace(phone,\'\\D\',\'\',\'g\')=regexp_replace($2,\'\\D\',\'\',\'g\')',[searchRef,phone]);
    if(!r.rows[0]){r=await query('SELECT * FROM bookings WHERE LOWER(name)=LOWER($1) AND regexp_replace(phone,\'\\D\',\'\',\'g\')=regexp_replace($2,\'\\D\',\'\',\'g\') ORDER BY created_at DESC LIMIT 1',[searchRef,phone]);}
@@ -1234,6 +1234,33 @@ async function handler(event){
    }
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&method==='GET'){await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);const r=await query('SELECT * FROM bookings ORDER BY trip_date DESC,trip_time DESC LIMIT 500');return json(200,{bookings:r.rows.map(mapBooking)})}
+    if(p[0]==='admin'&&p[1]==='bookings'&&p[2]==='purge-demo'&&method==='POST'){
+    const u=await requireUser(bearer(event),['ADMIN']);
+    const body=parseBody(event);
+    const dryRun=Boolean(body?.dryRun);
+    const candidateQuery=`
+     SELECT reference
+     FROM bookings
+     WHERE reference ~* '^NMT(?:-DRV)?-DEMO-'
+       OR upper(COALESCE(booking_source,'')) IN ('DEMO','LOCAL','MOCK','TEST')
+       OR upper(COALESCE(name,'')) LIKE 'PREVIEW RIDER%'
+       OR upper(COALESCE(notes,'')) LIKE '%LOCAL PREVIEW%'
+     ORDER BY reference
+    `;
+    const candidates=await query(candidateQuery);
+    const references=(candidates.rows||[]).map((row)=>clean(row.reference)).filter(Boolean);
+    if(dryRun){
+     return json(200,{dryRun:true,matched:references.length,references:references.slice(0,200)});
+    }
+    if(!references.length){
+     await audit('BOOKING','DEMO_PURGE','RUN',{actor:u.email||u.display_name||'ADMIN',deleted:0});
+     return json(200,{dryRun:false,deleted:0,references:[]});
+    }
+    const deleted=await query('DELETE FROM bookings WHERE reference = ANY($1::text[]) RETURNING reference',[references]);
+    const deletedRefs=(deleted.rows||[]).map((row)=>clean(row.reference)).filter(Boolean);
+    await audit('BOOKING','DEMO_PURGE','RUN',{actor:u.email||u.display_name||'ADMIN',deleted:deletedRefs.length,references:deletedRefs.slice(0,200)});
+    return json(200,{dryRun:false,deleted:deletedRefs.length,references:deletedRefs.slice(0,200)});
+    }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='GET'){await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);const ref=decodeURIComponent(p[2]);const r=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref]);if(!r.rows[0])return json(404,{error:'Booking not found'});return json(200,{booking:mapBooking(r.rows[0])})}
   if(p[0]==='admin'&&p[1]==='analytics'&&p[2]==='revenue'&&method==='GET'){
    const u=await requireUser(bearer(event),['ADMIN','EXECUTIVE','BILLING']);
