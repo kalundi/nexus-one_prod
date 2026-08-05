@@ -1513,17 +1513,21 @@ async function handler(event){
   const existingAppointmentTime=getSubmittedAppointmentTime(before.rows[0]);
   const effectiveAppointmentTime=appointmentTimeValue||(!existingAppointmentTime?proposedTripTime:'');
   if(!existingAppointmentTime&&!effectiveAppointmentTime)return json(409,{error:'Appointment time must be entered by the submitter before further actions can proceed. Enter appointment time and save first.'});
-  const hasBookingSource=Object.prototype.hasOwnProperty.call(b,'bookingSource');
-  const hasSubmitterEntity=Object.prototype.hasOwnProperty.call(b,'submitterEntity');
-  const hasBrokerCompanyName=Object.prototype.hasOwnProperty.call(b,'brokerCompanyName');
-  const hasBrokerAcceptedRate=Object.prototype.hasOwnProperty.call(b,'brokerAcceptedRate');
-  const bookingSourceValue=hasBookingSource?normalizeBookingSource(b.bookingSource):null;
+  const hasBookingSource=Object.prototype.hasOwnProperty.call(b,'bookingSource')||Object.prototype.hasOwnProperty.call(b,'booking_source');
+  const hasSubmitterEntity=Object.prototype.hasOwnProperty.call(b,'submitterEntity')||Object.prototype.hasOwnProperty.call(b,'submitter_entity');
+  const hasBrokerCompanyName=Object.prototype.hasOwnProperty.call(b,'brokerCompanyName')||Object.prototype.hasOwnProperty.call(b,'broker_company_name');
+  const hasBrokerAcceptedRate=Object.prototype.hasOwnProperty.call(b,'brokerAcceptedRate')||Object.prototype.hasOwnProperty.call(b,'broker_accepted_rate');
+  const bookingSourceInput=Object.prototype.hasOwnProperty.call(b,'bookingSource')?b.bookingSource:b.booking_source;
+  const submitterEntityInput=Object.prototype.hasOwnProperty.call(b,'submitterEntity')?b.submitterEntity:b.submitter_entity;
+  const brokerCompanyNameInput=Object.prototype.hasOwnProperty.call(b,'brokerCompanyName')?b.brokerCompanyName:b.broker_company_name;
+  const brokerAcceptedRateInput=Object.prototype.hasOwnProperty.call(b,'brokerAcceptedRate')?b.brokerAcceptedRate:b.broker_accepted_rate;
+  const bookingSourceValue=hasBookingSource?normalizeBookingSource(bookingSourceInput):null;
   let brokerAcceptedRateValue=null;
   if(hasBrokerAcceptedRate){
-   const raw=clean(b.brokerAcceptedRate);
+   const raw=clean(brokerAcceptedRateInput);
    if(raw==='')brokerAcceptedRateValue=null;
    else{
-    const parsed=Number(b.brokerAcceptedRate);
+    const parsed=Number(brokerAcceptedRateInput);
     if(!Number.isFinite(parsed)||parsed<0)return json(400,{error:'brokerAcceptedRate must be a valid number >= 0'});
     brokerAcceptedRateValue=parsed;
    }
@@ -1582,9 +1586,9 @@ async function handler(event){
       hasBookingSource,
       hasBookingSource?bookingSourceValue:null,
       hasSubmitterEntity,
-      hasSubmitterEntity?clean(b.submitterEntity)||null:null,
+      hasSubmitterEntity?clean(submitterEntityInput)||null:null,
       hasBrokerCompanyName,
-      hasBrokerCompanyName?clean(b.brokerCompanyName)||null:null,
+      hasBrokerCompanyName?clean(brokerCompanyNameInput)||null:null,
       hasBrokerAcceptedRate,
       hasBrokerAcceptedRate?brokerAcceptedRateValue:null
     ]);
@@ -1626,8 +1630,8 @@ async function handler(event){
     bookingSource:hasBookingSource?bookingSourceValue:undefined,
     appointmentTime:(hasAppointmentTime||(!existingAppointmentTime&&proposedTripTime))?effectiveAppointmentTime:undefined,
     checkInTime:hasCheckInTime?checkInTimeValue:undefined,
-    submitterEntity:hasSubmitterEntity?clean(b.submitterEntity):undefined,
-    brokerCompanyName:hasBrokerCompanyName?clean(b.brokerCompanyName):undefined,
+    submitterEntity:hasSubmitterEntity?clean(submitterEntityInput):undefined,
+    brokerCompanyName:hasBrokerCompanyName?clean(brokerCompanyNameInput):undefined,
     brokerAcceptedRate:hasBrokerAcceptedRate?brokerAcceptedRateValue:undefined,
     by:u.role
    });
