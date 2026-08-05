@@ -1437,6 +1437,8 @@ async function handler(event){
    const hasDestination=Object.prototype.hasOwnProperty.call(b,'destination');
    const hasDate=Object.prototype.hasOwnProperty.call(b,'date');
    const hasTime=Object.prototype.hasOwnProperty.call(b,'time');
+  const hasDriverName=Object.prototype.hasOwnProperty.call(b,'driverName');
+  const hasVehicleUnit=Object.prototype.hasOwnProperty.call(b,'vehicleUnit');
   const hasNotes=Object.prototype.hasOwnProperty.call(b,'notes');
   const hasDispatchNote=Object.prototype.hasOwnProperty.call(b,'dispatchNote')||Object.prototype.hasOwnProperty.call(b,'note');
    const hasName=Object.prototype.hasOwnProperty.call(b,'name');
@@ -1529,6 +1531,17 @@ async function handler(event){
     ]);
 
    if(!r.rows[0])return json(404,{error:'Booking not found'});
+
+   const shouldResetReminders=hasDate||hasTime||hasPickup||hasDestination||hasDriverName||hasVehicleUnit;
+   if(shouldResetReminders){
+    await query(`
+      UPDATE bookings
+      SET reminder_sent=false,
+          notification_status=(COALESCE(notification_status,'{}')::jsonb - 'driverReminder2h'),
+          updated_at=now()
+      WHERE reference=$1
+    `,[ref]).catch(()=>{});
+   }
 
   const noteValue=clean((hasDispatchNote?(b.dispatchNote||b.note):b.note) || '')||null;
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),noteValue,u.display_name]);
