@@ -1,0 +1,76 @@
+:root{
+  --nexus-bg:#f4f7fb;
+  --nexus-sheet:#ffffff;
+  --nexus-ink:#07142c;
+  --nexus-muted:#5a6c7b;
+  --nexus-line:#d0dde8;
+  --nexus-brand:#d61f1f;
+  --nexus-navy:#07142c;
+  --nexus-blue:#0a6b99;
+  --nexus-text-xs:clamp(11px,2.4vw,12px);
+  --nexus-text-sm:clamp(12px,2.8vw,13px);
+  --nexus-text-md:clamp(14px,3.4vw,16px);
+  --nexus-text-lg:clamp(17px,4.5vw,20px);
+  --nexus-hero-gradient:linear-gradient(140deg,#07142c,#0b1d47 56%,#d61f1f 130%);
+  --nexus-hero-shadow:0 16px 34px rgba(7,42,63,.28);
+  --nexus-surface-shadow:0 12px 30px rgba(0,0,0,.08);
+  --nexus-surface-shadow-strong:0 18px 40px rgba(7,20,44,.12);
+  --nexus-surface-radius:18px;
+  --nexus-header-radius:22px;
+  --nexus-focus-ring:0 0 0 3px rgba(10,107,153,.18);
+}
+
+html{
+  scroll-behavior:smooth;
+}
+
+body{
+  text-rendering:optimizeLegibility;
+}
+
+.brandLink,
+.driverBrand{
+  color:inherit;
+  text-decoration:none;
+  cursor:pointer;
+}
+
+.brandLink:focus-visible,
+.driverBrand:focus-visible{
+  outline:3px solid rgba(255,255,255,.35);
+  outline-offset:4px;
+  border-radius:16px;
+}
+
+.section,
+.card{
+  border-radius:var(--nexus-surface-radius);
+  box-shadow:var(--nexus-surface-shadow);
+  transition:box-shadow .18s ease,transform .18s ease,border-color .18s ease;
+}
+
+.section:hover,
+.card:hover{
+  box-shadow:var(--nexus-surface-shadow-strong);
+}
+
+.top,
+.topBarInner{
+  border-radius:0 0 var(--nexus-header-radius) var(--nexus-header-radius);
+  box-shadow:var(--nexus-hero-shadow);
+}
+
+.top,
+.topBarInner,
+.topAuthAction{
+  background-image:var(--nexus-hero-gradient);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible{
+  outline:none;
+  box-shadow:var(--nexus-focus-ring);
+}

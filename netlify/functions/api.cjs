@@ -18,9 +18,24 @@ const clean=v=>String(v??'').trim();
 const required=(body,fields)=>{for(const f of fields)if(!clean(body[f]))throw Object.assign(new Error(`${f} is required`),{statusCode:400})};
 const reference=()=>`NMT-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${crypto.randomInt(1000,9999)}`;
 function tripStartWindowHours(distanceMiles){return Number(distanceMiles)>=30?2:1;}
+function normalizeTripDate(value){
+ if(value instanceof Date&&!Number.isNaN(value.getTime()))return value.toISOString().slice(0,10);
+ const raw=clean(value);
+ if(!raw)return '';
+ const isoMatch=raw.match(/^(\d{4}-\d{2}-\d{2})/);
+ if(isoMatch)return isoMatch[1];
+ const parsed=new Date(raw);
+ if(!Number.isNaN(parsed.getTime()))return parsed.toISOString().slice(0,10);
+ return raw;
+}
+function normalizeTripTime(value){
+ const raw=clean(value||'00:00');
+ const hhmm=raw.match(/^(\d{2}:\d{2})/);
+ return hhmm?hhmm[1]:raw;
+}
 function parseTripDateTime(booking){
- const tripDate=clean(booking?.trip_date||booking?.date||'');
- const tripTime=clean(booking?.trip_time||booking?.time||'00:00');
+ const tripDate=normalizeTripDate(booking?.trip_date||booking?.date||'');
+ const tripTime=normalizeTripTime(booking?.trip_time||booking?.time||'00:00');
  const parsed=new Date(`${tripDate}T${tripTime.length===5?`${tripTime}:00`:tripTime}`);
  return {tripDate,tripTime,parsed};
 }
@@ -190,6 +205,169 @@ async function ensureSettingsTable(){
 
 const n=(v,d=0)=>{const x=Number(v);return Number.isFinite(x)?x:d};
 const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
+const PAYMENT_COMPLETE_STATUSES=new Set(['DEPOSIT_PAID','PAID_IN_FULL']);
+
+function toIsoDate(value){
+ const raw=clean(value);
+ if(!raw)return '';
+ const match=raw.match(/^(\d{4}-\d{2}-\d{2})$/);
+ if(match)return match[1];
+ const parsed=new Date(raw);
+ return Number.isNaN(parsed.getTime())?'':parsed.toISOString().slice(0,10);
+}
+
+function startOfMonth(date=new Date()){
+ return new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),1)).toISOString().slice(0,10);
+}
+
+function endOfMonth(date=new Date()){
+ return new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth()+1,0)).toISOString().slice(0,10);
+}
+
+function parseAnalyticsRange(event){
+ const qs=event.queryStringParameters||{};
+ const today=new Date();
+ const start=toIsoDate(qs.start)||startOfMonth(today);
+ const end=toIsoDate(qs.end)||endOfMonth(today);
+ const groupBy=['day','week','month'].includes(clean(qs.groupBy).toLowerCase())?clean(qs.groupBy).toLowerCase():'day';
+ return {start,end,groupBy};
+}
+
+function analyticsBucketSql(groupBy){
+ if(groupBy==='month')return `to_char(date_trunc('month', trip_date::timestamp), 'YYYY-MM')`;
+ if(groupBy==='week')return `to_char(date_trunc('week', trip_date::timestamp), 'YYYY-MM-DD')`;
+ return `to_char(trip_date::date, 'YYYY-MM-DD')`;
+}
+
+async function getRevenueAnalytics(start,end,groupBy){
+ const seriesBucket=analyticsBucketSql(groupBy);
+ const summaryResult=await query(`
+  SELECT
+   COUNT(*)::int AS bookings,
+   COALESCE(SUM(COALESCE(estimated_fare,0)),0)::numeric(12,2) AS estimated_revenue,
+   COALESCE(SUM(CASE WHEN payment_status='PAID_IN_FULL' THEN COALESCE(estimated_fare,0) WHEN payment_status='DEPOSIT_PAID' THEN COALESCE(deposit_amount,0) ELSE 0 END),0)::numeric(12,2) AS cash_collected,
+   COALESCE(SUM(COALESCE(balance_due,0)),0)::numeric(12,2) AS outstanding_balance,
+   COALESCE(SUM(COALESCE(deposit_amount,0)),0)::numeric(12,2) AS deposits_captured,
+   COALESCE(SUM(CASE WHEN cancellation_fee_applied THEN COALESCE(cancellation_fee_amount,0) ELSE 0 END),0)::numeric(12,2) AS cancellation_fees,
+   COUNT(*) FILTER (WHERE status='COMPLETED')::int AS completed_trips,
+   COUNT(*) FILTER (WHERE payment_status='PAID_IN_FULL')::int AS paid_in_full_trips,
+   COUNT(*) FILTER (WHERE payment_status='DEPOSIT_PAID')::int AS deposit_trips
+  FROM bookings
+  WHERE trip_date >= $1 AND trip_date <= $2
+ `,[start,end]);
+ const summary=summaryResult.rows[0]||{};
+
+ const seriesResult=await query(`
+  SELECT
+   ${seriesBucket} AS bucket,
+   COUNT(*)::int AS bookings,
+   COALESCE(SUM(COALESCE(estimated_fare,0)),0)::numeric(12,2) AS estimated_revenue,
+   COALESCE(SUM(CASE WHEN payment_status='PAID_IN_FULL' THEN COALESCE(estimated_fare,0) WHEN payment_status='DEPOSIT_PAID' THEN COALESCE(deposit_amount,0) ELSE 0 END),0)::numeric(12,2) AS cash_collected,
+   COUNT(*) FILTER (WHERE status='COMPLETED')::int AS completed_trips
+  FROM bookings
+  WHERE trip_date >= $1 AND trip_date <= $2
+  GROUP BY 1
+  ORDER BY 1
+ `,[start,end]);
+
+ const serviceResult=await query(`
+  SELECT
+   COALESCE(NULLIF(service,''),'unknown') AS service,
+   COUNT(*)::int AS bookings,
+   COALESCE(SUM(COALESCE(estimated_fare,0)),0)::numeric(12,2) AS estimated_revenue,
+   COALESCE(AVG(NULLIF(estimated_fare,0)),0)::numeric(12,2) AS average_fare
+  FROM bookings
+  WHERE trip_date >= $1 AND trip_date <= $2
+  GROUP BY 1
+  ORDER BY estimated_revenue DESC, bookings DESC
+ `,[start,end]);
+
+ const statusResult=await query(`
+  SELECT
+   COALESCE(NULLIF(status,''),'UNKNOWN') AS status,
+   COUNT(*)::int AS bookings,
+   COALESCE(SUM(COALESCE(estimated_fare,0)),0)::numeric(12,2) AS estimated_revenue
+  FROM bookings
+  WHERE trip_date >= $1 AND trip_date <= $2
+  GROUP BY 1
+  ORDER BY bookings DESC
+ `,[start,end]);
+
+ const paymentStatusResult=await query(`
+  SELECT
+   COALESCE(NULLIF(payment_status,''),'UNPAID') AS payment_status,
+   COUNT(*)::int AS bookings,
+   COALESCE(SUM(COALESCE(estimated_fare,0)),0)::numeric(12,2) AS estimated_revenue,
+   COALESCE(SUM(COALESCE(balance_due,0)),0)::numeric(12,2) AS outstanding_balance
+  FROM bookings
+  WHERE trip_date >= $1 AND trip_date <= $2
+  GROUP BY 1
+  ORDER BY bookings DESC
+ `,[start,end]);
+
+ const sourceResult=await query(`
+  SELECT
+   COALESCE(NULLIF(booking_source,''),'CUSTOMER') AS booking_source,
+   COUNT(*)::int AS bookings,
+   COALESCE(SUM(COALESCE(estimated_fare,0)),0)::numeric(12,2) AS estimated_revenue
+  FROM bookings
+  WHERE trip_date >= $1 AND trip_date <= $2
+  GROUP BY 1
+  ORDER BY estimated_revenue DESC, bookings DESC
+ `,[start,end]);
+
+ const rangeStart=new Date(`${start}T00:00:00Z`);
+ const rangeEnd=new Date(`${end}T00:00:00Z`);
+ const daySpan=Math.max(1,Math.round((rangeEnd-rangeStart)/86400000)+1);
+ const today=new Date();
+ const periodIsCurrentMonth=start===startOfMonth(today)&&end===endOfMonth(today);
+ const elapsedDays=periodIsCurrentMonth?Math.max(1,today.getUTCDate()):daySpan;
+ const estimatedRevenue=n(summary.estimated_revenue);
+ const projectedMonthRevenue=periodIsCurrentMonth?Number(((estimatedRevenue/elapsedDays)*new Date(Date.UTC(today.getUTCFullYear(),today.getUTCMonth()+1,0)).getUTCDate()).toFixed(2)):estimatedRevenue;
+ const completedTrips=n(summary.completed_trips);
+ const bookings=n(summary.bookings);
+
+ return {
+  period:{start,end,groupBy,days:daySpan,isCurrentMonth:periodIsCurrentMonth},
+  summary:{
+   bookings,
+   completedTrips,
+   completionRate:bookings?Number(((completedTrips/bookings)*100).toFixed(2)):0,
+   estimatedRevenue:Number(estimatedRevenue.toFixed(2)),
+   cashCollected:Number(n(summary.cash_collected).toFixed(2)),
+   outstandingBalance:Number(n(summary.outstanding_balance).toFixed(2)),
+   depositsCaptured:Number(n(summary.deposits_captured).toFixed(2)),
+   cancellationFees:Number(n(summary.cancellation_fees).toFixed(2)),
+   averageTicket:bookings?Number((estimatedRevenue/bookings).toFixed(2)):0,
+   projectedPeriodRevenue:projectedMonthRevenue,
+   paidInFullTrips:n(summary.paid_in_full_trips),
+   depositTrips:n(summary.deposit_trips)
+  },
+  series:seriesResult.rows.map((row)=>(
+   {bucket:row.bucket,bookings:Number(row.bookings||0),estimatedRevenue:Number(row.estimated_revenue||0),cashCollected:Number(row.cash_collected||0),completedTrips:Number(row.completed_trips||0)}
+  )),
+  breakdowns:{
+   byService:serviceResult.rows.map((row)=>({service:row.service,bookings:Number(row.bookings||0),estimatedRevenue:Number(row.estimated_revenue||0),averageFare:Number(row.average_fare||0)})),
+   byStatus:statusResult.rows.map((row)=>({status:statusLabel(row.status),bookings:Number(row.bookings||0),estimatedRevenue:Number(row.estimated_revenue||0)})),
+   byPaymentStatus:paymentStatusResult.rows.map((row)=>({paymentStatus:row.payment_status,bookings:Number(row.bookings||0),estimatedRevenue:Number(row.estimated_revenue||0),outstandingBalance:Number(row.outstanding_balance||0)})),
+   bySource:sourceResult.rows.map((row)=>({bookingSource:row.booking_source,bookings:Number(row.bookings||0),estimatedRevenue:Number(row.estimated_revenue||0)}))
+  },
+  governance:{
+   piiIncluded:false,
+   intendedRoles:['ADMIN','EXECUTIVE','BILLING'],
+   sourceTables:['bookings','trip_status_history','audit_log']
+  }
+ };
+}
+
+function toRevenueExportCsv(rows){
+ const header=['reference','trip_date','trip_time','service','booking_source','status','payment_status','estimated_fare','deposit_amount','balance_due','cancellation_fee_amount','driver_name','vehicle_unit'];
+ const escape=(value)=>{
+  const str=String(value??'');
+  return /[",\n]/.test(str)?`"${str.replaceAll('"','""')}"`:str;
+ };
+ return [header.join(','),...rows.map((row)=>header.map((key)=>escape(row[key])).join(','))].join('\n');
+}
 
 function mergePricing(input){
  const base=JSON.parse(JSON.stringify(DEFAULT_PRICING));
@@ -946,6 +1124,32 @@ async function handler(event){
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&method==='GET'){await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);const r=await query('SELECT * FROM bookings ORDER BY trip_date DESC,trip_time DESC LIMIT 500');return json(200,{bookings:r.rows.map(mapBooking)})}
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='GET'){await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);const ref=decodeURIComponent(p[2]);const r=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref]);if(!r.rows[0])return json(404,{error:'Booking not found'});return json(200,{booking:mapBooking(r.rows[0])})}
+  if(p[0]==='admin'&&p[1]==='analytics'&&p[2]==='revenue'&&method==='GET'){
+   const u=await requireUser(bearer(event),['ADMIN','EXECUTIVE','BILLING']);
+   const {start,end,groupBy}=parseAnalyticsRange(event);
+   const analytics=await getRevenueAnalytics(start,end,groupBy);
+   await audit('REPORT','revenue-analytics','VIEWED',{start,end,groupBy,role:u.role});
+   return json(200,analytics);
+  }
+  if(p[0]==='admin'&&p[1]==='analytics'&&p[2]==='revenue-export'&&method==='GET'){
+   const u=await requireUser(bearer(event),['ADMIN','EXECUTIVE','BILLING']);
+   const {start,end}=parseAnalyticsRange(event);
+   const exportRows=await query(`
+    SELECT
+     reference,trip_date,trip_time,service,booking_source,status,payment_status,
+     COALESCE(estimated_fare,0) AS estimated_fare,
+     COALESCE(deposit_amount,0) AS deposit_amount,
+     COALESCE(balance_due,0) AS balance_due,
+     COALESCE(cancellation_fee_amount,0) AS cancellation_fee_amount,
+     COALESCE(driver_name,'') AS driver_name,
+     COALESCE(vehicle_unit,'') AS vehicle_unit
+    FROM bookings
+    WHERE trip_date >= $1 AND trip_date <= $2
+    ORDER BY trip_date DESC, trip_time DESC, reference DESC
+   `,[start,end]);
+   await audit('REPORT','revenue-export','EXPORTED',{start,end,rowCount:exportRows.rowCount,role:u.role});
+   return {statusCode:200,headers:{'Content-Type':'text/csv','Content-Disposition':`attachment; filename=revenue-export-${start}-to-${end}.csv`},body:toRevenueExportCsv(exportRows.rows)};
+  }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='PATCH'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','DRIVER']);const b=parseBody(event),ref=decodeURIComponent(p[2]);
    // DRIVER role: only allowed to update status, not fare/assignment
@@ -1409,7 +1613,48 @@ async function handler(event){
   return json(404,{error:'Route not found'});
  }catch(err){console.error(err);return json(err.statusCode||500,{error:err.statusCode?err.message:'Internal server error',requestId:crypto.randomUUID()})}
 }
-function mapBooking(b){return {id:b.reference,reference:b.reference,name:b.name,phone:b.phone,email:b.email,alternatePhone:b.alternate_phone,alternateEmail:b.alternate_email,service:b.service,pickup:b.pickup,destination:b.destination,date:b.trip_date||b.date,time:String(b.trip_time||b.time||'').slice(0,5),status:statusLabel(b.status),statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),driver:b.driver_name,driverName:b.driver_name,vehicle:b.vehicle_unit,vehicleUnit:b.vehicle_unit,facilityId:b.facility_id,distanceMiles:b.distance_miles!=null?Number(b.distance_miles):b.distanceMiles!=null?Number(b.distanceMiles):null,estimatedDuration:b.estimated_duration,estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,paymentStatus:b.payment_status||'UNPAID',bookingSource:b.booking_source||'CUSTOMER',depositAmount:b.deposit_amount?Number(b.deposit_amount):null,balanceDue:b.balance_due?Number(b.balance_due):null,depositPaidAt:b.deposit_paid_at||null,paidInFullAt:b.paid_in_full_at||null,cancellationFeeAmount:b.cancellation_fee_amount?Number(b.cancellation_fee_amount):0,cancellationFeeApplied:Boolean(b.cancellation_fee_applied),cancellationRuleSnapshot:b.cancellation_rule_snapshot||null,lastUpdatedBy:b.last_updated_by,lastUpdatedAt:b.last_updated_at,notes:b.notes||null} }
+function mapBooking(b){
+ return {
+  id:b.reference,
+  reference:b.reference,
+  name:b.name,
+  phone:b.phone,
+  email:b.email,
+  alternatePhone:b.alternate_phone,
+  alternateEmail:b.alternate_email,
+  service:b.service,
+  pickup:b.pickup,
+  destination:b.destination,
+  pickupLat:b.pickup_lat!=null?Number(b.pickup_lat):b.pickupLat!=null?Number(b.pickupLat):null,
+  pickupLng:b.pickup_lng!=null?Number(b.pickup_lng):b.pickupLng!=null?Number(b.pickupLng):null,
+  destinationLat:b.destination_lat!=null?Number(b.destination_lat):b.destinationLat!=null?Number(b.destinationLat):null,
+  destinationLng:b.destination_lng!=null?Number(b.destination_lng):b.destinationLng!=null?Number(b.destinationLng):null,
+  date:b.trip_date||b.date,
+  time:String(b.trip_time||b.time||'').slice(0,5),
+  status:statusLabel(b.status),
+  statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),
+  driver:b.driver_name,
+  driverName:b.driver_name,
+  vehicle:b.vehicle_unit,
+  vehicleUnit:b.vehicle_unit,
+  facilityId:b.facility_id,
+  distanceMiles:b.distance_miles!=null?Number(b.distance_miles):b.distanceMiles!=null?Number(b.distanceMiles):null,
+  estimatedDuration:b.estimated_duration,
+  estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,
+  paymentStatus:b.payment_status||'UNPAID',
+  bookingSource:b.booking_source||'CUSTOMER',
+  depositAmount:b.deposit_amount?Number(b.deposit_amount):null,
+  balanceDue:b.balance_due?Number(b.balance_due):null,
+  depositPaidAt:b.deposit_paid_at||null,
+  paidInFullAt:b.paid_in_full_at||null,
+  cancellationFeeAmount:b.cancellation_fee_amount?Number(b.cancellation_fee_amount):0,
+  cancellationFeeApplied:Boolean(b.cancellation_fee_applied),
+  cancellationRuleSnapshot:b.cancellation_rule_snapshot||null,
+  lastUpdatedBy:b.last_updated_by,
+  lastUpdatedAt:b.last_updated_at,
+  notes:b.notes||null,
+ };
+}
 exports.handler=handler;
 exports.sendBrokerRequestConfirmation=sendBrokerRequestConfirmation;
 exports.sendBrokerRequestDispatchNotifications=sendBrokerRequestDispatchNotifications;

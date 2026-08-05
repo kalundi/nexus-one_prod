@@ -1,18 +1,765 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="NEXUS ONE Patient Portal for ride management, Livecare tracking, authorized caregivers, documents and payments."><title>Patient Portal 2.0 | NEXUS ONE</title><link rel="stylesheet" href="./platform.css">  <script src="/trustedsite.js" defer></script>
-  <script src="/i18n.js" defer></script>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="NEXUS ONE Patient Portal for ride management, Livecare tracking, authorized caregivers, documents and payments.">
+<title>Patient Portal 2.0 | NEXUS ONE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Nunito+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./nexus-shared-app.css">
+<style>
+:root{
+  --bg:#f4f7fb;
+  --sheet:#ffffff;
+  --ink:#07142c;
+  --muted:#5a6c7b;
+  --line:#d0dde8;
+  --navy:#07142c;
+  --blue:#0a6b99;
+  --brand:#d61f1f;
+  --ok:#067647;
+  --ok-bg:#ecfdf3;
+  --err:#be123c;
+  --err-bg:#fff1f3;
+  --warn:#92400e;
+  --warn-bg:#fffbeb;
+  --safe-bottom:max(16px,env(safe-area-inset-bottom));
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Nunito Sans',system-ui,sans-serif}
+a{text-decoration:none;color:var(--blue)}
+
+/* Login */
+#loginView{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;background:var(--navy)}
+.loginCard{width:min(400px,100%);background:#fff;border-radius:20px;padding:28px;box-shadow:0 30px 60px rgba(0,0,0,.3)}
+.loginLogo{display:block;width:160px;margin:0 auto 24px}
+.loginCard h1{margin:0 0 4px;font:900 22px/1 Sora,sans-serif;text-align:center}
+.loginCard p{margin:0 0 20px;color:var(--muted);text-align:center;font-size:14px}
+.loginField{display:grid;gap:6px;margin-bottom:12px}
+.loginField label{font:700 13px/1 Sora,sans-serif;color:var(--ink)}
+.loginField input{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px 12px;font:500 16px/1.4 'Nunito Sans',sans-serif;background:#fff;color:var(--ink)}
+.loginField input:focus{outline:3px solid rgba(10,107,153,.2);border-color:var(--blue)}
+.loginNotice{border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:12px;border:1px solid var(--err);background:var(--err-bg);color:var(--err)}
+.loginNotice.ok{border-color:#bbf7d0;background:var(--ok-bg);color:var(--ok)}
+.loginBtn{display:inline-flex;align-items:center;justify-content:center;border-radius:14px;border:0;padding:0 20px;font:800 15px/1 Sora,sans-serif;cursor:pointer;min-height:52px;background:linear-gradient(135deg,var(--brand),#a91616);color:#fff;box-shadow:0 8px 20px rgba(214,31,31,.28);width:100%;margin-top:8px}
+.loginBtn.navy{background:linear-gradient(135deg,var(--navy),#0e2a55)}
+.loginBtn.ok{background:linear-gradient(135deg,#16a34a,#15803d)}
+.linkBtn{background:0;border:0;color:var(--blue);font-size:14px;cursor:pointer;text-decoration:underline}
+.passwordField{position:relative}
+.passwordField input{padding-right:58px}
+.passwordToggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--blue);font:700 13px/1.2 Sora,sans-serif;cursor:pointer;padding:0}
+
+/* App shell */
+#appShell{background:var(--bg);height:100svh;overflow:hidden}
+.phone{max-width:460px;height:100svh;margin:0 auto;padding:0 12px calc(72px + var(--safe-bottom));overflow:hidden}
+.topBar{position:sticky;top:0;z-index:20;padding-top:env(safe-area-inset-top,0);background:var(--bg)}
+.topBarInner{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;padding:16px 14px;background:linear-gradient(140deg,#07142c,#0b1d47 56%,#d61f1f 130%);border-radius:0 0 22px 22px;box-shadow:0 16px 34px rgba(7,42,63,.28);color:#fff}
+.brandLockup{display:flex;align-items:center;gap:8px;color:#fff;justify-self:start;min-width:0}
+.topLogo{display:block;width:142px;height:32px;object-fit:contain;background:transparent;filter:drop-shadow(0 2px 8px rgba(7,20,44,.16));mix-blend-mode:screen;opacity:.95;animation:logoPop .9s cubic-bezier(.36,.07,.19,.97) both;transform-origin:center center}
+.logo-pop{animation:logoPop .8s cubic-bezier(.36,.07,.19,.97) both !important;transform-origin:center center}
+.brandText{display:grid;gap:2px;line-height:1;opacity:.92}
+.brandText strong{font:900 17px/1 Sora,sans-serif;letter-spacing:-.02em}
+.brandText span{font:700 10px/1.1 Sora,sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#dbeef7}
+.topTitle{text-align:center;justify-self:center;font:900 20px/1.05 Sora,sans-serif;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;max-width:100%}
+.topActions{display:flex;gap:8px;justify-self:end}
+.topAction{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 12px;border-radius:12px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.26);color:#fff;font:800 12px/1 Sora,sans-serif;cursor:pointer}
+.topAction.primary{background:#fff;color:#0b1d47;border-color:#fff}
+
+@keyframes logoPop{0%{transform:scale(1) rotate(0deg)}15%{transform:scale(1.28) rotate(-4deg)}30%{transform:scale(1.35) rotate(4deg)}50%{transform:scale(1.25) rotate(-2deg)}70%{transform:scale(1.12) rotate(1.5deg)}85%{transform:scale(1.05) rotate(-0.5deg)}100%{transform:scale(1) rotate(0deg)}}
+
+@media (prefers-reduced-motion:reduce){
+  .topLogo,.logo-pop{animation:none!important}
+}
+
+.hero{margin-top:12px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 10px 24px rgba(0,0,0,.07)}
+.eyebrow{font:800 11px/1 Sora,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.hero h1{margin:0 0 6px;font:900 clamp(26px,7vw,34px)/1.02 Sora,sans-serif;letter-spacing:-.03em}
+.hero p{margin:0;color:var(--muted);font-size:14px;line-height:1.4}
+.homeFeatureGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.homeFeatureCard{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,.05);overflow:hidden;display:grid}
+.homeFeatureCard .cardHead{padding:12px 12px 0}
+.homeFeatureCard .cardBody{padding:10px 12px 12px}
+.homeCountdown{display:grid;gap:4px;min-height:100px;align-content:start}
+.homeCountdown strong{font:900 clamp(30px,8vw,44px)/1 Sora,sans-serif;letter-spacing:-.04em;color:var(--ink)}
+.homeCountdown small{font:800 11px/1 Sora,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.homeCountdown p{margin:0;font-size:13px;line-height:1.4}
+.chatPrompt{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.chatToggle{min-height:34px;padding:0 10px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--ink);font:800 11px/1 Sora,sans-serif;cursor:pointer;white-space:nowrap}
+.chatBot{display:grid;gap:8px}
+.chatLog{display:grid;gap:8px;max-height:140px;overflow:hidden}
+.chatBubble{padding:8px 10px;border-radius:12px;font-size:13px;line-height:1.35;border:1px solid var(--line);background:#f8fafc;color:var(--ink)}
+.chatBubble.bot{background:#eff6ff;border-color:#bfdbfe}
+.chatBubble.user{background:#ecfdf3;border-color:#bbf7d0;justify-self:end}
+.chatInputRow{display:flex;gap:6px}
+.chatInputRow input{flex:1;border:1px solid var(--line);border-radius:10px;padding:9px 10px;font:500 14px/1.35 'Nunito Sans',sans-serif}
+.aboutNexus{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.aboutNexus[hidden]{display:none}
+
+.kpiGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:0 8px 20px rgba(0,0,0,.05)}
+.kpi strong{display:block;font:900 24px/1 Sora,sans-serif}
+.kpi span{display:block;margin-top:4px;font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+
+.insightGrid{display:grid;grid-template-columns:1.6fr 1fr;gap:8px;margin-top:8px}
+.insightCard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:9px 10px;box-shadow:0 8px 20px rgba(0,0,0,.05)}
+.insightCard h3{margin:0 0 8px;font:800 11px/1 Sora,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sparkline{height:62px;display:grid;align-items:center}
+.sparkline svg{width:100%;height:56px;display:block}
+.sparkMeta{margin:2px 0 0;font:700 10px/1.2 Sora,sans-serif;color:var(--muted)}
+.statusRing{width:74px;height:74px;border-radius:50%;margin:0 auto 6px;background:#e2e8f0;position:relative}
+.statusRing::after{content:'';position:absolute;inset:10px;border-radius:50%;background:#fff}
+.statusRingValue{position:relative;text-align:center;font:900 16px/1 Sora,sans-serif;color:var(--ink);margin-top:-48px}
+.statusRingLabel{font:700 10px/1.2 Sora,sans-serif;color:var(--muted);text-align:center;margin-top:18px}
+
+.routeCardBody{display:grid;gap:10px}
+.routeSummary{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.routeSummary h3{margin:0;font:900 18px/1.1 Sora,sans-serif;letter-spacing:-.02em}
+.routeSummary p{margin:4px 0 0;color:var(--muted);font-size:13px;line-height:1.35}
+.routeEta{display:grid;gap:3px;text-align:right}
+.routeEta small{font:800 10px/1 Sora,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.routeEta strong{font:900 18px/1 Sora,sans-serif;color:#0b1d47}
+.routeMapShell{background:linear-gradient(180deg,#f8fbff,#eef4fa);border:1px solid #dbe7f2;border-radius:14px;padding:12px}
+.routeMapRail{position:relative;height:52px}
+.routeTrackBase{position:absolute;left:10px;right:10px;top:22px;height:10px;border-radius:999px;background:#d6e2ec}
+.routeTrackFill{position:absolute;left:10px;top:22px;height:10px;border-radius:999px;background:linear-gradient(90deg,#0b1d47,#0a6b99)}
+.routeVehiclePin{position:absolute;top:11px;width:24px;height:24px;border-radius:50%;border:0;background:#d61f1f;color:#fff;font:900 11px/1 Sora,sans-serif;display:grid;place-items:center;box-shadow:0 8px 16px rgba(214,31,31,.32)}
+.routeVehiclePin::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:1px solid rgba(214,31,31,.36);animation:routePulse 1.8s ease-out infinite}
+.routeStop{position:absolute;top:3px;font:800 10px/1 Sora,sans-serif;color:#3c4f61;text-transform:uppercase;letter-spacing:.06em}
+.routeStop.pickup{left:0}
+.routeStop.destination{right:0}
+.routeProgress{margin:8px 0 0;color:#475569;font-size:12px;font-weight:700}
+.routeDetailToggle{min-height:32px;padding:0 10px;border-radius:10px;border:1px solid #c7d6e2;background:#fff;color:#0b1d47;font:800 11px/1 Sora,sans-serif;cursor:pointer}
+.routeDetailPanel{display:grid;gap:8px}
+.compactToggle{min-height:32px;padding:0 10px;border-radius:10px;border:1px solid #c7d6e2;background:#fff;color:#0b1d47;font:800 11px/1 Sora,sans-serif;cursor:pointer}
+.tripDetailBlock{margin-top:8px}
+
+.viewportStack{display:grid;gap:8px;max-height:calc(100svh - 208px);overflow:hidden}
+.viewportStack>.card{margin-top:0}
+.homeFocusMode{gap:6px}
+.homeFocusMode .focusItem{transition:transform .18s ease,opacity .18s ease,box-shadow .18s ease,max-height .18s ease,padding .18s ease;margin-top:0;cursor:pointer}
+.homeFocusMode .focusItem:not(.is-focused){opacity:.9;box-shadow:0 6px 14px rgba(0,0,0,.05)}
+.homeFocusMode .card.focusItem:not(.is-focused) .cardBody{display:none}
+.homeFocusMode .card.focusItem:not(.is-focused){padding-bottom:8px}
+.homeFocusMode .card.focusItem.is-focused{box-shadow:0 14px 30px rgba(0,0,0,.10)}
+.homeFocusMode .insightCard:not(.is-focused){padding:8px 10px}
+.homeFocusMode .insightCard:not(.is-focused) .sparkline,
+.homeFocusMode .insightCard:not(.is-focused) .sparkMeta,
+.homeFocusMode .insightCard:not(.is-focused) .statusRing,
+.homeFocusMode .insightCard:not(.is-focused) .statusRingValue,
+.homeFocusMode .insightCard:not(.is-focused) .statusRingLabel{display:none}
+.homeFocusMode .insightCard.is-focused{box-shadow:0 12px 26px rgba(0,0,0,.08)}
+.homeFocusMode .kpi{padding:10px}
+.homeFocusMode .kpi strong{font-size:18px}
+.homeFocusMode .kpi span{font-size:10px;line-height:1.1}
+
+.viewFocusMode{gap:6px}
+.viewFocusMode .focusCard{margin-top:0;transition:max-height .2s ease,opacity .2s ease,box-shadow .2s ease,transform .2s ease;cursor:pointer;overflow:hidden;transform-origin:center top}
+.viewFocusMode .focusCard:not(.is-focused){max-height:104px;opacity:.86;box-shadow:0 6px 14px rgba(0,0,0,.05);transform:scale(.996)}
+.viewFocusMode .focusCard:not(.is-focused) .cardBody{display:none}
+.viewFocusMode .focusCard:not(.is-focused) *{pointer-events:none}
+.viewFocusMode .focusCard.is-focused{max-height:9999px;opacity:1;box-shadow:0 14px 30px rgba(0,0,0,.1);transform:none}
+.viewFocusMode .focusCard.is-focused .cardBody{display:block}
+
+.bottomNav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(460px,100%);background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding:0 0 var(--safe-bottom);z-index:60;box-shadow:0 -4px 16px rgba(0,0,0,.08)}
+.navBtn{border:0;background:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:10px 4px 8px;font:700 10px/1 Sora,sans-serif;color:var(--muted);cursor:pointer;min-height:56px;letter-spacing:.04em;text-transform:uppercase}
+.navBtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.navBtn.active{color:var(--brand)}
+
+@keyframes routePulse{
+  0%{transform:scale(.85);opacity:.8}
+  80%{transform:scale(1.8);opacity:0}
+  100%{transform:scale(1.8);opacity:0}
+}
+
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 24px rgba(0,0,0,.06);margin-top:10px;overflow:hidden}
+.cardHead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 14px 0}
+.cardHead h2{margin:0;font:800 16px/1.2 Sora,sans-serif}
+.cardHead p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.cardBody{padding:12px 14px 14px}
+
+.button{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 14px;border:0;border-radius:12px;background:linear-gradient(135deg,var(--brand),#a91616);color:#fff;font:800 13px/1 Sora,sans-serif;cursor:pointer}
+.button.secondary{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.button.compact{min-height:34px;padding:0 10px;border-radius:10px;font-size:12px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+.socialChannels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.socialLink{display:flex;align-items:center;gap:8px;justify-content:flex-start;padding:0 10px;min-height:38px;font:700 12px/1 Sora,sans-serif}
+.socialLink .socialIcon{width:18px;height:18px;display:block;flex:0 0 auto}
+.socialLink.youtube .socialIcon{color:#ff0033}
+.socialLink.tiktok .socialIcon{color:#111827}
+.socialLink.instagram .socialIcon{color:#c026d3}
+.socialLink.facebook .socialIcon{color:#1877f2}
+.socialLink.bluesky .socialIcon{color:#0ea5e9}
+.notice{border-radius:12px;padding:12px 14px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;font-size:14px}
+
+.detailList,.detailList div{display:grid;gap:4px}
+.detailList{grid-template-columns:1fr 1fr;gap:8px;margin:0}
+.detailList dt{font:800 11px/1 Sora,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.detailList dd{margin:0;font:600 14px/1.3 'Nunito Sans',sans-serif}
+
+.historyPage{display:grid;gap:8px;overflow:hidden}
+.historyStatsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.historyMetric{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:0 6px 14px rgba(0,0,0,.04)}
+.historyMetric strong{display:block;font:900 20px/1 Sora,sans-serif}
+.historyMetric span{display:block;margin-top:3px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.historySplit{display:grid;grid-template-columns:1.35fr .95fr;gap:8px}
+.historyMiniChart{height:54px}
+.historyMiniChart svg{width:100%;height:54px;display:block}
+.historyRecent .manifestItem{padding:8px 10px}
+.historyRecent strong{font-size:13px}
+.historyRecent small{font-size:11px}
+.historyRecent .status{font-size:10px}
+
+.tableWrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+.table{width:100%;border-collapse:collapse;font-size:13px}
+.table th,.table td{padding:10px;border-bottom:1px solid #edf2f7;text-align:left;vertical-align:top}
+.table th{font:800 11px/1 Sora,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:#f8fafc}
+
+.stackList{display:grid;gap:8px}
+.manifestItem{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.manifestItem > span:first-child{flex:1;min-width:0}
+.manifestItem strong{display:block;font-size:14px}
+.manifestItem strong,.manifestItem small{overflow-wrap:anywhere;word-break:break-word}
+.manifestItem small{display:block;color:var(--muted);font-size:12px}
+.manifestItemRoute{display:grid;align-items:stretch;gap:10px;padding:12px}
+.manifestMain{display:grid;gap:8px}
+.manifestMeta{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.routeMiniShell{background:linear-gradient(180deg,#f8fbff,#eef4fa);border:1px solid #dbe7f2;border-radius:12px;padding:10px}
+.routeMiniShell .routeMapRail{height:46px}
+.routeMiniShell .routeTrackBase,.routeMiniShell .routeTrackFill{top:20px;height:8px}
+.routeMiniShell .routeVehiclePin{top:10px;width:22px;height:22px;font-size:10px}
+.routeMiniShell .routeStop{font-size:9px}
+.routeMiniHead{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
+.routeMiniHead strong{font-size:13px;line-height:1.2}
+.routeMiniHead small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.routeMiniEta{display:grid;gap:2px;text-align:right}
+.routeMiniEta em{font:800 9px/1 Sora,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-style:normal}
+.routeMiniEta span{font:900 14px/1 Sora,sans-serif;color:#0b1d47}
+.routeShareHint{margin:8px 0 0;color:#475569;font-size:11px;font-weight:700}
+.messages{display:grid;gap:8px}
+.message{padding:10px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.message.dispatch{border-color:#bfdbfe;background:#eff6ff}
+.message strong{display:block;font-size:14px}
+.message p{margin:4px 0;color:#334155;font-size:13px}
+.message small{color:#64748b;font-size:12px}
+
+.status{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font:800 11px/1 Sora,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.status.green{background:#ecfdf3;color:#067647}
+.status.blue{background:#dbeafe;color:#1e40af}
+.status.red{background:#fff1f3;color:#be123c}
+.status.amber{background:#fffbeb;color:#92400e}
+
+.portalDialog{width:min(460px,calc(100% - 24px));border:1px solid var(--line);border-radius:16px;padding:18px;background:#fff}
+.portalDialog::backdrop{background:rgba(7,20,44,.56)}
+.dialogClose{position:absolute;top:10px;right:10px;width:32px;height:32px;border:1px solid var(--line);background:#fff;border-radius:50%;font:800 14px/1 Sora,sans-serif;cursor:pointer}
+.formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:grid;gap:6px}
+.field.wide{grid-column:1 / -1}
+.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;font:500 14px/1.35 'Nunito Sans',sans-serif}
+.checkField{display:flex;align-items:center;gap:8px}
+.muted{color:var(--muted);font-size:13px}
+
+@media (max-width:420px){
+  .formGrid{grid-template-columns:1fr}
+  .heroActions{flex-direction:column}
+  .detailList{grid-template-columns:1fr}
+  .insightGrid{grid-template-columns:1fr}
+  .viewportStack{max-height:calc(100svh - 222px)}
+  .homeFocusMode .kpiGrid{gap:6px}
+}
+
+@media (min-width:421px){
+  .socialChannels{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+</style>
 <script src="./nexus-data.js"></script>
-<script src="./universal-booking.js" defer></script></head><body><a class="skip" href="#main">Skip to main content</a>
-<header class="top"><div class="shell nav"><a href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav class="links" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a></nav></div></header>
-<section class="hero compactHero"><div class="shell heroGrid"><div><div class="eyebrow">Build 006 · Patient Portal 2.0</div><h1>Your rides, care team and updates in one place.</h1><p>Manage transportation, open Livecare tracking, share secure caregiver access, update mobility preferences and review payment options.</p><div class="toolbar"><a class="button lightButton" href="/booking-app.html">Book transportation</a><a class="button secondary lightButton" href="/livecare.html">Open Livecare</a></div></div><aside class="heroPanel"><img src="./assets/nexus-shuttle-side.webp" alt="Accessible Nexus Medical Transit shuttle"><div class="heroPanelBody"><h2>Connected and accessible</h2><p>Ride information is shared across Patient, Facility, Dispatch, Driver and Billing workflows.</p></div></aside></div></section>
-<main id="main" class="shell moduleMain" tabindex="-1"><p id="portalNotice" class="notice" aria-live="polite">Patient Portal 2.0 is ready.</p>
-<section class="grid cols4" aria-label="Patient overview"><article class="card metric"><strong id="upcomingCount">0</strong><span>Upcoming trips</span></article><article class="card metric"><strong id="completedCount">0</strong><span>Completed trips</span></article><article class="card metric"><strong id="notificationCount">0</strong><span>Unread updates</span></article><article class="card metric"><strong>24-hour</strong><span>Caregiver share access</span></article></section>
-<section class="grid cols2 sectionSpace"><article class="card"><div class="sectionHead"><div><div class="eyebrow">Next ride</div><h2>Upcoming transportation</h2></div></div><div id="nextTrip"></div></article><article class="card"><div class="sectionHead"><div><div class="eyebrow">Profile</div><h2>Transportation preferences</h2></div><button class="button secondary" data-open="#profileDialog">Edit profile</button></div><dl id="profileSummary" class="detailList"></dl></article></section>
-<section class="card sectionSpace"><div class="sectionHead"><div><div class="eyebrow">Ride center</div><h2>Transportation history and status</h2></div><a class="button" href="/booking-app.html">Request another ride</a></div><div class="tableWrap"><table class="table"><thead><tr><th>Reference</th><th>Route</th><th>Service</th><th>Status</th><th>Action / Fare</th></tr></thead><tbody id="rideRows"></tbody></table></div></section>
-<section class="grid cols3 sectionSpace"><article class="card"><div class="sectionHead"><div><h2>Caregivers and emergency contacts</h2><p class="muted">Choose who may receive ride updates.</p></div><button class="button compact" data-open="#contactDialog">Add</button></div><div id="contactList" class="stackList"></div></article><article class="card"><div class="sectionHead"><div><h2>Transportation documents</h2><p class="muted">Store document metadata for the prototype workflow.</p></div><button class="button compact" data-open="#documentDialog">Add</button></div><div id="documentList" class="stackList"></div></article><article class="card"><div class="sectionHead"><div><h2>Notifications</h2><p class="muted">Confirmation and Livecare updates.</p></div><button id="markRead" class="button compact secondary">Mark read</button></div><div id="notificationList" class="messages"></div></article></section>
-<section class="grid cols2 sectionSpace"><article class="card"><div class="eyebrow">Payments</div><h2>Secure private-pay checkout</h2><p>Use your booking reference when completing payment. Billing status remains visible to the NEXUS ONE Billing module.</p><div class="toolbar"><a class="button" target="_blank" rel="noopener noreferrer" href="https://buy.stripe.com/5kQbJ3fa5d">Stripe checkout</a><a class="button secondary" target="_blank" rel="noopener noreferrer" href="https://www.paypal.com/ncp/payment/PBVF5DPELEWH8">PayPal or Venmo</a></div></article><article class="card"><div class="eyebrow">Support</div><h2>Need help with a ride?</h2><p>Contact Nexus Medical Transit for scheduling, mobility assistance or a Livecare access issue. For emergencies, call 911.</p><div class="toolbar"><a class="button" href="tel:+18887604990">Call (888) 760-4990</a><a class="button secondary" href="mailto:contact@nexusmt.com">Email support</a></div></article></section>
-</main>
-<dialog id="profileDialog" class="portalDialog" aria-labelledby="profileTitle"><button class="dialogClose" data-close aria-label="Close">×</button><h2 id="profileTitle">Update transportation profile</h2><form id="profileForm"><div class="formGrid"><label class="field">Full name<input name="name" required value="Jordan Patient"></label><label class="field">Phone<input name="phone" required value="301-555-0184"></label><label class="field">Email<input name="email" type="email" value="patient@example.com"></label><label class="field">Mobility<select name="mobility"><option>Wheelchair</option><option>Ambulatory</option><option>Broda</option><option>Stretcher</option><option>Bariatric</option></select></label><label class="field">Preferred language<input name="language" value="English"></label><label class="field">Default pickup<input name="pickup" value="Home residence"></label><label class="field wide">Transportation notes<textarea name="notes" rows="3">Door-through-door assistance requested.</textarea></label></div><button class="button" type="submit">Save profile</button></form></dialog>
-<dialog id="contactDialog" class="portalDialog" aria-labelledby="contactTitle"><button class="dialogClose" data-close aria-label="Close">×</button><h2 id="contactTitle">Add authorized contact</h2><form id="contactForm"><div class="formGrid"><label class="field">Name<input name="name" required></label><label class="field">Relationship<input name="relationship" required></label><label class="field">Phone<input name="phone" required></label><label class="field checkField"><input name="notify" type="checkbox" checked> Receive ride updates</label></div><button class="button" type="submit">Add contact</button></form></dialog>
-<dialog id="documentDialog" class="portalDialog" aria-labelledby="documentTitle"><button class="dialogClose" data-close aria-label="Close">×</button><h2 id="documentTitle">Add transportation document</h2><form id="documentForm"><div class="formGrid"><label class="field">Document type<select name="type"><option>Authorization</option><option>Insurance</option><option>Mobility instructions</option><option>Other</option></select></label><label class="field">Choose file<input name="file" type="file" required></label></div><p class="muted">This prototype records file metadata in the browser. Production deployment requires encrypted server storage and access controls.</p><button class="button" type="submit">Save document</button></form></dialog>
-<footer class="footer"><div class="shell footerGrid"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Platform</strong><a href="/livecare.html">Livecare</a><a href="/facility.html">Facilities</a><a href="/patient.html">Patient</a></div><div><strong>Operations</strong><a href="/dispatch.html">Dispatch</a><a href="/fleet.html">Fleet</a><a href="/qa.html">QA & Compliance</a></div><div><strong>Contact</strong><a href="tel:+18887604990">(888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">♿</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./patient-service.js"></script><script src="./build6-patient.js"></script><script src="./platform.js"></script></body></html>
+<script src="./universal-booking.js" defer></script>
+</head>
+<body>
+<div id="loginView">
+  <div class="loginCard">
+    <img class="loginLogo" src="./nexus-logo.png" alt="Nexus Medical Transit">
+    <h1>Patient Sign In</h1>
+    <p>Sign in to access your transportation portal</p>
+    <div id="loginNotice" class="loginNotice" hidden></div>
+    <form id="loginForm" autocomplete="on" novalidate>
+      <div class="loginField"><label for="loginEmail">Email</label><input id="loginEmail" type="email" name="email" autocomplete="username" placeholder="name@example.com" required></div>
+      <div class="loginField"><label for="loginPassword">Password</label><div class="passwordField"><input id="loginPassword" type="password" name="password" autocomplete="current-password" placeholder="Enter your password" required><button type="button" class="passwordToggle" data-target="loginPassword" aria-label="Show password">Show</button></div></div>
+      <button id="loginBtn" class="loginBtn" type="submit">Sign In</button>
+    </form>
+    <p style="margin:14px 0 0;text-align:center"><button type="button" id="showForgotBtn" class="linkBtn">Forgot password?</button></p>
+    <p style="margin:8px 0 0;text-align:center;font-size:13px;color:#5a6c7b">Need help? Call <a href="tel:+18887604990">(888) 760-4990</a></p>
+  </div>
+
+  <div id="forgotPanel" class="loginCard" style="margin-top:12px;display:none">
+    <h2 style="margin:0 0 6px;font:800 18px Sora,sans-serif;text-align:center;color:#07142c">Forgot password</h2>
+    <p style="margin:0 0 16px;color:#5a6c7b;font-size:14px;text-align:center">Enter your email and we will send a reset link.</p>
+    <div id="forgotNotice" class="loginNotice ok" hidden></div>
+    <form id="forgotForm" novalidate>
+      <div class="loginField"><label for="forgotEmail">Email</label><input id="forgotEmail" type="email" name="email" autocomplete="username" placeholder="name@example.com" required></div>
+      <button id="forgotBtn" class="loginBtn navy" type="submit">Send Reset Link</button>
+    </form>
+    <p style="margin:10px 0 0;text-align:center"><button type="button" id="backToLoginBtn" class="linkBtn" style="text-decoration:none">Back to sign in</button></p>
+  </div>
+
+  <div id="resetPanel" class="loginCard" style="margin-top:12px;display:none">
+    <h2 style="margin:0 0 6px;font:800 18px Sora,sans-serif;text-align:center;color:#07142c">Create new password</h2>
+    <p style="margin:0 0 16px;color:#5a6c7b;font-size:14px;text-align:center">Choose a strong password of at least 8 characters.</p>
+    <div id="resetNotice" class="loginNotice" hidden></div>
+    <form id="resetForm" novalidate>
+      <div class="loginField"><label for="resetPassword">New password</label><div class="passwordField"><input id="resetPassword" type="password" placeholder="New password (min 8 chars)" required><button type="button" class="passwordToggle" data-target="resetPassword" aria-label="Show password">Show</button></div></div>
+      <div class="loginField"><label for="resetConfirm">Confirm password</label><div class="passwordField"><input id="resetConfirm" type="password" placeholder="Re-enter new password" required><button type="button" class="passwordToggle" data-target="resetConfirm" aria-label="Show password">Show</button></div></div>
+      <button id="resetBtn" class="loginBtn ok" type="submit">Save New Password</button>
+    </form>
+  </div>
+</div>
+
+<div id="appShell" hidden>
+  <div class="phone">
+    <header class="topBar">
+      <div class="topBarInner">
+        <a class="brandLockup" href="/" aria-label="Nexus Medical Transit home"><img class="topLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"></a>
+        <span class="topTitle" id="topViewTitle">Home</span>
+        <div class="topActions">
+          <button id="patientLogoutBtn" class="topAction" type="button">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main id="homePage" class="viewportStack">
+
+    <section class="hero">
+      <h1>Your ride day, simplified.</h1>
+      <p>Track transportation, manage preferences, and share updates with your care network from a single patient app.</p>
+      <div class="homeFeatureGrid" aria-label="Home shortcuts">
+        <section class="homeFeatureCard" aria-labelledby="countdownTitle">
+          <div class="cardHead"><div><div class="eyebrow">Next ride</div><h2 id="countdownTitle">Ride countdown</h2></div></div>
+          <div class="cardBody homeCountdown">
+            <small id="countdownLabel">--</small>
+            <strong id="countdownValue">--</strong>
+            <p id="countdownMeta">Your next pickup is loading.</p>
+          </div>
+        </section>
+        <section class="homeFeatureCard" aria-labelledby="helpBotTitle">
+          <div class="cardHead"><div><div class="eyebrow">Help</div><h2 id="helpBotTitle">Hints chatbot</h2></div><button id="helpBotToggle" class="chatToggle" type="button" aria-expanded="false" aria-controls="helpBotPanel">Open help</button></div>
+          <div class="cardBody chatBot">
+            <p class="muted" style="margin:0">Ask for navigation help or tap to learn about Nexus.</p>
+            <div id="helpBotPanel" hidden>
+              <div id="helpBotLog" class="chatLog" aria-live="polite">
+                <div class="chatBubble bot">I can show you how to use the app and explain Nexus when you want more detail.</div>
+              </div>
+              <div class="chatInputRow" style="margin-top:8px">
+                <input id="helpBotInput" type="text" placeholder="Ask about Home, Profile, History, Support...">
+                <button id="helpBotSend" class="button compact" type="button">Ask</button>
+              </div>
+              <div class="toolbar" style="margin-top:8px">
+                <button class="button compact secondary" type="button" data-help-topic="home">Home tips</button>
+                <button class="button compact secondary" type="button" data-help-topic="history">History tips</button>
+                <button class="button compact secondary" type="button" data-help-topic="nexus">About Nexus</button>
+              </div>
+              <div id="aboutNexus" class="aboutNexus" hidden>
+                <p class="muted" style="margin:0">Nexus Medical Transit coordinates rides, Livecare tracking, dispatch, caregivers, billing, and support across the main system.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <p id="portalNotice" class="notice" aria-live="polite" style="margin-top:0">Live updates are active for your upcoming trip.</p>
+
+    <section class="kpiGrid focusItem" data-home-focus="overview" aria-label="Patient overview">
+      <article class="kpi"><strong id="upcomingCount">0</strong><span>Upcoming trips</span></article>
+      <article class="kpi"><strong id="completedCount">0</strong><span>Completed trips</span></article>
+      <article class="kpi"><strong id="notificationCount">0</strong><span>Unread updates</span></article>
+      <article class="kpi"><strong>24-hour</strong><span>Share access</span></article>
+    </section>
+
+    <section class="insightGrid focusItem" data-home-focus="insights" aria-label="Patient insights">
+      <article class="insightCard focusItem" data-home-focus="trend">
+        <h3>Ride trend (last 7 dates)</h3>
+        <div id="insightWeekBars" class="sparkline"></div>
+        <p id="insightWeekMeta" class="sparkMeta"></p>
+      </article>
+      <article class="insightCard focusItem" data-home-focus="completion">
+        <h3>Completion rate</h3>
+        <div id="insightStatusRing" class="statusRing"></div>
+        <p id="insightStatusText" class="statusRingValue">0%</p>
+        <p class="statusRingLabel">completed rides</p>
+      </article>
+    </section>
+
+    <section class="card focusItem" data-home-focus="nextRide">
+      <div class="cardHead"><div><div class="eyebrow">Next ride</div><h2>Upcoming transportation</h2></div><button id="nextRideToggle" class="compactToggle" type="button" aria-expanded="false" aria-controls="nextTrip">Show details</button></div>
+      <div id="nextTrip" class="cardBody"></div>
+    </section>
+
+    <section id="liveRouteCard" class="card focusItem" data-home-focus="liveRoute" aria-label="Live route map">
+      <div class="cardHead"><div><div class="eyebrow">Live route</div><h2>See where your driver is now</h2></div><a id="liveRouteOpenBtn" class="button secondary compact" href="/livecare.html">Full map</a></div>
+      <div class="cardBody routeCardBody">
+        <div class="routeSummary">
+          <div>
+            <h3 id="liveRouteHeadline">Waiting for driver assignment</h3>
+            <button id="routeDetailToggle" class="routeDetailToggle" type="button" aria-expanded="false" aria-controls="liveRouteDetailPanel">Show details</button>
+          </div>
+          <div class="routeEta">
+            <small>ETA</small>
+            <strong id="liveRouteEta">--</strong>
+          </div>
+        </div>
+        <div class="routeMapShell">
+          <div class="routeMapRail" aria-label="Live route">
+            <span id="routeStopPickup" class="routeStop pickup">Pickup</span>
+            <span id="routeStopDestination" class="routeStop destination">Destination</span>
+            <div class="routeTrackBase"></div>
+            <div id="routeTrackFill" class="routeTrackFill" style="width:10%"></div>
+            <button id="routeVehiclePin" class="routeVehiclePin" type="button" aria-label="Driver location" style="left:calc(10% - 12px)">N</button>
+          </div>
+          <div id="liveRouteDetailPanel" class="routeDetailPanel" hidden>
+            <p id="liveRouteSubtext" class="routeProgress">Your upcoming trip will appear here with real-time route progress.</p>
+            <p id="liveRouteProgress" class="routeProgress">Progress updates appear when the trip is active.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    </main>
+
+    <div id="profilePage" hidden class="viewportStack" style="padding-top:12px">
+    <section class="card">
+      <div class="cardHead"><div><div class="eyebrow">Profile</div><h2>Transportation preferences</h2></div></div>
+      <dl id="profileSummary" class="detailList cardBody"></dl>
+    </section>
+
+    <section class="card">
+      <div class="cardHead"><div><div class="eyebrow">Edit profile</div><h2>Update your details</h2></div></div>
+      <div class="cardBody">
+        <form id="profileForm">
+          <div class="formGrid">
+            <label class="field">Full name<input name="name" required value="Jordan Patient"></label>
+            <label class="field">Phone<input name="phone" required value="301-555-0184"></label>
+            <label class="field">Email<input name="email" type="email" value="patient@example.com"></label>
+            <label class="field">Mobility<select name="mobility"><option>Wheelchair</option><option>Ambulatory</option><option>Broda</option><option>Stretcher</option><option>Bariatric</option></select></label>
+            <label class="field">Preferred language<input name="language" value="English"></label>
+            <label class="field">Default pickup<input name="pickup" value="Home residence"></label>
+            <label class="field wide">Transportation notes<textarea name="notes" rows="3">Door-through-door assistance requested.</textarea></label>
+          </div>
+          <button class="button" type="submit" style="margin-top:10px">Save profile</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="cardHead"><div><div class="eyebrow">Ride center</div><h2>History and status</h2></div><a class="button compact" href="/booking-app.html">Request ride</a></div>
+      <div class="cardBody">
+        <p id="rideCenterSummary" class="muted" style="margin:0">Rides are separated into dedicated cards to avoid scroll-heavy views.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="cardHead"><div><div class="eyebrow">Active rides</div><h2>Current transportation</h2></div></div>
+      <div id="rideCenterActiveList" class="cardBody stackList"></div>
+    </section>
+
+    <section class="card">
+      <div class="cardHead"><div><div class="eyebrow">Completed rides</div><h2>Past transportation</h2></div></div>
+      <div id="rideCenterCompletedList" class="cardBody stackList"></div>
+    </section>
+
+    <section id="rideCenterActiveOverflowCard" class="card" hidden>
+      <div class="cardHead"><div><div class="eyebrow">More active rides</div><h2>Additional current trips</h2></div></div>
+      <div id="rideCenterActiveOverflowList" class="cardBody stackList"></div>
+    </section>
+
+    <section id="rideCenterCompletedOverflowCard" class="card" hidden>
+      <div class="cardHead"><div><div class="eyebrow">More completed rides</div><h2>Additional past trips</h2></div></div>
+      <div id="rideCenterCompletedOverflowList" class="cardBody stackList"></div>
+    </section>
+
+    <section class="card">
+      <div class="cardHead"><div><h2>Caregivers and emergency contacts</h2><p>Choose who may receive ride updates.</p></div><button class="button secondary compact" data-open="#contactDialog">Add</button></div>
+      <div id="contactList" class="cardBody stackList"></div>
+    </section>
+
+    <section class="card">
+      <div class="cardHead"><div><h2>Transportation documents</h2><p>Store document metadata for this prototype workflow.</p></div><button class="button secondary compact" data-open="#documentDialog">Add</button></div>
+      <div id="documentList" class="cardBody stackList"></div>
+    </section>
+
+    <section class="card">
+      <div class="cardHead"><div><h2>Notifications</h2><p>Confirmation and Livecare updates.</p></div><button id="markRead" class="button secondary compact">Mark read</button></div>
+      <div id="notificationList" class="cardBody messages"></div>
+    </section>
+
+    <section class="card">
+      <div class="cardHead"><div class="eyebrow">Payments</div><h2 style="margin:0 14px 0 auto"></h2></div>
+      <div class="cardBody"><h2 style="margin:0 0 8px;font:800 18px/1.2 Sora,sans-serif">Secure private-pay checkout</h2><p class="muted" style="margin:0 0 10px">Use your booking reference when completing payment. Billing status remains visible to the NEXUS ONE Billing module.</p><div class="toolbar"><a class="button" target="_blank" rel="noopener noreferrer" href="https://buy.stripe.com/5kQbJ3fa5d">Stripe checkout</a><a class="button secondary" target="_blank" rel="noopener noreferrer" href="https://www.paypal.com/ncp/payment/PBVF5DPELEWH8">PayPal or Venmo</a></div></div>
+    </section>
+
+    <section class="card">
+      <div class="cardHead"><div class="eyebrow">Support</div><h2 style="margin:0 14px 0 auto"></h2></div>
+      <div class="cardBody"><h2 style="margin:0 0 8px;font:800 18px/1.2 Sora,sans-serif">Need help with a ride?</h2><p class="muted" style="margin:0 0 10px">Contact Nexus Medical Transit for scheduling, mobility assistance or a Livecare access issue. For emergencies, call 911.</p><div class="toolbar"><a class="button" href="tel:+18887604990">Call (888) 760-4990</a><a class="button secondary" href="mailto:contact@nexusmt.com">Email support</a></div></div>
+    </section>
+    </div>
+
+    <div id="historyPage" hidden class="viewportStack historyPage" style="padding-top:12px">
+      <section class="card">
+        <div class="cardHead"><div><div class="eyebrow">Ride history</div><h2>History at a glance</h2></div></div>
+        <div class="cardBody historyStatsGrid">
+          <div class="historyMetric"><strong id="historyActiveCount">0</strong><span>Active rides</span></div>
+          <div class="historyMetric"><strong id="historyCompletedCount">0</strong><span>Completed rides</span></div>
+          <div class="historyMetric"><strong id="historyOnTimeRate">0%</strong><span>On-time rate</span></div>
+          <div class="historyMetric"><strong id="historyAvgFare">$0</strong><span>Average fare</span></div>
+        </div>
+      </section>
+
+      <div class="historySplit">
+        <section class="card">
+          <div class="cardHead"><div><div class="eyebrow">Trend</div><h2>Last 7 dates</h2></div></div>
+          <div class="cardBody">
+            <div id="historyTrendBars" class="historyMiniChart"></div>
+            <p id="rideCenterSummaryInline" class="muted" style="margin:6px 0 0">Ride history is available on this page.</p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="cardHead"><div><div class="eyebrow">Completion</div><h2>Ride success</h2></div></div>
+          <div class="cardBody">
+            <div id="historyStatusRing" class="statusRing"></div>
+            <p id="historyStatusText" class="statusRingValue">0%</p>
+            <p class="statusRingLabel">completed rides</p>
+          </div>
+        </section>
+      </div>
+
+      <section class="card historyRecent">
+        <div class="cardHead"><div><div class="eyebrow">Recent rides</div><h2>Latest trip cards</h2></div></div>
+        <div id="rideRowsHistory" class="cardBody stackList"></div>
+      </section>
+    </div>
+
+    <div id="supportPage" hidden class="viewportStack" style="padding-top:12px">
+      <section class="card">
+        <div class="cardHead"><div><div class="eyebrow">Support</div><h2>Need help with a ride?</h2></div></div>
+        <div class="cardBody">
+          <p class="muted" style="margin:0 0 10px">Contact Nexus Medical Transit for scheduling, mobility assistance or a Livecare access issue. For emergencies, call 911.</p>
+          <div class="toolbar">
+            <a class="button" href="tel:+18887604990">Call (888) 760-4990</a>
+            <a class="button secondary" href="mailto:contact@nexusmt.com">Email support</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardHead"><div><div class="eyebrow">Contact</div></div></div>
+        <div class="cardBody stackList">
+          <div class="manifestItem"><span><strong>Care team</strong><small>Scheduling and ride help</small></span><a class="button compact" href="tel:+18887604990">Call</a></div>
+          <div class="manifestItem"><span><strong>Email</strong><small>Non-urgent questions and account help</small></span><a class="button compact secondary" href="mailto:contact@nexusmt.com">Email</a></div>
+          <div class="manifestItem"><span><strong>Emergency</strong><small>For emergencies call 911</small></span><span class="status red">911</span></div>
+          <div class="manifestItem"><span><strong>Regional DC</strong><small>202-315-9253</small></span><a class="button compact" href="tel:+12023159253">Call</a></div>
+          <div class="manifestItem"><span><strong>Regional MD</strong><small>240-394-7089</small></span><a class="button compact" href="tel:+12403947089">Call</a></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardHead"><div><div class="eyebrow">Follow us</div><h2>Social channels</h2></div></div>
+        <div class="cardBody">
+          <p class="muted" style="margin:0 0 10px">Updates and announcements from the main system are posted across these channels.</p>
+          <div class="socialChannels" aria-label="Nexus social channels">
+            <a class="button compact secondary socialLink youtube" href="https://www.youtube.com/@nexus_m_t" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
+              <svg class="socialIcon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="currentColor"></rect><path d="M10 9l6 3-6 3z" fill="#fff"></path></svg>
+              <span>YouTube</span>
+            </a>
+            <a class="button compact secondary socialLink tiktok" href="https://www.tiktok.com/@nexus_m_t" target="_blank" rel="noopener noreferrer" aria-label="TikTok">
+              <svg class="socialIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4v8.1a3.9 3.9 0 1 1-2.8-3.7V6.7a6.6 6.6 0 1 0 5.6 6.5V9.8a6.8 6.8 0 0 0 3.2.8V7.9c-2.4-.2-4.4-1.8-5-3.9z" fill="currentColor"></path></svg>
+              <span>TikTok</span>
+            </a>
+            <a class="button compact secondary socialLink instagram" href="https://www.instagram.com/nexus_m_t/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+              <svg class="socialIcon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="2"></rect><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"></circle><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"></circle></svg>
+              <span>Instagram</span>
+            </a>
+            <a class="button compact secondary socialLink facebook" href="https://www.facebook.com/profile.php?id=61581462908206" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+              <svg class="socialIcon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"></circle><path d="M13.4 8.1h2V5.7h-2.4c-2.7 0-4.2 1.6-4.2 4.2v2H6.7v2.5h2.1v3.9h2.6v-3.9h2.2l.4-2.5h-2.6V10c0-1.1.4-1.9 2-1.9z" fill="#fff"></path></svg>
+              <span>Facebook</span>
+            </a>
+            <a class="button compact secondary socialLink bluesky" href="https://bsky.app/profile/nexusmt.bsky.social" target="_blank" rel="noopener noreferrer" aria-label="Bluesky">
+              <svg class="socialIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.2 7.3c1.9 1.4 3.8 3.7 5.1 6 1.3-2.3 3.2-4.6 5.1-6 1.4-1 3.6-1.8 3.6.8 0 .5-.3 4.3-.5 4.9-.7 2-3 2.5-5 2.2 3.4.6 4.3 2.6 2.4 4.6-3.6 3.8-5.2-1-5.6-2.2-.1-.2-.1-.2-.2 0-.4 1.2-2 6-5.6 2.2-1.9-2-1-4 2.4-4.6-2 .3-4.3-.2-5-2.2-.2-.6-.5-4.4-.5-4.9 0-2.6 2.2-1.8 3.6-.8z" fill="currentColor"></path></svg>
+              <span>Bluesky</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardHead"><div><div class="eyebrow">Live updates</div><h2>Main system status feed</h2></div></div>
+        <div class="cardBody">
+          <p class="muted" style="margin:0">Live updates sync instantly from the main system, so ride alerts and status changes should appear without delay.</p>
+        </div>
+      </section>
+    </div>
+
+    <nav class="bottomNav" aria-label="Patient quick info">
+      <button class="navBtn active" type="button" data-footer-action="home"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>Home</button>
+      <button class="navBtn" type="button" data-footer-action="profile"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>Profile</button>
+      <button class="navBtn" type="button" data-footer-action="history"><svg viewBox="0 0 24 24"><path d="M3 3v5h5"></path><path d="M3.05 13a9 9 0 1 0 2.13-5.36L3 10"></path></svg>History</button>
+      <button class="navBtn" type="button" data-footer-action="support"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>Support</button>
+    </nav>
+  </div>
+
+  <dialog id="contactDialog" class="portalDialog" aria-labelledby="contactTitle"><button class="dialogClose" data-close aria-label="Close">x</button><h2 id="contactTitle">Add authorized contact</h2><form id="contactForm"><div class="formGrid"><label class="field">Name<input name="name" required></label><label class="field">Relationship<input name="relationship" required></label><label class="field">Phone<input name="phone" required></label><label class="field checkField"><input name="notify" type="checkbox" checked> Receive ride updates</label></div><button class="button" type="submit" style="margin-top:10px">Add contact</button></form></dialog>
+  <dialog id="documentDialog" class="portalDialog" aria-labelledby="documentTitle"><button class="dialogClose" data-close aria-label="Close">x</button><h2 id="documentTitle">Add transportation document</h2><form id="documentForm"><div class="formGrid"><label class="field">Document type<select name="type"><option>Authorization</option><option>Insurance</option><option>Mobility instructions</option><option>Other</option></select></label><label class="field">Choose file<input name="file" type="file" required></label></div><p class="muted">This prototype records file metadata in the browser. Production deployment requires encrypted server storage and access controls.</p><button class="button" type="submit">Save document</button></form></dialog>
+</div>
+
+<script src="./patient-service.js"></script>
+<script src="./build6-patient.js"></script>
+<script src="./platform.js"></script>
+<script>
+(function(){
+  const $ = (s)=>document.querySelector(s);
+  const tok = ()=>sessionStorage.getItem('nexusAccessToken');
+  const demoKey = 'nexusPatientDemoSession';
+  const allowedRoles = new Set(['PATIENT','RIDER','ADMIN','DISPATCHER']);
+
+  function showLogin(){ const l=$('#loginView'); const a=$('#appShell'); if(l)l.hidden=false; if(a)a.hidden=true; }
+  function hideLogin(){ const l=$('#loginView'); const a=$('#appShell'); if(l)l.hidden=true; if(a)a.hidden=false; }
+  function showNotice(msg,isOk){ const n=$('#loginNotice'); if(!n)return; n.hidden=false; n.className='loginNotice'+(isOk?' ok':''); n.textContent=msg; }
+  function clearSession(){ sessionStorage.removeItem('nexusAccessToken'); sessionStorage.removeItem('nexusUser'); sessionStorage.removeItem(demoKey); }
+
+  function bindPasswordToggles(){
+    document.querySelectorAll('.passwordToggle').forEach((btn)=>{
+      btn.addEventListener('click',()=>{
+        const target=document.getElementById(btn.dataset.target);
+        if(!target)return;
+        const show=target.type==='password';
+        target.type=show?'text':'password';
+        btn.textContent=show?'Hide':'Show';
+        btn.setAttribute('aria-label',show?'Hide password':'Show password');
+      });
+    });
+  }
+
+  function checkResetToken(){
+    const params=new URLSearchParams(window.location.search);
+    if(params.get('action')==='reset'&&params.get('token')){
+      const rp=$('#resetPanel');
+      if(rp)rp.style.display='block';
+      window.__patientResetToken=params.get('token');
+    }
+  }
+
+  async function checkAuth(){
+    if(sessionStorage.getItem(demoKey)==='1'){ hideLogin(); return; }
+    if(!tok()){ showLogin(); return; }
+    try{
+      const r=await fetch('/api/auth/me',{headers:{authorization:'Bearer '+tok()},cache:'no-store'});
+      if(!r.ok) throw new Error('Session expired. Please sign in again.');
+      const j=await r.json();
+      const role=String(j.user?.role||'').toUpperCase();
+      if(!allowedRoles.has(role)) throw new Error('This portal is for patient access only.');
+      hideLogin();
+    }catch(err){
+      clearSession();
+      showLogin();
+      showNotice(err.message||'Unable to verify your session.');
+    }
+  }
+
+  $('#loginForm')?.addEventListener('submit',async (e)=>{
+    e.preventDefault();
+    const btn=$('#loginBtn');
+    const email=$('#loginEmail')?.value.trim()||'';
+    const password=$('#loginPassword')?.value||'';
+    if(btn){btn.disabled=true;btn.textContent='Signing in...';}
+    try{
+      const r=await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password})});
+      const j=await r.json();
+      if(!r.ok) throw new Error(j.error||'Sign-in failed');
+      const role=String(j.user?.role||'').toUpperCase();
+      if(!allowedRoles.has(role)) throw new Error('This portal is for patient access only.');
+      sessionStorage.setItem('nexusAccessToken',j.token);
+      sessionStorage.setItem('nexusUser',JSON.stringify(j.user));
+      sessionStorage.removeItem(demoKey);
+      hideLogin();
+      const notice=$('#portalNotice');
+      if(notice && j.user?.displayName) notice.textContent='Welcome back, '+j.user.displayName+'.';
+    }catch(err){
+      const offlineDemo = email.toLowerCase()==='patient@example.com' && password==='Patient123!';
+      if(offlineDemo){
+        sessionStorage.setItem(demoKey,'1');
+        hideLogin();
+        const notice=$('#portalNotice');
+        if(notice) notice.textContent='Demo patient session active.';
+      }else{
+        showNotice(err.message||'Unable to sign in.');
+      }
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent='Sign In';}
+    }
+  });
+
+  $('#showForgotBtn')?.addEventListener('click',()=>{
+    const fp=$('#forgotPanel');
+    if(fp) fp.style.display='block';
+    const fe=$('#forgotEmail');
+    if(fe) fe.value=$('#loginEmail')?.value||'';
+  });
+  $('#backToLoginBtn')?.addEventListener('click',()=>{ const fp=$('#forgotPanel'); if(fp) fp.style.display='none'; });
+
+  $('#forgotForm')?.addEventListener('submit',async (e)=>{
+    e.preventDefault();
+    const btn=$('#forgotBtn');
+    const email=$('#forgotEmail')?.value.trim()||'';
+    if(btn){btn.disabled=true;btn.textContent='Sending...';}
+    try{
+      const r=await fetch('/api/auth/forgot-password',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email})});
+      const j=await r.json().catch(()=>({}));
+      const n=$('#forgotNotice');
+      if(n){n.hidden=false;n.className='loginNotice ok';n.textContent=j.message||'If that email exists, a reset link has been sent.';}
+      $('#forgotForm')?.reset();
+    }catch{
+      const n=$('#forgotNotice');
+      if(n){n.hidden=false;n.className='loginNotice ok';n.textContent='If that email exists, a reset link has been sent.';}
+      $('#forgotForm')?.reset();
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent='Send Reset Link';}
+    }
+  });
+
+  $('#resetForm')?.addEventListener('submit',async (e)=>{
+    e.preventDefault();
+    const np=$('#resetPassword')?.value||'';
+    const cp=$('#resetConfirm')?.value||'';
+    const n=$('#resetNotice');
+    if(np!==cp){ if(n){n.hidden=false;n.className='loginNotice';n.textContent='Passwords do not match.';} return; }
+    if(np.length<8){ if(n){n.hidden=false;n.className='loginNotice';n.textContent='Password must be at least 8 characters.';} return; }
+    const btn=$('#resetBtn');
+    if(btn){btn.disabled=true;btn.textContent='Saving...';}
+    try{
+      const r=await fetch('/api/auth/reset-password',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:window.__patientResetToken,newPassword:np})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||'Unable to reset password');
+      if(n){n.hidden=false;n.className='loginNotice ok';n.textContent='Password updated. You can now sign in.';}
+      $('#resetForm')?.reset();
+    }catch(err){
+      if(n){n.hidden=false;n.className='loginNotice';n.textContent=err.message||'Unable to reset password.';}
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent='Save New Password';}
+    }
+  });
+
+  $('#patientLogoutBtn')?.addEventListener('click',()=>{
+    clearSession();
+    showLogin();
+    showNotice('Signed out successfully.',true);
+  });
+
+  bindPasswordToggles();
+  checkResetToken();
+  checkAuth();
+})();
+</script>
+</body>
+</html>
 

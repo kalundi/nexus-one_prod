@@ -270,7 +270,7 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 
 	// ===== Logo pop every 60 seconds =====
 	function popLogos(){
-		const logos=document.querySelectorAll('img.logo');
+		const logos=document.querySelectorAll('img.logo, img.topLogo');
 		logos.forEach(logo=>{
 			logo.classList.remove('logo-pop');
 			void logo.offsetWidth; // force reflow to restart animation
@@ -284,7 +284,7 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 // ===== Standalone logo pop (runs independently of any IIFE) =====
 (function nexusLogoPop(){
 	function popAll(){
-		document.querySelectorAll('img.logo').forEach(function(el){
+		document.querySelectorAll('img.logo, img.topLogo').forEach(function(el){
 			el.classList.remove('logo-pop');
 			void el.offsetWidth;
 			el.classList.add('logo-pop');
@@ -297,6 +297,98 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 	}else{
 		popAll(); setInterval(popAll,60000);
 	}
+}());
+
+// Shared focus deck: collapse sibling cards/sections and expand the selected one.
+(function(){
+	const STYLE_ID='nexusFocusDeckStyle';
+	const ITEM_SELECTOR='.card, .section, .driverCard, .analyticsTile';
+	const CONTAINER_SELECTOR='form#bookingForm, #dashView .padded, #inspectionView .padded, #manifestView .padded, #tripView .padded, #milesView .padded, #endView .padded, #changePasswordView .padded';
+	const containers=new WeakSet();
+
+	function ensureStyle(){
+		if(document.getElementById(STYLE_ID)) return;
+		const style=document.createElement('style');
+		style.id=STYLE_ID;
+		style.textContent=`
+.nexusFocusDeck{align-content:start}
+.nexusFocusDeck > .nexusFocusItem{transition:max-height .18s ease,opacity .18s ease,transform .18s ease,box-shadow .18s ease,padding .18s ease;overflow:hidden;cursor:pointer;transform-origin:center top;will-change:max-height,opacity,transform}
+.nexusFocusDeck > .nexusFocusItem:not(.is-focused){max-height:112px;opacity:.82;transform:scale(.995);box-shadow:0 6px 14px rgba(0,0,0,.05)}
+.nexusFocusDeck > .nexusFocusItem.is-focused{max-height:9999px;opacity:1;transform:none;box-shadow:0 14px 30px rgba(0,0,0,.10);z-index:1}
+.nexusFocusDeck > .nexusFocusItem:not(.is-focused) > *{pointer-events:none}
+.nexusFocusDeck > .nexusFocusItem:not(.is-focused) .cardBody,
+.nexusFocusDeck > .nexusFocusItem:not(.is-focused) .sectionBody,
+.nexusFocusDeck > .nexusFocusItem:not(.is-focused) .cardFooter,
+.nexusFocusDeck > .nexusFocusItem:not(.is-focused) .panelBody,
+.nexusFocusDeck > .nexusFocusItem:not(.is-focused) .routeCardBody,
+.nexusFocusDeck > .nexusFocusItem:not(.is-focused) .facilityPanelBody{display:none}
+.nexusFocusDeck > .nexusFocusItem.is-focused .cardBody,
+.nexusFocusDeck > .nexusFocusItem.is-focused .sectionBody,
+.nexusFocusDeck > .nexusFocusItem.is-focused .cardFooter,
+.nexusFocusDeck > .nexusFocusItem.is-focused .panelBody,
+.nexusFocusDeck > .nexusFocusItem.is-focused .routeCardBody,
+.nexusFocusDeck > .nexusFocusItem.is-focused .facilityPanelBody{display:block}
+@media (prefers-reduced-motion:reduce){.nexusFocusDeck > .nexusFocusItem{transition:none}}
+`;
+
+		document.head.appendChild(style);
+	}
+
+	function directFocusItems(container){
+		return Array.from(container.children).filter(child=>child.matches && child.matches(ITEM_SELECTOR));
+	}
+
+	function focusItem(container,item){
+		const items=directFocusItems(container);
+		if(items.length<2 || !items.includes(item)) return;
+		items.forEach(entry=>{
+			entry.classList.add('nexusFocusItem');
+			entry.classList.toggle('is-focused',entry===item);
+			entry.setAttribute('aria-expanded',String(entry===item));
+		});
+		container.classList.add('nexusFocusDeck');
+	}
+
+	function bindContainer(container){
+		if(!container || containers.has(container)) return;
+		if(container.id==='homePage') return;
+		const items=directFocusItems(container);
+		if(items.length<2) return;
+		containers.add(container);
+		container.classList.add('nexusFocusDeck');
+		let active=items.find(item=>item.classList.contains('is-focused')) || items[0];
+		focusItem(container,active);
+		container.addEventListener('click',event=>{
+			const target=event.target.closest(ITEM_SELECTOR);
+			if(!target || target.parentElement!==container) return;
+			focusItem(container,target);
+		});
+		container.addEventListener('keydown',event=>{
+			if(event.key!=='Enter'&&event.key!==' ') return;
+			const target=event.target.closest(ITEM_SELECTOR);
+			if(!target || target.parentElement!==container) return;
+			focusItem(container,target);
+		});
+	}
+
+	function scan(){
+		if(!document.getElementById('bookingForm') && !document.getElementById('dashView')) return;
+		document.querySelectorAll(CONTAINER_SELECTOR).forEach(bindContainer);
+	}
+
+	function boot(){
+		ensureStyle();
+		scan();
+	}
+
+	if(document.readyState==='loading'){
+		document.addEventListener('DOMContentLoaded',boot,{once:true});
+	}else{
+		boot();
+	}
+
+	const observer=new MutationObserver(()=>scan());
+	observer.observe(document.documentElement,{childList:true,subtree:true});
 }());
 
 // ── Session inactivity timeout (non-driver pages only) ────────────────────

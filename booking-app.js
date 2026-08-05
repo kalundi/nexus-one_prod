@@ -2123,8 +2123,12 @@
       }
     });
     if(showPasswordToggle && loginPassword){
-      showPasswordToggle.addEventListener('change', () => {
-        loginPassword.type = showPasswordToggle.checked ? 'text' : 'password';
+      showPasswordToggle.addEventListener('click', () => {
+        const nextState = showPasswordToggle.getAttribute('aria-pressed') !== 'true';
+        showPasswordToggle.setAttribute('aria-pressed', String(nextState));
+        showPasswordToggle.setAttribute('aria-label', nextState ? 'Hide password' : 'Show password');
+        showPasswordToggle.textContent = nextState ? 'Hide' : 'Show';
+        loginPassword.type = nextState ? 'text' : 'password';
       });
     }
     if(forgotPasswordBtn){

@@ -36,7 +36,7 @@ const PAGES = [
   { path: '/livecare.html',       title: 'Livecare',      role: null },
   { path: '/dispatch.html',       title: 'Dispatch',      role: 'DISPATCHER' },
   { path: '/fleet.html',          title: 'Fleet',         role: 'DISPATCHER' },
-  { path: '/driver.html',         title: 'Driver',        role: 'DRIVER' },
+  { path: '/driver-app.html',     title: 'Driver App',    role: 'DRIVER' },
   { path: '/admin.html',          title: 'Admin',         role: 'ADMIN' },
   { path: '/executive.html',      title: 'Executive',     role: 'EXECUTIVE' },
   { path: '/billing.html',        title: 'Billing',       role: 'BILLING' },

@@ -10,16 +10,42 @@
   const SHIFT_KEY = 'nxDriverShift_v3';
   const MILES_KEY = 'nxDriverMiles_v3';
   const INSP_KEY  = 'nxDriverInsp_v3';
+  const INSP_COLLAPSE_KEY = 'nxDriverInspCollapsed_v1';
 
   const tok = () => sessionStorage.getItem('nexusAccessToken');
   const usr = () => { try { return JSON.parse(sessionStorage.getItem('nexusUser') || '{}'); } catch { return {}; } };
   const ah  = () => ({ authorization: `Bearer ${tok()}`, 'content-type': 'application/json' });
+  const ADDRESS_COORDS = {
+    '110 irving street nw, washington, dc 20010': {lat:38.929298,lng:-77.013962},
+    '2041 georgia avenue nw, washington, dc 20060': {lat:38.917715,lng:-77.021294},
+    'washington hospital center': {lat:38.928954,lng:-77.013467},
+    'sibley memorial hospital': {lat:38.934196,lng:-77.104302},
+    'howard university hospital': {lat:38.916600,lng:-77.019900},
+    'george washington university hospital': {lat:38.901536,lng:-77.050141},
+    'medstar georgetown university hospital': {lat:38.912376,lng:-77.075053},
+    'inova fairfax medical campus': {lat:38.856210,lng:-77.227829},
+    'holy cross hospital': {lat:39.015769,lng:-77.013718},
+    'suburban hospital': {lat:38.999154,lng:-77.105741},
+    'children\'s national hospital': {lat:38.928336,lng:-77.014393},
+  };
 
   function loadJ(k) { try { return JSON.parse(localStorage.getItem(k) || '{}'); } catch { return {}; } }
   function saveShift() { localStorage.setItem(SHIFT_KEY, JSON.stringify(shift)); }
   function saveMiles() { localStorage.setItem(MILES_KEY, JSON.stringify(miles)); }
+  function saveInspCollapse(){ localStorage.setItem(INSP_COLLAPSE_KEY, JSON.stringify(inspCollapsed)); }
+  function coordForAddress(address){
+    const key=String(address||'').trim().toLowerCase();
+    return ADDRESS_COORDS[key]||null;
+  }
 
-  let shift = { onDuty:false, onBreak:false, vehicleUnit:'', startedAt:null, breakMs:0, breakStart:null, completedTrips:0, inspectionDone:false, ...loadJ(SHIFT_KEY) };
+  let shift = { onDuty:false, onBreak:false, vehicleUnit:'', startedAt:null, breakMs:0, breakStart:null, completedTrips:0, inspectionDone:false, inspectedVehicleUnit:'', lastTripVehicleUnit:'', ...loadJ(SHIFT_KEY) };
+  if(shift.vehicleUnit)shift.vehicleUnit=String(shift.vehicleUnit).toUpperCase();
+  if(shift.inspectedVehicleUnit)shift.inspectedVehicleUnit=String(shift.inspectedVehicleUnit).toUpperCase();
+  if(shift.lastTripVehicleUnit)shift.lastTripVehicleUnit=String(shift.lastTripVehicleUnit).toUpperCase();
+  if(shift.inspectionDone&&!shift.inspectedVehicleUnit&&shift.vehicleUnit){
+    shift.inspectedVehicleUnit=shift.vehicleUnit;
+    saveShift();
+  }
   let miles = { odoStart:null, odoEnd:null, legs:[], ...loadJ(MILES_KEY) };
   let trips = [];
   let activeRef = null;
@@ -27,6 +53,24 @@
   let analyticsDays = 7;
   let gpsId = null;
   let aiHelpOpen = false;
+  let routeFocusOpen = false;
+  let routeFocusDismissedRef = null;
+  let routeFocusMapMode = 'leg';
+  const ROUTE_AUTO_ARRIVAL_MI = 0.12;
+  const ROUTE_AUTO_DEPART_MI = 0.18;
+  let routeAuto = {
+    enabled:false,
+    tripRef:null,
+    startOdo:null,
+    milesSinceStart:0,
+    lastPos:null,
+    segmentStartMiles:0,
+    segmentStartOdo:null,
+    pickupCoord:null,
+    destinationCoord:null,
+    arrivedDestinationAt:null,
+    updating:false,
+  };
 
   function elapsed() {
     if (!shift.onDuty || !shift.startedAt) return 0;
@@ -41,11 +85,52 @@
   function tripNeedsAcceptance(trip) { return ['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION'].includes(normalizeBookingStatus(trip?.status)); }
   function isTerminalStatus(status) { return ['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(normalizeBookingStatus(status)); }
   function tripStartWindowHours(trip){ return Number(trip?.distanceMiles ?? trip?.distMi ?? 0) >= 30 ? 2 : 1; }
+  function normalizeTripDate(value){
+    if(value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0,10);
+    const raw=String(value||'').trim();
+    if(!raw) return '';
+    const isoMatch=raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if(isoMatch) return isoMatch[1];
+    const parsed=new Date(raw);
+    if(!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0,10);
+    return raw;
+  }
+  function normalizeTripTime(value){
+    const raw=String(value||'00:00').trim();
+    const hhmm=raw.match(/^(\d{2}:\d{2})/);
+    return hhmm ? hhmm[1] : raw;
+  }
   function parseTripDateTime(trip){
-    const tripDate=String(trip?.date||'').trim();
-    const tripTime=String(trip?.time||'00:00').trim();
+    const tripDate=normalizeTripDate(trip?.date||'');
+    const tripTime=normalizeTripTime(trip?.time||'00:00');
     const parsed=new Date(`${tripDate}T${tripTime.length===5?`${tripTime}:00`:tripTime}`);
     return {tripDate,tripTime,parsed};
+  }
+  function assignedVehicleUnit(trip){
+    return String(trip?.vehicleUnit||trip?.vehicle||'').trim().toUpperCase();
+  }
+  function inspectionPolicyForTripStart(trip){
+    const tripUnit=assignedVehicleUnit(trip)||String(shift.vehicleUnit||'').trim().toUpperCase();
+    if(!tripUnit){
+      return {allowed:false,tripUnit:'',message:'No vehicle is assigned to this trip yet. Dispatch must assign a vehicle before you can start.'};
+    }
+    const inspected=String(shift.inspectedVehicleUnit||'').trim().toUpperCase();
+    if(!shift.inspectionDone||inspected!==tripUnit){
+      const reason=!shift.inspectionDone
+        ? `Inspection is required before starting trips for ${tripUnit}.`
+        : `Vehicle changed from ${inspected||'N/A'} to ${tripUnit}.`;
+      return {allowed:false,tripUnit,message:`${reason} Complete inspection for ${tripUnit} before starting this trip.`};
+    }
+    return {allowed:true,tripUnit,message:''};
+  }
+  function toRad(v){return (Number(v)||0)*Math.PI/180;}
+  function milesBetween(a,b){
+    if(!a||!b)return null;
+    const lat1=Number(a.lat),lng1=Number(a.lng),lat2=Number(b.lat),lng2=Number(b.lng);
+    if(![lat1,lng1,lat2,lng2].every(Number.isFinite))return null;
+    const dLat=toRad(lat2-lat1),dLng=toRad(lng2-lng1);
+    const q=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+    return 3958.7613*(2*Math.atan2(Math.sqrt(q),Math.sqrt(1-q)));
   }
   function tripStartPolicy(trip){
     const {parsed}=parseTripDateTime(trip);
@@ -162,18 +247,88 @@
   }
 
   // ── View routing ──────────────────────────────────────────────
-  const VT = { dashView:'Dashboard', inspectionView:'Pre-Trip Inspection', manifestView:'Trip Manifest', milesView:'Mileage Log', tripView:'Trip Detail', endView:'Sign Out', changePasswordView:'Change Password' };
+  const VT = { dashView:'Dashboard', inspectionView:'Pre-Trip Inspection', manifestView:'Trip Manifest', tripView:'Trip Detail', endView:'Sign Out', changePasswordView:'Change Password' };
+  const viewFocusState = {};
+  function cardsInView(view){
+    if(!view)return [];
+    const cards=$$('.card',view).filter((c)=>!c.hidden);
+    cards.forEach((card,idx)=>{if(!card.dataset.focusCardId)card.dataset.focusCardId=`${view.id}-${idx}`;});
+    return cards;
+  }
+  function clearCardFocus(view){
+    if(!view)return;
+    view.classList.remove('focus-mode');
+    $$('.card',view).forEach((card)=>card.classList.remove('card-focus-active'));
+    const t=$('#focusToggleBtn');
+    if(t)t.hidden=true;
+  }
+  function applyCardFocus(view, card){
+    if(!view||!card)return;
+    const cards=cardsInView(view);
+    if(cards.length<=1){clearCardFocus(view);return;}
+    view.classList.add('focus-mode');
+    cards.forEach((c)=>c.classList.toggle('card-focus-active',c===card));
+    viewFocusState[view.id]=card.dataset.focusCardId;
+    const t=$('#focusToggleBtn');
+    if(t){t.hidden=false;t.textContent='Show All Cards';}
+  }
+  function ensureCardFocus(view){
+    if(!view)return;
+    if(view.id==='dashView'&&routeFocusOpen){clearCardFocus(view);return;}
+    const cards=cardsInView(view);
+    if(cards.length<=1){clearCardFocus(view);return;}
+    const wanted=viewFocusState[view.id];
+    if(!wanted){
+      clearCardFocus(view);
+      const t=$('#focusToggleBtn');
+      if(t){t.hidden=false;t.textContent='Focus Cards';}
+      return;
+    }
+    const target=cards.find((c)=>c.dataset.focusCardId===wanted);
+    if(!target){
+      clearCardFocus(view);
+      const t=$('#focusToggleBtn');
+      if(t){t.hidden=false;t.textContent='Focus Cards';}
+      return;
+    }
+    applyCardFocus(view,target);
+  }
   function showView(id) {
+    if(id!=='dashView')setRouteFocus(false);
     $$('.view').forEach(v=>v.classList.remove('active'));
     $$('.navBtn').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
     const v=$('#'+id); if(v)v.classList.add('active');
     if($('#topViewTitle'))$('#topViewTitle').textContent=VT[id]||'';
     if(id==='manifestView')renderManifest();
-    if(id==='milesView')renderMiles();
     if(id==='inspectionView'){renderInspection();loadFleetForInspection();}
-    if(id==='dashView')renderDash();
+    if(id==='dashView'){renderDash();maybeAutoOpenRouteFocus();}
+    if(id==='tripView'||id==='endView'||id==='changePasswordView'||id==='inspectionView'||id==='manifestView'||id==='dashView'){
+      requestAnimationFrame(()=>ensureCardFocus(v));
+    }
   }
   $$('.navBtn').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
+  $('#focusToggleBtn')?.addEventListener('click',()=>{
+    const v=$('.view.active');
+    if(!v)return;
+    const cards=cardsInView(v);
+    if(cards.length<=1){clearCardFocus(v);return;}
+    if(v.classList.contains('focus-mode')){
+      clearCardFocus(v);
+      const t=$('#focusToggleBtn');
+      if(t){t.hidden=false;t.textContent='Focus Cards';}
+      return;
+    }
+    applyCardFocus(v,cards[0]);
+  });
+  document.addEventListener('click',(e)=>{
+    const v=$('.view.active');
+    if(!v)return;
+    const card=e.target.closest('.card');
+    if(!card||!v.contains(card))return;
+    if(v.id==='dashView'&&card.id==='routeFocusCard')return;
+    if(v.classList.contains('focus-mode')&&card.classList.contains('card-focus-active'))return;
+    applyCardFocus(v,card);
+  });
 
   // ── Auth ──────────────────────────────────────────────────────
   async function checkAuth() {
@@ -328,6 +483,7 @@
     const unit=shift.vehicleUnit||prompt('Enter your assigned vehicle unit (e.g. SE-254-01):');
     if(!unit?.trim())return;
     shift.vehicleUnit=unit.trim().toUpperCase();
+    if(!shift.inspectedVehicleUnit&&shift.inspectionDone)shift.inspectedVehicleUnit=shift.vehicleUnit;
     shift.onDuty=true;shift.startedAt=Date.now();shift.breakMs=0;shift.breakStart=null;shift.onBreak=false;
     saveShift();startGPS();renderDash();
     dashNotice('Shift started. Check your manifest for today\'s trips.','ok');
@@ -349,7 +505,7 @@
   $('#btnConfirmEndShift')?.addEventListener('click',()=>{
     const odo=Number($('#endOdo')?.value)||null;
     if(odo){miles.odoEnd=odo;saveMiles();}
-    shift={onDuty:false,onBreak:false,vehicleUnit:shift.vehicleUnit,startedAt:null,breakMs:0,breakStart:null,completedTrips:0,inspectionDone:false};
+    shift={onDuty:false,onBreak:false,vehicleUnit:shift.vehicleUnit,startedAt:null,breakMs:0,breakStart:null,completedTrips:0,inspectionDone:false,inspectedVehicleUnit:'',lastTripVehicleUnit:''};
     saveShift();stopGPS();showView('dashView');renderDash();
     dashNotice('Shift complete. Drive safe!','ok');
   });
@@ -615,6 +771,7 @@
   }
 
   let inspState = loadJ(INSP_KEY);
+  let inspCollapsed = loadJ(INSP_COLLAPSE_KEY);
   let activeInspProfile = null; // set when vehicle selected
 
   // Load fleet into inspector vehicle selector
@@ -642,6 +799,9 @@
     const infoBox = $('#inspVehicleInfo');
     const nameEl  = $('#inspVehicleName');
     const noteEl  = $('#inspVehicleNote');
+    const card = $('#inspVehicleCard');
+    const cardStep = $('#inspVehicleCardStep');
+    const cardTitle = $('#inspVehicleCardTitle');
     const profile = profileForUnit(unit);
     activeInspProfile = profile;
     if (profile && unit) {
@@ -649,9 +809,15 @@
       if (nameEl)  nameEl.textContent = profile.label;
       if (noteEl)  noteEl.textContent = profile.note;
       if (proceed) proceed.disabled = false;
+      if (card) card.classList.remove('inspVehicleCardCollapsed');
+      if (cardStep) cardStep.textContent = 'Step 1 of 2';
+      if (cardTitle) cardTitle.textContent = 'Select your vehicle';
     } else {
       if (infoBox) infoBox.hidden = true;
       if (proceed) proceed.disabled = true;
+      if (card) card.classList.remove('inspVehicleCardCollapsed');
+      if (cardStep) cardStep.textContent = 'Step 1 of 2';
+      if (cardTitle) cardTitle.textContent = 'Select your vehicle';
     }
   }
 
@@ -665,12 +831,21 @@
     // Set the active profile BEFORE rendering
     activeInspProfile = profileForUnit(shift.vehicleUnit);
     inspState = {}; // clear any prior inspection state for a fresh checklist
+    inspCollapsed = {};
     localStorage.removeItem(INSP_KEY);
+    localStorage.removeItem(INSP_COLLAPSE_KEY);
     // Show checklist
     const section = $('#inspChecklistSection'), footer = $('#inspFormFooter'), vehicleCard = $('#inspVehicleCard');
+    const cardStep = $('#inspVehicleCardStep');
+    const cardTitle = $('#inspVehicleCardTitle');
     if (section) section.hidden = false;
     if (footer)  footer.hidden  = false;
-    if (vehicleCard) vehicleCard.style.opacity = '0.6';
+    if (vehicleCard) {
+      vehicleCard.classList.add('inspVehicleCardCollapsed');
+      vehicleCard.style.opacity = '';
+    }
+    if (cardStep) cardStep.textContent = 'Assigned Vehicle';
+    if (cardTitle) cardTitle.textContent = activeInspProfile?.label || shift.vehicleUnit;
     renderInspection();
     section?.scrollIntoView({ behavior: 'smooth' });
   });
@@ -682,8 +857,18 @@
     if (!profile) { list.innerHTML = ''; return; }
     const groupIds = profile.groups;
     const activeGroups = groupIds.map(id => ALL_INSP_GROUPS[id]).filter(Boolean);
+    activeGroups.forEach((g)=>{
+      if(typeof inspCollapsed[g.id]!=='boolean')inspCollapsed[g.id]=true;
+    });
     let total = 0, checked = 0;
     list.innerHTML = activeGroups.map(g => {
+      const states = g.items.map(item=>inspState[item.id]||null);
+      const passCount = states.filter(v=>v==='pass').length;
+      const failCount = states.filter(v=>v==='fail').length;
+      const itemCount = g.items.length;
+      const allPass = itemCount>0 && passCount===itemCount;
+      const allFail = itemCount>0 && failCount===itemCount;
+      const collapsed = inspCollapsed[g.id]!==false;
       const items = g.items.map(item => {
         total++; const val = inspState[item.id]; if (val) checked++;
         return `<div class="inspItem">
@@ -694,12 +879,43 @@
           </div>
         </div>`;
       }).join('');
-      return `<p class="inspGroupHead">${g.label}</p><div class="inspGroup">${items}</div>`;
+      return `<section class="inspSection">
+        <div class="inspGroupHead">
+          <button type="button" class="inspGroupTitleBtn" data-insp-toggle="${g.id}" aria-expanded="${!collapsed}">
+            <span>${collapsed ? '▸' : '▾'} ${g.label}</span>
+            <span class="meta">${passCount + failCount}/${itemCount}</span>
+          </button>
+          <div class="inspGroupActions">
+            <button type="button" class="inspGroupBulkBtn ${allPass ? 'active-pass' : ''}" data-insp-bulk="${g.id}" data-v="pass">✓ Pass All</button>
+            <button type="button" class="inspGroupBulkBtn ${allFail ? 'active-fail' : ''}" data-insp-bulk="${g.id}" data-v="fail">✕ Fail All</button>
+          </div>
+        </div>
+        <div class="inspGroupItems" ${collapsed ? 'hidden' : ''}>${items}</div>
+      </section>`;
     }).join('');
     $$('[data-insp]', list).forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.insp, v = btn.dataset.v;
         inspState[id] = inspState[id] === v ? null : v;
+        localStorage.setItem(INSP_KEY, JSON.stringify(inspState));
+        renderInspection();
+      });
+    });
+    $$('[data-insp-toggle]', list).forEach(btn => {
+      btn.addEventListener('click', () => {
+        const gid = btn.dataset.inspToggle;
+        inspCollapsed[gid] = !(inspCollapsed[gid] === true);
+        saveInspCollapse();
+        renderInspection();
+      });
+    });
+    $$('[data-insp-bulk]', list).forEach(btn => {
+      btn.addEventListener('click', () => {
+        const gid = btn.dataset.inspBulk;
+        const v = btn.dataset.v;
+        const group = activeGroups.find((x)=>x.id===gid);
+        if(!group)return;
+        group.items.forEach((item)=>{ inspState[item.id]=v; });
         localStorage.setItem(INSP_KEY, JSON.stringify(inspState));
         renderInspection();
       });
@@ -756,9 +972,17 @@
     }
     const odo = Number($('#inspOdometer')?.value) || null;
     if (odo) { miles.odoStart = odo; saveMiles(); }
-    shift.inspectionDone = true; saveShift();
+    shift.inspectionDone = true;
+    shift.inspectedVehicleUnit = String(shift.vehicleUnit || '').toUpperCase();
+    saveShift();
     if (failures.length) alert(`FAILED ITEMS (${failures.length}):\n${failures.join('\n')}\n\nReport to Fleet before operating.`);
-    beginShift(); showView('dashView');
+    if(!shift.onDuty){
+      beginShift();
+      showView('dashView');
+    }else{
+      showView('dashView');
+      dashNotice(`Inspection complete for ${shift.inspectedVehicleUnit}. You may continue trips.`, 'ok');
+    }
   });
 
   // ── Trips / manifest ──────────────────────────────────────────
@@ -768,9 +992,24 @@
       if(!r.ok)return;
       const j=await r.json();
       trips=(j.assignments||[]).map(b=>({
-        ref:b.reference||b.id,date:b.date||b.trip_date||'',
+        ...(()=>{
+          const pickupFromApi=b.pickupLat!=null?Number(b.pickupLat):b.pickup_lat!=null?Number(b.pickup_lat):null;
+          const pickupLngFromApi=b.pickupLng!=null?Number(b.pickupLng):b.pickup_lng!=null?Number(b.pickup_lng):null;
+          const destFromApi=b.destinationLat!=null?Number(b.destinationLat):b.destination_lat!=null?Number(b.destination_lat):null;
+          const destLngFromApi=b.destinationLng!=null?Number(b.destinationLng):b.destination_lng!=null?Number(b.destination_lng):null;
+          const pickupFallback=coordForAddress(b.pickup||'');
+          const destFallback=coordForAddress(b.destination||'');
+          return {
+            pickupLat:Number.isFinite(pickupFromApi)?pickupFromApi:(pickupFallback?.lat??null),
+            pickupLng:Number.isFinite(pickupLngFromApi)?pickupLngFromApi:(pickupFallback?.lng??null),
+            destinationLat:Number.isFinite(destFromApi)?destFromApi:(destFallback?.lat??null),
+            destinationLng:Number.isFinite(destLngFromApi)?destLngFromApi:(destFallback?.lng??null),
+          };
+        })(),
+        ref:b.reference||b.id,date:normalizeTripDate(b.date||b.trip_date||''),
         time:(b.time||b.trip_time||'').slice(0,5),
         pickup:b.pickup||'',destination:b.destination||'',
+        vehicleUnit:String(b.vehicleUnit||b.vehicle_unit||b.vehicle||'').trim().toUpperCase(),
         patient:b.name||'Patient',service:b.service||'',
         status:normalizeBookingStatus(b.status||'SCHEDULED'),notes:b.notes||'',
         distanceMiles:b.distanceMiles!=null?Number(b.distanceMiles):null,
@@ -993,6 +1232,237 @@
     });
   }
 
+  function activeTripForRoute(){
+    return trips.find(t=>t.ref===activeRef&&!['COMPLETED','DELIVERED','CANCELLED'].includes(t.status))
+      || trips.find(t=>!['COMPLETED','DELIVERED','CANCELLED','SCHEDULED'].includes(t.status));
+  }
+
+  function resetRouteAuto(tripRef=null){
+    routeAuto={
+      enabled:false,
+      tripRef,
+      startOdo:null,
+      milesSinceStart:0,
+      lastPos:null,
+      segmentStartMiles:0,
+      segmentStartOdo:null,
+      pickupCoord:null,
+      destinationCoord:null,
+      arrivedDestinationAt:null,
+      updating:false,
+    };
+  }
+
+  function statusLabelPlain(status){
+    return String(status||'').replaceAll('_',' ').trim();
+  }
+
+  function syncRouteAutoUi(trip){
+    const startInput=$('#routeAutoStartOdo');
+    const toggle=$('#btnRouteAutoToggle');
+    const info=$('#routeAutoInfo');
+    const doneBtn=$('#btnRouteCompleteTrip');
+    if(!toggle||!info||!doneBtn)return;
+    if(startInput&&!routeAuto.enabled&&Number.isFinite(routeAuto.startOdo))startInput.value=String(routeAuto.startOdo);
+    toggle.textContent=routeAuto.enabled?'Stop Auto Log':'Start Auto Log';
+    if(routeAuto.enabled){
+      const estOdo=Number(routeAuto.startOdo||0)+Number(routeAuto.milesSinceStart||0);
+      info.textContent=`Auto log ON • Miles ${Number(routeAuto.milesSinceStart||0).toFixed(1)} • Est. odometer ${estOdo.toFixed(1)}`;
+    }else{
+      const hasCoords=Number.isFinite(trip?.pickupLat)&&Number.isFinite(trip?.pickupLng)&&Number.isFinite(trip?.destinationLat)&&Number.isFinite(trip?.destinationLng);
+      info.textContent=hasCoords
+        ? 'Enter starting odometer, then start auto log. The app will detect arrival/departure and log route mileage.'
+        : 'Enter starting odometer, then start auto log. Auto status detection requires dispatch coordinates for pickup and destination.';
+    }
+    const st=normalizeBookingStatus(trip?.status||'');
+    const canComplete=['ARRIVED_DESTINATION','DELIVERED'].includes(st);
+    doneBtn.disabled=!canComplete;
+    doneBtn.textContent=canComplete?'Trip Complete':'Trip Complete (after dropoff)';
+  }
+
+  async function ensureRouteCoords(trip){
+    if(!trip)return;
+    if(!routeAuto.pickupCoord){
+      if(Number.isFinite(trip.pickupLat)&&Number.isFinite(trip.pickupLng))routeAuto.pickupCoord={lat:Number(trip.pickupLat),lng:Number(trip.pickupLng)};
+    }
+    if(!routeAuto.destinationCoord){
+      if(Number.isFinite(trip.destinationLat)&&Number.isFinite(trip.destinationLng))routeAuto.destinationCoord={lat:Number(trip.destinationLat),lng:Number(trip.destinationLng)};
+    }
+  }
+
+  function logAutoRouteSegment(trip,fromStatus,toStatus){
+    if(!routeAuto.enabled||!Number.isFinite(routeAuto.startOdo))return;
+    const segMiles=Math.max(0,Number(routeAuto.milesSinceStart||0)-Number(routeAuto.segmentStartMiles||0));
+    if(segMiles<0.05)return;
+    const odoStart=Number(routeAuto.segmentStartOdo||routeAuto.startOdo);
+    const odoEnd=odoStart+segMiles;
+    const nextSt=normalizeBookingStatus(toStatus);
+    const type=['ARRIVED_PICKUP','EN_ROUTE'].includes(nextSt)?'DEADHEAD':'LOADED';
+    const from=nextSt==='ARRIVED_PICKUP'?'Current location':trip.pickup;
+    const to=nextSt==='ARRIVED_PICKUP'?trip.pickup:trip.destination;
+    miles.legs.push({
+      id:Date.now(),
+      from,
+      to,
+      odoStart:Number(odoStart.toFixed(1)),
+      odoEnd:Number(odoEnd.toFixed(1)),
+      miles:Number(segMiles.toFixed(1)),
+      type,
+      tripRef:trip.ref,
+      time:new Date().toISOString(),
+      note:`Auto status: ${statusLabelPlain(fromStatus)} -> ${statusLabelPlain(toStatus)}`,
+    });
+    routeAuto.segmentStartMiles=Number(routeAuto.milesSinceStart||0);
+    routeAuto.segmentStartOdo=odoEnd;
+    saveMiles();
+    if($('#statMiles'))$('#statMiles').textContent=totalMiles().toFixed(1);
+  }
+
+  async function updateTripStatusAuto(trip,nextStatus,note=''){
+    if(!trip||routeAuto.updating)return false;
+    const current=normalizeBookingStatus(trip.status);
+    const next=normalizeBookingStatus(nextStatus);
+    if(!next||current===next)return true;
+    routeAuto.updating=true;
+    try{
+      const payload={status:next,vehicleUnit:shift.vehicleUnit||undefined};
+      if(note)payload.note=note;
+      const r=await fetch(`/api/bookings/${encodeURIComponent(trip.ref)}/update`,{method:'POST',headers:ah(),body:JSON.stringify(payload)});
+      if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||`HTTP ${r.status}`);}
+      logAutoRouteSegment(trip,current,next);
+      trip.status=next;
+      if(next==='ARRIVED_DESTINATION')routeAuto.arrivedDestinationAt=Date.now();
+      renderRouteFocus();
+      renderTripWorkflow(trip);
+      renderStepHints(trip);
+      renderManifest();
+      dashNotice(`Auto update: ${statusLabelPlain(next)}.`, 'ok');
+      return true;
+    }catch(err){
+      dashNotice(`Auto status update failed: ${err.message}`,'warn');
+      return false;
+    }finally{routeAuto.updating=false;}
+  }
+
+  async function maybeAdvanceRouteByPosition(pos){
+    if(!routeAuto.enabled)return;
+    const trip=trips.find(t=>t.ref===routeAuto.tripRef);
+    if(!trip)return;
+    const curr={lat:Number(pos?.coords?.latitude),lng:Number(pos?.coords?.longitude)};
+    if(!Number.isFinite(curr.lat)||!Number.isFinite(curr.lng))return;
+    if(routeAuto.lastPos){
+      const delta=milesBetween(routeAuto.lastPos,curr);
+      if(Number.isFinite(delta)&&delta>0&&delta<2)routeAuto.milesSinceStart+=delta;
+    }
+    routeAuto.lastPos=curr;
+    await ensureRouteCoords(trip);
+    const speed=Number(pos?.coords?.speed||0)*2.237;
+    const st=normalizeBookingStatus(trip.status);
+    const distToPickup=milesBetween(curr,routeAuto.pickupCoord);
+    const distToDest=milesBetween(curr,routeAuto.destinationCoord);
+
+    if(st==='EN_ROUTE'&&Number.isFinite(distToPickup)&&distToPickup<=ROUTE_AUTO_ARRIVAL_MI){
+      await updateTripStatusAuto(trip,'ARRIVED_PICKUP','Auto-detected near pickup');
+      syncRouteAutoUi(trip);
+      return;
+    }
+    if(st==='ARRIVED_PICKUP'&&Number.isFinite(distToPickup)&&distToPickup>=ROUTE_AUTO_DEPART_MI&&speed>=4){
+      await updateTripStatusAuto(trip,'PATIENT_ON_BOARD','Auto-detected departure from pickup');
+      await updateTripStatusAuto(trip,'DEPARTED','Auto-detected trip departure');
+      syncRouteAutoUi(trip);
+      return;
+    }
+    if(st==='PATIENT_ON_BOARD'&&speed>=4){
+      await updateTripStatusAuto(trip,'DEPARTED','Auto-detected trip departure');
+      syncRouteAutoUi(trip);
+      return;
+    }
+    if(st==='DEPARTED'&&Number.isFinite(distToDest)&&distToDest<=ROUTE_AUTO_ARRIVAL_MI){
+      await updateTripStatusAuto(trip,'ARRIVED_DESTINATION','Auto-detected near destination');
+      syncRouteAutoUi(trip);
+      return;
+    }
+    if(st==='ARRIVED_DESTINATION'&&Number.isFinite(distToDest)&&distToDest<=ROUTE_AUTO_ARRIVAL_MI&&speed<=2){
+      const dwell=Date.now()-(routeAuto.arrivedDestinationAt||Date.now());
+      if(dwell>=20000){
+        await updateTripStatusAuto(trip,'DELIVERED','Auto-confirmed destination stop');
+      }
+    }
+    syncRouteAutoUi(trip);
+  }
+
+  function renderRouteFocus(){
+    const t=activeTripForRoute();
+    if(!t)return;
+    if($('#routeFocusTitle'))$('#routeFocusTitle').textContent=t.patient;
+    const towardPickup=wfIdx(t.status)<=1;
+    const legFrom=towardPickup?'Current location':t.pickup;
+    const legTo=towardPickup?t.pickup:t.destination;
+    const fullMode=routeFocusMapMode==='full';
+    if($('#routeFocusCurrentLeg'))$('#routeFocusCurrentLeg').textContent=fullMode?'Full route overview':(towardPickup?'Heading to pickup':'Heading to destination');
+    if($('#routeFocusCurrentLegSub'))$('#routeFocusCurrentLegSub').textContent=`${t.status.replace(/_/g,' ')} • ${fmtDate(t.date)} ${t.time||''}`;
+    if($('#routeFocusFrom'))$('#routeFocusFrom').textContent=`From: ${fullMode?t.pickup:legFrom}`;
+    if($('#routeFocusTo'))$('#routeFocusTo').textContent=`To: ${fullMode?t.destination:legTo}`;
+    if($('#routeFocusMeta'))$('#routeFocusMeta').textContent=`Service: ${t.service||'N/A'} • Ref: ${t.ref}`;
+    const routeWarn=$('#routeFocusVehicleWarning');
+    if(routeWarn){
+      const needsStart=nextWorkflowStep(t.status)?.status==='EN_ROUTE';
+      const policy=needsStart?inspectionPolicyForTripStart(t):null;
+      if(policy&&!policy.allowed){
+        routeWarn.hidden=false;
+        routeWarn.textContent=`Vehicle Switch Required: ${policy.message}`;
+      }else{
+        routeWarn.hidden=true;
+        routeWarn.textContent='';
+      }
+    }
+
+    const mapUrl=fullMode
+      ? `https://www.google.com/maps?q=${encodeURIComponent(`${t.pickup} to ${t.destination}`)}&output=embed`
+      : `https://www.google.com/maps?q=${encodeURIComponent(legTo)}&output=embed`;
+    const frame=$('#routeFocusMap');if(frame)frame.src=mapUrl;
+    const legBtn=$('#btnRouteOpenLegNav');
+    const fullBtn=$('#btnRouteOpenFullNav');
+    if(legBtn){
+      legBtn.classList.toggle('navy',!fullMode);
+      legBtn.classList.toggle('ghost',fullMode);
+    }
+    if(fullBtn){
+      fullBtn.classList.toggle('navy',fullMode);
+      fullBtn.classList.toggle('ghost',!fullMode);
+    }
+    syncRouteAutoUi(t);
+  }
+
+  function setRouteFocus(open){
+    routeFocusOpen=Boolean(open);
+    const dash=$('#dashView');
+    const card=$('#routeFocusCard');
+    if(routeFocusOpen&&dash)clearCardFocus(dash);
+    if(dash)dash.classList.toggle('route-mode',routeFocusOpen);
+    if(card)card.hidden=!routeFocusOpen;
+    if(routeFocusOpen){
+      const t=activeTripForRoute();
+      if(t)activeRef=t.ref;
+      if(t&&routeAuto.tripRef&&routeAuto.tripRef!==t.ref)resetRouteAuto(t.ref);
+      if(t&&!routeAuto.tripRef)routeAuto.tripRef=t.ref;
+      routeFocusMapMode='leg';
+      renderRouteFocus();
+      if(!dash?.classList.contains('active'))showView('dashView');
+    }
+  }
+
+  function maybeAutoOpenRouteFocus(){
+    if(routeFocusOpen)return;
+    const dash=$('#dashView');
+    if(!dash?.classList.contains('active'))return;
+    const t=activeTripForRoute();
+    if(!t)return;
+    if(routeFocusDismissedRef&&routeFocusDismissedRef===t.ref)return;
+    activeRef=t.ref;
+    setRouteFocus(true);
+  }
+
   function openTrip(ref){
     const t=trips.find(x=>x.ref===ref);if(!t)return;
     activeRef=ref;
@@ -1023,10 +1493,16 @@
     const wfEl=$('#tripWorkflow');if(!wfEl)return;
     const startNotice=$('#tripStartNotice');
     const startPolicy=next?.status==='EN_ROUTE'?tripStartPolicy(t):null;
+    const vehiclePolicy=next?.status==='EN_ROUTE'?inspectionPolicyForTripStart(t):null;
     if(startNotice){
       if(done){
         startNotice.hidden=true;
         startNotice.textContent='';
+      }
+      else
+      if(next?.status==='EN_ROUTE'&&vehiclePolicy&&!vehiclePolicy.allowed){
+        startNotice.hidden=false;
+        startNotice.textContent=vehiclePolicy.message;
       }
       else
       if(next?.status==='EN_ROUTE'&&!startPolicy.allowed){
@@ -1052,7 +1528,11 @@
     }).join('');
     const btn=$('#btnAdvanceTrip');if(!btn)return;
     if(done){btn.textContent='Trip Complete';btn.disabled=true;}
-    else{btn.textContent=next?.status==='EN_ROUTE'?'START TRIP':(next?.label||'Advance').toUpperCase();btn.disabled=!shift.onDuty||!next;}
+    else{
+      btn.textContent=next?.status==='EN_ROUTE'?'START TRIP':(next?.label||'Advance').toUpperCase();
+      const blockedByVehicle=next?.status==='EN_ROUTE'&&vehiclePolicy?!vehiclePolicy.allowed:false;
+      btn.disabled=!shift.onDuty||!next||blockedByVehicle;
+    }
     const noShowBtn=$('#btnMarkNoShow');
     if(noShowBtn){
       noShowBtn.disabled=done;
@@ -1111,6 +1591,28 @@
   $('#btnAdvanceTrip')?.addEventListener('click',async()=>{
     const t=trips.find(x=>x.ref===activeRef);if(!t)return;
     const next=nextWorkflowStep(t.status);if(!next)return;
+    if(next.status==='EN_ROUTE'){
+      const vehiclePolicy=inspectionPolicyForTripStart(t);
+      if(!vehiclePolicy.allowed){
+        const startNotice=$('#tripStartNotice');
+        if(startNotice){
+          startNotice.hidden=false;
+          startNotice.textContent=vehiclePolicy.message;
+        }
+        if(vehiclePolicy.tripUnit){
+          shift.vehicleUnit=vehiclePolicy.tripUnit;
+          saveShift();
+          showView('inspectionView');
+          const sel=$('#inspVehicleSelect');
+          if(sel){sel.value=vehiclePolicy.tripUnit;onVehicleSelected(vehiclePolicy.tripUnit);}
+        }
+        return;
+      }
+      if(vehiclePolicy.tripUnit&&vehiclePolicy.tripUnit!==shift.vehicleUnit){
+        shift.vehicleUnit=vehiclePolicy.tripUnit;
+        saveShift();
+      }
+    }
     const btn=$('#btnAdvanceTrip');btn.disabled=true;btn.textContent='Updating…';
     const startNotice=$('#tripStartNotice');
     try{
@@ -1125,6 +1627,10 @@
       const r=await fetch(`/api/bookings/${encodeURIComponent(t.ref)}/update`,{method:'POST',headers:ah(),body:JSON.stringify({status:next.status,vehicleUnit:shift.vehicleUnit||undefined,earlyPickupReason:earlyPickupReason||undefined})});
       if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||`HTTP ${r.status}`);}
       t.status=next.status;
+      if(next.status==='EN_ROUTE'){
+        shift.lastTripVehicleUnit=shift.vehicleUnit||assignedVehicleUnit(t)||'';
+        saveShift();
+      }
       if(next.status==='COMPLETED'){shift.completedTrips++;saveShift();}
       if(startNotice){startNotice.hidden=true;startNotice.textContent='';}
       renderTripWorkflow(t);renderStepHints(t);updateBadge();renderManifest();
@@ -1145,10 +1651,74 @@
 
   $('#btnGoActiveTrip')?.addEventListener('click',()=>{if(activeRef)openTrip(activeRef);});
   $('#btnNavActiveTrip')?.addEventListener('click',()=>{
-    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
-    const dest=wfIdx(t.status)<=1?t.pickup:t.destination;
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}`,'_blank','noopener');
+    const t=activeTripForRoute();
+    if(!t){dashNotice('No active trip route to navigate right now.','warn');return;}
+    activeRef=t.ref;
+    routeFocusDismissedRef=null;
+    setRouteFocus(true);
   });
+  $('#btnExitRouteFocus')?.addEventListener('click',()=>{
+    const t=activeTripForRoute();
+    routeFocusDismissedRef=t?.ref||activeRef||null;
+    setRouteFocus(false);
+  });
+  $('#btnRouteAutoToggle')?.addEventListener('click',async()=>{
+    const t=activeTripForRoute();
+    if(!t){dashNotice('No active trip to automate.','warn');return;}
+    if(routeAuto.enabled){
+      routeAuto.enabled=false;
+      routeAuto.lastPos=null;
+      syncRouteAutoUi(t);
+      dashNotice('Auto route logging paused.','info');
+      return;
+    }
+    const odoRaw=$('#routeAutoStartOdo')?.value;
+    const startOdo=Number(odoRaw);
+    if(!Number.isFinite(startOdo)||startOdo<=0){dashNotice('Enter a valid starting odometer first.','warn');return;}
+    routeAuto.enabled=true;
+    routeAuto.tripRef=t.ref;
+    routeAuto.startOdo=startOdo;
+    routeAuto.milesSinceStart=0;
+    routeAuto.lastPos=null;
+    routeAuto.segmentStartMiles=0;
+    routeAuto.segmentStartOdo=startOdo;
+    routeAuto.pickupCoord=null;
+    routeAuto.destinationCoord=null;
+    routeAuto.arrivedDestinationAt=null;
+    await ensureRouteCoords(t);
+    if(!routeAuto.pickupCoord||!routeAuto.destinationCoord){
+      routeAuto.enabled=false;
+      dashNotice('Auto detection needs pickup/destination coordinates from dispatch for this trip.','warn');
+      syncRouteAutoUi(t);
+      return;
+    }
+    syncRouteAutoUi(t);
+    dashNotice('Auto log enabled. Trip statuses and mileage will update from route movement.','ok');
+  });
+  $('#btnRouteOpenLegNav')?.addEventListener('click',()=>{routeFocusMapMode='leg';renderRouteFocus();});
+  $('#btnRouteOpenFullNav')?.addEventListener('click',()=>{routeFocusMapMode='full';renderRouteFocus();});
+  $('#btnRouteCompleteTrip')?.addEventListener('click',async()=>{
+    const t=activeTripForRoute();
+    if(!t){dashNotice('No active trip to complete.','warn');return;}
+    const st=normalizeBookingStatus(t.status);
+    if(!['ARRIVED_DESTINATION','DELIVERED'].includes(st)){
+      dashNotice('Trip can be completed after destination arrival and dropoff.','warn');
+      return;
+    }
+    if(st==='ARRIVED_DESTINATION'){
+      const ok=await updateTripStatusAuto(t,'DELIVERED','Driver confirmed patient dropoff');
+      if(!ok)return;
+    }
+    const ok=await updateTripStatusAuto(t,'COMPLETED','Driver completed trip from route card');
+    if(!ok)return;
+    shift.completedTrips+=1;
+    saveShift();
+    routeAuto.enabled=false;
+    renderDash();
+    await loadTrips();
+    maybeAutoOpenRouteFocus();
+  });
+  $('#btnRouteManageTrip')?.addEventListener('click',()=>{if(activeRef)openTrip(activeRef);});
 
   // ── Mileage ───────────────────────────────────────────────────
   function calcLeg(){
@@ -1255,6 +1825,18 @@
       const asc={COMPLETED:'green',DELIVERED:'green',CANCELLED:'red',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',DEPARTED:'amber'};
       if($('#activeTripBadge')){$('#activeTripBadge').textContent=active.status.replace(/_/g,' ');$('#activeTripBadge').className=`badge ${asc[active.status]||'blue'}`;}
       if($('#activeTripSub'))$('#activeTripSub').textContent=`${active.pickup} to ${active.destination}`;
+      const vehicleWarn=$('#activeTripVehicleWarning');
+      if(vehicleWarn){
+        const needsStart=nextWorkflowStep(active.status)?.status==='EN_ROUTE';
+        const policy=needsStart?inspectionPolicyForTripStart(active):null;
+        if(policy&&!policy.allowed){
+          vehicleWarn.hidden=false;
+          vehicleWarn.textContent=`Vehicle Switch Required: ${policy.message}`;
+        }else{
+          vehicleWarn.hidden=true;
+          vehicleWarn.textContent='';
+        }
+      }
       if(!activeRef)activeRef=active.ref;
       if(aiHelpOpen)renderAiHelp(active);
     }else if(atc)atc.hidden=true;
@@ -1267,7 +1849,12 @@
       <p style="margin:0;font-size:13px;color:var(--muted)">${next.pickup} to ${next.destination}</p>
       <div style="margin-top:10px"><button class="btn ghost sm" onclick="window.__ot('${next.ref}')">Open Trip</button></div>`;}
     else if(nb)nb.innerHTML='<p style="color:var(--muted);margin:0;font-size:14px">No upcoming trips. Check your manifest.</p>';
+    if(routeFocusOpen)renderRouteFocus();
     renderDriverAnalytics();
+    const dash=$('#dashView');
+    if(dash&&dash.classList.contains('active')){
+      requestAnimationFrame(()=>ensureCardFocus(dash));
+    }
   }
   window.__ot=ref=>openTrip(ref);
 
@@ -1275,8 +1862,12 @@
   function startGPS(){
     if(!navigator.geolocation||gpsId!=null)return;
     gpsId=navigator.geolocation.watchPosition(async pos=>{
-      if(!shift.onDuty||!shift.vehicleUnit)return;
-      try{await fetch('/api/gps',{method:'POST',headers:ah(),body:JSON.stringify({vehicleUnit:shift.vehicleUnit,latitude:pos.coords.latitude,longitude:pos.coords.longitude,heading:pos.coords.heading||null,speedMph:pos.coords.speed?pos.coords.speed*2.237:null,accuracyM:pos.coords.accuracy||null,bookingReference:activeRef||null})});}catch{}
+      if(!shift.onDuty)return;
+      if(routeAuto.enabled){
+        maybeAdvanceRouteByPosition(pos).catch(()=>{});
+      }
+      if(!shift.vehicleUnit)return;
+      try{await fetch('/api/gps',{method:'POST',headers:ah(),body:JSON.stringify({vehicleUnit:shift.vehicleUnit,latitude:pos.coords.latitude,longitude:pos.coords.longitude,heading:pos.coords.heading||null,speedMph:pos.coords.speed?pos.coords.speed*2.237:null,accuracyM:pos.coords.accuracy||null,bookingReference:routeAuto.tripRef||activeRef||null})});}catch{}
     },null,{enableHighAccuracy:true,maximumAge:20000,timeout:25000});
   }
   function stopGPS(){if(gpsId!=null){navigator.geolocation.clearWatch(gpsId);gpsId=null;}}
@@ -1287,6 +1878,7 @@
     const ok=await checkAuth();if(!ok)return;
     hideLoginView();renderDash();renderInspection();loadFleetForInspection();bindAnalyticsTabs();
     await loadTrips();
+    showView('dashView');
     if(shift.onDuty)startGPS();
     setInterval(()=>{if(shift.onDuty)renderDash();},30000);
     setInterval(()=>{if(shift.onDuty)loadTrips();},120000);

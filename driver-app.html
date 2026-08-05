@@ -14,7 +14,8 @@
 <link rel="apple-touch-icon" href="/assets/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800;900&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Nunito+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./nexus-shared-app.css">
 <style>
 :root{
   --bg:#f4f7fb;
@@ -32,70 +33,113 @@
   --warn:#92400e;
   --warn-bg:#fffbeb;
   --safe-bottom:max(16px,env(safe-area-inset-bottom));
+  --text-xs:clamp(11px,2.5vw,12px);
+  --text-sm:clamp(12px,2.9vw,13px);
+  --text-md:clamp(14px,3.5vw,16px);
+  --text-lg:clamp(17px,4.6vw,20px);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
-body{margin:0;font-family:'Source Sans 3',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:16px}
+body{margin:0;font-family:'Nunito Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:var(--text-md);line-height:1.45;overflow:hidden;text-rendering:optimizeLegibility}
 a{color:var(--blue);text-decoration:none}
 
 /* â”€â”€ Phone shell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.phone{max-width:480px;margin:0 auto;min-height:100svh;display:flex;flex-direction:column;padding:0 0 calc(72px + var(--safe-bottom))}
+.phone{max-width:460px;margin:0 auto;height:100svh;display:flex;flex-direction:column;padding:0 0 calc(72px + var(--safe-bottom));overflow:hidden}
 
 /* â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.topBar{background:var(--navy);color:#fff;padding:env(safe-area-inset-top,0) 0 0;position:sticky;top:0;z-index:50}
-.topBarInner{display:flex;align-items:center;gap:10px;padding:14px 16px;min-height:60px}
-.topLogo{display:block;width:150px;height:28px;object-fit:contain;filter:none;flex:0 0 auto;animation:logoPop .8s cubic-bezier(.36,.07,.19,.97) both;transform-origin:center center}
-.topTitle{font:800 16px/1 Manrope,sans-serif;letter-spacing:-.01em;flex:1}
-.topBadge{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;font:800 11px/1 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;border:0;cursor:pointer}
-.topBadge.on{background:rgba(22,163,74,.25);color:#86efac}
-.topBadge.off{background:rgba(255,255,255,.12);color:#cbd5e1}
-.topBadge.break{background:rgba(234,179,8,.22);color:#fde047}
+.topBar{background:transparent;color:#fff;padding:env(safe-area-inset-top,0) 0 0;position:sticky;top:0;z-index:50}
+.topBarInner{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:16px 14px;min-height:76px;background:linear-gradient(140deg,#07142c,#0b1d47 56%,#d61f1f 130%);border-radius:0 0 22px 22px;box-shadow:0 16px 34px rgba(7,42,63,.28)}
+.driverBrand{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;justify-self:start;min-width:0}
+.driverBrand:focus-visible{outline:3px solid rgba(255,255,255,.35);outline-offset:4px;border-radius:16px}
+.topLogo{display:block;width:min(156px,34vw);height:auto;object-fit:contain;object-position:left center;background:transparent;filter:none;mix-blend-mode:normal;opacity:1;animation:logoPop .9s cubic-bezier(.36,.07,.19,.97) both;transform-origin:center center}
+.topTitle{font:900 clamp(16px,4.4vw,20px)/1.08 Sora,sans-serif;letter-spacing:-.03em;text-align:center;justify-self:stretch;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;max-width:100%}
+.topBadge{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;font:800 11px/1 Sora,sans-serif;letter-spacing:.06em;text-transform:uppercase;border:0;cursor:pointer}
+.topBadge{justify-self:end}
+.topBadge.on{background:rgba(22,163,74,.28);color:#86efac}
+.topBadge.off{background:rgba(255,255,255,.14);color:#eef2ff}
+.topBadge.break{background:rgba(234,179,8,.24);color:#fde047}
 .topBadge::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
 .topBadge:focus-visible{outline:3px solid rgba(255,255,255,.35);outline-offset:2px}
+
+@media (max-width:380px){
+  .topBarInner{gap:8px;padding:14px 10px}
+  .topLogo{width:min(130px,32vw)}
+  .topBadge{padding:4px 8px;font-size:10px}
+}
 
 @keyframes logoPop{0%{transform:scale(1) rotate(0deg)}15%{transform:scale(1.28) rotate(-4deg)}30%{transform:scale(1.35) rotate(4deg)}50%{transform:scale(1.25) rotate(-2deg)}70%{transform:scale(1.12) rotate(1.5deg)}85%{transform:scale(1.05) rotate(-0.5deg)}100%{transform:scale(1) rotate(0deg)}}
 
 /* â”€â”€ Bottom nav â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.bottomNav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(480px,100%);background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding:0 0 var(--safe-bottom);z-index:50;box-shadow:0 -4px 16px rgba(0,0,0,.08)}
-.navBtn{border:0;background:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:10px 4px 8px;font:700 10px/1 Manrope,sans-serif;color:var(--muted);cursor:pointer;min-height:56px;letter-spacing:.04em;text-transform:uppercase;-webkit-tap-highlight-color:transparent}
+.bottomNav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(480px,100%);background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding:0 0 var(--safe-bottom);z-index:50;box-shadow:0 -4px 16px rgba(0,0,0,.08)}
+.navBtn{border:0;background:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:10px 4px 8px;font:700 var(--text-xs)/1 Sora,sans-serif;color:var(--muted);cursor:pointer;min-height:56px;letter-spacing:.04em;text-transform:uppercase;-webkit-tap-highlight-color:transparent}
 .navBtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .navBtn.active{color:var(--brand)}
 .navBadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--brand);color:#fff;font-size:10px;font-weight:900;position:absolute;top:6px;right:calc(50% - 20px)}
 .navBtnWrap{position:relative;display:flex;flex-direction:column;align-items:center}
 
 /* â”€â”€ Sections / cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.padded{padding:12px 14px}
-.card{background:var(--sheet);border:1px solid var(--line);border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:10px;overflow:hidden}
+.padded{padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 30px rgba(0,0,0,.08);margin-bottom:10px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
 .cardHead{padding:14px 16px 0;display:flex;align-items:center;justify-content:space-between;gap:10px}
-.cardHead h2{margin:0;font:800 16px/1.2 Manrope,sans-serif;letter-spacing:-.02em}
-.cardBody{padding:12px 16px 16px}
-.eyebrow{font:800 11px/1 Manrope,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.cardHead h2{margin:0;font:800 var(--text-lg)/1.2 Sora,sans-serif;letter-spacing:-.02em}
+.cardBody{padding:12px 16px 16px;min-width:0}
+.eyebrow{font:800 var(--text-xs)/1 Sora,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.cardHead,.cardBody,.routeFocusPanel,.notice,.summaryItem,.analyticsTile{min-width:0}
+.cardBody p,.routeFocusPanel span,.notice,.tripInfo span,.inspLabel small,.legInfo span,.summaryItem span,.analyticsLegend,.analyticsInsight{overflow-wrap:anywhere}
+
+/* Dashboard composition */
+#dashView{overflow:auto;scrollbar-gutter:stable both-edges}
+#dashView .padded{padding-bottom:calc(108px + var(--safe-bottom));scroll-snap-type:y proximity;align-content:flex-start}
+#dashView .padded > *{flex-shrink:0}
+#dashView .card{scroll-snap-align:start;scroll-snap-stop:always;flex:0 0 auto}
+#dashView .cardHead{padding:12px 14px 0}
+#dashView .cardBody{padding:10px 14px 14px}
+.dashStatGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.dashStat{display:grid;gap:4px;text-align:center;padding:9px 6px;background:var(--bg);border-radius:10px;border:1px solid var(--line)}
+.dashStat strong{display:block;font:800 clamp(18px,4.8vw,20px)/1 Sora,sans-serif}
+.dashStat span{font-size:var(--text-xs);color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+#dashView #nextTripBody{display:grid;gap:4px}
+#dashView #nextTripBody p{margin:0;font-size:var(--text-sm);line-height:1.35}
+#dashView .btn.sm,#dashView .btn.ok{min-height:44px}
+
+/* Route focus mode (dashboard) */
+#dashView.route-mode .route-hidden{display:none!important}
+#routeFocusCard{display:none}
+#dashView.route-mode #routeFocusCard{display:block!important}
+.routeFocusBody{display:grid;gap:12px;min-height:calc(100svh - 280px)}
+.routeFocusPanel{border:1px solid var(--line);border-radius:14px;background:#f8fafc;padding:12px}
+.routeFocusPanel strong{display:block;font:800 var(--text-md)/1.2 Sora,sans-serif}
+.routeFocusPanel span{display:block;margin-top:4px;font-size:var(--text-sm);color:var(--muted)}
+.routeFocusMapWrap{position:sticky;top:0;z-index:3;padding:2px 0 8px;background:linear-gradient(to bottom,#fff 82%,rgba(255,255,255,0))}
+.routeFocusMap{width:100%;min-height:260px;border:1px solid var(--line);border-radius:14px;background:#eaf3fb}
+
+#dashView.route-mode .routeFocusBody{overflow:auto;padding-bottom:10px}
 
 /* â”€â”€ Forms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .field{display:grid;gap:6px;margin-bottom:12px}
 .field:last-child{margin-bottom:0}
-.field label{font:700 13px/1 Manrope,sans-serif;color:var(--ink)}
-.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px 12px;font:500 16px/1.4 'Source Sans 3',sans-serif;background:#fff;color:var(--ink);-webkit-appearance:none;appearance:none}
+.field label{font:700 var(--text-sm)/1.15 Sora,sans-serif;color:var(--ink)}
+.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px 12px;font:500 var(--text-md)/1.4 'Nunito Sans',sans-serif;background:#fff;color:var(--ink);-webkit-appearance:none;appearance:none}
 .field input:focus,.field select:focus,.field textarea:focus{outline:3px solid rgba(10,107,153,.2);border-color:var(--blue)}
 .field textarea{min-height:80px;resize:vertical}
 .fieldRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .passwordField{position:relative}
 .passwordField input{padding-right:58px}
-.passwordToggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--blue);font:700 13px/1.2 Manrope,sans-serif;cursor:pointer;padding:0}
+.passwordToggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--blue);font:700 13px/1.2 Sora,sans-serif;cursor:pointer;padding:0}
 
 /* â”€â”€ Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;border:0;padding:0 20px;font:800 15px/1 Manrope,sans-serif;cursor:pointer;min-height:52px;letter-spacing:-.01em;transition:transform .1s,box-shadow .1s}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;border:0;padding:0 20px;font:800 15px/1 Sora,sans-serif;cursor:pointer;min-height:52px;letter-spacing:-.01em;transition:transform .1s,box-shadow .1s}
 .btn:active{transform:scale(.97)}
 .btn.primary{background:linear-gradient(135deg,var(--brand),#a91616);color:#fff;box-shadow:0 8px 20px rgba(214,31,31,.28);width:100%}
 .btn.navy{background:linear-gradient(135deg,var(--navy),#0e2a55);color:#fff;box-shadow:0 8px 20px rgba(7,20,44,.28);width:100%}
 .btn.ok{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;width:100%;box-shadow:0 8px 18px rgba(22,163,74,.24)}
 .btn.ghost{background:transparent;border:1.5px solid var(--line);color:var(--ink)}
-.btn.sm{min-height:38px;font-size:13px;padding:0 14px;border-radius:10px}
+.btn.sm{min-height:38px;font-size:var(--text-sm);padding:0 14px;border-radius:10px}
 .btnRow{display:flex;gap:8px;flex-wrap:wrap}
 .btnRow .btn{flex:1}
 
 /* â”€â”€ Status badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;font:800 11px/1 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;font:800 11px/1 Sora,sans-serif;letter-spacing:.06em;text-transform:uppercase}
 .badge.blue{background:#dbeafe;color:#1e40af}
 .badge.green{background:var(--ok-bg);color:var(--ok)}
 .badge.red{background:var(--err-bg);color:var(--err)}
@@ -107,18 +151,26 @@ a{color:var(--blue);text-decoration:none}
 .tripCard:last-child{border-bottom:0}
 .tripCard:hover,.tripCard:focus-visible{background:#f8fafc;outline:none}
 .tripCard.active-trip{background:#edf7fd;border-left:4px solid var(--blue)}
-.tripTime{text-align:center}.tripTime strong{display:block;font:800 16px/1 Manrope,sans-serif}.tripTime small{font-size:11px;color:var(--muted)}
-.tripInfo strong{display:block;font:700 14px/1.2 Manrope,sans-serif}.tripInfo span{display:block;font-size:13px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.tripTime{text-align:center}.tripTime strong{display:block;font:800 16px/1 Sora,sans-serif}.tripTime small{font-size:11px;color:var(--muted)}
+.tripInfo strong{display:block;font:700 var(--text-md)/1.2 Sora,sans-serif}.tripInfo span{display:block;font-size:var(--text-sm);color:var(--muted);margin-top:2px;white-space:normal;overflow:visible;text-overflow:clip;max-width:none}
 
 /* â”€â”€ Inspection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.inspGroup{margin-bottom:14px}
-.inspGroupHead{font:800 13px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);padding:10px 16px;background:#f0f7fc;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:0}
+.inspSection{margin-bottom:12px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.inspGroupHead{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:10px 12px;background:#f0f7fc;border-bottom:1px solid var(--line)}
+.inspGroupTitleBtn{display:flex;align-items:center;justify-content:space-between;gap:10px;border:0;background:transparent;padding:0;text-align:left;cursor:pointer;color:var(--blue);font:800 13px/1 Sora,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.inspGroupTitleBtn .meta{font:700 11px/1 Sora,sans-serif;color:var(--muted);letter-spacing:.04em}
+.inspGroupActions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.inspGroupBulkBtn{min-height:30px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);font:800 11px/1 Sora,sans-serif;letter-spacing:.04em;cursor:pointer}
+.inspGroupBulkBtn.active-pass{background:var(--ok-bg);border-color:#86efac;color:var(--ok)}
+.inspGroupBulkBtn.active-fail{background:var(--err-bg);border-color:#fda4af;color:var(--err)}
+.inspGroupItems[hidden]{display:none}
+.inspVehicleCardCollapsed .cardBody{display:none}
 .inspItem{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
 .inspItem:last-child{border-bottom:0}
-.inspLabel{flex:1;font:600 14px/1.3 'Source Sans 3',sans-serif}
-.inspLabel small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.inspLabel{flex:1;font:600 var(--text-md)/1.35 'Nunito Sans',sans-serif}
+.inspLabel small{display:block;font-size:var(--text-sm);color:var(--muted);margin-top:2px}
 .inspToggle{display:flex;gap:6px}
-.inspToggle button{min-width:52px;min-height:34px;border-radius:8px;border:1.5px solid var(--line);background:#fff;font:700 12px/1 Manrope,sans-serif;cursor:pointer;transition:all .15s}
+.inspToggle button{min-width:52px;min-height:34px;border-radius:8px;border:1.5px solid var(--line);background:#fff;font:700 12px/1 Sora,sans-serif;cursor:pointer;transition:all .15s}
 .inspToggle button.pass{background:var(--ok-bg);border-color:#86efac;color:var(--ok)}
 .inspToggle button.fail{background:var(--err-bg);border-color:#fda4af;color:var(--err)}
 .inspProgress{height:4px;background:var(--line);border-radius:999px;margin:10px 16px}
@@ -127,21 +179,21 @@ a{color:var(--blue);text-decoration:none}
 /* â”€â”€ Mileage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .legRow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--line)}
 .legRow:last-child{border-bottom:0}
-.legInfo strong{font:700 13px/1.2 Manrope,sans-serif;display:block}.legInfo span{font-size:12px;color:var(--muted);margin-top:2px;display:block}
-.legMiles{font:800 18px/1 Manrope,sans-serif;color:var(--ink);white-space:nowrap}
-.legMiles small{font-size:11px;color:var(--muted);font-weight:600}
+.legInfo strong{font:700 var(--text-sm)/1.2 Sora,sans-serif;display:block}.legInfo span{font-size:var(--text-xs);color:var(--muted);margin-top:2px;display:block}
+.legMiles{font:800 clamp(16px,4.2vw,18px)/1 Sora,sans-serif;color:var(--ink);white-space:nowrap}
+.legMiles small{font-size:var(--text-xs);color:var(--muted);font-weight:600}
 .milesTotal{background:var(--navy);color:#fff;border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;margin:10px 14px}
-.milesTotal strong{font:800 26px/1 Manrope,sans-serif}
+.milesTotal strong{font:800 26px/1 Sora,sans-serif}
 .milesTotal span{font-size:13px;color:#94a3b8}
 
 /* â”€â”€ Shift summary (end) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .summaryGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 16px}
 .summaryItem{padding:14px;background:var(--bg);border-radius:12px;border:1px solid var(--line)}
-.summaryItem strong{display:block;font:800 28px/1 Manrope,sans-serif;margin-bottom:4px}
-.summaryItem span{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.summaryItem strong{display:block;font:800 28px/1 Sora,sans-serif;margin-bottom:4px}
+.summaryItem span{font-size:var(--text-xs);color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
 
 /* â”€â”€ Alert / notice â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.notice{border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:10px;border:1px solid}
+.notice{border-radius:12px;padding:12px 14px;font-size:var(--text-md);margin-bottom:10px;border:1px solid}
 .notice.ok{background:var(--ok-bg);border-color:#bbf7d0;color:var(--ok)}
 .notice.err{background:var(--err-bg);border-color:#fecdd3;color:var(--err)}
 .notice.info{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
@@ -151,13 +203,13 @@ a{color:var(--blue);text-decoration:none}
 #loginView{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;background:var(--navy)}
 .loginCard{width:min(400px,100%);background:#fff;border-radius:20px;padding:28px;box-shadow:0 30px 60px rgba(0,0,0,.3)}
 .loginLogo{display:block;width:160px;margin:0 auto 24px}
-.loginCard h1{margin:0 0 4px;font:900 22px/1 Manrope,sans-serif;text-align:center}
+.loginCard h1{margin:0 0 4px;font:900 22px/1 Sora,sans-serif;text-align:center}
 .loginCard p{margin:0 0 20px;color:var(--muted);text-align:center;font-size:14px}
 
 /* â”€â”€ Date filter tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tabBar{display:flex;gap:6px;padding:12px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .tabBar::-webkit-scrollbar{display:none}
-.tabBar button{flex:0 0 auto;padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font:700 13px/1 Manrope,sans-serif;color:var(--muted);cursor:pointer;white-space:nowrap}
+.tabBar button{flex:0 0 auto;padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font:700 13px/1 Sora,sans-serif;color:var(--muted);cursor:pointer;white-space:nowrap}
 .tabBar button.active{background:var(--navy);border-color:var(--navy);color:#fff}
 
 /* â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -171,30 +223,45 @@ a{color:var(--blue);text-decoration:none}
 /* Driver insights charts */
 .analyticsHead{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .analyticsTabs{display:flex;gap:6px;flex-wrap:wrap}
-.analyticsTabs button{min-height:32px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);font:800 11px/1 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.analyticsTabs button{min-height:32px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);font:800 11px/1 Sora,sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
 .analyticsTabs button.active{background:var(--navy);border-color:var(--navy);color:#fff}
-.analyticsGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.analyticsTile{border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px}
-.analyticsTile h3{margin:0 0 8px;font:800 12px/1.2 Manrope,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.analyticsGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.analyticsTile{border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px 10px 14px}
+.analyticsTile h3{margin:0 0 8px;font:800 var(--text-xs)/1.2 Sora,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 .analyticsMetric{display:flex;align-items:baseline;gap:6px;margin-bottom:8px}
-.analyticsMetric strong{font:900 22px/1 Manrope,sans-serif;color:var(--ink)}
-.analyticsMetric span{font:700 11px/1 Manrope,sans-serif;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
-.analyticsBars{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;align-items:end;height:88px}
+.analyticsMetric strong{font:900 clamp(20px,5vw,22px)/1 Sora,sans-serif;color:var(--ink)}
+.analyticsMetric span{font:700 var(--text-xs)/1 Sora,sans-serif;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+.analyticsBars{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;align-items:end;height:74px;margin-bottom:18px}
 .analyticsBar{position:relative;border-radius:8px 8px 5px 5px;background:#dbeafe;min-height:6px}
-.analyticsBar::after{content:attr(data-label);position:absolute;left:50%;transform:translateX(-50%);bottom:-14px;font:700 9px/1 Manrope,sans-serif;color:var(--muted);letter-spacing:.04em}
-.analyticsLegend{margin-top:16px;font-size:11px;color:var(--muted)}
-.analyticsInsight{margin-top:12px;padding:10px;border-radius:10px;background:#f8fbff;border:1px dashed #b9d7ea;color:#244762;font-size:13px;line-height:1.35}
-@media(max-width:420px){.analyticsGrid{grid-template-columns:1fr}.analyticsBars{height:76px}}
+.analyticsBar::after{content:attr(data-label);position:absolute;left:50%;transform:translateX(-50%);bottom:-16px;font:700 8px/1 Sora,sans-serif;color:var(--muted);letter-spacing:.03em}
+.analyticsLegend{margin-top:0;font-size:var(--text-xs);color:var(--muted);line-height:1.3}
+.analyticsInsight{margin-top:12px;padding:10px;border-radius:10px;background:#f8fbff;border:1px dashed #b9d7ea;color:#244762;font-size:var(--text-sm);line-height:1.4}
+@media(max-width:420px){.analyticsGrid{grid-template-columns:1fr}.analyticsBars{height:70px}}
 
 /* â”€â”€ View transitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.view{display:none;flex:1;flex-direction:column}
-.view.active{display:flex;flex-direction:column;animation:fadeUp .25s ease-out}
+.view{display:none;flex:1;flex-direction:column;min-height:0;overflow:hidden}
+.view.active{display:flex;flex-direction:column;animation:fadeUp .25s ease-out;overflow:auto;scrollbar-gutter:stable both-edges}
+.view.focus-mode .card{display:none!important}
+.view.focus-mode{overflow:hidden}
+.view.focus-mode .padded{overflow:hidden}
+.view.focus-mode .card.card-focus-active{display:flex!important;flex-direction:column;flex:1;min-height:0;max-height:100%;margin-bottom:0;overflow:auto;overscroll-behavior:contain}
+.view.focus-mode .card.card-focus-active .cardBody{overflow:visible;min-height:auto}
+.focusToggle{position:fixed;right:16px;bottom:calc(80px + var(--safe-bottom));z-index:60;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:8px 12px;font:800 12px/1 Sora,sans-serif;box-shadow:0 8px 18px rgba(7,20,44,.16);cursor:pointer}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+@media(max-width:380px){
+  #dashView .cardHead{padding:11px 12px 0}
+  #dashView .cardBody{padding:10px 12px 12px}
+  .dashStatGrid{gap:6px}
+  .fieldRow,.summaryGrid{grid-template-columns:1fr}
+  .btnRow{flex-direction:column}
+  .btnRow .btn{width:100%}
+}
 
 /* Modal */
 .modalBackdrop{position:fixed;inset:0;background:rgba(7,20,44,.55);display:grid;place-items:end center;padding:16px;z-index:120}
 .modalCard{width:min(480px,100%);background:#fff;border:1px solid var(--line);border-radius:16px 16px 12px 12px;box-shadow:0 -10px 30px rgba(7,20,44,.22);padding:14px}
-.modalCard h3{margin:0 0 8px;font:800 18px/1.2 Manrope,sans-serif;color:var(--ink)}
+.modalCard h3{margin:0 0 8px;font:800 18px/1.2 Sora,sans-serif;color:var(--ink)}
 .modalCard p{margin:0 0 10px;font-size:14px;line-height:1.4;color:var(--muted)}
 @media(min-width:700px){.modalBackdrop{place-items:center}.modalCard{border-radius:16px}}
 </style>
@@ -219,7 +286,7 @@ a{color:var(--blue);text-decoration:none}
 
   <!-- Forgot password panel (shown inline) -->
   <div id="forgotPanel" class="loginCard" style="margin-top:12px;display:none">
-    <h2 style="margin:0 0 6px;font:800 18px Manrope,sans-serif;text-align:center">Forgot password</h2>
+    <h2 style="margin:0 0 6px;font:800 18px Sora,sans-serif;text-align:center">Forgot password</h2>
     <p style="margin:0 0 16px;color:var(--muted);font-size:14px;text-align:center">Enter your email and we'll send a reset link.</p>
     <div id="forgotNotice" class="notice ok" hidden></div>
     <form id="forgotForm" novalidate>
@@ -231,7 +298,7 @@ a{color:var(--blue);text-decoration:none}
 
   <!-- Reset password panel (shown when ?action=reset&token=... in URL) -->
   <div id="resetPanel" class="loginCard" style="margin-top:12px;display:none">
-    <h2 style="margin:0 0 6px;font:800 18px Manrope,sans-serif;text-align:center">Create new password</h2>
+    <h2 style="margin:0 0 6px;font:800 18px Sora,sans-serif;text-align:center">Create new password</h2>
     <p style="margin:0 0 16px;color:var(--muted);font-size:14px;text-align:center">Choose a strong password of at least 8 characters.</p>
     <div id="resetNotice" class="notice err" hidden></div>
     <form id="resetForm" novalidate>
@@ -249,7 +316,9 @@ a{color:var(--blue);text-decoration:none}
   <!-- Top bar -->
   <header class="topBar">
     <div class="topBarInner">
-      <img class="topLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit">
+      <a class="driverBrand" href="/" aria-label="Nexus Medical Transit home">
+        <img class="topLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit">
+      </a>
       <span class="topTitle" id="topViewTitle">Dashboard</span>
       <button id="shiftBadge" class="topBadge off" type="button" title="Quick shift action">Off Duty</button>
     </div>
@@ -258,16 +327,16 @@ a{color:var(--blue);text-decoration:none}
   <!-- â”€â”€ DASHBOARD VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="dashView" class="view active">
     <div class="padded">
-      <div id="dashNotice" class="notice info" hidden></div>
+      <div id="dashNotice" class="notice info route-hidden" hidden></div>
 
       <!-- Shift card -->
-      <div class="card">
+      <div class="card route-hidden">
         <div class="cardHead"><div><div class="eyebrow">Today's shift</div><h2 id="dashDriverName">Loading...</h2></div><span id="dashVehicle" class="badge gray">--</span></div>
         <div class="cardBody">
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
-            <div style="text-align:center;padding:10px 6px;background:var(--bg);border-radius:10px;border:1px solid var(--line)"><strong style="display:block;font:800 20px/1 Manrope,sans-serif" id="statHours">0:00</strong><span style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Hours</span></div>
-            <div style="text-align:center;padding:10px 6px;background:var(--bg);border-radius:10px;border:1px solid var(--line)"><strong style="display:block;font:800 20px/1 Manrope,sans-serif" id="statTrips">0</strong><span style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Trips</span></div>
-            <div style="text-align:center;padding:10px 6px;background:var(--bg);border-radius:10px;border:1px solid var(--line)"><strong style="display:block;font:800 20px/1 Manrope,sans-serif" id="statMiles">0</strong><span style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Miles</span></div>
+          <div class="dashStatGrid">
+            <div class="dashStat"><strong id="statHours">0:00</strong><span>Hours</span></div>
+            <div class="dashStat"><strong id="statTrips">0</strong><span>Trips</span></div>
+            <div class="dashStat"><strong id="statMiles">0</strong><span>Miles</span></div>
           </div>
           <div id="shiftControls">
             <div class="btnRow">
@@ -285,10 +354,11 @@ a{color:var(--blue);text-decoration:none}
       </div>
 
       <!-- Active trip quick card -->
-      <div id="activeTripCard" class="card" hidden>
+      <div id="activeTripCard" class="card route-hidden" hidden>
         <div class="cardHead"><div><div class="eyebrow">Active trip</div><h2 id="activeTripTitle">--</h2></div><span id="activeTripBadge" class="badge blue">En Route</span></div>
         <div class="cardBody">
           <p id="activeTripSub" style="margin:0 0 12px;color:var(--muted);font-size:14px"></p>
+          <div id="activeTripVehicleWarning" class="notice warn" hidden style="margin:0 0 10px;padding:10px 12px;font-size:13px"></div>
           <div class="btnRow">
             <button id="btnGoActiveTrip" class="btn navy sm">Manage Trip</button>
             <button id="btnNavActiveTrip" class="btn ghost sm">Navigate</button>
@@ -297,13 +367,55 @@ a{color:var(--blue);text-decoration:none}
       </div>
 
       <!-- Next up -->
-      <div class="card" id="nextTripCard">
+      <div class="card route-hidden" id="nextTripCard">
         <div class="cardHead"><div class="eyebrow">Next up</div></div>
         <div class="cardBody" id="nextTripBody"><p style="color:var(--muted);margin:0;font-size:14px">No upcoming trips. Check your manifest.</p></div>
       </div>
 
+      <!-- Route focus card -->
+      <div id="routeFocusCard" class="card" hidden>
+        <div class="cardHead">
+          <div>
+            <div class="eyebrow">Active Route</div>
+            <h2 id="routeFocusTitle">Route View</h2>
+          </div>
+          <button id="btnExitRouteFocus" class="btn ghost sm" type="button">Exit Route</button>
+        </div>
+        <div class="cardBody routeFocusBody">
+          <div class="routeFocusPanel">
+            <strong id="routeFocusCurrentLeg">Pickup leg</strong>
+            <span id="routeFocusCurrentLegSub">Preparing route...</span>
+          </div>
+          <div class="routeFocusPanel">
+            <strong id="routeFocusFrom">From: --</strong>
+            <span id="routeFocusTo">To: --</span>
+            <span id="routeFocusMeta">--</span>
+            <div id="routeFocusVehicleWarning" class="notice warn" hidden style="margin-top:8px;padding:8px 10px;font-size:13px"></div>
+          </div>
+          <div class="routeFocusPanel">
+            <div class="fieldRow" style="align-items:end">
+              <div class="field" style="margin:0">
+                <label for="routeAutoStartOdo">Starting odometer</label>
+                <input id="routeAutoStartOdo" type="number" step="0.1" min="0" placeholder="48250.0">
+              </div>
+              <button id="btnRouteAutoToggle" class="btn ghost sm" type="button">Start Auto Log</button>
+            </div>
+            <span id="routeAutoInfo" style="margin-top:8px">Enter starting odometer, then start auto log. The app will detect arrival/departure and log route mileage.</span>
+          </div>
+          <div class="routeFocusMapWrap">
+            <iframe id="routeFocusMap" class="routeFocusMap" title="Active route map" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+          </div>
+          <div class="btnRow">
+            <button id="btnRouteOpenLegNav" class="btn navy sm" type="button">Open Current Leg</button>
+            <button id="btnRouteOpenFullNav" class="btn ghost sm" type="button">Open Full Route</button>
+            <button id="btnRouteCompleteTrip" class="btn ok sm" type="button">Trip Complete</button>
+            <button id="btnRouteManageTrip" class="btn ghost sm" type="button">Manage Trip</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Driver insights -->
-      <div class="card" id="driverAnalyticsCard">
+      <div class="card route-hidden" id="driverAnalyticsCard">
         <div class="cardBody">
           <div class="analyticsHead">
             <div>
@@ -323,7 +435,7 @@ a{color:var(--blue);text-decoration:none}
               </div>
             </div>
 
-              <h2 style="margin:4px 0 0;font:800 18px/1.1 Manrope,sans-serif">Performance trends</h2>
+              <h2 style="margin:4px 0 0;font:800 18px/1.1 Sora,sans-serif">Performance trends</h2>
             </div>
             <div class="analyticsTabs" id="analyticsRangeTabs" role="tablist" aria-label="Insights period">
               <button class="active" type="button" data-days="7">7D</button>
@@ -368,8 +480,8 @@ a{color:var(--blue);text-decoration:none}
     <div class="padded">
       <!-- Step 1: Select vehicle -->
       <div class="card" id="inspVehicleCard">
-        <div class="cardHead"><div><div class="eyebrow">Step 1 of 2</div><h2>Select your vehicle</h2></div></div>
-        <div class="cardBody">
+        <div class="cardHead"><div><div class="eyebrow" id="inspVehicleCardStep">Step 1 of 2</div><h2 id="inspVehicleCardTitle">Select your vehicle</h2></div></div>
+        <div class="cardBody" id="inspVehicleCardBody">
           <p style="margin:0 0 12px;font-size:14px;color:var(--muted)">The inspection checklist is tailored to your vehicle type. Select before proceeding.</p>
           <div class="field">
             <label for="inspVehicleSelect">Assigned vehicle</label>
@@ -378,7 +490,7 @@ a{color:var(--blue);text-decoration:none}
             </select>
           </div>
           <div id="inspVehicleInfo" hidden style="margin-bottom:12px;padding:12px;background:var(--bg);border-radius:12px;border:1px solid var(--line)">
-            <p id="inspVehicleName" style="margin:0 0 4px;font:700 15px Manrope,sans-serif"></p>
+            <p id="inspVehicleName" style="margin:0 0 4px;font:700 15px Sora,sans-serif"></p>
             <p id="inspVehicleNote" style="margin:0;font-size:13px;color:var(--muted)"></p>
           </div>
           <button id="btnProceedInspection" class="btn navy" disabled>Begin Inspection &rarr;</button>
@@ -389,7 +501,7 @@ a{color:var(--blue);text-decoration:none}
         <div class="notice info">Check every item. Mark Pass or Fail — all items required before starting shift.</div>
         <!-- Dashboard alert escalation — shown if any warning light is ON -->
         <div id="inspAlertBanner" hidden style="margin-bottom:10px;padding:14px 16px;background:#fff1f3;border:2px solid #fda4af;border-radius:14px;color:#be123c">
-          <strong style="font:800 15px Manrope,sans-serif">&#9888;&#65039; Dashboard Warning Light Is ON</strong>
+          <strong style="font:800 15px Sora,sans-serif">&#9888;&#65039; Dashboard Warning Light Is ON</strong>
           <p style="margin:6px 0 10px;font-size:14px">Do <strong>NOT</strong> operate this vehicle. A warning light indicates a mechanical fault that requires Fleet attention before the vehicle is safe to drive.</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <a href="tel:+18887604990" class="btn primary sm" style="min-height:38px;text-decoration:none">&#128222; Call Fleet Now</a>
@@ -399,8 +511,8 @@ a{color:var(--blue);text-decoration:none}
         <div id="inspProgress" class="card" style="overflow:visible">
           <div class="cardBody" style="padding-bottom:10px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <span style="font:700 13px Manrope,sans-serif">Inspection progress</span>
-              <span id="inspProgressLabel" style="font:800 13px Manrope,sans-serif;color:var(--ok)">0 / 0</span>
+              <span style="font:700 13px Sora,sans-serif">Inspection progress</span>
+              <span id="inspProgressLabel" style="font:800 13px Sora,sans-serif;color:var(--ok)">0 / 0</span>
             </div>
             <div class="inspProgress"><span id="inspProgressBar" style="width:0%"></span></div>
           </div>
@@ -443,18 +555,18 @@ a{color:var(--blue);text-decoration:none}
       <div class="card">
         <div class="cardBody">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
-            <div><div class="eyebrow" id="tripRef">--</div><h2 id="tripPatient" style="margin:4px 0 0;font:800 20px/1.1 Manrope,sans-serif">--</h2></div>
+            <div><div class="eyebrow" id="tripRef">--</div><h2 id="tripPatient" style="margin:4px 0 0;font:800 20px/1.1 Sora,sans-serif">--</h2></div>
             <span id="tripStatusBadge" class="badge blue">--</span>
           </div>
           <div style="background:var(--bg);border-radius:12px;padding:12px;border:1px solid var(--line)">
             <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
               <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;margin-top:5px;flex:0 0 auto"></span>
-              <div><small style="font:700 11px Manrope,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Pickup</small><p id="tripPickup" style="margin:2px 0 0;font-size:14px;font-weight:600"></p></div>
+              <div><small style="font:700 11px Sora,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Pickup</small><p id="tripPickup" style="margin:2px 0 0;font-size:14px;font-weight:600"></p></div>
             </div>
             <div style="border-left:2px dashed var(--line);margin:0 4px 8px 3px;height:14px"></div>
             <div style="display:flex;align-items:flex-start;gap:10px">
               <span style="width:8px;height:8px;border-radius:50%;background:var(--brand);margin-top:5px;flex:0 0 auto"></span>
-              <div><small style="font:700 11px Manrope,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Destination</small><p id="tripDestination" style="margin:2px 0 0;font-size:14px;font-weight:600"></p></div>
+              <div><small style="font:700 11px Sora,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Destination</small><p id="tripDestination" style="margin:2px 0 0;font-size:14px;font-weight:600"></p></div>
             </div>
           </div>
           <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
@@ -476,14 +588,14 @@ a{color:var(--blue);text-decoration:none}
           </div>
           <div id="tripStepHints" class="notice info" hidden style="margin-bottom:10px">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
-              <strong style="font:800 13px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase">Driver Hints</strong>
+              <strong style="font:800 13px/1 Sora,sans-serif;letter-spacing:.08em;text-transform:uppercase">Driver Hints</strong>
               <button id="btnTripStepHelpClose" class="btn ghost sm" type="button" style="min-height:30px;padding:0 10px">Hide</button>
             </div>
             <div id="tripStepHintsBody" style="display:grid;gap:8px"></div>
           </div>
           <div id="tripAiHelp" class="notice info" hidden style="margin-bottom:10px">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
-              <strong style="font:800 13px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase">AI Helper</strong>
+              <strong style="font:800 13px/1 Sora,sans-serif;letter-spacing:.08em;text-transform:uppercase">AI Helper</strong>
               <button id="btnTripAiHelpClose" class="btn ghost sm" type="button" style="min-height:30px;padding:0 10px">Hide</button>
             </div>
             <div id="tripAiHelpBody" style="display:grid;gap:8px"></div>
@@ -508,7 +620,7 @@ a{color:var(--blue);text-decoration:none}
             <div class="field"><label for="legOdoStart">Odometer at start</label><input id="legOdoStart" type="number" inputmode="numeric" placeholder="45000"></div>
             <div class="field"><label for="legOdoEnd">Odometer at end</label><input id="legOdoEnd" type="number" inputmode="numeric" placeholder="45012"></div>
           </div>
-          <div id="legMilesCalc" style="display:none;padding:10px;background:var(--ok-bg);border-radius:10px;border:1px solid #bbf7d0;margin-bottom:12px;text-align:center;font:800 18px Manrope,sans-serif;color:var(--ok)"></div>
+          <div id="legMilesCalc" style="display:none;padding:10px;background:var(--ok-bg);border-radius:10px;border:1px solid #bbf7d0;margin-bottom:12px;text-align:center;font:800 18px Sora,sans-serif;color:var(--ok)"></div>
           <div class="field"><label for="legType">Leg type</label>
             <select id="legType">
               <option value="DEADHEAD">Deadhead (no passenger)</option>
@@ -624,15 +736,13 @@ a{color:var(--blue);text-decoration:none}
     </div>
     Trips
   </button>
-  <button class="navBtn" data-view="milesView">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-    Miles
-  </button>
   <button class="navBtn" data-view="endView">
     <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     Sign Out
   </button>
 </nav>
+
+<button id="focusToggleBtn" class="focusToggle" type="button" hidden>Focus Cards</button>
 
 </div><!-- #appShell -->
 
@@ -640,3 +750,4 @@ a{color:var(--blue);text-decoration:none}
 <script src="./driver-app.js"></script>
 </body>
 </html>
+

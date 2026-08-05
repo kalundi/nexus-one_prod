@@ -5,7 +5,7 @@
  const policy={
   '/facility.html':['FACILITY','DISPATCHER','ADMIN'],
   '/dispatch.html':['DISPATCHER','ADMIN'],
-  '/driver.html':['DRIVER','DISPATCHER','ADMIN'],
+  '/driver-app.html':['DRIVER','DISPATCHER','ADMIN'],
   '/fleet.html':['DISPATCHER','ADMIN'],
   '/billing.html':['BILLING','ADMIN'],
   '/qa.html':['QA','ADMIN'],
