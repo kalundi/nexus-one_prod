@@ -298,7 +298,7 @@
 <section id="tripBoard" class="card" style="margin-top:20px">
   <div class="toolbar">
     <div><div class="eyebrow">Live Operations</div><h2>Trip management</h2></div>
-    <div style="display:flex;gap:10px"><button id="loadTrips" class="button primary">Refresh from API</button><button id="loadLocal" class="button">Load local</button></div>
+    <div style="display:flex;gap:10px"><button id="loadTrips" class="button primary">Refresh from API</button><button id="loadLocal" class="button" hidden>Load local</button></div>
   </div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;margin-bottom:12px">
     <label class="field" style="margin:0">View
@@ -317,7 +317,6 @@
       <select id="tripSourceFilter" style="min-width:180px">
         <option value="ALL">All trips</option>
         <option value="REAL">Real bookings only</option>
-        <option value="DEMO">Demo/local only</option>
       </select>
     </label>
     <label class="field" style="margin:0">Timeframe
@@ -720,6 +719,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const state = { allTrips: [] };
   const now = new Date();
   calendarMonthInput.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  if(loadLocalBtn) loadLocalBtn.hidden = true;
 
   function refOf(trip){ return String(trip?.reference || trip?.id || '').trim(); }
 
@@ -746,11 +746,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
   }
 
   function classifyTrip(trip){
-    const key = tripDateKey(trip);
-    if(!key) return 'DEMO';
-    const today = new Date();
-    const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-    return key === todayKey ? 'REAL' : 'DEMO';
+    const source = String(trip?.bookingSource || trip?.source || '').toUpperCase();
+    const ref = refOf(trip).toUpperCase();
+    const isDemo = source.includes('DEMO') || source.includes('LOCAL') || source.includes('MOCK') || ref.includes('DEMO');
+    return isDemo ? 'DEMO' : 'REAL';
   }
 
   function renderCalendar(trips){
@@ -910,13 +909,13 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   async function refreshTripsFromApi(){
     const apiTrips = await fetchApiTrips();
-    const localTrips = fetchLocalTrips();
-    state.allTrips = mergeTrips(apiTrips, localTrips);
+    state.allTrips = mergeTrips(apiTrips, []).filter((trip)=>classifyTrip(trip)==='REAL');
     renderFiltered();
   }
 
   function refreshTripsLocalOnly(){
-    state.allTrips = mergeTrips([], fetchLocalTrips());
+    // Demo/local trip loading is disabled to keep dispatch view operationally clean.
+    state.allTrips = state.allTrips.filter((trip)=>classifyTrip(trip)==='REAL');
     renderFiltered();
   }
 
@@ -968,6 +967,132 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   window.addEventListener('nexus:authorized', autoLoad);
   if(window.NexusAuthorizedUser) autoLoad();
+})();
+</script>
+<script>
+(function(){
+  const board=document.getElementById('tripBoard');
+  const rows=document.getElementById('tripRows');
+  const refreshBtn=document.getElementById('loadTrips');
+  if(!board||!rows||!refreshBtn) return;
+
+  const panel=document.createElement('section');
+  panel.className='card';
+  panel.style.marginTop='14px';
+  panel.innerHTML=`
+    <div class="sectionHead" style="margin-bottom:10px"><div><p class="eyebrow">Dispatch Actions</p><h2 style="margin:0">Trip editor</h2></div><small class="subtle">Click a trip row to load and edit.</small></div>
+    <div id="dispatchEditMsg" class="msgBox" hidden></div>
+    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:8px">
+      <div class="formField"><label>Reference</label><input id="dispatchEditRef" type="text" readonly></div>
+      <div class="formField"><label>Status</label><select id="dispatchEditStatus"><option value="SUBMITTED">Submitted</option><option value="SCHEDULED">Scheduled</option><option value="ASSIGNED">Assigned</option><option value="EN_ROUTE">En Route</option><option value="ARRIVED">Arrived</option><option value="IN_TRANSIT">In Transit</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option><option value="NO_SHOW">No Show</option></select></div>
+      <div class="formField"><label>Service</label><input id="dispatchEditService" type="text" placeholder="wheelchair"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Pickup</label><input id="dispatchEditPickup" type="text"></div>
+      <div class="formField"><label>Destination</label><input id="dispatchEditDestination" type="text"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Date</label><input id="dispatchEditDate" type="date"></div>
+      <div class="formField"><label>Time</label><input id="dispatchEditTime" type="time"></div>
+      <div class="formField"><label>Driver</label><input id="dispatchEditDriver" type="text" placeholder="Driver name"></div>
+      <div class="formField"><label>Vehicle</label><input id="dispatchEditVehicle" type="text" placeholder="Vehicle unit"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Patient name</label><input id="dispatchEditName" type="text"></div>
+      <div class="formField"><label>Patient phone</label><input id="dispatchEditPhone" type="text"></div>
+      <div class="formField"><label>Patient email</label><input id="dispatchEditEmail" type="email"></div>
+    </div>
+    <div class="formField" style="margin-top:10px"><label>Dispatch note</label><input id="dispatchEditNote" type="text" placeholder="Reason for update (shared with stakeholders)"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px"><button id="dispatchEditSave" class="button primary" type="button">Save trip update</button></div>
+  `;
+  board.insertAdjacentElement('afterend',panel);
+
+  const get=(id)=>document.getElementById(id);
+  const msgEl=get('dispatchEditMsg');
+  let currentRef='';
+
+  function setMsg(text,type){
+    if(!msgEl) return;
+    msgEl.hidden=false;
+    msgEl.className=`msgBox ${type==='err'?'err':'ok'}`;
+    msgEl.textContent=text;
+  }
+
+  function rowReference(row){
+    const txt=String(row?.cells?.[0]?.textContent||'');
+    const match=txt.match(/NMT-\d{8}-\d{4}/);
+    return match?match[0]:'';
+  }
+
+  async function loadTrip(reference){
+    if(!reference)return;
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    const res=await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Unable to load trip details');
+    const b=data.booking||{};
+    currentRef=reference;
+    get('dispatchEditRef').value=reference;
+    get('dispatchEditStatus').value=String((b.status||'SUBMITTED')).toUpperCase().replaceAll('-','_');
+    get('dispatchEditService').value=b.service||'';
+    get('dispatchEditPickup').value=b.pickup||'';
+    get('dispatchEditDestination').value=b.destination||'';
+    get('dispatchEditDate').value=String(b.date||'').slice(0,10);
+    get('dispatchEditTime').value=String(b.time||'').slice(0,5);
+    get('dispatchEditDriver').value=b.driverName||'';
+    get('dispatchEditVehicle').value=b.vehicleUnit||'';
+    get('dispatchEditName').value=b.name||'';
+    get('dispatchEditPhone').value=b.phone||'';
+    get('dispatchEditEmail').value=b.email||'';
+    get('dispatchEditNote').value='';
+    setMsg(`Loaded ${reference}. Edit fields and save to notify stakeholders.`,'ok');
+  }
+
+  rows.addEventListener('click',async(event)=>{
+    const clickedAction=event.target.closest('button,a,input,select');
+    if(clickedAction) return;
+    const row=event.target.closest('tr');
+    if(!row) return;
+    const ref=rowReference(row);
+    if(!ref) return;
+    try{await loadTrip(ref);}catch(err){setMsg(err.message||'Unable to load selected trip','err');}
+  });
+
+  get('dispatchEditSave').addEventListener('click',async()=>{
+    if(!currentRef){setMsg('Click a trip row first.','err');return;}
+    const payload={
+      status:get('dispatchEditStatus').value,
+      service:get('dispatchEditService').value,
+      pickup:get('dispatchEditPickup').value,
+      destination:get('dispatchEditDestination').value,
+      date:get('dispatchEditDate').value,
+      time:get('dispatchEditTime').value,
+      driverName:get('dispatchEditDriver').value,
+      vehicleUnit:get('dispatchEditVehicle').value,
+      name:get('dispatchEditName').value,
+      phone:get('dispatchEditPhone').value,
+      email:get('dispatchEditEmail').value,
+      note:get('dispatchEditNote').value
+    };
+    const button=get('dispatchEditSave');
+    button.disabled=true;
+    button.textContent='Saving...';
+    try{
+      const token=sessionStorage.getItem('nexusAccessToken')||'';
+      const res=await fetch(`/api/admin/bookings/${encodeURIComponent(currentRef)}`,{method:'PATCH',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(payload)});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.error||'Unable to save trip update');
+      const recipients=data.notifications?.recipients;
+      const recipientMsg=recipients?` Notifications sent (SMS: ${recipients.sms||0}, Email: ${recipients.email||0}).`:'';
+      setMsg(`Trip ${currentRef} updated successfully.${recipientMsg}`,'ok');
+      refreshBtn.click();
+    }catch(err){
+      setMsg(err.message||'Unable to save trip update','err');
+    }finally{
+      button.disabled=false;
+      button.textContent='Save trip update';
+    }
+  });
 })();
 </script></body></html>
 

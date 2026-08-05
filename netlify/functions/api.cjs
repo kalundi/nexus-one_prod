@@ -579,6 +579,74 @@ async function sendBalanceDueReminder(b,balanceDue){
  const emailRecipients=buildEmailRecipients(b.email);
  await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Balance due — ${b.reference}`,html)]);
 }
+
+async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
+ try{
+  const before=mapBooking(beforeRow||{});
+  const after=mapBooking(afterRow||{});
+  const reference=clean(after.reference||before.reference||'');
+  if(!reference)return {status:'skipped'};
+
+  const actorLabel=clean(actor?.display_name||actor?.email||actor?.role||'Dispatch');
+  const changeParts=[];
+  if(clean(before.status)!==clean(after.status))changeParts.push(`Status: ${after.statusLabel||after.status}`);
+  if(clean(before.date)!==clean(after.date)||clean(before.time)!==clean(after.time))changeParts.push(`Schedule: ${after.date||'—'} ${after.time||'—'}`);
+  if(clean(before.driverName)!==clean(after.driverName))changeParts.push(`Driver: ${after.driverName||'Unassigned'}`);
+  if(clean(before.vehicleUnit)!==clean(after.vehicleUnit))changeParts.push(`Vehicle: ${after.vehicleUnit||'Unassigned'}`);
+  if(clean(before.pickup)!==clean(after.pickup)||clean(before.destination)!==clean(after.destination))changeParts.push('Route updated');
+  if(clean(before.service)!==clean(after.service))changeParts.push(`Service: ${after.service||'—'}`);
+  if(!changeParts.length&&editNote)changeParts.push('Trip details updated');
+  if(!changeParts.length)return {status:'skipped-no-diff'};
+
+  let driverEmail=clean(afterRow?.driver_email||'');
+  let driverPhone=clean(afterRow?.driver_phone||'');
+  if((!driverEmail&&!driverPhone)&&clean(after.driverName)){
+   const dr=await query(`SELECT email,phone FROM users WHERE role='DRIVER' AND active=true AND lower(trim(display_name))=lower(trim($1)) ORDER BY updated_at DESC LIMIT 1`,[after.driverName]).catch(()=>({rows:[]}));
+   driverEmail=clean(dr.rows?.[0]?.email||'');
+   driverPhone=clean(dr.rows?.[0]?.phone||'');
+  }
+
+  const facilityEmails=[];
+  if(clean(after.facilityId)){
+   const facilityUsers=await query(`SELECT email FROM users WHERE role='FACILITY' AND active=true AND scope_id=$1`,[after.facilityId]).catch(()=>({rows:[]}));
+   for(const row of facilityUsers.rows||[])if(clean(row.email))facilityEmails.push(clean(row.email));
+  }
+
+  const adminEmails=[];
+  const opsUsers=await query(`SELECT email FROM users WHERE role IN ('ADMIN','DISPATCHER','BILLING') AND active=true`).catch(()=>({rows:[]}));
+  for(const row of opsUsers.rows||[])if(clean(row.email))adminEmails.push(clean(row.email));
+  if(clean(process.env.COMPANY_EMAIL))adminEmails.push(clean(process.env.COMPANY_EMAIL));
+  adminEmails.push('admin@nexusmt.com');
+
+  const smsTargets=new Set([...buildSmsRecipients(after.phone),...(driverPhone?[driverPhone]:[])]);
+  const emailTargets=new Set([
+   ...buildEmailRecipients(after.email),
+   ...(driverEmail?[driverEmail]:[]),
+   ...facilityEmails,
+   ...adminEmails
+  ].filter(Boolean));
+
+  const summary=changeParts.join(' | ');
+  const note=clean(editNote);
+  const smsText=`Nexus update for trip ${reference}: ${summary}. Updated by ${actorLabel}.${note?` Note: ${note}`:''}`;
+  const html=`<h2>Trip updated — ${reference}</h2><p><strong>Updated by:</strong> ${actorLabel}</p><p><strong>Summary:</strong> ${summary}</p>${note?`<p><strong>Note:</strong> ${note}</p>`:''}<p><strong>Patient:</strong> ${after.name||'—'} (${after.phone||'—'})</p><p><strong>Schedule:</strong> ${after.date||'—'} at ${after.time||'—'}</p><p><strong>Route:</strong> ${after.pickup||'—'} → ${after.destination||'—'}</p><p><strong>Driver:</strong> ${after.driverName||'Unassigned'} | <strong>Vehicle:</strong> ${after.vehicleUnit||'Unassigned'}</p><p><strong>Status:</strong> ${after.statusLabel||after.status||'—'}</p>`;
+
+  const results=await Promise.allSettled([
+   Promise.all(Array.from(smsTargets).map((phone)=>sendSms(phone,smsText))).then(()=>({status:'sent'})),
+   sendEmail(Array.from(emailTargets),`Trip update — ${reference}`,html)
+  ]);
+
+  return {
+   status:'sent',
+   sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},
+   email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message},
+   recipients:{sms:Array.from(smsTargets).length,email:Array.from(emailTargets).length}
+  };
+ }catch(error){
+  console.error('[TRIP_UPDATE_NOTIFY]',error.message);
+  return {status:'failed',error:error.message};
+ }
+}
 function verifyStripeWebhookSignature(rawBody,signature){
  if(!envEnabled('STRIPE_WEBHOOK_SECRET'))throw Object.assign(new Error('Stripe webhook secret not configured'),{statusCode:500});
  const secret=process.env.STRIPE_WEBHOOK_SECRET;
@@ -1194,10 +1262,96 @@ async function handler(event){
    return {statusCode:200,headers:{'Content-Type':'text/csv','Content-Disposition':`attachment; filename=revenue-export-${start}-to-${end}.csv`},body:toRevenueExportCsv(exportRows.rows)};
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='PATCH'){
-   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','DRIVER']);const b=parseBody(event),ref=decodeURIComponent(p[2]);
-   // DRIVER role: only allowed to update status, not fare/assignment
-   if(u.role==='DRIVER'&&(b.driverName||b.vehicleUnit||b.estimatedFare!==undefined))return json(403,{error:'Drivers may only update trip status'});
-   const hasEstimatedFare=Object.prototype.hasOwnProperty.call(b,'estimatedFare');const estimatedFareRaw=hasEstimatedFare?Number(b.estimatedFare):null;if(hasEstimatedFare&&!Number.isFinite(estimatedFareRaw))return json(400,{error:'estimatedFare must be a valid number'});if(hasEstimatedFare&&estimatedFareRaw<0)return json(400,{error:'estimatedFare must be 0 or greater'});if(hasEstimatedFare&&u.role!=='ADMIN')return json(403,{error:'Only Admin can adjust fares'});const r=await query(`UPDATE bookings SET status=COALESCE($2,status),driver_name=COALESCE($3,driver_name),vehicle_unit=COALESCE($4,vehicle_unit),estimated_fare=CASE WHEN $5 THEN $6 ELSE estimated_fare END,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,b.status?String(b.status).toUpperCase().replaceAll('-','_'):null,b.driverName||null,b.vehicleUnit||null,hasEstimatedFare,hasEstimatedFare?estimatedFareRaw:null]);if(!r.rows[0])return json(404,{error:'Booking not found'});await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),b.note||null,u.display_name]);await audit('BOOKING',ref,'UPDATED',{status:r.rows[0].status,estimatedFare:hasEstimatedFare?estimatedFareRaw:undefined});return json(200,{booking:mapBooking(r.rows[0])});
+   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','DRIVER']);
+   const b=parseBody(event),ref=decodeURIComponent(p[2]);
+   const before=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
+   if(!before.rows[0])return json(404,{error:'Booking not found'});
+
+   // DRIVER role: only allowed to update trip status.
+   if(u.role==='DRIVER'){
+    const forbidden=['driverName','vehicleUnit','estimatedFare','pickup','destination','date','time','service','name','phone','email'];
+    if(forbidden.some((key)=>Object.prototype.hasOwnProperty.call(b,key)))return json(403,{error:'Drivers may only update trip status'});
+   }
+
+   const hasEstimatedFare=Object.prototype.hasOwnProperty.call(b,'estimatedFare');
+   const estimatedFareRaw=hasEstimatedFare?Number(b.estimatedFare):null;
+   if(hasEstimatedFare&&!Number.isFinite(estimatedFareRaw))return json(400,{error:'estimatedFare must be a valid number'});
+   if(hasEstimatedFare&&estimatedFareRaw<0)return json(400,{error:'estimatedFare must be 0 or greater'});
+   if(hasEstimatedFare&&u.role!=='ADMIN')return json(403,{error:'Only Admin can adjust fares'});
+
+   const statusValue=b.status?String(b.status).toUpperCase().replaceAll('-','_'):null;
+   const hasService=Object.prototype.hasOwnProperty.call(b,'service');
+   const hasPickup=Object.prototype.hasOwnProperty.call(b,'pickup');
+   const hasDestination=Object.prototype.hasOwnProperty.call(b,'destination');
+   const hasDate=Object.prototype.hasOwnProperty.call(b,'date');
+   const hasTime=Object.prototype.hasOwnProperty.call(b,'time');
+   const hasNotes=Object.prototype.hasOwnProperty.call(b,'notes')||Object.prototype.hasOwnProperty.call(b,'note');
+   const hasName=Object.prototype.hasOwnProperty.call(b,'name');
+   const hasPhone=Object.prototype.hasOwnProperty.call(b,'phone');
+   const hasEmail=Object.prototype.hasOwnProperty.call(b,'email');
+
+   const r=await query(`
+    UPDATE bookings
+    SET status=COALESCE($2,status),
+        driver_name=COALESCE($3,driver_name),
+        vehicle_unit=COALESCE($4,vehicle_unit),
+        estimated_fare=CASE WHEN $5 THEN $6 ELSE estimated_fare END,
+        service=CASE WHEN $7 THEN $8 ELSE service END,
+        pickup=CASE WHEN $9 THEN $10 ELSE pickup END,
+        destination=CASE WHEN $11 THEN $12 ELSE destination END,
+        trip_date=CASE WHEN $13 THEN $14 ELSE trip_date END,
+        trip_time=CASE WHEN $15 THEN $16 ELSE trip_time END,
+        notes=CASE WHEN $17 THEN $18 ELSE notes END,
+        name=CASE WHEN $19 THEN $20 ELSE name END,
+        phone=CASE WHEN $21 THEN $22 ELSE phone END,
+        email=CASE WHEN $23 THEN $24 ELSE email END,
+        updated_at=now()
+    WHERE reference=$1
+    RETURNING *`,[
+      ref,
+      statusValue,
+      b.driverName||null,
+      b.vehicleUnit||null,
+      hasEstimatedFare,
+      hasEstimatedFare?estimatedFareRaw:null,
+      hasService,
+      hasService?clean(b.service)||before.rows[0].service:null,
+      hasPickup,
+      hasPickup?clean(b.pickup)||before.rows[0].pickup:null,
+      hasDestination,
+      hasDestination?clean(b.destination)||before.rows[0].destination:null,
+      hasDate,
+      hasDate?clean(b.date)||before.rows[0].trip_date:null,
+      hasTime,
+      hasTime?clean(b.time)||before.rows[0].trip_time:null,
+      hasNotes,
+      hasNotes?clean(b.notes??b.note)||null:null,
+      hasName,
+      hasName?clean(b.name)||before.rows[0].name:null,
+      hasPhone,
+      hasPhone?clean(b.phone)||before.rows[0].phone:null,
+      hasEmail,
+      hasEmail?clean(b.email)||before.rows[0].email:null
+    ]);
+
+   if(!r.rows[0])return json(404,{error:'Booking not found'});
+
+   const noteValue=clean(b.note||b.notes||'')||null;
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),noteValue,u.display_name]);
+   await audit('BOOKING',ref,'UPDATED',{
+    status:r.rows[0].status,
+    estimatedFare:hasEstimatedFare?estimatedFareRaw:undefined,
+    pickup:hasPickup?clean(b.pickup):undefined,
+    destination:hasDestination?clean(b.destination):undefined,
+    date:hasDate?clean(b.date):undefined,
+    time:hasTime?clean(b.time):undefined,
+    driverName:b.driverName||undefined,
+    vehicleUnit:b.vehicleUnit||undefined,
+    by:u.role
+   });
+
+   const notifications=await sendTripStakeholderUpdate(before.rows[0],r.rows[0],u,noteValue||'').catch(()=>({status:'failed'}));
+   return json(200,{booking:mapBooking(r.rows[0]),notifications});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const next=STATUS_FLOW[current.rows[0].status]||current.rows[0].status;
@@ -1206,14 +1360,16 @@ async function handler(event){
    const availability={available:Number(availabilityCheck.rows[0]?.driver_count||0)>0&&Number(vehicleCheck.rows[0]?.vehicle_count||0)>0,drivers:{available:Number(availabilityCheck.rows[0]?.driver_count||0)},vehicles:{available:Number(vehicleCheck.rows[0]?.vehicle_count||0)}};
    const approval=canAdvanceBookingForAvailability({currentStatus:current.rows[0].status,nextStatus:next,availability});
    if(!approval.allowed){return json(409,{error:approval.message,approval,booking:mapBooking(current.rows[0])});}
-   const r=await query('UPDATE bookings SET status=$2,updated_at=now() WHERE reference=$1 RETURNING *',[ref,next]);await query('INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,$2,$3,$4)',[ref,next,statusLabel(next),u.display_name]);await audit('BOOKING',ref,'STATUS_ADVANCED',{from:current.rows[0].status,to:next});
+  const r=await query('UPDATE bookings SET status=$2,updated_at=now() WHERE reference=$1 RETURNING *',[ref,next]);await query('INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,$2,$3,$4)',[ref,next,statusLabel(next),u.display_name]);await audit('BOOKING',ref,'STATUS_ADVANCED',{from:current.rows[0].status,to:next});
+  const advanceNote=`Status advanced from ${statusLabel(current.rows[0].status)} to ${statusLabel(next)} by ${u.display_name||u.email||u.role}.`;
+  const advanceNotifications=await sendTripStakeholderUpdate(current.rows[0],r.rows[0],u,advanceNote).catch(()=>({status:'failed'}));
    // When driver is en route and customer only paid a deposit, send the balance-due reminder
    if(next==='EN_ROUTE'&&current.rows[0].payment_status==='DEPOSIT_PAID'&&!current.rows[0].balance_reminder_sent_at){
     const bk=mapBooking(r.rows[0]);
     await sendBalanceDueReminder(bk,current.rows[0].balance_due).catch(e=>console.error('[BALANCE_REMINDER]',e.message));
     await query('UPDATE bookings SET payment_status=$2,balance_reminder_sent_at=now(),updated_at=now() WHERE reference=$1',[ref,'BALANCE_REMINDER_SENT']);
    }
-   return json(200,{booking:mapBooking(r.rows[0]),approval});
+  return json(200,{booking:mapBooking(r.rows[0]),approval,notifications:advanceNotifications});
   }
   if(p[0]==='fleet'&&p[1]==='live'&&method==='GET'){
    let u=null;try{if(bearer(event))u=await requireUser(bearer(event))}catch{}const r=await query(`SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at FROM vehicles WHERE last_seen_at IS NULL OR last_seen_at>now()-interval '24 hours' ORDER BY unit_number`);return json(200,{generatedAt:new Date().toISOString(),role:u?.role||'PUBLIC',vehicles:r.rows.map(v=>({id:v.unit_number,unit:v.unit_number,type:v.vehicle_type,status:v.status,lat:Number(v.latitude),lng:Number(v.longitude),heading:Number(v.heading||0),speed:Number(v.speed_mph||0),lastSeen:v.last_seen_at}))});
