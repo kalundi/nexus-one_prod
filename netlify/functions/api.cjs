@@ -2018,6 +2018,7 @@ function mapBooking(b){
  const submittedAppointmentTime=getSubmittedAppointmentTime(b);
  const checkInTime=getCheckInTime(b);
  const linkedAppointmentTime=submittedAppointmentTime||normalizeOptionalTripTime(b.trip_time||b.time||'');
+ const effectiveSubmittedAppointment=submittedAppointmentTime||linkedAppointmentTime||null;
  return {
   id:b.reference,
   reference:b.reference,
@@ -2036,9 +2037,9 @@ function mapBooking(b){
   date:b.trip_date||b.date,
   time:String(b.trip_time||b.time||'').slice(0,5),
   appointmentTime:linkedAppointmentTime,
-  submittedAppointmentTime:submittedAppointmentTime||null,
+  submittedAppointmentTime:effectiveSubmittedAppointment,
   checkInTime:checkInTime||null,
-  appointmentMissing:!submittedAppointmentTime,
+  appointmentMissing:!effectiveSubmittedAppointment,
   status:statusLabel(b.status),
   statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),
   driver:b.driver_name,
