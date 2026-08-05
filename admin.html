@@ -144,6 +144,42 @@
   </div>
 </section>
 
+<section class="sectionTab card" id="adminTripsSection" style="margin-top:24px">
+  <div class="sectionTitle">
+    <div>
+      <div class="eyebrow" style="color:var(--blue)">Trip Oversight</div>
+      <h2>All Bookings and Trips</h2>
+      <p>All bookings are operational records and must be visible for review, follow-up, and action.</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="button" id="refreshAdminTrips" type="button">Refresh trips</button>
+    </div>
+  </div>
+  <div class="auditFilter" style="margin-bottom:12px">
+    <select id="adminTripSourceFilter" style="padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:inherit">
+      <option value="ALL">All sources</option>
+      <option value="REAL">Real bookings only</option>
+      <option value="DEMO">Demo/local only</option>
+    </select>
+    <select id="adminTripTimeframeFilter" style="padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:inherit">
+      <option value="ALL">All time</option>
+      <option value="TODAY">Today</option>
+      <option value="NEXT_24H">Next 24 hours</option>
+      <option value="NEXT_7D">Next 7 days</option>
+      <option value="PAST">Past trips</option>
+    </select>
+    <small id="adminTripsSummary" style="color:var(--muted)">Loading trips…</small>
+  </div>
+  <div class="tableWrap">
+    <table class="table" aria-label="Admin trip list">
+      <thead>
+        <tr><th>Reference</th><th>Patient</th><th>Date / Time</th><th>Service</th><th>Status</th><th>Source</th><th>Action</th></tr>
+      </thead>
+      <tbody id="adminTripRows"><tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Loading trips…</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
 <!-- Organization Settings -->
 <section class="sectionTab card" id="settingsSection" style="margin-top:32px;margin-bottom:40px">
   <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">System</div><h2>Organization Settings</h2><p>Platform-wide configuration, branding and contact details.</p></div></div>

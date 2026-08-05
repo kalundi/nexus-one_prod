@@ -295,7 +295,33 @@
     </form>
   </div>
 </section>
-<section id="tripBoard" class="card" style="margin-top:20px"><div class="toolbar"><div><div class="eyebrow">Live Operations</div><h2>Trip management</h2></div><div style="display:flex;gap:10px"><button id="loadTrips" class="button primary">Refresh from API</button><button id="loadLocal" class="button">Load local</button></div></div><div class="tableWrap"><table class="table"><thead><tr><th>Reference</th><th>Patient</th><th>Service</th><th>Date / Time</th><th>Status</th><th>Estimate</th><th>AI risk</th><th>Action</th></tr></thead><tbody id="tripRows"></tbody></table></div></section>
+<section id="tripBoard" class="card" style="margin-top:20px">
+  <div class="toolbar">
+    <div><div class="eyebrow">Live Operations</div><h2>Trip management</h2></div>
+    <div style="display:flex;gap:10px"><button id="loadTrips" class="button primary">Refresh from API</button><button id="loadLocal" class="button">Load local</button></div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;margin-bottom:12px">
+    <label class="field" style="margin:0">Trip source
+      <select id="tripSourceFilter" style="min-width:180px">
+        <option value="ALL">All trips</option>
+        <option value="REAL">Real bookings only</option>
+        <option value="DEMO">Demo/local only</option>
+      </select>
+    </label>
+    <label class="field" style="margin:0">Timeframe
+      <select id="tripTimeframeFilter" style="min-width:180px">
+        <option value="ALL">All time</option>
+        <option value="TODAY">Today</option>
+        <option value="NEXT_24H">Next 24 hours</option>
+        <option value="NEXT_7D">Next 7 days</option>
+        <option value="PAST">Past trips</option>
+      </select>
+    </label>
+    <small id="tripFilterSummary" class="subtle" style="margin-left:auto">Showing all trips</small>
+  </div>
+  <p class="subtle" style="margin-top:0">All booking and trip actions are tracked in platform records and audit logs for operational review and follow-up.</p>
+  <div class="tableWrap"><table class="table"><thead><tr><th>Reference</th><th>Patient</th><th>Service</th><th>Date / Time</th><th>Status</th><th>Estimate</th><th>AI risk</th><th>Action</th></tr></thead><tbody id="tripRows"></tbody></table></div>
+</section>
 <section class="grid cols2" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Live staffing</p><h2>Drivers on duty</h2></div><span id="driversOnDutyCount" class="status blue">Loading…</span></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster…</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Shift availability</p><h2>Fleet &amp; driver summary</h2></div><button id="refreshDrivers" class="button secondary" style="min-height:36px;font-size:13px">↻ Refresh</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading…</p></div></article></section>
 <section id="aiSection" class="grid cols2" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
 </main><footer class="footer"><div class="shell footerGrid"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Platform</strong><a href="/livecare.html">Livecare</a><a href="/facility.html">Facilities</a><a href="/dispatch.html">Dispatch</a></div><div><strong>Operations</strong><a href="/fleet.html">Fleet</a><a href="/driver-app.html">Driver</a><a href="/qa.html">QA & Compliance</a></div><div><strong>Contact</strong><a href="tel:+18887604990">(888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">♿</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js"></script><script>
@@ -660,6 +686,193 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
 })();
 // ========== /TRANSPORTATION COMPANY PICKER ==========
+</script>
+<script>
+(function(){
+  const sourceFilter = document.getElementById('tripSourceFilter');
+  const timeframeFilter = document.getElementById('tripTimeframeFilter');
+  const summaryEl = document.getElementById('tripFilterSummary');
+  const rowsEl = document.getElementById('tripRows');
+  const loadApiBtn = document.getElementById('loadTrips');
+  const loadLocalBtn = document.getElementById('loadLocal');
+  if(!sourceFilter || !timeframeFilter || !rowsEl || !loadApiBtn || !loadLocalBtn) return;
+
+  const baseRenderTrips = typeof window.renderTrips === 'function' ? window.renderTrips.bind(window) : null;
+  const state = { allTrips: [] };
+
+  function refOf(trip){ return String(trip?.reference || trip?.id || '').trim(); }
+
+  function parseTripDateTime(trip){
+    const date = String(trip?.date || '').trim();
+    const time = String(trip?.time || '00:00').trim();
+    if(!date) return null;
+    const normalizedTime = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : '00:00:00';
+    const dt = new Date(`${date}T${normalizedTime}`);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  function classifyTrip(trip){
+    const source = String(trip?.bookingSource || trip?.source || '').toUpperCase();
+    const ref = refOf(trip).toUpperCase();
+    const isDemo = source.includes('DEMO') || source.includes('LOCAL') || source.includes('MOCK') || ref.includes('DEMO');
+    return isDemo ? 'DEMO' : 'REAL';
+  }
+
+  function inTimeframe(trip, timeframe){
+    if(timeframe === 'ALL') return true;
+    const dt = parseTripDateTime(trip);
+    if(!dt) return timeframe === 'PAST';
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endToday = new Date(startToday.getTime() + 24*60*60*1000);
+    if(timeframe === 'TODAY') return dt >= startToday && dt < endToday;
+    if(timeframe === 'NEXT_24H') return dt >= now && dt <= new Date(now.getTime() + 24*60*60*1000);
+    if(timeframe === 'NEXT_7D') return dt >= now && dt <= new Date(now.getTime() + 7*24*60*60*1000);
+    if(timeframe === 'PAST') return dt < now;
+    return true;
+  }
+
+  function applyFilters(trips){
+    const source = String(sourceFilter.value || 'ALL').toUpperCase();
+    const timeframe = String(timeframeFilter.value || 'ALL').toUpperCase();
+    return (Array.isArray(trips) ? trips : []).filter((trip) => {
+      const kind = classifyTrip(trip);
+      if(source !== 'ALL' && kind !== source) return false;
+      return inTimeframe(trip, timeframe);
+    });
+  }
+
+  function annotateRows(filteredTrips){
+    const rowNodes = Array.from(rowsEl.querySelectorAll('tr'));
+    filteredTrips.forEach((trip, index) => {
+      const row = rowNodes[index];
+      if(!row) return;
+      const cell = row.children[0];
+      if(!cell) return;
+      const ref = refOf(trip) || '—';
+      const kind = classifyTrip(trip);
+      const tone = kind === 'REAL' ? 'green' : 'amber';
+      cell.innerHTML = `${ref}<div style="margin-top:4px"><span class="status ${tone}" style="font-size:10px">${kind === 'REAL' ? 'REAL' : 'DEMO'}</span></div>`;
+      const advanceBtn = row.querySelector('[data-advance]');
+      if(advanceBtn && kind === 'DEMO'){
+        advanceBtn.title = 'Demo trip: advances locally unless matching backend reference exists.';
+      }
+    });
+  }
+
+  function updateSummary(filtered){
+    const total = state.allTrips.length;
+    const realCount = state.allTrips.filter((trip) => classifyTrip(trip) === 'REAL').length;
+    const demoCount = total - realCount;
+    if(summaryEl){
+      summaryEl.textContent = `Showing ${filtered.length} of ${total} trips · Real: ${realCount} · Demo: ${demoCount}`;
+    }
+  }
+
+  function renderFiltered(){
+    const filtered = applyFilters(state.allTrips);
+    if(baseRenderTrips){
+      baseRenderTrips(filtered);
+      annotateRows(filtered);
+    }
+    updateSummary(filtered);
+  }
+
+  function mergeTrips(realTrips, localTrips){
+    const map = new Map();
+    (Array.isArray(localTrips) ? localTrips : []).forEach((trip) => {
+      const key = refOf(trip);
+      if(!key) return;
+      map.set(key, {...trip});
+    });
+    (Array.isArray(realTrips) ? realTrips : []).forEach((trip) => {
+      const key = refOf(trip);
+      if(!key) return;
+      map.set(key, {...map.get(key), ...trip});
+    });
+    const merged = Array.from(map.values());
+    merged.sort((a,b)=>{
+      const ad = parseTripDateTime(a)?.getTime() || 0;
+      const bd = parseTripDateTime(b)?.getTime() || 0;
+      return bd - ad;
+    });
+    return merged;
+  }
+
+  async function fetchApiTrips(){
+    const token = sessionStorage.getItem('nexusAccessToken') || '';
+    const res = await fetch('/api/portal/trips',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+    const json = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(json.error || 'Unable to load trips from API');
+    return Array.isArray(json.trips) ? json.trips : [];
+  }
+
+  function fetchLocalTrips(){
+    try{
+      return Array.isArray(window.NexusCore?.getTrips?.()) ? window.NexusCore.getTrips() : [];
+    }catch{
+      return [];
+    }
+  }
+
+  async function refreshTripsFromApi(){
+    const apiTrips = await fetchApiTrips();
+    const localTrips = fetchLocalTrips();
+    state.allTrips = mergeTrips(apiTrips, localTrips);
+    renderFiltered();
+  }
+
+  function refreshTripsLocalOnly(){
+    state.allTrips = mergeTrips([], fetchLocalTrips());
+    renderFiltered();
+  }
+
+  window.renderTrips = function(trips){
+    state.allTrips = Array.isArray(trips) ? trips : [];
+    renderFiltered();
+  };
+
+  window.advanceTrip = async function(id){
+    const reference = String(id || '').trim();
+    if(!reference) return;
+    const button = document.querySelector(`[data-advance="${reference}"]`);
+    if(button){ button.disabled = true; button.textContent = 'Advancing...'; }
+    try{
+      const token = sessionStorage.getItem('nexusAccessToken') || '';
+      const res = await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}/advance`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`}});
+      const json = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(json.error || 'Unable to advance trip');
+      const updated = json.booking || null;
+      if(updated){
+        state.allTrips = state.allTrips.map((trip)=>refOf(trip)===reference?{...trip,...updated}:trip);
+        renderFiltered();
+      }
+      window.NexusTripPopup?.show({title:'Trip advanced',message:`Trip ${reference} advanced successfully.`,detail:'Status history and audit logs were updated.',accent:'#0f766e'});
+    }catch(err){
+      alert(err.message || 'Unable to advance trip');
+    }finally{
+      if(button){ button.disabled = false; button.textContent = 'Advance'; }
+    }
+  };
+
+  sourceFilter.addEventListener('change', renderFiltered);
+  timeframeFilter.addEventListener('change', renderFiltered);
+
+  loadApiBtn.onclick = async ()=>{
+    try{ await refreshTripsFromApi(); }
+    catch(err){ alert(err.message || 'Unable to load trips from API'); }
+  };
+
+  loadLocalBtn.onclick = ()=>{ refreshTripsLocalOnly(); };
+
+  const autoLoad = async () => {
+    try{ await refreshTripsFromApi(); }
+    catch{ refreshTripsLocalOnly(); }
+  };
+
+  window.addEventListener('nexus:authorized', autoLoad);
+  if(window.NexusAuthorizedUser) autoLoad();
+})();
 </script></body></html>
 
 

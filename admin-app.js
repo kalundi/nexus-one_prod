@@ -449,11 +449,131 @@ function applyRoleRestrictions(){
   document.getElementById('refreshFuelIndexBtn').disabled=true;
 }
 
-// Load trips stat
-fetch('/api/portal/trips',{headers:{authorization:`Bearer ${token()}`}}).then(r=>r.ok?r.json():null).then(d=>{if(d)document.getElementById('statTrips').textContent=d.trips?.length||0;}).catch(()=>{});
+let adminTripsCache=[];
+
+function adminTripRef(trip){
+  return String(trip?.reference || trip?.id || '').trim();
+}
+
+function adminTripDateTime(trip){
+  const date=String(trip?.date || '').trim();
+  const time=String(trip?.time || '00:00').trim();
+  if(!date) return null;
+  const normalizedTime=/^\d{2}:\d{2}$/.test(time)?`${time}:00`:'00:00:00';
+  const dt=new Date(`${date}T${normalizedTime}`);
+  return Number.isNaN(dt.getTime())?null:dt;
+}
+
+function isDemoTripRecord(trip){
+  const source=String(trip?.bookingSource || trip?.source || '').toUpperCase();
+  const ref=adminTripRef(trip).toUpperCase();
+  return source.includes('DEMO') || source.includes('LOCAL') || source.includes('MOCK') || ref.includes('DEMO');
+}
+
+function matchAdminTimeframe(trip,timeframe){
+  if(timeframe==='ALL') return true;
+  const dt=adminTripDateTime(trip);
+  if(!dt) return timeframe==='PAST';
+  const now=new Date();
+  const startToday=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const endToday=new Date(startToday.getTime()+24*60*60*1000);
+  if(timeframe==='TODAY') return dt>=startToday && dt<endToday;
+  if(timeframe==='NEXT_24H') return dt>=now && dt<=new Date(now.getTime()+24*60*60*1000);
+  if(timeframe==='NEXT_7D') return dt>=now && dt<=new Date(now.getTime()+7*24*60*60*1000);
+  if(timeframe==='PAST') return dt<now;
+  return true;
+}
+
+function applyAdminTripsFilters(){
+  const sourceEl=document.getElementById('adminTripSourceFilter');
+  const timeframeEl=document.getElementById('adminTripTimeframeFilter');
+  const source=String(sourceEl?.value || 'ALL').toUpperCase();
+  const timeframe=String(timeframeEl?.value || 'ALL').toUpperCase();
+  return adminTripsCache.filter((trip)=>{
+    const kind=isDemoTripRecord(trip)?'DEMO':'REAL';
+    if(source!=='ALL' && source!==kind) return false;
+    return matchAdminTimeframe(trip,timeframe);
+  });
+}
+
+function renderAdminTripsRows(){
+  const body=document.getElementById('adminTripRows');
+  const summary=document.getElementById('adminTripsSummary');
+  if(!body || !summary) return;
+  const filtered=applyAdminTripsFilters();
+  const realCount=adminTripsCache.filter((trip)=>!isDemoTripRecord(trip)).length;
+  const demoCount=adminTripsCache.length-realCount;
+  summary.textContent=`Showing ${filtered.length} of ${adminTripsCache.length} trips · Real: ${realCount} · Demo: ${demoCount}`;
+  if(!filtered.length){
+    body.innerHTML='<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">No trips match the selected filters.</td></tr>';
+    return;
+  }
+  body.innerHTML=filtered.map((trip)=>{
+    const ref=adminTripRef(trip) || '—';
+    const isDemo=isDemoTripRecord(trip);
+    const sourceLabel=isDemo?'DEMO':'REAL';
+    const sourceTone=isDemo?'amber':'green';
+    const status=String(trip?.statusLabel || trip?.status || 'Requested');
+    const date=String(trip?.date || '—');
+    const time=String(trip?.time || '—');
+    const patient=String(trip?.name || '—');
+    const service=String(trip?.service || '—');
+    return `<tr>
+      <td>${ref}</td>
+      <td>${patient}</td>
+      <td>${date} ${time}</td>
+      <td>${service}</td>
+      <td>${status}</td>
+      <td><span class="pill ${sourceTone}">${sourceLabel}</span></td>
+      <td><button class="button" data-admin-advance="${ref}" ${isDemo?'disabled title="Demo/local trip"':''}>Advance</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadAdminTrips(){
+  const body=document.getElementById('adminTripRows');
+  if(body) body.innerHTML='<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Loading trips…</td></tr>';
+  const res=await fetch('/api/admin/bookings',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || 'Unable to load admin trips');
+  adminTripsCache=Array.isArray(data.bookings)?data.bookings:[];
+  document.getElementById('statTrips').textContent=adminTripsCache.length;
+  renderAdminTripsRows();
+}
+
+async function advanceAdminTrip(reference){
+  const ref=String(reference || '').trim();
+  if(!ref) return;
+  const button=document.querySelector(`[data-admin-advance="${ref}"]`);
+  if(button){button.disabled=true;button.textContent='Advancing...';}
+  try{
+    const res=await fetch(`/api/admin/bookings/${encodeURIComponent(ref)}/advance`,{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'}});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || 'Unable to advance trip');
+    const booking=data.booking;
+    if(booking){
+      adminTripsCache=adminTripsCache.map((trip)=>adminTripRef(trip)===ref?booking:trip);
+      renderAdminTripsRows();
+    }
+  }catch(err){
+    alert(err.message || 'Unable to advance trip');
+  }finally{
+    if(button){button.disabled=false;button.textContent='Advance';}
+  }
+}
 
 // Helpers
 function showMsg(el,text,type){el.textContent=text;el.className='msgBox '+(type||'ok');el.hidden=false;if(type==='ok')setTimeout(()=>{el.hidden=true},5000);}
+
+document.getElementById('refreshAdminTrips')?.addEventListener('click',()=>{loadAdminTrips().catch((err)=>console.error(err));});
+document.getElementById('adminTripSourceFilter')?.addEventListener('change',renderAdminTripsRows);
+document.getElementById('adminTripTimeframeFilter')?.addEventListener('change',renderAdminTripsRows);
+document.getElementById('adminTripRows')?.addEventListener('click',(event)=>{
+  const button=event.target?.closest?.('[data-admin-advance]');
+  if(!button) return;
+  const ref=button.getAttribute('data-admin-advance');
+  if(ref) advanceAdminTrip(ref);
+});
 
 // Wait for auth-guard to authorize, then load data
 window.addEventListener('nexus:authorized',async()=>{
@@ -461,6 +581,7 @@ window.addEventListener('nexus:authorized',async()=>{
   if(userRole()==='ADMIN'){
     loadUsers();
     loadAudit();
+    loadAdminTrips().catch((err)=>console.error(err));
   }
   try{await loadPlatformSettings();}catch(e){console.error(e);}
 });
@@ -470,6 +591,7 @@ if(window.NexusAuthorizedUser){
   if(userRole()==='ADMIN'){
     loadUsers();
     loadAudit();
+    loadAdminTrips().catch((err)=>console.error(err));
   }
   loadPlatformSettings().catch(()=>{});
 }
