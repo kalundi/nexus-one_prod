@@ -1240,6 +1240,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
   let lastCalculatedPickup='';
   let lastCalculatedCheckIn='';
   let currentRef='';
+  let applyingEditorValues=false;
+  let editorBaselineSnapshot='';
+  let editorHasUnsavedChanges=false;
   let companyYardAddress='22505 Gateway Center Dr, Clarksburg MD 20871';
   let preTripInspectionMinutes=45;
   let mapsEnabled=false;
@@ -1320,6 +1323,37 @@ $('saveCustomCompany').addEventListener('click',()=>{
     msgEl.hidden=false;
     msgEl.className=`msgBox ${type==='err'?'err':'ok'}`;
     msgEl.textContent=text;
+  }
+
+  function currentEditorSnapshot(){
+    const fields=[
+      'dispatchEditStatus','dispatchEditService','dispatchEditPickup','dispatchEditDestination','dispatchEditDate',
+      'dispatchEditAppointmentTime','dispatchEditTime','dispatchEditCheckInTime','dispatchEditDriver','dispatchEditVehicle',
+      'dispatchEditSubmitterType','dispatchEditSubmitter','dispatchEditBrokerCompany','dispatchEditBrokerAcceptedRate',
+      'dispatchEditName','dispatchEditPhone','dispatchEditEmail','dispatchEditTripNotes'
+    ];
+    const snapshot={};
+    fields.forEach((id)=>{ snapshot[id]=String(get(id)?.value||''); });
+    return JSON.stringify(snapshot);
+  }
+
+  function markEditorBaseline(){
+    editorBaselineSnapshot=currentEditorSnapshot();
+    editorHasUnsavedChanges=false;
+  }
+
+  function refreshUnsavedState(){
+    if(applyingEditorValues) return;
+    if(!currentRef||!editorBaselineSnapshot){
+      editorHasUnsavedChanges=false;
+      return;
+    }
+    editorHasUnsavedChanges=currentEditorSnapshot()!==editorBaselineSnapshot;
+  }
+
+  function confirmDiscardUnsavedChanges(actionLabel){
+    if(!editorHasUnsavedChanges) return true;
+    return window.confirm(`You have unsaved trip editor changes. Discard and ${actionLabel}?`);
   }
 
   function rowReference(row){
@@ -1627,6 +1661,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   }
 
   async function applyEditorValues(b){
+    applyingEditorValues=true;
     currentRouteContext=parseRouteContextFromBooking(b);
     currentRouteContext.liveRouteMinutes=0;
     currentRouteContext.liveYardMinutes=0;
@@ -1664,6 +1699,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
     }else{
       updateCheckInFromPickup();
     }
+    applyingEditorValues=false;
+    markEditorBaseline();
     toggleBrokerFields();
     updateEditorDetails(b);
     if(b.appointmentMissing && !get('dispatchEditAppointmentTime').value){
@@ -1726,13 +1763,17 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(!row) return;
     const ref=rowReference(row);
     if(!ref) return;
+    if(!confirmDiscardUnsavedChanges('open another trip')) return;
     panel.hidden=false;
     try{await loadTrip(ref);}catch(err){setMsg(err.message||'Unable to load selected trip','err');}
   });
 
   get('dispatchEditClose').addEventListener('click',()=>{
+    if(!confirmDiscardUnsavedChanges('close the trip editor')) return;
     panel.hidden=true;
     currentRef='';
+    editorHasUnsavedChanges=false;
+    editorBaselineSnapshot='';
   });
 
   get('dispatchEditSave').addEventListener('click',async()=>{
@@ -1788,6 +1829,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       if(saved){
         await applyEditorValues(saved);
         get('dispatchEditNote').value='';
+        markEditorBaseline();
       }
       const savedAppointment=String(saved?.submittedAppointmentTime||saved?.appointmentTime||'').slice(0,5)||'MISSING';
       const savedPickup=String(saved?.time||'').slice(0,5)||'--:--';
@@ -1953,6 +1995,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
   get('dispatchEditDate').addEventListener('change',updatePickupFromAppointment);
   get('dispatchEditTime').addEventListener('input',updateCheckInFromPickup);
   get('dispatchEditSubmitterType').addEventListener('change',toggleBrokerFields);
+  panel.addEventListener('input',refreshUnsavedState);
+  panel.addEventListener('change',refreshUnsavedState);
   loadDispatchOpsSettings();
   loadBrokerCompanies();
 })();
