@@ -42,9 +42,18 @@ function normalizeTripTime(value){
  const hhmm=raw.match(/^(\d{2}:\d{2})/);
  return hhmm?hhmm[1]:raw;
 }
+function normalizeOptionalTripTime(value){
+ const raw=clean(value||'');
+ if(!raw) return '';
+ const hhmm=raw.match(/^(\d{1,2}:\d{2})/);
+ if(!hhmm) return '';
+ const [h,m]=hhmm[1].split(':').map(Number);
+ if(!Number.isFinite(h)||!Number.isFinite(m)||h<0||h>23||m<0||m>59) return '';
+ return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
 function extractAppointmentTimeFromNotes(notes){
  const text=clean(notes||'');
- const match=text.match(/Appointment time:\s*([0-2]?\d:[0-5]\d)/i);
+ const match=text.match(/(?:Appointment\s*time|Appointment|Appt\s*time|Appt):\s*([0-2]?\d:[0-5]\d)/i);
  return match?String(match[1]).padStart(5,'0'):'';
 }
 function parseTripDateTime(booking){
@@ -1937,7 +1946,7 @@ function mapBooking(b){
   destinationLng:b.destination_lng!=null?Number(b.destination_lng):b.destinationLng!=null?Number(b.destinationLng):null,
   date:b.trip_date||b.date,
   time:String(b.trip_time||b.time||'').slice(0,5),
-  appointmentTime:normalizeTripTime(b.appointment_time||b.appointmentTime||extractAppointmentTimeFromNotes(b.notes||'')),
+  appointmentTime:normalizeOptionalTripTime(b.appointment_time||b.appointmentTime||extractAppointmentTimeFromNotes(b.notes||'')),
   status:statusLabel(b.status),
   statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),
   driver:b.driver_name,
