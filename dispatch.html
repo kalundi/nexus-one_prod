@@ -518,6 +518,36 @@ function renderAI(trips){
   document.getElementById('demandForecast').innerHTML=f.map(x=>`<div class="forecastRow"><strong>${x.period}</strong><span class="forecastTrack"><span style="width:${Math.round(x.count/max*100)}%"></span></span><span>${x.count}</span></div>`).join('');
 }
 
+function formatShortDateTime(dateValue,timeValue){
+  const dateRaw=String(dateValue||'').trim();
+  const timeRaw=String(timeValue||'').trim();
+  if(!dateRaw&&!timeRaw) return '--';
+
+  const dateMatch=dateRaw.match(/^(\d{4}-\d{2}-\d{2})/);
+  const timeMatch=timeRaw.match(/^(\d{2}:\d{2})/);
+  let dt=null;
+
+  if(dateMatch){
+    const iso=`${dateMatch[1]}T${timeMatch?`${timeMatch[1]}:00`:'00:00:00'}`;
+    const parsed=new Date(iso);
+    if(!Number.isNaN(parsed.getTime())) dt=parsed;
+  }
+  if(!dt&&dateRaw){
+    const parsed=new Date(dateRaw);
+    if(!Number.isNaN(parsed.getTime())) dt=parsed;
+  }
+
+  const shortDate=dt?dt.toLocaleDateString([], {month:'short', day:'numeric'}):dateRaw;
+  let shortTime='';
+  if(timeMatch){
+    const t=new Date(`1970-01-01T${timeMatch[1]}:00`);
+    shortTime=t.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+  }else if(dt){
+    shortTime=dt.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+  }
+  return `${shortDate}${shortTime?` ${shortTime}`:''}`;
+}
+
 function renderTrips(trips){
   const list=Array.isArray(trips)?trips:[];
   const statuses={
@@ -543,7 +573,8 @@ function renderTrips(trips){
       const ref=t.reference||t.id||'';
       const estimateNumber=Number(t.estimatedFare ?? t.estimated_fare ?? t.estimate ?? t.fare);
       const estimate=Number.isFinite(estimateNumber)?`$${estimateNumber.toFixed(2)}`:'--';
-      return `<tr><td>${ref||'�'}</td><td>${t.name||'�'}</td><td>${t.service||'�'}</td><td>${t.date||'�'} ${t.time||''}</td><td><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}">${t.statusLabel||t.status||'Requested'}</span></td><td>${estimate}</td><td>${riskBadge(t)}</td><td><button class="button secondary" data-advance="${ref}" onclick="advanceTrip('${ref}')">Advance</button></td></tr>`;
+      const shortDateTime=formatShortDateTime(t.date,t.time);
+      return `<tr><td>${ref||'�'}</td><td>${t.name||'�'}</td><td>${t.service||'�'}</td><td>${shortDateTime}</td><td><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}">${t.statusLabel||t.status||'Requested'}</span></td><td>${estimate}</td><td>${riskBadge(t)}</td><td><button class="button secondary" data-advance="${ref}" onclick="advanceTrip('${ref}')">Advance</button></td></tr>`;
     }).join('');
   }
 
