@@ -228,7 +228,7 @@ async function autoAssign(booking){
   await query(`UPDATE bookings SET driver_name=COALESCE($1,driver_name),driver_scope_id=COALESCE($2,driver_scope_id),vehicle_unit=COALESCE($3,vehicle_unit),status=$5,updated_at=now() WHERE reference=$4`,[driverName,driverScopeId,vehicleUnit,nextStatus,booking.reference]);
   const updatedBookingResult=await query('SELECT * FROM bookings WHERE reference=$1',[booking.reference]);
   const updatedBooking=updatedBookingResult.rows[0];
-  await notifyAssignedDriver(updatedBooking,{driverName,driverEmail,driverPhone,vehicleUnit}).catch(e=>console.error('[ASSIGNMENT_NOTIFY]',e.message));
+  await notifyAssignedDriver(updatedBooking,{driverName,driverScopeId,driverEmail,driverPhone,vehicleUnit}).catch(e=>console.error('[ASSIGNMENT_NOTIFY]',e.message));
   return {assigned:true,driverName,vehicleUnit,status:nextStatus,message:`Assigned to ${driverName||'—'} / ${vehicleUnit||'—'}`};
  }catch(e){console.error('[AUTO-ASSIGN]',e.message);return {assigned:false,message:'Auto-assign error: '+e.message};}
 }
@@ -626,19 +626,46 @@ async function sendEmail(to,subject,html){
  const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:recipients.map(email=>({email}))}],from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Medical Transit'},subject,content:[{type:'text/html',value:html}]})});
  if(!r.ok)throw new Error(`SendGrid request failed (${r.status})`);return {status:'sent'};
 }
+async function resolveDriverContacts({driverName='',driverScopeId='',driverEmail='',driverPhone=''}){
+ if(clean(driverEmail)||clean(driverPhone))return {driverEmail:clean(driverEmail),driverPhone:clean(driverPhone)};
+ const name=clean(driverName);
+ const scopeId=clean(driverScopeId);
+ if(!name&&!scopeId)return {driverEmail:'',driverPhone:''};
+ const result=await query(
+  `SELECT email, phone
+   FROM users
+   WHERE active=true
+     AND (
+       (NULLIF($1,'') IS NOT NULL AND lower(trim(display_name))=lower(trim($1)))
+       OR (NULLIF($2,'') IS NOT NULL AND scope_id=$2)
+       OR (NULLIF($3,'') IS NOT NULL AND lower(trim(email))=lower(trim($3)))
+     )
+   ORDER BY updated_at DESC
+   LIMIT 1`,
+  [name, scopeId, clean(driverEmail)]
+ ).catch(()=>({rows:[]}));
+ const row=result.rows?.[0]||{};
+ return {driverEmail:clean(driverEmail||row.email||''),driverPhone:clean(driverPhone||row.phone||'')};
+}
 async function notifyAssignedDriver(booking,options={}){
  const driverName=clean(options.driverName||booking?.driver_name||booking?.driverName||'');
- const driverEmail=clean(options.driverEmail||booking?.driver_email||booking?.driverEmail||'');
- const driverPhone=clean(options.driverPhone||booking?.driver_phone||booking?.driverPhone||'');
+ const driverScopeId=clean(options.driverScopeId||booking?.driver_scope_id||booking?.driverScopeId||'');
+ let driverEmail=clean(options.driverEmail||booking?.driver_email||booking?.driverEmail||'');
+ let driverPhone=clean(options.driverPhone||booking?.driver_phone||booking?.driverPhone||'');
  const vehicleUnit=clean(options.vehicleUnit||booking?.vehicle_unit||booking?.vehicleUnit||'');
  const tripDate=clean(booking?.trip_date||booking?.date||'');
  const tripTime=clean(booking?.trip_time||booking?.time||'');
+ const pickupTime=clean(booking?.pickup_time||booking?.pickupTime||booking?.submittedAppointmentTime||booking?.appointmentTime||tripTime||'');
+ const checkInTime=clean(booking?.check_in_time||booking?.checkInTime||'');
  const pickup=clean(booking?.pickup||'');
  const destination=clean(booking?.destination||'');
  const reference=clean(booking?.reference||'');
+ const resolved=await resolveDriverContacts({driverName,driverScopeId,driverEmail,driverPhone});
+ driverEmail=resolved.driverEmail;
+ driverPhone=resolved.driverPhone;
  if(!driverName||(!driverEmail&&!driverPhone))return {sms:{status:'skipped'},email:{status:'skipped'}};
- const smsBody=`Nexus Medical Transit: You have been assigned to trip ${reference}${tripDate?` on ${tripDate}`:''}${tripTime?` at ${tripTime}`:''}. Pickup: ${pickup || 'See dispatch'}. Destination: ${destination || 'See dispatch'}. Vehicle: ${vehicleUnit || 'TBD'}.`;
- const html=`<h2 style="color:#082f49">Trip assigned — ${reference}</h2><p><strong>Driver:</strong> ${driverName}</p><p><strong>Date:</strong> ${tripDate || '—'}</p><p><strong>Time:</strong> ${tripTime || '—'}</p><p><strong>Pickup:</strong> ${pickup || '—'}</p><p><strong>Destination:</strong> ${destination || '—'}</p><p><strong>Vehicle:</strong> ${vehicleUnit || 'TBD'}</p><p>Please confirm your availability with dispatch.</p>`;
+ const smsBody=`Nexus Medical Transit: You have been assigned to trip ${reference}${tripDate?` on ${tripDate}`:''}${tripTime?` at ${tripTime}`:''}. Pickup: ${pickup || 'See dispatch'}. Pickup/appointment time: ${pickupTime || 'See dispatch'}. Check-in time: ${checkInTime || 'See dispatch'}. Destination: ${destination || 'See dispatch'}. Vehicle: ${vehicleUnit || 'TBD'}.`;
+ const html=`<h2 style="color:#082f49">Trip assigned — ${reference}</h2><p><strong>Driver:</strong> ${driverName}</p><p><strong>Date:</strong> ${tripDate || '—'}</p><p><strong>Time:</strong> ${tripTime || '—'}</p><p><strong>Pickup:</strong> ${pickup || '—'}</p><p><strong>Pickup/appointment time:</strong> ${pickupTime || '—'}</p><p><strong>Check-in time:</strong> ${checkInTime || '—'}</p><p><strong>Destination:</strong> ${destination || '—'}</p><p><strong>Vehicle:</strong> ${vehicleUnit || 'TBD'}</p><p>Please confirm your availability with dispatch.</p>`;
  const results=await Promise.allSettled([
   driverPhone?sendSms(driverPhone,smsBody):Promise.resolve({status:'skipped-no-driver-phone'}),
   driverEmail?sendEmail(driverEmail,`Trip assigned — ${reference}`,html):Promise.resolve({status:'skipped-no-driver-email'})
@@ -716,6 +743,9 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
   const changeParts=[];
   if(clean(before.status)!==clean(after.status))changeParts.push(`Status: ${after.statusLabel||after.status}`);
   if(clean(before.date)!==clean(after.date)||clean(before.time)!==clean(after.time))changeParts.push(`Schedule: ${after.date||'—'} ${after.time||'—'}`);
+  if(clean(before.pickupTime)!==clean(after.pickupTime))changeParts.push(`Pickup time: ${after.pickupTime||'—'}`);
+  if(clean(before.submittedAppointmentTime)!==clean(after.submittedAppointmentTime))changeParts.push(`Pickup/appointment time: ${after.submittedAppointmentTime||'—'}`);
+  if(clean(before.checkInTime)!==clean(after.checkInTime))changeParts.push(`Check-in time: ${after.checkInTime||'—'}`);
   if(clean(before.driverName)!==clean(after.driverName))changeParts.push(`Driver: ${after.driverName||'Unassigned'}`);
   if(clean(before.vehicleUnit)!==clean(after.vehicleUnit))changeParts.push(`Vehicle: ${after.vehicleUnit||'Unassigned'}`);
   if(clean(before.pickup)!==clean(after.pickup)||clean(before.destination)!==clean(after.destination))changeParts.push('Route updated');
@@ -729,11 +759,14 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
 
   let driverEmail=clean(afterRow?.driver_email||'');
   let driverPhone=clean(afterRow?.driver_phone||'');
-  if((!driverEmail&&!driverPhone)&&clean(after.driverName)){
-   const dr=await query(`SELECT email,phone FROM users WHERE role='DRIVER' AND active=true AND lower(trim(display_name))=lower(trim($1)) ORDER BY updated_at DESC LIMIT 1`,[after.driverName]).catch(()=>({rows:[]}));
-   driverEmail=clean(dr.rows?.[0]?.email||'');
-   driverPhone=clean(dr.rows?.[0]?.phone||'');
-  }
+  const resolvedDriver=await resolveDriverContacts({
+   driverName:after.driverName,
+   driverScopeId:after.driverScopeId,
+   driverEmail,
+   driverPhone
+  });
+  driverEmail=resolvedDriver.driverEmail;
+  driverPhone=resolvedDriver.driverPhone;
 
   const facilityEmails=[];
   if(clean(after.facilityId)){
@@ -757,8 +790,10 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
 
   const summary=changeParts.join(' | ');
   const note=clean(editNote);
+  const pickupTime=clean(after.pickupTime||after.submittedAppointmentTime||after.appointmentTime||after.time||'');
+  const checkInTime=clean(after.checkInTime||'');
   const smsText=`Nexus update for trip ${reference}: ${summary}. Updated by ${actorLabel}.${note?` Note: ${note}`:''}`;
-  const html=`<h2>Trip updated — ${reference}</h2><p><strong>Updated by:</strong> ${actorLabel}</p><p><strong>Summary:</strong> ${summary}</p>${note?`<p><strong>Note:</strong> ${note}</p>`:''}<p><strong>Patient:</strong> ${after.name||'—'} (${after.phone||'—'})</p><p><strong>Schedule:</strong> ${after.date||'—'} at ${after.time||'—'}</p><p><strong>Route:</strong> ${after.pickup||'—'} → ${after.destination||'—'}</p><p><strong>Driver:</strong> ${after.driverName||'Unassigned'} | <strong>Vehicle:</strong> ${after.vehicleUnit||'Unassigned'}</p><p><strong>Status:</strong> ${after.statusLabel||after.status||'—'}</p>`;
+  const html=`<h2>Trip updated — ${reference}</h2><p><strong>Updated by:</strong> ${actorLabel}</p><p><strong>Summary:</strong> ${summary}</p>${note?`<p><strong>Note:</strong> ${note}</p>`:''}<p><strong>Patient:</strong> ${after.name||'—'} (${after.phone||'—'})</p><p><strong>Schedule:</strong> ${after.date||'—'} at ${after.time||'—'}</p><p><strong>Pickup/appointment time:</strong> ${pickupTime||'—'}</p><p><strong>Check-in time:</strong> ${checkInTime||'—'}</p><p><strong>Route:</strong> ${after.pickup||'—'} → ${after.destination||'—'}</p><p><strong>Driver:</strong> ${after.driverName||'Unassigned'} | <strong>Vehicle:</strong> ${after.vehicleUnit||'Unassigned'}</p><p><strong>Status:</strong> ${after.statusLabel||after.status||'—'}</p>`;
 
   const smsList=Array.from(smsTargets);
   const emailList=Array.from(emailTargets);
@@ -1096,13 +1131,15 @@ async function handler(event){
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,'CANCELLED','cancelled',clean(b.reason)||'Cancelled by passenger','PASSENGER']);
     await audit('BOOKING',ref,'CANCELLED',{reason:clean(b.reason)||'Passenger request',cancellationFeeAmount,cancellationFeeApplied,policyKey});
    const booking=mapBooking(updated.rows[0]);
+     const driverAlert=sendTripStakeholderUpdate(r.rows[0],updated.rows[0],{display_name:'Passenger'},clean(b.reason)||'Cancelled by passenger').catch(e=>console.error('[CANCEL_NOTIFY]',e.message));
    // Notify passenger and company of cancellation
    const cancelSmsRecipients=buildSmsRecipients(booking.phone);
    const cancelEmailRecipients=buildEmailRecipients(booking.email||process.env.COMPANY_EMAIL);
    await Promise.allSettled([
      Promise.all(cancelSmsRecipients.map((phone)=>sendSms(phone,`Nexus Medical Transit: Your trip ${ref} has been cancelled. Reference saved for your records. Call (888) 760-4990 to rebook.`))).then(()=>({status:'sent'})),
      booking.email?sendEmail(cancelEmailRecipients,`Trip ${ref} cancelled`,`<h2>Your trip has been cancelled</h2><p>Reference <strong>${ref}</strong> has been cancelled as requested.</p><p>Call <strong>(888) 760-4990</strong> or visit nexusmt.com to book a new trip.</p>`):Promise.resolve(),
-     process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Trip cancellation: ${ref}`,`<h2>Trip Cancelled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>Original Date/Time:</strong> ${booking.date} at ${booking.time}</p><p><strong>Reason:</strong> ${clean(b.reason)||'Passenger request'}</p>`):Promise.resolve()
+       process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Trip cancellation: ${ref}`,`<h2>Trip Cancelled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>Original Date/Time:</strong> ${booking.date} at ${booking.time}</p><p><strong>Reason:</strong> ${clean(b.reason)||'Passenger request'}</p>`):Promise.resolve(),
+       driverAlert
    ]);
   return json(200,{booking,cancellationFee:{applied:cancellationFeeApplied,amount:cancellationFeeAmount,policyKey,windowHours,leadHours},message:'Booking cancelled successfully'});
   }
@@ -1118,13 +1155,15 @@ async function handler(event){
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),`Rescheduled to ${b.date} at ${b.time}`,'PASSENGER']);
    await audit('BOOKING',ref,'RESCHEDULED',{newDate:b.date,newTime:b.time});
    const booking=mapBooking(updated.rows[0]);
+   const driverAlert=sendTripStakeholderUpdate(r.rows[0],updated.rows[0],{display_name:'Passenger'},`Rescheduled to ${b.date} at ${b.time}`).catch(e=>console.error('[RESCHEDULE_NOTIFY]',e.message));
    // Notify passenger of reschedule
    const rescheduleSmsRecipients=buildSmsRecipients(booking.phone);
    const rescheduleEmailRecipients=buildEmailRecipients(booking.email||process.env.COMPANY_EMAIL);
    await Promise.allSettled([
      Promise.all(rescheduleSmsRecipients.map((phone)=>sendSms(phone,`Nexus Medical Transit: Your trip ${ref} has been rescheduled to ${b.date} at ${b.time}. Questions? Call (888) 760-4990.`))).then(()=>({status:'sent'})),
      booking.email?sendEmail(rescheduleEmailRecipients,`Trip ${ref} rescheduled`,`<h2>Your trip has been rescheduled</h2><p>Reference <strong>${ref}</strong> is now scheduled for <strong>${b.date} at ${b.time}</strong>.</p><p>Questions? Call <strong>(888) 760-4990</strong>.</p>`):Promise.resolve(),
-     process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Trip rescheduled: ${ref}`,`<h2>Trip Rescheduled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>New Date/Time:</strong> ${b.date} at ${b.time}</p><p><strong>Service:</strong> ${booking.service}</p>`):Promise.resolve()
+     process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Trip rescheduled: ${ref}`,`<h2>Trip Rescheduled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>New Date/Time:</strong> ${b.date} at ${b.time}</p><p><strong>Service:</strong> ${booking.service}</p>`):Promise.resolve(),
+     driverAlert
    ]);
    return json(200,{booking,message:'Booking rescheduled successfully'});
   }
@@ -1853,7 +1892,8 @@ async function handler(event){
     const note=earlyPickupReason||null;
     await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),note,u.display_name||u.email||u.role]);
     await audit('BOOKING',ref,'UPDATED',{by:u.role,status:updated.rows[0].status,vehicleUnit:updated.rows[0].vehicle_unit||null});
-    return json(200,{booking:mapBooking(updated.rows[0]),message:'Trip updated successfully'});
+    const notifications=await sendTripStakeholderUpdate(currentBooking.rows[0],updated.rows[0],u,note||`Trip updated by ${u.display_name||u.email||u.role}`).catch(()=>({status:'failed'}));
+    return json(200,{booking:mapBooking(updated.rows[0]),notifications,message:'Trip updated successfully'});
    }
 
    const phone=clean(b.phone);if(!phone)return json(400,{error:'Phone number is required to update'});
@@ -2122,6 +2162,7 @@ function mapBooking(b){
   destinationLng:b.destination_lng!=null?Number(b.destination_lng):b.destinationLng!=null?Number(b.destinationLng):null,
   date:b.trip_date||b.date,
   time:String(b.trip_time||b.time||'').slice(0,5),
+  pickupTime:normalizeOptionalTripTime(b.pickup_time||b.pickupTime||b.pickupTimeEstimate||b.trip_time||b.time||'')||null,
   appointmentTime:linkedAppointmentTime,
   submittedAppointmentTime:effectiveSubmittedAppointment,
   checkInTime:checkInTime||null,
@@ -2130,6 +2171,7 @@ function mapBooking(b){
   statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),
   driver:b.driver_name,
   driverName:b.driver_name,
+  driverScopeId:b.driver_scope_id||null,
   vehicle:b.vehicle_unit,
   vehicleUnit:b.vehicle_unit,
   facilityId:b.facility_id,

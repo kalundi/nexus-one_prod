@@ -35,7 +35,7 @@ const FLETCHER = {
   name: 'Fletcher Kalundi',
   password: 'Fletcher2026!',
   role: 'DRIVER',
-  phone: '(202) 315-9253',
+  phone: '301-500-7946',
   employeeCode: 'NEXF001'
 };
 
@@ -56,21 +56,40 @@ try {
     [FLETCHER.email]
   );
 
+  const userColumns = await pool.query(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='users'
+  `);
+  const columns = new Set(userColumns.rows.map((row) => row.column_name));
+
   let userId;
   if (existingUser.rows[0]) {
     userId = existingUser.rows[0].id;
     const passwordHash = digest(FLETCHER.password);
+    const updateParts = ['display_name=$2', 'role=$3', 'password_hash=$4', 'active=true'];
+    const updateValues = [userId, FLETCHER.name, FLETCHER.role, passwordHash];
+    if (columns.has('phone')) {
+      updateParts.push(`phone=$${updateValues.length + 1}`);
+      updateValues.push(FLETCHER.phone);
+    }
     await pool.query(
-      'UPDATE users SET display_name=$2, role=$3, password_hash=$4, active=true, updated_at=now() WHERE id=$1',
-      [userId, FLETCHER.name, FLETCHER.role, passwordHash]
+      `UPDATE users SET ${updateParts.join(', ')}, updated_at=now() WHERE id=$1`,
+      updateValues
     );
     console.log(`[FLETCHER-DRIVER] Updated existing user: ${FLETCHER.email}`);
   } else {
     userId = crypto.randomUUID();
     const passwordHash = digest(FLETCHER.password);
+    const names = ['id', 'email', 'display_name', 'role', 'password_hash', 'active'];
+    const values = [userId, FLETCHER.email.toLowerCase(), FLETCHER.name, FLETCHER.role, passwordHash, true];
+    if (columns.has('phone')) {
+      names.push('phone');
+      values.push(FLETCHER.phone);
+    }
     await pool.query(
-      'INSERT INTO users(id,email,display_name,role,password_hash,active,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,now(),now())',
-      [userId, FLETCHER.email.toLowerCase(), FLETCHER.name, FLETCHER.role, passwordHash]
+      `INSERT INTO users(${names.join(',')}) VALUES(${values.map((_, index) => `$${index + 1}`).join(',')}, now(), now())`,
+      values
     );
     console.log(`[FLETCHER-DRIVER] Created new user: ${FLETCHER.email}`);
   }
