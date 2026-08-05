@@ -839,6 +839,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function nextAdvanceLabel(trip){
     const status = normalizedStatus(trip);
+    if(trip?.appointmentMissing){
+      return {label:'Missing Appointment', disabled:true, reason:'Appointment time must be entered by the submitter before this trip can proceed.'};
+    }
     const dt = parseTripDateTime(trip);
     const now = new Date();
     if(dt && dt < now && ['SUBMITTED','SCHEDULED','REQUESTED'].includes(status)){
@@ -1165,7 +1168,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     </div>
     <input id="dispatchBulkUpload" type="file" accept=".csv,text/csv" hidden>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px">
-      <small class="subtle">Editable CSV columns: status, service, date, time, driverName, vehicleUnit, bookingSource, submitterEntity, brokerCompanyName, brokerAcceptedRate, dispatchNote</small>
+      <small class="subtle">Editable CSV columns: appointmentTime, status, service, date, time, driverName, vehicleUnit, bookingSource, submitterEntity, brokerCompanyName, brokerAcceptedRate, dispatchNote</small>
       <div style="display:flex;gap:10px"><button id="dispatchBulkClear" class="button ghost" type="button">Clear selection</button><button id="dispatchBulkDownload" class="button ghost" type="button">Download CSV template</button><button id="dispatchBulkUploadBtn" class="button ghost" type="button">Upload CSV</button><button id="dispatchBulkSubmit" class="button primary" type="button">Submit imported updates</button></div>
     </div>
   `;
@@ -1471,10 +1474,13 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditPhone').value=b.phone||'';
     get('dispatchEditEmail').value=b.email||'';
     get('dispatchEditTripNotes').value=b.notes||'';
-    get('dispatchEditAppointmentTime').value=String(b.appointmentTime||b.time||extractAppointmentTime(b.notes||'')).slice(0,5);
+    get('dispatchEditAppointmentTime').value=String(b.submittedAppointmentTime||extractAppointmentTime(b.notes||'')).slice(0,5);
     updatePickupFromAppointment();
     toggleBrokerFields();
     updateEditorDetails(b);
+    if(b.appointmentMissing){
+      setMsg('Warning: Appointment time is missing from submitter data. Enter appointment time and save before any further actions.','err');
+    }
   }
 
   function updateEditorDetails(b){
@@ -1484,6 +1490,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       ['Submitter login', b.submitterEntity || '—'],
       ['Broker company', b.brokerCompanyName || '—'],
       ['Broker accepted rate', b.brokerAcceptedRate!=null?`$${Number(b.brokerAcceptedRate).toFixed(2)}`:'—'],
+      ['Submitter appointment', b.submittedAppointmentTime || 'MISSING'],
       ['Route minutes used', String(getDynamicRouteMinutes() || '—')],
       ['Payment status', b.paymentStatus || 'UNPAID'],
       ['Estimated fare', b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'—'],
@@ -1538,6 +1545,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   get('dispatchEditSave').addEventListener('click',async()=>{
     if(!currentRef){setMsg('Click a trip row first.','err');return;}
+    const appointmentTime=get('dispatchEditAppointmentTime').value;
+    if(!appointmentTime){setMsg('Appointment time is required. Enter appointment time to proceed.','err');return;}
     const payload={
       status:get('dispatchEditStatus').value,
       service:get('dispatchEditService').value,
@@ -1547,6 +1556,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       time:get('dispatchEditTime').value,
       driverName:get('dispatchEditDriver').value,
       vehicleUnit:get('dispatchEditVehicle').value,
+      appointmentTime:appointmentTime,
       bookingSource:get('dispatchEditSubmitterType').value,
       submitterEntity:get('dispatchEditSubmitter').value,
       brokerCompanyName:get('dispatchEditSubmitterType').value==='BROKER'?get('dispatchEditBrokerCompany').value:'',
@@ -1595,11 +1605,12 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(!selectedRefs.size){setBulkMsg('Select at least one trip before downloading template.','err');return;}
     const selectedTrips=(window.__dispatchTripsCache||[]).filter((trip)=>selectedRefs.has(String(trip.reference||trip.id||'')));
     if(!selectedTrips.length){setBulkMsg('Selected trips are not available in current filtered view. Refresh and retry.','err');return;}
-    const headers=['reference','status','service','date','time','driverName','vehicleUnit','bookingSource','submitterEntity','brokerCompanyName','brokerAcceptedRate','dispatchNote'];
+    const headers=['reference','appointmentTime','status','service','date','time','driverName','vehicleUnit','bookingSource','submitterEntity','brokerCompanyName','brokerAcceptedRate','dispatchNote'];
     const rows=[headers.join(',')];
     selectedTrips.forEach((trip)=>{
       const values=[
         trip.reference||trip.id||'',
+        trip.submittedAppointmentTime||'',
         String(trip.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
         trip.service||'',
         String(trip.date||'').slice(0,10),
@@ -1665,6 +1676,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         if(!reference){failures.push('Row missing reference.');continue;}
         const payload={};
         const status=String(row.status||row.Status||'').trim();
+        const appointmentTime=String(row.appointmentTime||row.AppointmentTime||'').trim();
         const service=String(row.service||row.Service||'').trim();
         const date=String(row.date||row.Date||'').trim();
         const time=String(row.time||row.Time||'').trim();
@@ -1675,6 +1687,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         const brokerCompanyName=String(row.brokerCompanyName||row.BrokerCompanyName||'').trim();
         const brokerAcceptedRate=String(row.brokerAcceptedRate||row.BrokerAcceptedRate||'').trim();
         const dispatchNote=String(row.dispatchNote||row.DispatchNote||'').trim();
+        if(appointmentTime) payload.appointmentTime=appointmentTime;
         if(status) payload.status=status;
         if(service) payload.service=service;
         if(date) payload.date=date;

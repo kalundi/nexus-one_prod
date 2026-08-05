@@ -66,6 +66,27 @@ function extractAppointmentTimeFromNotes(notes){
  const match=text.match(/(?:Appointment\s*time|Appointment|Appt\s*time|Appt):\s*([0-2]?\d:[0-5]\d(?:\s*(?:AM|PM))?)/i);
  return match?normalizeOptionalTripTime(String(match[1])):'';
 }
+function appointmentNoteLabel(timeHHMM){
+ const normalized=normalizeOptionalTripTime(timeHHMM);
+ if(!normalized) return '';
+ const [h,m]=normalized.split(':').map(Number);
+ const meridiem=h>=12?'PM':'AM';
+ const hour12=h%12===0?12:h%12;
+ return `${hour12}:${String(m).padStart(2,'0')} ${meridiem}`;
+}
+function upsertAppointmentNote(notes,appointmentTime){
+ const normalized=normalizeOptionalTripTime(appointmentTime);
+ if(!normalized) return clean(notes||'')||null;
+ const label=appointmentNoteLabel(normalized);
+ const base=String(notes||'').replace(/(?:Appointment\s*time|Appointment|Appt\s*time|Appt):\s*[0-2]?\d:[0-5]\d(?:\s*(?:AM|PM))?/ig,'').replace(/\s*\|\s*\|\s*/g,' | ').trim();
+ const appointmentLine=`Appointment time: ${label}`;
+ if(!base) return appointmentLine;
+ if(base.includes('\n')) return `${base}\n${appointmentLine}`;
+ return `${base} | ${appointmentLine}`;
+}
+function getSubmittedAppointmentTime(row){
+ return normalizeOptionalTripTime(row?.appointment_time||row?.appointmentTime||extractAppointmentTimeFromNotes(row?.notes||''));
+}
 function parseTripDateTime(booking){
  const tripDate=normalizeTripDate(booking?.trip_date||booking?.date||'');
  const tripTime=normalizeTripTime(booking?.trip_time||booking?.time||'00:00');
@@ -153,8 +174,9 @@ async function createBookingFromBrokerRequest(requestBody,requestRow){
  const bookingReference=isDemoReference(requestedReference)?reference():requestedReference;
  const payload=buildBrokerBookingPayload(requestRow||{},requestBody||{},bookingReference);
  payload.booking_source=normalizeBookingSource(payload.booking_source);
+ const brokerNotes=upsertAppointmentNote(payload.notes||'',payload.trip_time||'');
  const bookingResult=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
-  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,now(),now()) RETURNING *`,[payload.reference,payload.name,payload.phone,payload.email,payload.service,payload.pickup,payload.destination,payload.trip_date,payload.trip_time,payload.notes,payload.pickup_lat,payload.pickup_lng,payload.destination_lat,payload.destination_lng,null,null,payload.estimated_fare||null,payload.booking_source,clean(requestBody?.submitted_by||requestRow?.submitted_by||payload.email||'')||null,clean(requestBody?.broker_name||requestRow?.broker_name||'')||null,payload.estimated_fare||null]);
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,now(),now()) RETURNING *`,[payload.reference,payload.name,payload.phone,payload.email,payload.service,payload.pickup,payload.destination,payload.trip_date,payload.trip_time,brokerNotes,payload.pickup_lat,payload.pickup_lng,payload.destination_lat,payload.destination_lng,null,null,payload.estimated_fare||null,payload.booking_source,clean(requestBody?.submitted_by||requestRow?.submitted_by||payload.email||'')||null,clean(requestBody?.broker_name||requestRow?.broker_name||'')||null,payload.estimated_fare||null]);
  const booking=bookingResult.rows[0];
  await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[booking.reference,'SUBMITTED','submitted','Broker request materialized into a booking','DISPATCH']);
  const autoAssignResult=await autoAssign(booking);
@@ -854,7 +876,7 @@ async function handler(event){
    return json(200,{locations:r.rows});
   }
   if(p[0]==='bookings'&&method==='POST'&&p.length===1){
-   const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time']);
+   const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
    // Validate phone format: XXX-XXX-XXXX or 10 digits
    const phoneDigits=String(b.phone||'').replace(/\D/g,'');
    if(phoneDigits.length!==10)return json(400,{error:'Phone number must be 10 digits'});
@@ -864,7 +886,8 @@ async function handler(event){
    let bookingActor=null;
    try{if(bearer(event))bookingActor=await requireUser(bearer(event))}catch{}
   const actorRole=String(bookingActor?.role||'CUSTOMER').toUpperCase();
-  const appointmentTime=clean(b.appointmentTime||'');
+  const appointmentTime=normalizeOptionalTripTime(b.appointmentTime||'');
+  if(!appointmentTime)return json(400,{error:'Appointment time is required and must be valid (for example 2:00 PM).'});
   const pickupTimeEstimate=clean(b.pickupTimeEstimate||b.time||'');
   const requestedByRole=clean(b.requestedByRole||actorRole||'CUSTOMER').toUpperCase();
 
@@ -878,12 +901,11 @@ async function handler(event){
 
   const baseNotes=clean(b.notes)||'';
   const metadataNotes=[
-   appointmentTime?`Appointment time: ${appointmentTime}`:'',
    pickupTimeEstimate?`Pickup estimate: ${pickupTimeEstimate}`:'',
    requestedByRole?`Requested by role: ${requestedByRole}`:'',
    clean(b.paymentWindowLabel)?clean(b.paymentWindowLabel):''
   ].filter(Boolean).join(' | ');
-  const composedNotes=[baseNotes,metadataNotes].filter(Boolean).join(baseNotes&&metadataNotes?'\n':'');
+  const composedNotes=upsertAppointmentNote([baseNotes,metadataNotes].filter(Boolean).join(baseNotes&&metadataNotes?'\n':''),appointmentTime);
 
    const ref=reference();
   const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
@@ -1384,6 +1406,11 @@ async function handler(event){
    const hasName=Object.prototype.hasOwnProperty.call(b,'name');
    const hasPhone=Object.prototype.hasOwnProperty.call(b,'phone');
    const hasEmail=Object.prototype.hasOwnProperty.call(b,'email');
+  const hasAppointmentTime=Object.prototype.hasOwnProperty.call(b,'appointmentTime');
+  const appointmentTimeValue=hasAppointmentTime?normalizeOptionalTripTime(b.appointmentTime):'';
+  if(hasAppointmentTime&&!appointmentTimeValue)return json(400,{error:'appointmentTime must be a valid time (for example 2:00 PM).'});
+  const existingAppointmentTime=getSubmittedAppointmentTime(before.rows[0]);
+  if(!existingAppointmentTime&&!appointmentTimeValue)return json(409,{error:'Appointment time must be entered by the submitter before further actions can proceed. Enter appointment time and save first.'});
   const hasBookingSource=Object.prototype.hasOwnProperty.call(b,'bookingSource');
   const hasSubmitterEntity=Object.prototype.hasOwnProperty.call(b,'submitterEntity');
   const hasBrokerCompanyName=Object.prototype.hasOwnProperty.call(b,'brokerCompanyName');
@@ -1399,6 +1426,9 @@ async function handler(event){
     brokerAcceptedRateValue=parsed;
    }
   }
+
+  const notesBase=hasNotes?clean(b.notes)||null:before.rows[0].notes;
+  const notesValue=hasAppointmentTime?upsertAppointmentNote(notesBase,appointmentTimeValue):notesBase;
 
    const r=await query(`
     UPDATE bookings
@@ -1439,7 +1469,8 @@ async function handler(event){
       hasTime,
       hasTime?clean(b.time)||before.rows[0].trip_time:null,
       hasNotes,
-      hasNotes?clean(b.notes)||null:null,
+      hasNotes||hasAppointmentTime,
+      hasNotes||hasAppointmentTime?notesValue:null,
       hasName,
       hasName?clean(b.name)||before.rows[0].name:null,
       hasPhone,
@@ -1470,6 +1501,7 @@ async function handler(event){
     driverName:b.driverName||undefined,
     vehicleUnit:b.vehicleUnit||undefined,
     bookingSource:hasBookingSource?bookingSourceValue:undefined,
+    appointmentTime:hasAppointmentTime?appointmentTimeValue:undefined,
     submitterEntity:hasSubmitterEntity?clean(b.submitterEntity):undefined,
     brokerCompanyName:hasBrokerCompanyName?clean(b.brokerCompanyName):undefined,
     brokerAcceptedRate:hasBrokerAcceptedRate?brokerAcceptedRateValue:undefined,
@@ -1481,6 +1513,8 @@ async function handler(event){
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const next=STATUS_FLOW[current.rows[0].status]||current.rows[0].status;
+    const submittedAppointment=getSubmittedAppointmentTime(current.rows[0]);
+    if(!submittedAppointment)return json(409,{error:'Appointment time is required before advancing this trip. The submitter must provide appointment time first.',booking:mapBooking(current.rows[0])});
    const availabilityCheck=await query(buildDriverAvailabilitySql(),[new Date((current.rows[0].trip_date||new Date().toISOString().slice(0,10))+'T12:00:00').getDay()||7,(current.rows[0].trip_time||'08:00')]);
    const vehicleCheck=await query(`SELECT COUNT(*) as vehicle_count FROM vehicles WHERE active=true AND status='AVAILABLE'`,[]);
    const availability={available:Number(availabilityCheck.rows[0]?.driver_count||0)>0&&Number(vehicleCheck.rows[0]?.vehicle_count||0)>0,drivers:{available:Number(availabilityCheck.rows[0]?.driver_count||0)},vehicles:{available:Number(vehicleCheck.rows[0]?.vehicle_count||0)}};
@@ -1939,6 +1973,8 @@ async function handler(event){
  }catch(err){console.error(err);return json(err.statusCode||500,{error:err.statusCode?err.message:'Internal server error',requestId:crypto.randomUUID()})}
 }
 function mapBooking(b){
+ const submittedAppointmentTime=getSubmittedAppointmentTime(b);
+ const linkedAppointmentTime=submittedAppointmentTime||normalizeOptionalTripTime(b.trip_time||b.time||'');
  return {
   id:b.reference,
   reference:b.reference,
@@ -1956,13 +1992,9 @@ function mapBooking(b){
   destinationLng:b.destination_lng!=null?Number(b.destination_lng):b.destinationLng!=null?Number(b.destinationLng):null,
   date:b.trip_date||b.date,
   time:String(b.trip_time||b.time||'').slice(0,5),
-  appointmentTime:normalizeOptionalTripTime(
-   b.appointment_time||
-   b.appointmentTime||
-   extractAppointmentTimeFromNotes(b.notes||'')||
-   b.trip_time||
-   b.time||''
-  ),
+  appointmentTime:linkedAppointmentTime,
+  submittedAppointmentTime:submittedAppointmentTime||null,
+  appointmentMissing:!submittedAppointmentTime,
   status:statusLabel(b.status),
   statusLabel:statusLabel(b.status).replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase()),
   driver:b.driver_name,
