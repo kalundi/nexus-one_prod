@@ -1652,8 +1652,16 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditAppointmentTime').value=getBookingAppointmentTime(b);
     get('dispatchEditCheckInTime').value='';
     await updatePickupFromAppointment();
-    if(!get('dispatchEditAppointmentTime').value && !get('dispatchEditTime').value && b.time){
-      get('dispatchEditTime').value=String(b.time||'').slice(0,5);
+    const persistedPickup=String(b.time||'').slice(0,5);
+    if(persistedPickup){
+      get('dispatchEditTime').value=persistedPickup;
+      lastCalculatedPickup=persistedPickup;
+    }
+    const persistedCheckIn=String(b.checkInTime||'').slice(0,5);
+    if(persistedCheckIn){
+      get('dispatchEditCheckInTime').value=persistedCheckIn;
+      lastCalculatedCheckIn=persistedCheckIn;
+    }else{
       updateCheckInFromPickup();
     }
     toggleBrokerFields();
@@ -1731,6 +1739,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(!currentRef){setMsg('Click a trip row first.','err');return;}
     const appointmentTime=get('dispatchEditAppointmentTime').value;
     if(!appointmentTime){setMsg('Appointment time is required. Enter appointment time to proceed.','err');return;}
+    await updatePickupFromAppointment();
     const payload={
       status:get('dispatchEditStatus').value,
       service:get('dispatchEditService').value,
@@ -1761,8 +1770,20 @@ $('saveCustomCompany').addEventListener('click',()=>{
       const res=await fetch(`/api/admin/bookings/${encodeURIComponent(currentRef)}`,{method:'PATCH',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(payload)});
       const data=await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(data.error||'Unable to save trip update');
-      const recipients=data.notifications?.recipients;
-      const recipientMsg=recipients?` Notifications sent (SMS: ${recipients.sms||0}, Email: ${recipients.email||0}).`:'';
+      const notify=data.notifications||{};
+      const recipients=notify.recipients||null;
+      let recipientMsg='';
+      if(recipients){
+        recipientMsg=` Notifications sent (SMS: ${recipients.sms||0}, Email: ${recipients.email||0}).`;
+      }else if(notify.status==='skipped-no-diff'){
+        recipientMsg=' Notification skipped: no meaningful trip changes were detected.';
+      }else if(notify.status==='skipped'){
+        recipientMsg=' Notification skipped.';
+      }else if(notify.status==='failed'){
+        recipientMsg=` Notification failed${notify.error?`: ${notify.error}`:''}.`;
+      }else if(notify.status){
+        recipientMsg=` Notification status: ${notify.status}.`;
+      }
       const saved=data.booking||null;
       if(saved){
         await applyEditorValues(saved);
