@@ -14,7 +14,7 @@
   # TEAMS_WEBHOOK_URL = set in Netlify dashboard env vars (not here — keep secret)
   # To configure Teams: Admin_NMT channel → (...) → Connectors → Incoming Webhook → copy URL → add as TEAMS_WEBHOOK_URL in Netlify site settings
 
-# Scheduled function: send ride reminders 1 hour before trip
+# Scheduled function: send ride reminders (2-hour windows and recurring checks)
 [functions.ride-reminders]
   schedule = "*/15 * * * *"
 

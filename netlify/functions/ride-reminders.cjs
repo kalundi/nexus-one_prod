@@ -76,12 +76,12 @@ exports.handler = async () => {
         AND b.trip_date IS NOT NULL
         AND b.trip_time IS NOT NULL
         AND (b.trip_date + b.trip_time) AT TIME ZONE 'America/New_York'
-            BETWEEN NOW() + INTERVAL '30 minutes'
-                AND NOW() + INTERVAL '60 minutes'
+            BETWEEN NOW() + INTERVAL '105 minutes'
+                AND NOW() + INTERVAL '135 minutes'
     `);
 
     if (!result.rows.length) {
-      console.log('[Reminders] No upcoming trips in the 30-60 min window.');
+      console.log('[Reminders] No upcoming trips in the 2-hour window.');
       return {statusCode: 200, body: JSON.stringify({reminders: 0})};
     }
 
@@ -100,10 +100,10 @@ exports.handler = async () => {
         const driverPhone = b.driver_phone || null;
         const driverEmail = b.driver_email || null;
 
-        const patientSms = `Nexus Medical Transit reminder: Your ride (${b.reference}) is in about 1 hour. Driver: ${driverName}. Pickup at ${pickupTime} from ${b.pickup}.${paymentLinkText} Call (888) 760-4990 with questions.`;
+        const patientSms = `Nexus Medical Transit reminder: Your ride (${b.reference}) is in about 2 hours. Driver: ${driverName}. Pickup at ${pickupTime} from ${b.pickup}.${paymentLinkText} Call (888) 760-4990 with questions.`;
         const patientEmail = `
           <div style="font-family:sans-serif;max-width:560px;margin:auto">
-            <h2 style="color:#082f49">Your ride is in 1 hour</h2>
+            <h2 style="color:#082f49">Your ride is in 2 hours</h2>
             <table style="width:100%;border-collapse:collapse;margin:16px 0">
               <tr><td style="padding:8px;font-weight:600;color:#62758a">Reference</td><td style="padding:8px">${b.reference}</td></tr>
               <tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Driver</td><td style="padding:8px"><strong>${driverName}</strong></td></tr>
@@ -117,14 +117,14 @@ exports.handler = async () => {
             <p style="color:#62758a;font-size:13px">Nexus Medical Transit · Washington Metropolitan Area</p>
           </div>`;
 
-        const dispatchHtml = `<h2>⏰ 1-Hour Pickup Alert — ${b.reference}</h2><p><strong>Patient:</strong> ${b.name || '—'} (${b.phone || '—'})</p><p><strong>Driver:</strong> ${driverName}</p><p><strong>Pickup:</strong> ${b.pickup} at <strong>${pickupTime}</strong></p><p><strong>Destination:</strong> ${b.destination}</p><p><strong>Service:</strong> ${b.service}</p><p><strong>Status:</strong> ${b.status}</p>`;
-        const teamsMsg = `⏰ **1-Hour Pickup Alert** | Ref: ${b.reference}\n- **Patient:** ${b.name || '—'} | ${b.phone || '—'}\n- **Driver:** ${driverName}\n- **Pickup:** ${b.pickup} at **${pickupTime}**\n- **Destination:** ${b.destination}\n- **Service:** ${b.service}\n- **Status:** ${b.status}`;
+        const dispatchHtml = `<h2>⏰ 2-Hour Pickup Alert — ${b.reference}</h2><p><strong>Patient:</strong> ${b.name || '—'} (${b.phone || '—'})</p><p><strong>Driver:</strong> ${driverName}</p><p><strong>Pickup:</strong> ${b.pickup} at <strong>${pickupTime}</strong></p><p><strong>Destination:</strong> ${b.destination}</p><p><strong>Service:</strong> ${b.service}</p><p><strong>Status:</strong> ${b.status}</p>`;
+        const teamsMsg = `⏰ **2-Hour Pickup Alert** | Ref: ${b.reference}\n- **Patient:** ${b.name || '—'} | ${b.phone || '—'}\n- **Driver:** ${driverName}\n- **Pickup:** ${b.pickup} at **${pickupTime}**\n- **Destination:** ${b.destination}\n- **Service:** ${b.service}\n- **Status:** ${b.status}`;
 
         const [patientSmsR, patientEmailR, dispatchEmailR, teamsR] = await Promise.allSettled([
           sendSms(b.phone, patientSms),
-          b.email ? sendEmail(b.email, `Ride reminder: ${b.reference} — pickup in 1 hour`, patientEmail) : Promise.resolve({status: 'skipped'}),
-          sendEmail(dispatchEmail, `⏰ 1-Hour Alert: ${b.reference} — ${b.name || 'Passenger'}`, dispatchHtml),
-          sendTeamsAlert(teamsMsg, '⏰ 1-Hour Pickup Alert — Admin_NMT')
+          b.email ? sendEmail(b.email, `Ride reminder: ${b.reference} — pickup in 2 hours`, patientEmail) : Promise.resolve({status: 'skipped'}),
+          sendEmail(dispatchEmail, `⏰ 2-Hour Alert: ${b.reference} — ${b.name || 'Passenger'}`, dispatchHtml),
+          sendTeamsAlert(teamsMsg, '⏰ 2-Hour Pickup Alert — Admin_NMT')
         ]);
 
         await query(
