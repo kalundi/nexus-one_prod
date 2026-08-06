@@ -959,6 +959,71 @@ function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary'}){
  const dialNumber=xmlEscape(targetNumber);
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(message)}</Say>\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
 }
+function voiceOpeningScript(){
+ return "Thank you for calling Nexus Medical Transit. You've reached the Nexus Virtual Receptionist. I can help request transportation, answer questions about our services, check how to reach dispatch, or connect you with the appropriate team. How may I assist you today?";
+}
+function buildVoiceAssistantInstructions(){
+ return [
+  'You are the Nexus Virtual Receptionist for Nexus Medical Transit.',
+  '',
+  'Begin every new call by saying exactly:',
+  '"Thank you for calling Nexus Medical Transit. You\'ve reached the Nexus Virtual Receptionist. I can help request transportation, answer questions about our services, check how to reach dispatch, or connect you with the appropriate team. How may I assist you today?"',
+  '',
+  'IDENTITY AND DISCLOSURE',
+  '- Clearly identify yourself as an AI virtual receptionist.',
+  '- Never claim to be a human dispatcher, nurse, EMT, physician, or case manager.',
+  '',
+  'EMERGENCIES',
+  '- Nexus is not a substitute for 911.',
+  '- If the caller reports chest pain, severe breathing difficulty, unconsciousness, uncontrolled bleeding, stroke symptoms, immediate danger, or another emergency, tell the caller to hang up and call 911 immediately.',
+  '- Do not perform medical diagnosis or provide clinical advice.',
+  '',
+  'TRANSPORTATION REQUESTS',
+  'Collect only the information needed:',
+  '- Caller\'s name',
+  '- Callback number',
+  '- Passenger\'s name',
+  '- Pickup location',
+  '- Destination',
+  '- Requested date',
+  '- Appointment or requested pickup time',
+  '- One-way or round-trip',
+  '- Ambulatory, wheelchair, stretcher, or bariatric service',
+  '- Facility or private-pay caller',
+  '- Special assistance requirements',
+  '',
+  'Never guarantee:',
+  '- Vehicle availability',
+  '- An exact pickup time',
+  '- Pricing',
+  '- Insurance coverage',
+  '- Medicaid or broker authorization',
+  '',
+  'Say that a Nexus representative must confirm the request.',
+  '',
+  'CALL TRANSFER',
+  'Transfer to dispatch when:',
+  '- The caller asks for a person',
+  '- The caller has an active trip problem',
+  '- The driver cannot be located',
+  '- A hospital discharge is time-sensitive',
+  '- The caller is upset',
+  '- The request is outside your approved information',
+  '- The caller repeats the same question twice without resolution',
+  '',
+  'PRIVACY',
+  '- Do not repeat sensitive information unnecessarily.',
+  '- Do not request Social Security numbers.',
+  '- Do not request full credit-card numbers.',
+  '- Do not expose information about another passenger without authorization.',
+  '',
+  'VOICE DELIVERY STYLE',
+  '- Speak calmly and naturally.',
+  '- Keep a moderate pace and use short pauses between key points.',
+  '- Ask one clear question at a time.',
+  '- Avoid rushing through menus or long lists.'
+ ].join('\n');
+}
 function wantsHumanTransfer(text){
  const value=clean(text).toLowerCase();
  if(!value)return false;
@@ -969,7 +1034,7 @@ function voiceMenuTwiml(config,retryCount=0){
  const sayIntro=retryCount>0
   ?'Sorry, I did not catch that.'
   :'How may I assist you today?';
- return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(sayIntro)}</Say>\n  <Gather input="speech dtmf" numDigits="1" timeout="5" speechTimeout="auto" action="${gatherAction}" method="POST">\n    <Say>Say dispatch, representative, or human at any time. You can also press 1 for dispatch, press 2 for transportation request help, or press 3 for service areas and business hours.</Say>\n  </Gather>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`))}</Redirect>\n</Response>`;
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(sayIntro)}</Say>\n  <Pause length="1" />\n  <Gather input="speech dtmf" numDigits="1" timeout="6" speechTimeout="auto" action="${gatherAction}" method="POST">\n    <Say>You can say dispatch, representative, or human at any time.</Say>\n    <Pause length="1" />\n    <Say>Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours.</Say>\n  </Gather>\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`))}</Redirect>\n</Response>`;
 }
 async function createStripeCheckoutSession(amountCents,metadata){
  if(!envEnabled('STRIPE_SECRET_KEY'))throw Object.assign(new Error('Stripe is not configured'),{statusCode:503});
@@ -1058,7 +1123,7 @@ async function handler(event){
     const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Thank you for calling Nexus Medical Transit. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.</Say>\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
     return xmlResponse(200,body);
    }
-   const opening='Thank you for calling Nexus Medical Transit. You\'ve reached the Nexus Virtual Receptionist. I can help request transportation, answer questions about our services, check how to reach dispatch, or connect you with the appropriate team. How may I assist you today?';
+  const opening=voiceOpeningScript();
    const nonPhiNotice=config.nonPhiMode?' For privacy, I can only collect general callback information until a Nexus representative joins the call.':'';
    if(!config.streamUrl){
     const fallbackTwiml=config.primaryDispatch
@@ -1071,8 +1136,15 @@ async function handler(event){
      :voiceMenuTwiml(config,0);
     return xmlResponse(200,fallbackTwiml);
    }
-   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(opening)}${xmlEscape(nonPhiNotice)}</Say>\n  <Connect>\n    <Stream url="${xmlEscape(config.streamUrl)}" />\n  </Connect>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
+  const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(opening)}</Say>\n  <Pause length="1" />\n  ${nonPhiNotice?`<Say>${xmlEscape(nonPhiNotice)}</Say>\n  <Pause length="1" />\n  `:''}<Connect>\n    <Stream url="${xmlEscape(config.streamUrl)}" />\n  </Connect>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
    return xmlResponse(200,body);
+  }
+  if(p[0]==='voice'&&p[1]==='assistant-instructions'&&method==='GET'){
+  return json(200,{
+   persona:'Nexus Virtual Receptionist',
+   version:'2026-08-06',
+   instructions:buildVoiceAssistantInstructions()
+  });
   }
   if(p[0]==='voice'&&p[1]==='menu'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();
