@@ -9,14 +9,8 @@
  document.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.securePanel').forEach(x=>x.hidden=true);if(b.classList.contains('livecareRoleButton')){document.querySelectorAll('.livecareRoleButton').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')}const panel=$('#'+b.dataset.open);panel.hidden=false;if(b.dataset.role){$('#expectedRole').value=b.dataset.role;$('#staffRoleLabel').textContent=b.dataset.role==='FACILITY'?'Facility administrator':b.dataset.role==='DRIVER'?'Driver access':'Dispatch access';$('#staffHelp').textContent=b.dataset.role==='FACILITY'?'Use the facility account number issued by Nexus.':'Use your individual Nexus username. Never use a shared account.'}panel.scrollIntoView({behavior:'smooth',block:'center'});panel.querySelector('input:not([type=hidden])')?.focus()}));
  document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>b.closest('.securePanel').hidden=true));
  $('#switchLivecareUser')?.addEventListener('click',()=>{const gateway=$('#accessTitle')?.closest('.accessGateway');gateway?.scrollIntoView({behavior:'smooth',block:'start'});});
- // Test portal access - show only for admin, clear expectedRole to allow all roles
- function checkTestPortalVisibility(){
-   const user=(()=>{try{return JSON.parse(sessionStorage.getItem('nexusUser')||'null')}catch{return null}})();
-   const testPanel=$('#testPortalAccess');
-   if(testPanel)testPanel.style.display=(user?.role==='ADMIN')?'block':'none';
- }
- checkTestPortalVisibility();
- document.querySelectorAll('[data-test-email]').forEach(btn=>{btn.addEventListener('click',()=>{const email=btn.dataset.testEmail,pw=btn.dataset.testPw||'';document.querySelectorAll('.securePanel').forEach(x=>x.hidden=true);$('#staffAccess').hidden=false;$('#expectedRole').value='';$('#password').type='password';$('#togglePassword').textContent='ðŸ‘';$('#identifier').value=email;$('#password').value=pw;$('#staffAccess').scrollIntoView({behavior:'smooth',block:'center'});$('#staffSubmit')?.click();})});
+ const testPanel=$('#testPortalAccess');
+ if(testPanel)testPanel.hidden=true;
  $('#livecareLogout')?.addEventListener('click',async()=>{const token=sessionStorage.getItem('nexusAccessToken');try{if(token)await fetch('/api/auth/logout',{method:'POST',headers:{authorization:`Bearer ${token}`}})}catch{}sessionStorage.removeItem('nexusAccessToken');sessionStorage.removeItem('nexusUser');sessionStorage.removeItem('nexusPatientRide');verified={reference:'',phone:''};location.assign('/livecare.html');});
  const qp=new URLSearchParams(location.search); if(qp.get('reference')){$('#reference').value=qp.get('reference');$('#patientAccess').hidden=false}
  function render(data){const t=data.booking,h=data.history||[],msgs=data.messages||[];$('#liveCommand').hidden=false; personalizeLivecare('PATIENT',t); renderFleet({generatedAt:new Date().toISOString(),vehicles:[{unit:t.vehicleUnit||'Your vehicle',status:t.status||'DRIVER_ASSIGNED',statusLabel:t.statusLabel||labels[t.status]||t.status,service:t.service||'Medical transportation',progress:Number(t.progress)||42,routeLabel:'Your authorized ride',eta:t.eta||'Live updates active',route:routeLibrary[0]}]},'PATIENT','live');$('#patientAccess').hidden=true;$('#tripRef').textContent=t.reference;$('#liveStatus').textContent=t.statusLabel||labels[t.status]||t.status;$('#tripSummary').innerHTML=`<span><small>Pickup</small><b>${esc(t.pickup)}</b></span><span><small>Destination</small><b>${esc(t.destination)}</b></span><span><small>Date and time</small><b>${esc(t.date)} at ${esc(t.time)}</b></span><span><small>Service</small><b>${esc(t.service)}</b></span><span><small>Driver</small><b>${esc(t.driverName||'Pending assignment')}</b></span><span><small>Vehicle</small><b>${esc(t.vehicleUnit||'Pending assignment')}</b></span>`;$('#mapTrip').textContent=`${t.pickup} â†’ ${t.destination}`;const current=Math.max(0,order.indexOf(t.status));$('#liveTimeline').innerHTML=order.map((s,i)=>`<li class="${i<current?'done':i===current?'current':''}"><span class="node">${i<current?'âœ“':i+1}</span><span><strong>${labels[s]}</strong><small>${i<current?'Completed':i===current?'Current stage':'Pending'}</small></span></li>`).join('');$('#messages').innerHTML=msgs.length?msgs.map(m=>`<div class="message ${m.senderRole==='CLIENT'?'client':'dispatch'}"><strong>${esc(m.senderName)}</strong><p>${esc(m.message)}</p><small>${new Date(m.createdAt).toLocaleString()}</small></div>`).join(''):'<div class="notice">No messages yet.</div>';$('#liveCommand').scrollIntoView({behavior:'smooth',block:'start'})}
@@ -200,29 +194,8 @@ function renderFleet(data,role,mode){
  $('#refreshRideBoard')?.addEventListener('click',loadRideBoard);loadRideBoard();setInterval(loadRideBoard,30000);
 
  async function loadPreview(){
-  try{
-   let data;
-   try{
-    data=await request('/api/auth/preview-access',{cache:'no-store'});
-   }catch(primaryErr){
-    data=await request('/.netlify/functions/api/auth/preview-access',{cache:'no-store'});
-   }
-   preview=data;
-   if(!preview.enabled)return;
-   $('#previewAccess').hidden=false;
-   $('#previewPassword').textContent=preview.password;
-   document.querySelectorAll('[data-preview-role]').forEach(btn=>btn.addEventListener('click',()=>{
-    const role=btn.dataset.previewRole;
-    $('#expectedRole').value=role;
-    $('#identifier').value=role==='FACILITY'?preview.accounts.facility:role==='DRIVER'?preview.accounts.driver:preview.accounts.dispatch;
-    $('#password').value=preview.password;
-    $('#staffRoleLabel').textContent=role==='FACILITY'?'Facility administrator':role==='DRIVER'?'Driver access':'Dispatch access';
-    $('#staffError').textContent='Preview credentials filled. Select Sign in securely.';
-    $('#staffSubmit').focus();
-   }));
-  }catch(err){
-   console.warn('Preview access not available:',err.message);
-  }
+  const panel=$('#previewAccess');
+  if(panel)panel.hidden=true;
  }
  $('#togglePassword').addEventListener('click',e=>{e.preventDefault();const input=$('#password'),toggle=$('#togglePassword'),isPassword=input.type==='password';input.type=isPassword?'text':'password';toggle.textContent=isPassword?'ðŸ™ˆ':'ðŸ‘';toggle.setAttribute('aria-label',isPassword?'Hide password':'Show password');input.focus()});
  $('#staffLogin').addEventListener('submit',async e=>{e.preventDefault();const error=$('#staffError'),submit=$('#staffSubmit'),label=submit.querySelector('span');error.textContent='';submit.disabled=true;label.textContent='Signing inâ€¦';try{const expected=$('#expectedRole').value;const j=await request('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:$('#identifier').value.trim(),password:$('#password').value})});if(expected&&j.user.role!==expected&&j.user.role!=='ADMIN'){await fetch('/api/auth/logout',{method:'POST',headers:{authorization:`Bearer ${j.token}`}});throw Error('This account does not have permission for the selected portal.')}sessionStorage.setItem('nexusAccessToken',j.token);sessionStorage.setItem('nexusUser',JSON.stringify(j.user));location.assign('/livecare.html')}catch(err){error.textContent=err.message}finally{submit.disabled=false;label.textContent='Sign in securely'}}); 

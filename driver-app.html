@@ -277,7 +277,7 @@ a{color:var(--blue);text-decoration:none}
     <p>Sign in with your Nexus credentials</p>
     <div id="loginNotice" class="notice err" hidden></div>
     <form id="loginForm" autocomplete="on" novalidate>
-      <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" name="email" autocomplete="username" placeholder="you@nexusmt.com" required></div>
+      <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" name="email" autocomplete="username" placeholder="name@example.com" required></div>
       <div class="field"><label for="loginPassword">Password</label><div class="passwordField"><input id="loginPassword" type="password" name="password" autocomplete="current-password" placeholder="Enter your password" required><button type="button" class="passwordToggle" data-target="loginPassword" aria-label="Show password">Show</button></div></div>
       <button id="loginBtn" class="btn primary" type="submit" style="margin-top:8px">Sign In</button>
     </form>
@@ -291,7 +291,7 @@ a{color:var(--blue);text-decoration:none}
     <p style="margin:0 0 16px;color:var(--muted);font-size:14px;text-align:center">Enter your email and we'll send a reset link.</p>
     <div id="forgotNotice" class="notice ok" hidden></div>
     <form id="forgotForm" novalidate>
-      <div class="field"><label for="forgotEmail">Email</label><input id="forgotEmail" type="email" name="email" autocomplete="username" placeholder="you@nexusmt.com" required></div>
+      <div class="field"><label for="forgotEmail">Email</label><input id="forgotEmail" type="email" name="email" autocomplete="username" placeholder="name@example.com" required></div>
       <button id="forgotBtn" class="btn navy" type="submit">Send Reset Link</button>
     </form>
     <p style="margin:10px 0 0;text-align:center"><button type="button" id="backToLoginBtn" style="background:0;border:0;color:var(--blue);font-size:14px;cursor:pointer">Back to sign in</button></p>
