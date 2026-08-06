@@ -57,7 +57,8 @@ function normalizeOptionalTripTime(value){
  }
  const hhmm=raw.match(/^(\d{1,2}):(\d{2})/);
  if(!hhmm) return '';
- const [h,m]=hhmm[1].split(':').map(Number);
+ const h=Number(hhmm[1]);
+ const m=Number(hhmm[2]);
  if(!Number.isFinite(h)||!Number.isFinite(m)||h<0||h>23||m<0||m>59) return '';
  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
 }
