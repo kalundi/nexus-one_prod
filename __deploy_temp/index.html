@@ -569,8 +569,45 @@
       }
     }
   </style>
-</head><body><div id="root"></div><script>
+  <style id="homepage-seo-public-hub">
+    .seoPublicHub{background:linear-gradient(180deg,#f5f9fd 0%,#eef5fb 100%);padding:28px 0 40px}
+    .seoPublicHub .shell{width:min(1180px,calc(100% - 40px));margin:auto}
+    .seoPublicHubInner{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,1fr);gap:24px;align-items:start}
+    .seoPublicHub h2{margin:10px 0 10px;font-size:clamp(28px,4vw,42px);line-height:1.08;color:#0b1d47;letter-spacing:-.035em}
+    .seoPublicHub p{margin:0;color:#435a70;font-size:17px;line-height:1.7;max-width:64ch}
+    .seoPublicHubCards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    .seoHubCard{display:grid;gap:8px;padding:20px;border-radius:22px;background:#fff;border:1px solid #d9e6ef;box-shadow:0 18px 36px rgba(8,47,73,.08);text-decoration:none}
+    .seoHubCard strong{color:#082f49;font-size:18px;line-height:1.2}
+    .seoHubCard span{color:#4c647b;font-size:15px;line-height:1.6}
+    .seoHubCard:hover{transform:translateY(-2px);transition:transform .18s ease,box-shadow .18s ease;box-shadow:0 22px 40px rgba(8,47,73,.12)}
+    @media (max-width:900px){.seoPublicHubInner,.seoPublicHubCards{grid-template-columns:1fr}.seoPublicHub{padding:24px 0 34px}}
+  </style>
+</head><body><div id="root"></div><section id="seo-public-hub" class="seoPublicHub"><div class="shell seoPublicHubInner"><div><span class="eyebrow">Explore ride types</span><h2>Public transportation service pages for riders, caregivers, and facilities.</h2><p>Learn how Nexus coordinates wheelchair and stretcher transportation across Maryland, Washington, DC, and Northern Virginia, then move directly into booking or live ride tracking.</p></div><div class="seoPublicHubCards"><a class="seoHubCard" href="/wheelchair-transportation.html"><strong>Wheelchair transportation</strong><span>Accessible vehicles, recurring medical travel, and caregiver coordination.</span></a><a class="seoHubCard" href="/stretcher-transportation.html"><strong>Stretcher transportation</strong><span>Scheduled discharge, positioned transport, and planned non-emergency transfers.</span></a></div></div></section><script>
 (function(){
+  function placeSeoPublicHub(){
+    const hub=document.getElementById('seo-public-hub');
+    const footer=document.querySelector('footer.footer');
+    const main=document.querySelector('main');
+    if(!hub||!footer||!main)return false;
+    if(hub.previousElementSibling===main)return true;
+    footer.parentNode.insertBefore(hub, footer);
+    return true;
+  }
+
+  function bootSeoPublicHub(){
+    if(placeSeoPublicHub())return;
+    const observer=new MutationObserver(function(){
+      if(placeSeoPublicHub())observer.disconnect();
+    });
+    observer.observe(document.documentElement,{childList:true,subtree:true});
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',bootSeoPublicHub,{once:true});
+  }else{
+    bootSeoPublicHub();
+  }
+
   function normalizeHomepageFooter(){
     const cta=document.querySelector('section.cta');
     if(cta) cta.remove();
