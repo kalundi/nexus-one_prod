@@ -1113,12 +1113,16 @@ function wantsHumanTransfer(text){
  if(!value)return false;
  return /(dispatch|representative|human|agent|person|operator|someone)/.test(value);
 }
-function voiceMenuTwiml(config,retryCount=0){
+function voiceMenuTwiml(config,retryCount=0,opts={}){
  const gatherAction=xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount))}`));
+ const introMessage=clean(opts.intro||'');
  const sayIntro=retryCount>0
   ?'Sorry, I did not catch that.'
   :'How may I assist you today?';
- return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(sayIntro,config)}\n  <Pause length="1" />\n  <Gather input="speech dtmf" numDigits="1" timeout="7" speechTimeout="auto" action="${gatherAction}" method="POST">\n    ${sayTag('You can say dispatch, representative, or human at any time.',config)}\n    <Pause length="1" />\n    ${sayTag('Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours.',config)}\n  </Gather>\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`))}</Redirect>\n</Response>`;
+ const introBlock=(introMessage&&retryCount===0)
+  ?`${sayTag(introMessage,config)}\n  <Pause length="1" />\n  `
+  :'';
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${introBlock}${sayTag(sayIntro,config)}\n  <Pause length="1" />\n  <Gather input="speech dtmf" numDigits="1" timeout="7" speechTimeout="auto" action="${gatherAction}" method="POST">\n    ${sayTag('You can say dispatch, representative, or human at any time.',config)}\n    <Pause length="1" />\n    ${sayTag('Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours.',config)}\n  </Gather>\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`))}</Redirect>\n</Response>`;
 }
 async function createStripeCheckoutSession(amountCents,metadata){
  if(!envEnabled('STRIPE_SECRET_KEY'))throw Object.assign(new Error('Stripe is not configured'),{statusCode:503});
@@ -1217,7 +1221,7 @@ async function handler(event){
       callerId:config.callerId,
       attempt:'primary'
      })
-     :voiceMenuTwiml(config,0);
+    :voiceMenuTwiml(config,0,{intro:opening});
     return xmlResponse(200,fallbackTwiml);
    }
   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(opening,config)}\n  <Pause length="1" />\n  ${nonPhiNotice?`${sayTag(nonPhiNotice,config)}\n  <Pause length="1" />\n  `:''}<Connect>\n    <Stream url="${xmlEscape(config.streamUrl)}" />\n  </Connect>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
