@@ -959,6 +959,18 @@ function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary'}){
  const dialNumber=xmlEscape(targetNumber);
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(message)}</Say>\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
 }
+function wantsHumanTransfer(text){
+ const value=clean(text).toLowerCase();
+ if(!value)return false;
+ return /(dispatch|representative|human|agent|person|operator|someone)/.test(value);
+}
+function voiceMenuTwiml(config,retryCount=0){
+ const gatherAction=xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount))}`));
+ const sayIntro=retryCount>0
+  ?'Sorry, I did not catch that.'
+  :'How may I assist you today?';
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(sayIntro)}</Say>\n  <Gather input="speech dtmf" numDigits="1" timeout="5" speechTimeout="auto" action="${gatherAction}" method="POST">\n    <Say>Say dispatch, representative, or human at any time. You can also press 1 for dispatch, press 2 for transportation request help, or press 3 for service areas and business hours.</Say>\n  </Gather>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`))}</Redirect>\n</Response>`;
+}
 async function createStripeCheckoutSession(amountCents,metadata){
  if(!envEnabled('STRIPE_SECRET_KEY'))throw Object.assign(new Error('Stripe is not configured'),{statusCode:503});
  const bookingReference=clean(metadata?.bookingReference)||crypto.randomUUID();
@@ -1056,11 +1068,62 @@ async function handler(event){
       callerId:config.callerId,
       attempt:'primary'
      })
-     :`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(opening)}${xmlEscape(nonPhiNotice)}</Say>\n</Response>`;
+     :voiceMenuTwiml(config,0);
     return xmlResponse(200,fallbackTwiml);
    }
-   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(opening)}${xmlEscape(nonPhiNotice)}</Say>\n  <Connect>\n    <Stream url="${xmlEscape(config.streamUrl)}" />\n  </Connect>\n</Response>`;
+   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(opening)}${xmlEscape(nonPhiNotice)}</Say>\n  <Connect>\n    <Stream url="${xmlEscape(config.streamUrl)}" />\n  </Connect>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
    return xmlResponse(200,body);
+  }
+  if(p[0]==='voice'&&p[1]==='menu'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   return xmlResponse(200,voiceMenuTwiml(config,0));
+  }
+  if(p[0]==='voice'&&p[1]==='menu-handle'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   const params=parseWebhookBody(event);
+   const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
+   const digits=clean(params.Digits||params.digits||'');
+   const speech=clean(params.SpeechResult||params.speechResult||'');
+   const intentText=`${digits} ${speech}`.trim();
+   if(digits==='1'||wantsHumanTransfer(intentText)){
+    if(config.primaryDispatch){
+     return xmlResponse(200,dispatchDialTwiml({
+      message:'Please hold while I connect you with Nexus dispatch.',
+      targetNumber:config.primaryDispatch,
+      callerId:config.callerId,
+      attempt:'primary'
+     }));
+    }
+    if(config.afterHoursVoicemail){
+     const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Dispatch is temporarily unavailable. Please leave a voicemail and we will return your call.</Say>\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
+     return xmlResponse(200,body);
+    }
+    return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Dispatch is temporarily unavailable. Please call us at 888-760-4990.</Say>\n</Response>');
+   }
+   if(digits==='2'||/(book|booking|ride|transport|request|schedule)/i.test(intentText)){
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>I can submit a general callback request, or you can book online at nexusmt dot com slash booking. This is not a confirmed reservation until a Nexus representative confirms availability, pickup details, and pricing.</Say>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
+    return xmlResponse(200,body);
+   }
+   if(digits==='3'||/(hours|service|area|location|coverage)/i.test(intentText)){
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Nexus Medical Transit provides ambulatory, wheelchair, stretcher, and bariatric transportation services. For current service areas and business hours, please visit nexusmt dot com, or say dispatch to speak with a representative.</Say>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
+    return xmlResponse(200,body);
+   }
+   if(retry>=1){
+    if(config.primaryDispatch){
+     return xmlResponse(200,dispatchDialTwiml({
+      message:'I will connect you with Nexus dispatch for further assistance.',
+      targetNumber:config.primaryDispatch,
+      callerId:config.callerId,
+      attempt:'primary'
+     }));
+    }
+    if(config.afterHoursVoicemail){
+      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>I was unable to understand the request. Please leave a voicemail and we will return your call.</Say>\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
+      return xmlResponse(200,body);
+    }
+    return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>I was unable to understand the request. Please call back and say dispatch for a live representative.</Say>\n</Response>');
+   }
+   return xmlResponse(200,voiceMenuTwiml(config,retry+1));
   }
   if(p[0]==='voice'&&p[1]==='transfer-dispatch'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();
