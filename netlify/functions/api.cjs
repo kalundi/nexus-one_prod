@@ -854,6 +854,111 @@ async function createStripeIntent(amountCents,metadata){
 function siteBase(){
  return String(process.env.SITE_URL||process.env.URL||process.env.DEPLOY_PRIME_URL||'https://nexusmt.com').replace(/\/$/,'');
 }
+function xmlEscape(value){
+ return String(value??'')
+  .replaceAll('&','&amp;')
+  .replaceAll('<','&lt;')
+  .replaceAll('>','&gt;')
+  .replaceAll('"','&quot;')
+  .replaceAll("'",'&apos;');
+}
+function xmlResponse(statusCode,body){
+ return {
+  statusCode,
+  headers:{
+   'content-type':'text/xml; charset=utf-8',
+   'cache-control':'no-store',
+   'x-content-type-options':'nosniff'
+  },
+  body
+ };
+}
+function parseWebhookBody(event){
+ const headers=event?.headers||{};
+ const contentType=String(headers['content-type']||headers['Content-Type']||'').toLowerCase();
+ const raw=event?.isBase64Encoded?Buffer.from(String(event.body||''),'base64').toString('utf8'):String(event?.body||'');
+ if(contentType.includes('application/x-www-form-urlencoded'))return Object.fromEntries(new URLSearchParams(raw));
+ if(contentType.includes('application/json')){
+  try{return raw?JSON.parse(raw):{};}catch{return {};}
+ }
+ if(raw.includes('=')&&raw.includes('&'))return Object.fromEntries(new URLSearchParams(raw));
+ try{return raw?JSON.parse(raw):{};}catch{return {};}
+}
+function parseHmToMinutes(value,fallbackMinutes){
+ const text=clean(value);
+ if(!text)return fallbackMinutes;
+ const match=text.match(/^(\d{1,2}):(\d{2})$/);
+ if(!match)return fallbackMinutes;
+ const h=Number(match[1]);
+ const m=Number(match[2]);
+ if(!Number.isFinite(h)||!Number.isFinite(m)||h<0||h>23||m<0||m>59)return fallbackMinutes;
+ return h*60+m;
+}
+function nowInTimeZone(tz){
+ const parts=new Intl.DateTimeFormat('en-US',{
+  timeZone:tz,
+  weekday:'short',
+  hour:'2-digit',
+  minute:'2-digit',
+  hour12:false
+ }).formatToParts(new Date());
+ const out={weekday:'Mon',hour:0,minute:0};
+ for(const part of parts){
+  if(part.type==='weekday')out.weekday=part.value;
+  if(part.type==='hour')out.hour=Number(part.value);
+  if(part.type==='minute')out.minute=Number(part.value);
+ }
+ return out;
+}
+function isBusinessHoursOpen(config){
+ const weekdayMap={Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6,Sun:7};
+ const tz=config.businessHoursTz;
+ const now=nowInTimeZone(tz);
+ const weekday=weekdayMap[now.weekday]||1;
+ if(!config.businessDays.has(weekday))return false;
+ const minutes=(now.hour*60)+now.minute;
+ return minutes>=config.businessStartMinutes&&minutes<=config.businessEndMinutes;
+}
+function getVoiceConfig(){
+ const tz=clean(process.env.BUSINESS_HOURS_TZ)||'America/New_York';
+ const businessDaysRaw=clean(process.env.BUSINESS_HOURS_DAYS)||'1,2,3,4,5';
+ const businessDays=new Set(businessDaysRaw.split(',').map((x)=>Number(x.trim())).filter((n)=>Number.isFinite(n)&&n>=1&&n<=7));
+ const callerId=clean(process.env.DISPATCH_CALLER_ID)||'+18886395766';
+ const primaryDispatch=clean(process.env.DISPATCH_PRIMARY_NUMBER||process.env.DISPATCH_PHONE||'');
+ const secondaryDispatch=clean(process.env.DISPATCH_SECONDARY_NUMBER||'');
+ const afterHoursVoicemail=clean(process.env.AFTER_HOURS_VOICEMAIL_NUMBER||'');
+ const streamUrl=clean(process.env.TWILIO_MEDIA_STREAM_URL||'');
+ const nonPhiMode=String(process.env.NON_PHI_MODE||'true').toLowerCase()!=='false';
+ const allowPhiIntake=String(process.env.ALLOW_PHI_INTAKE||'false').toLowerCase()==='true';
+ return {
+  callerId,
+  primaryDispatch,
+  secondaryDispatch,
+  afterHoursVoicemail,
+  streamUrl,
+  nonPhiMode,
+  allowPhiIntake,
+  businessHoursTz:tz,
+  businessDays,
+  businessStartMinutes:parseHmToMinutes(process.env.BUSINESS_HOURS_START,8*60),
+  businessEndMinutes:parseHmToMinutes(process.env.BUSINESS_HOURS_END,18*60),
+ };
+}
+function toE164(value){
+ const digits=String(value||'').replace(/\D/g,'');
+ if(digits.length===11&&digits.startsWith('1'))return `+${digits}`;
+ if(digits.length===10)return `+1${digits}`;
+ return clean(value);
+}
+function voiceRouteUrl(path,query=''){
+ const base=`${siteBase()}/api/voice/${path}`;
+ return query?`${base}?${query}`:base;
+}
+function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary'}){
+ const actionUrl=xmlEscape(voiceRouteUrl('dispatch-fallback',`attempt=${encodeURIComponent(attempt)}`));
+ const dialNumber=xmlEscape(targetNumber);
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(message)}</Say>\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
+}
 async function createStripeCheckoutSession(amountCents,metadata){
  if(!envEnabled('STRIPE_SECRET_KEY'))throw Object.assign(new Error('Stripe is not configured'),{statusCode:503});
  const bookingReference=clean(metadata?.bookingReference)||crypto.randomUUID();
@@ -934,6 +1039,141 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p[0]==='voice'&&p[1]==='incoming-call'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   const openNow=isBusinessHoursOpen(config);
+   if(!openNow&&config.afterHoursVoicemail){
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Thank you for calling Nexus Medical Transit. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.</Say>\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
+    return xmlResponse(200,body);
+   }
+   const opening='Thank you for calling Nexus Medical Transit. You\'ve reached the Nexus Virtual Receptionist. I can help request transportation, answer questions about our services, check how to reach dispatch, or connect you with the appropriate team. How may I assist you today?';
+   const nonPhiNotice=config.nonPhiMode?' For privacy, I can only collect general callback information until a Nexus representative joins the call.':'';
+   if(!config.streamUrl){
+    const fallbackTwiml=config.primaryDispatch
+     ?dispatchDialTwiml({
+      message:`${opening} Please hold while I connect you with Nexus dispatch.`,
+      targetNumber:config.primaryDispatch,
+      callerId:config.callerId,
+      attempt:'primary'
+     })
+     :`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(opening)}${xmlEscape(nonPhiNotice)}</Say>\n</Response>`;
+    return xmlResponse(200,fallbackTwiml);
+   }
+   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(opening)}${xmlEscape(nonPhiNotice)}</Say>\n  <Connect>\n    <Stream url="${xmlEscape(config.streamUrl)}" />\n  </Connect>\n</Response>`;
+   return xmlResponse(200,body);
+  }
+  if(p[0]==='voice'&&p[1]==='transfer-dispatch'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   if(!config.primaryDispatch)return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Dispatch transfer is temporarily unavailable. Please call back shortly.</Say>\n</Response>');
+   const body=dispatchDialTwiml({
+    message:'Please hold while I connect you with Nexus dispatch.',
+    targetNumber:config.primaryDispatch,
+    callerId:config.callerId,
+    attempt:'primary'
+   });
+   return xmlResponse(200,body);
+  }
+  if(p[0]==='voice'&&p[1]==='dispatch-fallback'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   const params=parseWebhookBody(event);
+   const attempt=clean(event.queryStringParameters?.attempt||params.attempt||'primary').toLowerCase();
+   const dialStatus=clean(params.DialCallStatus||params.dialCallStatus||'').toLowerCase();
+   if(dialStatus==='completed'){
+    return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Hangup />\n</Response>');
+   }
+   if(attempt!=='secondary'&&config.secondaryDispatch){
+    const body=dispatchDialTwiml({
+     message:'The primary dispatch line is unavailable. Please hold while I try our secondary dispatch line.',
+     targetNumber:config.secondaryDispatch,
+     callerId:config.callerId,
+     attempt:'secondary'
+    });
+    return xmlResponse(200,body);
+   }
+   if(config.afterHoursVoicemail){
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>We were unable to reach dispatch. Please leave a voicemail and we will return your call.</Say>\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
+    return xmlResponse(200,body);
+   }
+   return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>We were unable to connect to dispatch. Please call us back at 888-760-4990.</Say>\n</Response>');
+  }
+  if(p[0]==='voice'&&p[1]==='primary-webhook-failure'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   if(config.primaryDispatch){
+    const body=dispatchDialTwiml({
+     message:'Our automated system is unavailable. Please hold while I connect you with Nexus dispatch.',
+     targetNumber:config.primaryDispatch,
+     callerId:config.callerId,
+     attempt:'primary'
+    });
+    return xmlResponse(200,body);
+   }
+   return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Our phone system is temporarily unavailable. Please call back shortly.</Say>\n</Response>');
+  }
+  if(p[0]==='voice'&&p[1]==='ride-request'&&method==='POST'){
+   const config=getVoiceConfig();
+   if(config.nonPhiMode&&!config.allowPhiIntake){
+    return json(403,{
+     error:'Voice patient intake is disabled in non-PHI mode',
+     code:'PHI_INTAKE_DISABLED',
+     message:'General assistance is available, but patient intake requires compliance approvals.'
+    });
+   }
+   const b=parseBody(event);
+   required(b,['caller_name','callback_number','passenger_name','pickup_address','destination','requested_date','requested_time','trip_type','service_type']);
+   const tripType=clean(b.trip_type).toLowerCase();
+   const serviceType=clean(b.service_type).toLowerCase();
+   const serviceMap={ambulatory:'ambulatory',wheelchair:'wheelchair',stretcher:'stretcher',bariatric:'bariatric'};
+   const normalizedService=serviceMap[serviceType]||'ambulatory';
+   const requestedTimeRaw=clean(b.requested_time);
+   const requestedTimeNormalized=normalizeOptionalTripTime(requestedTimeRaw)||'08:00';
+   const callbackNumber=toE164(b.callback_number);
+   const requestReference=reference();
+   const intakeNotes=upsertAppointmentNote(
+    `Voice intake pending dispatch review. Caller type: ${clean(b.caller_type||b.billing_type||'unspecified')}. Trip type: ${tripType||'one_way'}. Special assistance: ${clean(b.special_assistance||b.notes||'none')}. Caller: ${clean(b.caller_name)} (${callbackNumber}).`,
+    requestedTimeRaw
+   );
+   const inserted=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,booking_source,submitter_entity,created_at,updated_at)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'REQUESTED',$10,$11,$12,now(),now()) RETURNING *`,[
+    requestReference,
+    clean(b.passenger_name),
+    callbackNumber,
+    clean(b.callback_email||'')||null,
+    normalizedService,
+    clean(b.pickup_address),
+    clean(b.destination),
+    normalizeTripDate(b.requested_date),
+    requestedTimeNormalized,
+    intakeNotes,
+    'VOICE_PENDING',
+    clean(b.caller_name)||null
+   ]);
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[requestReference,'REQUESTED','requested','Voice request submitted for dispatch review','NEXUS_VIRTUAL_RECEPTIONIST']);
+   const dispatchPhone=clean(process.env.DISPATCH_PHONE||process.env.NEXUS_DISPATCH_PHONE||'');
+   const dispatchEmail=clean(process.env.COMPANY_EMAIL||'dispatch@nexusmt.com');
+   const smsMessage=`Nexus Voice Request ${requestReference}: ${clean(b.passenger_name)} ${normalizedService} ${clean(b.pickup_address)} to ${clean(b.destination)} on ${normalizeTripDate(b.requested_date)} ${requestedTimeRaw}. Callback: ${callbackNumber}.`;
+   const emailHtml=`<h2>Voice ride request pending review</h2><p><strong>Reference:</strong> ${xmlEscape(requestReference)}</p><p><strong>Caller:</strong> ${xmlEscape(clean(b.caller_name))} (${xmlEscape(callbackNumber)})</p><p><strong>Passenger:</strong> ${xmlEscape(clean(b.passenger_name))}</p><p><strong>Route:</strong> ${xmlEscape(clean(b.pickup_address))} → ${xmlEscape(clean(b.destination))}</p><p><strong>Date/Time:</strong> ${xmlEscape(normalizeTripDate(b.requested_date))} at ${xmlEscape(requestedTimeRaw)}</p><p><strong>Trip type:</strong> ${xmlEscape(tripType||'one_way')}</p><p><strong>Service type:</strong> ${xmlEscape(normalizedService)}</p><p><strong>Special assistance:</strong> ${xmlEscape(clean(b.special_assistance||b.notes||'none'))}</p><p><strong>Status:</strong> pending_review</p>`;
+   await Promise.allSettled([
+    dispatchPhone?sendSms(dispatchPhone,smsMessage):Promise.resolve({status:'skipped'}),
+    sendEmail(dispatchEmail,`Voice request pending review — ${requestReference}`,emailHtml)
+   ]).catch(()=>{});
+   return json(201,{
+    request:{
+     status:'pending_review',
+     reference:requestReference,
+     caller_name:clean(b.caller_name),
+     callback_number:callbackNumber,
+     passenger_name:clean(b.passenger_name),
+     pickup_address:clean(b.pickup_address),
+     destination:clean(b.destination),
+     requested_date:normalizeTripDate(b.requested_date),
+     requested_time:requestedTimeRaw,
+     trip_type:tripType,
+     service_type:normalizedService,
+     notes:clean(b.special_assistance||b.notes||'')
+    },
+    message:'I have submitted your transportation request for review. This is not yet a confirmed reservation. A Nexus representative will contact you to confirm availability, pickup details, and pricing.'
+   });
+  }
   if(p[0]==='health'){
    const r=await query('SELECT now() AS now, current_database() AS database');
    return json(200,{status:'ok',database:'connected',environment:process.env.CONTEXT||process.env.APP_ENV||'unknown',checkedAt:r.rows[0].now,build:'042'});
