@@ -1,8 +1,2130 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Coordinate requests, assign drivers and vehicles, monitor progress and communicate with patients and facilities."><title>Dispatch Center | NEXUS ONE</title><link rel="stylesheet" href="./platform.css">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#082f49"><meta name="description" content="Coordinate requests, assign drivers and vehicles, monitor progress and communicate with patients and facilities."><title>Dispatch Center | NEXUS ONE</title><style>html{visibility:hidden}body{visibility:hidden}</style>
+  <link rel="stylesheet" href="./platform.css">
+  <style>
+:root{--sp:16px}
+.transportation-picker{width:min(100%,1100px);margin:0 auto;padding:var(--sp);border:1px solid #e4e7ec;border-radius:16px;background:#ffffff;box-shadow:0 8px 24px rgba(16,24,40,.06);font-family:Inter,Arial,sans-serif;color:#172033}
+.picker-header,.company-card-heading,.company-actions{display:flex;align-items:center;justify-content:space-between;gap:var(--sp)}
+.picker-header h2,.company-card h3{margin:0}
+.description{max-width:720px;margin:6px 0 0;color:#667085;line-height:1.5;font-size:14px}
+.filter-grid,.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp);margin-top:var(--sp)}
+.form-grid{grid-template-columns:repeat(2,1fr)}
+.company-select-label{display:block;margin-top:var(--sp);font-size:13px;font-weight:700;color:#344054}
+.add-company-form{margin-top:var(--sp);padding:var(--sp);border-radius:12px;background:#f8fafc}
+.add-company-form h3{margin:0 0 var(--sp)}
+.primary-button,.secondary-button{display:inline-flex;min-height:40px;align-items:center;justify-content:center;border-radius:10px;padding:9px 16px;font-weight:800;text-decoration:none;cursor:pointer;font-size:14px}
+.primary-button{border:1px solid #7f1422;background:#9f1d2d;color:white}
+.secondary-button{border:1px solid #d0d5dd;background:white;color:#344054}
+.add-company-form .primary-button{margin-top:var(--sp)}
+.company-card{margin-top:var(--sp);padding:var(--sp);border:1px solid #e4e7ec;border-radius:12px;background:#ffffff}
+.category-badge,.provider-status,.service-list span{display:inline-flex;border-radius:999px;padding:4px 10px;font-size:.75rem;font-weight:800}
+.category-badge{margin-bottom:6px;background:#f2f4f7;color:#344054}
+.provider-status.accepting{background:#ecfdf3;color:#067647}
+.provider-status.verify{background:#fffaeb;color:#b54708}
+.company-details{margin-top:var(--sp)}
+.company-details p{margin:6px 0}
+.company-details a{color:#9f1d2d}
+.service-list{display:flex;flex-wrap:wrap;gap:6px;margin:var(--sp) 0}
+.service-list span{background:#fff1f3;color:#9f1d2d}
+.company-actions{justify-content:flex-start;flex-wrap:wrap;gap:8px}
+.formGrid{gap:var(--sp) !important}
+.formRow{display:grid;gap:var(--sp)}
+.formField{display:grid;gap:5px}
+.formField label{font-size:13px;font-weight:700;color:#344054}
+.formField input,.formField select,.formField textarea{border:1px solid #d0d5dd;border-radius:9px;padding:9px 11px;font-size:14px;width:100%;box-sizing:border-box}
+@media(max-width:760px){.transportation-picker{padding:var(--sp);border-radius:12px}.picker-header,.company-card-heading{align-items:flex-start;flex-direction:column}.filter-grid,.form-grid{grid-template-columns:1fr}.company-actions a{width:100%}}
+  </style>
   <script src="/trustedsite.js" defer></script>
   <script src="/i18n.js" defer></script>
-<script src="./auth-guard.js"></script></head><body><a class="skip" href="#main">Skip to main content</a><header class="top"><div class="shell nav"><a href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav class="links" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a href="/patient.html">Patient</a><a href="/facility.html">Facilities</a><a href="/dispatch.html">Dispatch</a><a href="/fleet.html">Fleet</a><a href="/driver.html">Driver</a><a href="/executive.html">Executive</a><a class="navCta" href="/booking-app.html">Book a Ride</a></nav></div></header><section class="hero"><div class="shell heroGrid"><div><div class="eyebrow">NEXUS Dispatch</div><h1>A live command center for every trip.</h1><p>Coordinate requests, assign drivers and vehicles, monitor progress and communicate with patients and facilities.</p></div><aside class="heroPanel"><img src="./assets/nexus-ambulance-exterior.webp" alt="Nexus Medical Transit ambulance ready for dispatch"><div class="heroPanelBody"><h2>One connected NEXUS ONE experience</h2><p>Consistent navigation, status language, accessibility and operational data across every module.</p></div></aside></div></section><main id="main" class="shell moduleMain" tabindex="-1"><section class="notice"><strong>Integrated operations workspace:</strong> confirmed website bookings appear here immediately. The backend API can still be loaded with an operations key.</section><section class="grid cols4" style="margin-top:20px"><article class="card metric"><strong id="totalTrips">0</strong><span>Total requests</span></article><article class="card metric"><strong id="pendingTrips">0</strong><span>Pending dispatch</span></article><article class="card metric"><strong id="activeTrips">0</strong><span>Active trips</span></article><article class="card metric"><strong id="completedTrips">0</strong><span>Completed</span></article></section><section class="grid cols2" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section><section class="card" style="margin-top:22px"><div class="toolbar"><label class="field">Operations key<input id="adminKey" type="password"></label><button class="button" id="loadTrips">Load backend trips</button><button class="button secondary" id="loadLocal">Refresh integrated trips</button></div><div class="tableWrap"><table class="table"><thead><tr><th>Reference</th><th>Patient</th><th>Service</th><th>Date</th><th>Status</th><th>Estimate</th><th>AI delay risk</th><th>Action</th></tr></thead><tbody id="tripRows"></tbody></table></div></section></main><footer class="footer"><div class="shell footerGrid"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Platform</strong><a href="/livecare.html">Livecare</a><a href="/facility.html">Facilities</a><a href="/dispatch.html">Dispatch</a></div><div><strong>Operations</strong><a href="/fleet.html">Fleet</a><a href="/driver.html">Driver</a><a href="/qa.html">QA & Compliance</a></div><div><strong>Contact</strong><a href="tel:+18887604990">(888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">♿</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js"></script><script>
-function riskBadge(t){const r=NexusAI.riskScore(t);return `<div class="aiScore"><span class="status ${r.level==='High'?'red':r.level==='Medium'?'amber':'green'}">${r.level} ${r.score}%</span><span class="riskMeter" aria-label="${r.score} percent delay risk"><span style="width:${r.score}%"></span></span></div><small>${r.reasons.join(', ')}</small>`}
-function renderAI(trips){const rec=NexusAI.recommendations(trips);document.getElementById('aiRecommendations').innerHTML=rec.map(x=>`<article class="insight ${x.priority.toLowerCase()}"><h3>${x.priority}: ${x.title}</h3><p>${x.detail}</p></article>`).join('');const f=NexusAI.forecast(trips),max=Math.max(1,...f.map(x=>x.count));document.getElementById('demandForecast').innerHTML=f.map(x=>`<div class="forecastRow"><strong>${x.period}</strong><span class="forecastTrack"><span style="width:${Math.round(x.count/max*100)}%"></span></span><span>${x.count}</span></div>`).join('')}
-function renderTrips(trips){document.getElementById("totalTrips").textContent=trips.length;document.getElementById("pendingTrips").textContent=trips.filter(t=>["requested","scheduled"].includes(t.status)).length;document.getElementById("activeTrips").textContent=trips.filter(t=>["assigned","en-route","arrived","in-transit"].includes(t.status)).length;document.getElementById("completedTrips").textContent=trips.filter(t=>t.status==="completed").length;document.getElementById("tripRows").innerHTML=trips.map(t=>`<tr><td>${t.reference||t.id}</td><td>${t.name||"—"}</td><td>${t.service||"—"}</td><td>${t.date||"—"} ${t.time||""}</td><td><span class="status blue">${t.statusLabel||t.status||"Requested"}</span></td><td>${NexusCore.money(t.quote?.total||t.amount)}</td><td>${riskBadge(t)}</td><td><button class="button compact" data-advance="${t.reference||t.id}">Advance</button></td></tr>`).join("")||`<tr><td colspan="8">No integrated trips yet. Create one from Book a Ride.</td></tr>`;document.querySelectorAll("[data-advance]").forEach(b=>b.onclick=()=>advance(b.dataset.advance));renderAI(trips)}function advance(id){const trips=NexusCore.getTrips(),flow=[["requested","Scheduled"],["scheduled","Assigned"],["assigned","En Route"],["en-route","Arrived"],["arrived","In Transit"],["in-transit","Completed"]];const t=trips.find(x=>(x.reference||x.id)===id);if(!t)return;const next=flow.find(x=>x[0]===t.status);if(next){t.status=next[1].toLowerCase().replaceAll(" ","-");t.statusLabel=next[1];localStorage.setItem("nexusTrips",JSON.stringify(trips));renderTrips(trips)}}document.getElementById("loadLocal").onclick=()=>renderTrips(NexusCore.getTrips());document.getElementById("loadTrips").onclick=async()=>{const key=document.getElementById("adminKey").value;sessionStorage.setItem("nexusAdminKey",key);try{const r=await fetch("/api/admin/bookings",{headers:{"x-admin-key":key}});const j=await r.json();if(!r.ok)throw new Error(j.error||"Unable to load");renderTrips(j.bookings)}catch(e){alert(e.message)}};renderTrips(NexusCore.getTrips());
+<script src="./auth-guard.js"></script><script src="./nexus-data.js"></script>
+<script src="./nexus-availability.js" defer></script>
+<script src="./universal-booking.js" defer></script></head><body><a class="skip" href="#main">Skip to main content</a><header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="dispatchNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a aria-current="page" href="/dispatch.html">Dispatch</a><a href="/fleet.html">Fleet</a></nav><div class="globalActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18887604990"><small>Call Nexus</small><strong>(888) 760-4990</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true">→</span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="dispatchNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header><section class="hero livecareMapHero"><div class="shell livecareExperience">
+<div class="livecareStoryPanel">
+  <div><div class="eyebrow"><span class="liveDot" aria-hidden="true"></span>NEXUS Dispatch</div>
+  <h1>A live command center for every trip.</h1>
+  <p>Coordinate requests, assign drivers and vehicles, monitor progress and communicate with patients and facilities in real time.</p></div>
+  <div class="livecareCompactMetrics" aria-label="Live dispatch overview" aria-live="polite">
+    <span><small>Requests</small><strong id="totalTrips">—</strong></span>
+    <span><small>Pending</small><strong id="pendingTrips">—</strong></span>
+    <span><small>Active</small><strong id="activeTrips">—</strong></span>
+    <span><small>Completed</small><strong id="completedTrips">—</strong></span>
+  </div>
+  <div class="livecareStoryActions" style="margin-top:4px">
+    <a class="button lightButton" href="#tripBoard" onclick="event.preventDefault();document.getElementById('tripBoard').scrollIntoView({behavior:'smooth'})">Trip board</a>
+    <a class="button outlineLight" href="/fleet.html">Fleet</a>
+    <a class="button outlineLight" href="/livecare.html">Livecare</a>
+  </div>
+</div>
+<aside class="livecareMapPanel" aria-label="Dispatch fleet telemetry">
+  <div class="mapTopBar"><div><span class="mapLiveBadge" id="heroFleetStatus">Connecting…</span><small id="heroFleetUpdated">Loading fleet telemetry…</small></div><button id="heroRefreshFleet" type="button" class="mapRefresh">Refresh</button></div>
+  <div class="liveFleetMapShell mapOnlyShell" style="background:#061f35">
+    <div style="padding:16px 18px;height:100%;display:flex;flex-direction:column;gap:10px;overflow:auto">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div style="background:rgba(22,163,106,.15);border:1px solid rgba(22,163,106,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#4ade80" id="heroFleetMoving">—</strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Moving</small></div>
+        <div style="background:rgba(129,70,214,.15);border:1px solid rgba(129,70,214,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#c4b5fd" id="heroFleetOnboard">—</strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">On-board</small></div>
+        <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#d1d5db" id="heroFleetAvail">—</strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Available</small></div>
+        <div style="background:rgba(217,130,24,.15);border:1px solid rgba(217,130,24,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#fbbf24" id="heroFleetAttn">—</strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Attention</small></div>
+      </div>
+      <div id="heroVehicleList" style="flex:1;overflow:auto;display:grid;gap:8px"><div style="text-align:center;padding:20px;color:#9fc2d8">Loading fleet telemetry…</div></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px">
+        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#fff" id="heroTotalTrips">—</strong>Trips</span>
+        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#fbbf24" id="heroPendingTrips">—</strong>Pending</span>
+        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#4ade80" id="heroActiveTrips">—</strong>Active</span>
+        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#60a5fa" id="heroCompletedTrips">—</strong>Done</span>
+      </div>
+    </div>
+  </div>
+  <div class="mapServiceStrip" aria-label="Filter by service">
+    <button type="button" class="active" data-svc-filter="ALL" aria-pressed="true">All services</button>
+    <button type="button" data-svc-filter="AMBULANCE" aria-pressed="false">Ambulance</button>
+    <button type="button" data-svc-filter="WHEELCHAIR" aria-pressed="false">Wheelchair</button>
+    <button type="button" data-svc-filter="STRETCHER" aria-pressed="false">Stretcher</button>
+    <button type="button" data-svc-filter="HOSPITAL" aria-pressed="false">Hospital discharge</button>
+  </div>
+</aside>
+</div></section><main id="main" class="shell moduleMain" tabindex="-1">
+<section class="card" style="margin-top:20px">
+  <div class="toolbar"><div><div class="eyebrow">Dispatch intake hub</div><h2>Broker, customer and facility request intake</h2><p style="margin:6px 0 0;color:var(--muted)">Modernized intake with service-aware rates, return-trip wait-time logic and shared dispatch standards.</p></div></div>
+  <div class="pillTabs" role="tablist" aria-label="Intake forms" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px">
+    <button type="button" class="button secondary" data-intake-tab="broker" role="tab" aria-selected="true">Broker intake</button>
+    <button type="button" class="button secondary" data-intake-tab="customer" role="tab" aria-selected="false">Customer intake</button>
+    <button type="button" class="button secondary" data-intake-tab="facility" role="tab" aria-selected="false">Facility intake</button>
+  </div>
+  <div id="brokerIntakePanel" class="intakePanel" data-intake-panel="broker" role="tabpanel" style="margin-top:16px">
+    <form id="brokerIntakeForm" class="formGrid" style="display:grid;gap:16px" novalidate>
+
+      <!-- Transportation Company Picker -->
+      <div id="transportationPickerBlock" class="transportation-picker">
+        <!-- Collapsed summary — shown after Continue, hidden initially -->
+        <div id="pickerCollapsedBar" hidden style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:#f0f7fc;border:1px solid #cce0f0;border-radius:12px;cursor:pointer" onclick="window.expandPicker()">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:13px;color:#667085;font-weight:700">Company:</span>
+            <strong id="pickerCollapsedName" style="font-size:14px;color:#082f49"></strong>
+          </div>
+          <button type="button" style="border:0;background:0;color:#0a6b99;font-size:13px;font-weight:700;cursor:pointer;padding:0;white-space:nowrap">Change ✎</button>
+        </div>
+        <!-- Full picker body — hidden after Continue -->
+        <div id="pickerBody">
+        <div class="picker-header">
+          <div>
+            <p class="eyebrow">Nexus Medical Transit</p>
+            <h2>Patient Transportation Company</h2>
+            <p class="description">Select the Medicaid broker, workers' comp coordinator, health plan, or government program sending this request.</p>
+          </div>
+          <button type="button" id="togglePickerAddForm" class="secondary-button">+ Add Company</button>
+        </div>
+
+        <!-- Primary dropdown — main selection -->
+        <label class="company-select-label" for="pickerSelect" style="margin-top:18px">
+          Select Company
+          <select id="pickerSelect" style="font-size:15px;min-height:52px"><option value="">Choose a company…</option></select>
+        </label>
+
+        <!-- Secondary filters — collapsible -->
+        <details style="margin-top:14px">
+          <summary style="cursor:pointer;font-size:13px;font-weight:700;color:#667085;user-select:none;list-style:none;display:flex;align-items:center;gap:6px">
+            <span id="filterSummaryLabel">Filter companies</span>
+          </summary>
+          <div class="filter-grid" style="margin-top:14px">
+            <label for="pickerSearch">Search
+              <input id="pickerSearch" type="search" placeholder="Company, state or category" autocomplete="off">
+            </label>
+            <label for="pickerCategory">Category
+              <select id="pickerCategory"></select>
+            </label>
+            <label for="pickerService">Service
+              <select id="pickerService"></select>
+            </label>
+          </div>
+        </details>
+
+        <!-- Add Custom Company Form -->
+        <div id="pickerAddForm" hidden class="add-company-form">
+          <h3>Add a New Company</h3>
+          <div class="form-grid" style="grid-template-columns:repeat(3,1fr)">
+            <label for="addCoName">Company Name *<input id="addCoName" type="text" required></label>
+            <label for="addCoCategory">Category<select id="addCoCategory"><option>Medicaid Broker</option><option>Workers Compensation</option><option>Health Plan</option><option>Hospital Transportation</option><option>Government</option><option>Facility Network</option><option selected>Other</option></select></label>
+            <label for="addCoHQ">Headquarters<input id="addCoHQ" type="text" placeholder="City, State"></label>
+            <label for="addCoPhone">Phone<input id="addCoPhone" type="tel" placeholder="(555) 123-4567"></label>
+            <label for="addCoEmail">Email<input id="addCoEmail" type="email" placeholder="contact@company.com"></label>
+            <label for="addCoWebsite">Website<input id="addCoWebsite" type="url" placeholder="https://"></label>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:8px">
+            <button type="button" id="saveCustomCompany" class="primary-button">Save Company</button>
+            <button type="button" id="cancelAddForm" class="secondary-button">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Company Card — collapsed by default, expandable -->
+        <div id="pickerCompanyCard" hidden>
+          <!-- Compact summary row (always visible once company selected) -->
+          <div id="pickerCardSummary" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:10px 14px;background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;cursor:pointer" onclick="window.toggleCompanyCard()" aria-expanded="false">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <span id="pickerCardBadge" class="category-badge" style="margin:0;flex-shrink:0"></span>
+              <strong id="pickerCardName" style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></strong>
+              <span id="pickerCardProviderStatus" class="provider-status" style="flex-shrink:0"></span>
+            </div>
+            <button type="button" id="pickerCardToggle" style="border:0;background:0;color:#667085;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer;padding:0">Show details ▾</button>
+          </div>
+          <!-- Full details — hidden until expanded -->
+          <div id="pickerCardFull" hidden class="company-card" style="margin-top:4px;border-radius:12px">
+            <div id="pickerCardDetails" class="company-details"></div>
+            <div id="pickerCardServices" class="service-list"></div>
+            <div id="pickerCardActions" class="company-actions"></div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;margin-top:var(--sp,16px);padding-top:var(--sp,16px);border-top:1px solid #e4e7ec">
+          <button type="button" id="pickerContinueBtn" class="primary-button" disabled style="opacity:.45;cursor:not-allowed">Continue</button>
+          <span id="pickerContinueMsg" style="font-size:13px;color:#667085">Select a company to continue.</span>
+        </div>
+        </div><!-- /pickerBody -->
+      </div>
+      <!-- /Transportation Company Picker -->
+
+      <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="formField"><label for="brokerReference">Referral ID</label><input id="brokerReference" name="reference" type="text" readonly></div>
+        <div class="formField"><label for="brokerPatientName">Patient name</label><input id="brokerPatientName" name="patientName" type="text"></div>
+        <div class="formField"><label for="brokerPatientPhone">Patient phone</label><input id="brokerPatientPhone" name="patientPhone" type="tel" placeholder="(555) 123-4567"></div>
+        <div class="formField"><label for="brokerSubmitterEmail">Submitter email</label><input id="brokerSubmitterEmail" name="submitterEmail" type="email" placeholder="broker@example.com"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch">
+        <!-- Left: address + detail fields -->
+        <div style="display:grid;gap:16px;align-content:start">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="formField"><label for="brokerPickup">Pickup address</label><input id="brokerPickup" name="pickup" type="text" style="width:100%" required autocomplete="off"></div>
+            <div class="formField"><label for="brokerDestination">Destination address</label><input id="brokerDestination" name="destination" type="text" style="width:100%" required autocomplete="off"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="formField"><label for="brokerPickupLocation">Pickup location type</label><input id="brokerPickupLocation" name="pickupLocation" type="text" placeholder="Home, facility, etc."></div>
+            <div class="formField"><label for="brokerDestinationLocation">Destination location type</label><input id="brokerDestinationLocation" name="destinationLocation" type="text" placeholder="Home, facility, etc."></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="formField"><label for="brokerPickupPhone">Pickup phone</label><input id="brokerPickupPhone" name="pickupPhone" type="tel" placeholder="(555) 123-4567"></div>
+            <div class="formField"><label for="brokerDestinationPhone">Destination phone</label><input id="brokerDestinationPhone" name="destinationPhone" type="tel" placeholder="(555) 123-4567"></div>
+          </div>
+        </div>
+        <!-- Right: route map -->
+        <div id="nexusBookingRouteMap" style="min-height:200px;border:1px solid #dce6ee;border-radius:10px;overflow:hidden;background:#f0f4f8;display:flex;align-items:center;justify-content:center">
+          <span style="color:#aab4be;font-size:13px">Enter pickup &amp; destination to see route</span>
+        </div>
+      </div>
+      <div class="formRow" style="grid-template-columns:1fr 1fr 2fr 1fr 1fr">
+        <div class="formField"><label for="brokerTripDate">Appt. date</label><input id="brokerTripDate" name="tripDate" type="date" required></div>
+        <div class="formField"><label for="brokerTripTime">Appt. time</label><input id="brokerTripTime" name="tripTime" type="time" required></div>
+        <div class="formField"><label for="brokerService">Service</label><select id="brokerService" name="service"><option value="wheelchair">Wheelchair Transportation</option><option value="ambulatory">Ambulatory Transportation</option><option value="facility_transfer">Facility-to-Facility Transfer</option><option value="facility_transfer_critical">High-Acuity IFT</option><option value="broda">Broda Chair Transportation</option><option value="stretcher">Stretcher Transportation</option><option value="bariatric">Bariatric Transportation</option><option value="bls">BLS Ambulance</option><option value="als1">ALS I Ambulance</option><option value="als2">ALS II Ambulance</option></select></div>
+        <div class="formField"><label for="brokerWaitMinutes">Wait (min)</label><input id="brokerWaitMinutes" name="waitMinutes" type="number" min="0" step="5" value="0"></div>
+        <div class="formField"><label for="brokerReturnTrip">Return Trip</label><div style="display:flex;align-items:center;height:37px;padding:0 2px"><input id="brokerReturnTrip" type="checkbox" style="width:18px;height:18px;accent-color:var(--brand,#d61f1f);margin:0;cursor:pointer"></div></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="formField"><label for="brokerPickupTime">Pickup time</label><input id="brokerPickupTime" name="pickupTime" type="time"></div>
+        <div class="formField"><label for="brokerQuotedRate">Broker quoted rate ($)</label><input id="brokerQuotedRate" name="brokerQuotedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="formField"><label for="brokerCalculatedRate">Platform rate ($) <small style="color:var(--muted);font-weight:400">(auto)</small></label><input id="brokerCalculatedRate" name="platformCalculatedRate" type="number" min="0" step="0.01" readonly style="background:var(--soft,#f8fafc)"></div>
+      </div>
+      <div class="formField"><label for="brokerNotes">Notes</label><input id="brokerNotes" name="notes" type="text" placeholder="Special instructions, equipment needs, patient condition…"></div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
+        <div id="brokerIntakeMessage" class="msgBox" hidden></div>
+        <button id="submitBrokerRequest" class="button primary" type="submit">Submit broker request</button>
+      </div>
+    </form>
+  </div>
+  <div id="customerIntakePanel" class="intakePanel" data-intake-panel="customer" role="tabpanel" hidden style="margin-top:16px">
+    <form id="customerIntakeForm" class="formGrid" style="display:grid;gap:14px">
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="customerReference">Reference</label><input id="customerReference" name="reference" type="text" readonly></div>
+        <div class="formField"><label for="customerRequester">Requester</label><input id="customerRequester" name="requester" type="text" placeholder="Patient / caregiver name"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="customerPickup">Pickup</label><input id="customerPickup" name="pickup" type="text" style="width:100%" required autocomplete="off"></div>
+        <div class="formField"><label for="customerDestination">Destination</label><input id="customerDestination" name="destination" type="text" style="width:100%" required autocomplete="off"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="customerPickupSuite">Pickup suite/unit <small style="color:var(--muted)">(optional)</small></label><input id="customerPickupSuite" name="pickupSuite" type="text" placeholder="Suite, Apt, Unit #"></div>
+        <div class="formField"><label for="customerDestinationSuite">Destination suite/unit <small style="color:var(--muted)">(optional)</small></label><input id="customerDestinationSuite" name="destinationSuite" type="text" placeholder="Suite, Apt, Unit #"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="formField"><label for="customerTripDate">Trip date</label><input id="customerTripDate" name="tripDate" type="date" required></div>
+        <div class="formField"><label for="customerTripTime">Trip time</label><input id="customerTripTime" name="tripTime" type="time" required></div>
+        <div class="formField"><label for="customerService">Service</label><select id="customerService" name="service"><option value="wheelchair">Wheelchair Transportation</option><option value="ambulatory">Ambulatory Transportation</option><option value="facility_transfer">Facility-to-Facility Transfer</option><option value="facility_transfer_critical">High-Acuity IFT</option><option value="broda">Broda Chair Transportation</option><option value="stretcher">Stretcher Transportation</option><option value="bariatric">Bariatric Transportation</option><option value="bls">BLS Ambulance</option><option value="als1">ALS I Ambulance</option><option value="als2">ALS II Ambulance</option></select></div>
+        <div class="formField"><label for="customerCalculatedRate">Platform rate</label><input id="customerCalculatedRate" name="platformRate" type="number" min="0" step="0.01" readonly></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <label class="field" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><input id="customerReturnTrip" type="checkbox"> <span>Return trip / round trip</span></label>
+        <div class="formField"><label for="customerWaitMinutes">Wait minutes</label><input id="customerWaitMinutes" name="waitMinutes" type="number" min="0" step="5" value="0"></div>
+        <div class="formField"><label for="customerNotes">Notes</label><input id="customerNotes" name="notes" type="text" placeholder="Pickup assistance, oxygen, etc."></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
+        <div id="customerIntakeMessage" class="msgBox" hidden></div>
+        <button id="submitCustomerRequest" class="button primary" type="submit">Create customer intake</button>
+      </div>
+    </form>
+  </div>
+  <div id="facilityIntakePanel" class="intakePanel" data-intake-panel="facility" role="tabpanel" hidden style="margin-top:16px">
+    <form id="facilityIntakeForm" class="formGrid" style="display:grid;gap:14px">
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="facilityReference">Reference</label><input id="facilityReference" name="reference" type="text" readonly></div>
+        <div class="formField"><label for="facilityName">Facility</label><input id="facilityName" name="facility" type="text" required></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="facilityContact">Contact</label><input id="facilityContact" name="contact" type="text" required></div>
+        <div class="formField"><label for="facilitySubmitterEmail">Submitter email</label><input id="facilitySubmitterEmail" name="submitterEmail" type="email" placeholder="facility@example.com"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="facilityPickup">Pickup</label><input id="facilityPickup" name="pickup" type="text" style="width:100%" required autocomplete="off"></div>
+        <div class="formField"><label for="facilityDestination">Destination</label><input id="facilityDestination" name="destination" type="text" style="width:100%" required autocomplete="off"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="formField"><label for="facilityPickupSuite">Pickup suite/unit <small style="color:var(--muted)">(optional)</small></label><input id="facilityPickupSuite" name="pickupSuite" type="text" placeholder="Suite, Apt, Unit #"></div>
+        <div class="formField"><label for="facilityDestinationSuite">Destination suite/unit <small style="color:var(--muted)">(optional)</small></label><input id="facilityDestinationSuite" name="destinationSuite" type="text" placeholder="Suite, Apt, Unit #"></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="formField"><label for="facilityTripDate">Trip date</label><input id="facilityTripDate" name="tripDate" type="date" required></div>
+        <div class="formField"><label for="facilityTripTime">Trip time</label><input id="facilityTripTime" name="tripTime" type="time" required></div>
+        <div class="formField"><label for="facilityService">Service</label><select id="facilityService" name="service"><option value="facility_transfer">Facility-to-Facility Transfer</option><option value="facility_transfer_critical">High-Acuity IFT</option><option value="wheelchair">Wheelchair Transportation</option><option value="ambulatory">Ambulatory Transportation</option><option value="broda">Broda Chair Transportation</option><option value="stretcher">Stretcher Transportation</option><option value="bariatric">Bariatric Transportation</option><option value="bls">BLS Ambulance</option><option value="als1">ALS I Ambulance</option><option value="als2">ALS II Ambulance</option></select></div>
+        <div class="formField"><label for="facilityCalculatedRate">Platform rate</label><input id="facilityCalculatedRate" name="platformRate" type="number" min="0" step="0.01" readonly></div>
+      </div>
+      <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <label class="field" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><input id="facilityReturnTrip" type="checkbox"> <span>Return trip / round trip</span></label>
+        <div class="formField"><label for="facilityWaitMinutes">Wait minutes</label><input id="facilityWaitMinutes" name="waitMinutes" type="number" min="0" step="5" value="0"></div>
+        <div class="formField"><label for="facilityNotes">Notes</label><input id="facilityNotes" name="notes" type="text" placeholder="Transfer support, bed status"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
+        <div id="facilityIntakeMessage" class="msgBox" hidden></div>
+        <button id="submitFacilityRequest" class="button primary" type="submit">Create facility intake</button>
+      </div>
+    </form>
+  </div>
+</section>
+<section id="tripBoard" class="card" style="margin-top:20px">
+  <div class="toolbar">
+    <div><div class="eyebrow">Live Operations</div><h2>Trip management</h2></div>
+    <div style="display:flex;gap:10px"><button id="loadTrips" class="button primary">Refresh from API</button><button id="loadLocal" class="button" hidden>Load local</button></div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;margin-bottom:12px">
+    <label class="field" style="margin:0">View
+      <select id="tripViewType" style="min-width:150px">
+        <option value="TABLE">Table</option>
+        <option value="CALENDAR">Calendar</option>
+      </select>
+    </label>
+    <label class="field" style="margin:0" id="tripCalendarMonthWrap" hidden>Calendar month
+      <input id="tripCalendarMonth" type="month" style="min-width:170px">
+    </label>
+    <label class="field" style="margin:0">Trip reference
+      <input id="tripReferenceFilter" type="text" placeholder="Search e.g. NMT-20260805-5156" style="min-width:230px">
+    </label>
+    <label class="field" style="margin:0">Trip source
+      <select id="tripSourceFilter" style="min-width:180px">
+        <option value="ALL">All trips</option>
+        <option value="REAL">Real bookings only</option>
+      </select>
+    </label>
+    <label class="field" style="margin:0">Timeframe
+      <select id="tripTimeframeFilter" style="min-width:180px">
+        <option value="ALL">All time</option>
+        <option value="TODAY">Today</option>
+        <option value="NEXT_24H">Next 24 hours</option>
+        <option value="NEXT_7D">Next 7 days</option>
+        <option value="PAST">Past trips</option>
+      </select>
+    </label>
+    <small id="tripFilterSummary" class="subtle" style="margin-left:auto">Showing all trips</small>
+  </div>
+  <p class="subtle" style="margin-top:0">All booking and trip actions are tracked in platform records and audit logs for operational review and follow-up.</p>
+  <div class="tableWrap" id="tripTableWrap"><table class="table"><thead><tr><th>Reference</th><th>Patient</th><th>Service</th><th>Date / Time</th><th>Status</th><th>Estimate</th><th>AI risk</th><th>Action</th></tr></thead><tbody id="tripRows"></tbody></table></div>
+  <div id="tripCalendarView" hidden style="margin-top:10px"></div>
+</section>
+<section class="grid cols2" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Live staffing</p><h2>Drivers on duty</h2></div><span id="driversOnDutyCount" class="status blue">Loading…</span></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster…</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Shift availability</p><h2>Fleet &amp; driver summary</h2></div><button id="refreshDrivers" class="button secondary" style="min-height:36px;font-size:13px">↻ Refresh</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading…</p></div></article></section>
+<section id="aiSection" class="grid cols2" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
+</main><footer class="footer"><div class="shell footerGrid"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Platform</strong><a href="/livecare.html">Livecare</a><a href="/facility.html">Facilities</a><a href="/dispatch.html">Dispatch</a></div><div><strong>Operations</strong><a href="/fleet.html">Fleet</a><a href="/driver-app.html">Driver</a><a href="/qa.html">QA & Compliance</a></div><div><strong>Contact</strong><a href="tel:+18887604990">(888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">♿</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js"></script><script>
+async function loadDriverRoster(){
+  try{
+    const token=sessionStorage.getItem('nexusAccessToken');
+    const headers=token?{authorization:`Bearer ${token}`}:{};
+    const [driverRes,fleetRes]=await Promise.all([
+      fetch('/api/dispatch/drivers',{headers,cache:'no-store'}),
+      fetch('/api/fleet/live',{headers,cache:'no-store'})
+    ]);
+    const roster=document.getElementById('driverRoster');
+    const summary=document.getElementById('availabilitySummary');
+    const countEl=document.getElementById('driversOnDutyCount');
+
+    if(!driverRes.ok || !fleetRes.ok){
+      if(roster) roster.innerHTML='<p style="color:var(--muted)">Unable to load the live driver roster right now.</p>';
+      if(summary) summary.innerHTML='<p style="color:var(--muted)">Live availability is temporarily unavailable.</p>';
+      return;
+    }
+
+    const j=await driverRes.json().catch(()=>({drivers:[],onDuty:0}));
+    const fleetData=await fleetRes.json().catch(()=>({vehicles:[]}));
+    const drivers=Array.isArray(j.drivers)?j.drivers:[];
+    const fleetVehicles=Array.isArray(fleetData.vehicles)?fleetData.vehicles:[];
+
+    if(countEl){
+      countEl.textContent=`${j.onDuty||0} on duty`;
+      countEl.className='status '+(j.onDuty>0?'green':'amber');
+    }
+
+    if(roster) roster.innerHTML=drivers.length?`<div style="display:grid;gap:10px">${drivers.map(d=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)">
+        <div>
+          <strong>${d.name||'Unnamed driver'}</strong>
+          <div style="font-size:13px;color:var(--muted);margin-top:2px">
+            ${(d.vehicleUnit||d.vehicleType)?`${d.vehicleUnit||d.vehicleType} · `:'No vehicle · '}
+            Shift ${d.shiftStart||'?'}–${d.shiftEnd||'?'}
+            ${d.tripsToday?` · ${d.tripsToday} trips today`:''}
+          </div>
+        </div>
+        <span class="status ${d.status==='ON_TRIP'?'amber':'green'}" style="font-size:11px">${d.status==='ON_TRIP'?'On trip':'Available'}</span>
+      </div>`).join('')}</div>`:'<p style="color:var(--muted)">No drivers on shift right now.</p>';
+
+    const available=drivers.filter(d=>d.status==='ON_DUTY').length;
+    const onTrip=drivers.filter(d=>d.status==='ON_TRIP').length;
+    const moving=fleetVehicles.filter(v=>['EN_ROUTE','ARRIVED','PATIENT_ON_BOARD','DRIVER_ASSIGNED'].includes(String(v.status||'').toUpperCase())).length;
+    const onboard=fleetVehicles.filter(v=>String(v.status||'').toUpperCase()==='PATIENT_ON_BOARD').length;
+    const availableFleet=fleetVehicles.filter(v=>String(v.status||'').toUpperCase()==='AVAILABLE').length;
+    const attention=fleetVehicles.filter(v=>String(v.status||'').toUpperCase()==='ATTENTION' || !!v.attention).length;
+
+    if(summary) summary.innerHTML=`
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">
+        <div style="text-align:center;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><strong style="font-size:22px;display:block;color:var(--green,#067647)">${available}</strong><small style="color:var(--muted)">Driver available</small></div>
+        <div style="text-align:center;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><strong style="font-size:22px;display:block;color:#b54708">${onTrip}</strong><small style="color:var(--muted)">Driver on trip</small></div>
+        <div style="text-align:center;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><strong style="font-size:22px;display:block">${availableFleet}</strong><small style="color:var(--muted)">Fleet available</small></div>
+        <div style="text-align:center;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><strong style="font-size:22px;display:block">${moving}</strong><small style="color:var(--muted)">Fleet moving</small></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+        <span class="status green">${j.onDuty||0} drivers on duty</span>
+        <span class="status blue">${onboard} with patient</span>
+        <span class="status amber">${attention} need attention</span>
+      </div>
+      <a href="/driver-app.html" class="button secondary" style="font-size:13px;display:inline-flex" target="_blank">Open driver app ↗</a>`;
+  }catch(e){console.error('[DISPATCH] loadDriverRoster:',e)}
+}
+document.getElementById('refreshDrivers')?.addEventListener('click',loadDriverRoster);
+loadDriverRoster();
+
+function setBrokerIntakeMessage(text,type){const el=document.getElementById('brokerIntakeMessage');if(!el)return;el.hidden=false;el.className=`msgBox ${type==='err'?'err':'ok'}`;el.textContent=text;}
+function setPanelMessage(elId,text,type){const el=document.getElementById(elId);if(!el)return;el.hidden=false;el.className=`msgBox ${type==='err'?'err':'ok'}`;el.textContent=text;}
+function ensureDispatchReference(prefix){const idMap={broker:'brokerReference',customer:'customerReference',facility:'facilityReference'};const el=document.getElementById(idMap[prefix]||'');if(!el)return null; if(el.value.trim()) return el.value.trim(); const now=new Date(); const stamp=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`; const value=`${prefix.toUpperCase()}-${stamp}`; el.value=value; return value;}
+function getDispatchRate(service, waitMinutes, isReturnTrip){const pricing=NexusCore?.getPricing?.()||NexusCore?.DEFAULT||{}; const rate=pricing[service]||pricing[service.toLowerCase?.()||service]||NexusCore?.DEFAULT?.[service]||NexusCore?.DEFAULT?.ambulatory||{base:65,includedMiles:5,perMile:3.25,waitPer15:20}; const base=Number(rate.base||0); const waitCharge=(Number(waitMinutes)||0)/15*Number(rate.waitPer15||0); const returnBoost=isReturnTrip?Number(rate.base||0)*0.15:0; return Number((base+waitCharge+returnBoost).toFixed(2));}
+function updateDispatchRateInputs(){const service=document.getElementById('customerService')?.value||'';const waitMinutes=Number(document.getElementById('customerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('customerReturnTrip')?.checked||false; const rate=getDispatchRate(service,waitMinutes,isReturnTrip); const rateInput=document.getElementById('customerCalculatedRate'); if(rateInput) rateInput.value=rate.toFixed(2); const facilityService=document.getElementById('facilityService')?.value||'';const facilityWait=Number(document.getElementById('facilityWaitMinutes')?.value||0);const facilityReturn=document.getElementById('facilityReturnTrip')?.checked||false; const facilityRate=getDispatchRate(facilityService,facilityWait,facilityReturn); const facilityInput=document.getElementById('facilityCalculatedRate'); if(facilityInput) facilityInput.value=facilityRate.toFixed(2); const brokerService=document.getElementById('brokerService')?.value||'';const brokerWait=Number(document.getElementById('brokerWaitMinutes')?.value||0); const brokerReturn=document.getElementById('brokerReturnTrip')?.checked||false; const brokerRate=getDispatchRate(brokerService,brokerWait,brokerReturn); const brokerInput=document.getElementById('brokerCalculatedRate'); if(brokerInput) brokerInput.value=brokerRate.toFixed(2);}function syncBrokerPickupTime(force=false){const appointmentInput=document.getElementById('brokerTripTime');const pickupInput=document.getElementById('brokerPickupTime');if(!appointmentInput||!pickupInput)return;const appointment=appointmentInput.value;if(!appointment)return;const service=document.getElementById('brokerService')?.value||'ambulatory';const serviceMinutes={wheelchair:35,ambulatory:25,facility_transfer:55,facility_transfer_critical:70,broda:40,stretcher:55,bariatric:65,bls:60,als1:70,als2:75}[service]||35;const waitMinutes=Number(document.getElementById('brokerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('brokerReturnTrip')?.checked||false;const travelMinutes=serviceMinutes+Math.round(waitMinutes/15)*10+(isReturnTrip?15:0);const [hour,minute]=appointment.split(':').map(Number);const totalMinutes=hour*60+minute-travelMinutes;const clamped=Math.max(0,Math.min(23*60+59,totalMinutes));const suggested=new Date(2000,0,1,Math.floor(clamped/60),clamped%60); if(force||!pickupInput.value){pickupInput.value=`${String(suggested.getHours()).padStart(2,'0')}:${String(suggested.getMinutes()).padStart(2,'0')}`;}}
+function activateIntakeTab(tab){document.querySelectorAll('[data-intake-tab]').forEach(btn=>{const active=btn.dataset.intakeTab===tab; btn.classList.toggle('active',active); btn.setAttribute('aria-selected',active?'true':'false');}); document.querySelectorAll('[data-intake-panel]').forEach(panel=>{panel.hidden=panel.dataset.intakePanel!==tab;});}
+
+async function submitBrokerRequest(event){
+  event.preventDefault();
+  syncBrokerPickupTime(true);
+  const form=document.getElementById('brokerIntakeForm');
+  const payload={
+    broker_name: document.getElementById('pickerCardName')?.textContent?.trim() || selectedCompanyName || 'Unknown',
+    referral_id: document.getElementById('brokerReference').value.trim(),
+    patient_name: document.getElementById('brokerPatientName').value.trim(),
+    patient_phone: document.getElementById('brokerPatientPhone')?.value?.trim()||'',
+    pickup: document.getElementById('brokerPickup').value.trim(),
+    pickup_location: document.getElementById('brokerPickupLocation').value.trim(),
+    pickup_phone: document.getElementById('brokerPickupPhone').value.trim(),
+    destination: document.getElementById('brokerDestination').value.trim(),
+    destination_location: document.getElementById('brokerDestinationLocation').value.trim(),
+    destination_phone: document.getElementById('brokerDestinationPhone').value.trim(),
+    pickup_time: document.getElementById('brokerPickupTime').value,
+    trip_date: document.getElementById('brokerTripDate').value,
+    trip_time: document.getElementById('brokerTripTime').value,
+    service: document.getElementById('brokerService').value,
+    broker_quoted_rate: Number(document.getElementById('brokerQuotedRate').value || 0),
+    platform_calculated_rate: Number(document.getElementById('brokerCalculatedRate').value || 0),
+    submitter_email: document.getElementById('brokerSubmitterEmail').value.trim(),
+    wait_minutes: Number(document.getElementById('brokerWaitMinutes').value || 0),
+    notes: document.getElementById('brokerNotes').value.trim(),
+    is_return_trip: document.getElementById('brokerReturnTrip').checked
+  };
+  const missing=[];
+  if(!payload.pickup)missing.push('Pickup address');
+  if(!payload.destination)missing.push('Destination address');
+  if(!payload.trip_date)missing.push('Appointment date');
+  if(!payload.trip_time)missing.push('Appointment time');
+  if(!payload.broker_name||payload.broker_name==='Unknown')missing.push('Transportation company (select a company and click Continue)');
+  if(missing.length){
+    setBrokerIntakeMessage('Missing: '+missing.join(', '),'err');
+    return;
+  }
+  // Auto-calculate platform rate if not set
+  if(!payload.platform_calculated_rate){
+    payload.platform_calculated_rate=getDispatchRate(payload.service,payload.wait_minutes,payload.is_return_trip)||0;
+  }
+  const btn=document.getElementById('submitBrokerRequest');
+  btn.disabled=true;btn.textContent='Submitting...';
+  try{
+    const res=await fetch('/api/broker-requests',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) {
+      const message = data?.error || data?.message || `Request rejected by the server (${res.status})`;
+      setBrokerIntakeMessage(message,'err');
+      return;
+    }
+    const successMessage = data.clientMessage || data.message || 'Broker request received. It is pending dispatch confirmation and will be finalized once dispatch completes the booking.';
+    setBrokerIntakeMessage(successMessage,'ok');
+    window.NexusTripPopup?.show({
+      title: 'Trip request received',
+      message: successMessage,
+      detail: 'Dispatch will review this request and finalize the booking shortly.',
+      accent: '#0f766e'
+    });
+    form.reset();
+    document.getElementById('brokerCalculatedRate').value='';
+    document.getElementById('brokerWaitMinutes').value='0';
+    // Re-expand picker for next request
+    window.expandPicker();
+    selectedId=''; selectedCompanyName='';
+    document.getElementById('pickerCollapsedBar').hidden=true;
+    document.getElementById('pickerCompanyCard').hidden=true;
+  }catch(err){
+    setBrokerIntakeMessage(err.message||'Unable to submit broker request.','err');
+  }finally{
+    btn.disabled=false;btn.textContent='Submit broker request';
+  }
+}
+
+async function submitCustomerRequest(event){
+  event.preventDefault();
+  const ref=ensureDispatchReference('customer');
+  setPanelMessage('customerIntakeMessage',`Customer intake prepared with reference ${ref || 'pending'}.`, 'ok');
+  document.getElementById('customerIntakeForm').reset();
+  ensureDispatchReference('customer');
+}
+
+async function submitFacilityRequest(event){
+  event.preventDefault();
+  const ref=ensureDispatchReference('facility');
+  setPanelMessage('facilityIntakeMessage',`Facility intake prepared with reference ${ref || 'pending'}.`, 'ok');
+  document.getElementById('facilityIntakeForm').reset();
+  ensureDispatchReference('facility');
+}
+
+document.getElementById('brokerIntakeForm').addEventListener('submit',submitBrokerRequest);
+document.getElementById('customerIntakeForm').addEventListener('submit',submitCustomerRequest);
+document.getElementById('facilityIntakeForm').addEventListener('submit',submitFacilityRequest);
+document.querySelectorAll('[data-intake-tab]').forEach(btn=>btn.addEventListener('click',()=>activateIntakeTab(btn.dataset.intakeTab)));
+['customerPickup','customerDestination','customerService','customerWaitMinutes','customerReturnTrip','facilityPickup','facilityDestination','facilityService','facilityWaitMinutes','facilityReturnTrip','brokerPickup','brokerDestination','brokerService','brokerWaitMinutes','brokerReturnTrip','brokerTripTime','brokerTripDate'].forEach(id=>{const el=document.getElementById(id); if(el){el.addEventListener('input',()=>{updateDispatchRateInputs();syncBrokerPickupTime();});el.addEventListener('change',()=>{updateDispatchRateInputs();syncBrokerPickupTime();});}});
+document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); ensureDispatchReference('broker'); ensureDispatchReference('customer'); ensureDispatchReference('facility'); updateDispatchRateInputs();});
+
+function riskBadge(t){
+  const r=NexusAI.riskScore(t);
+  return `<div class="aiScore"><span class="status ${r.level==='High'?'red':r.level==='Medium'?'amber':'green'}">${r.level} ${r.score}%</span><span class="riskMeter" aria-label="${r.score} percent delay risk"><span style="width:${r.score}%"></span></span></div><small>${r.reasons.join(', ')}</small>`;
+}
+
+function renderAI(trips){
+  const rec=NexusAI.recommendations(trips);
+  document.getElementById('aiRecommendations').innerHTML=rec.map(x=>`<article class="insight ${x.priority.toLowerCase()}"><h3>${x.priority}: ${x.title}</h3><p>${x.detail}</p></article>`).join('');
+  const f=NexusAI.forecast(trips),max=Math.max(1,...f.map(x=>x.count));
+  document.getElementById('demandForecast').innerHTML=f.map(x=>`<div class="forecastRow"><strong>${x.period}</strong><span class="forecastTrack"><span style="width:${Math.round(x.count/max*100)}%"></span></span><span>${x.count}</span></div>`).join('');
+}
+
+function formatShortDateTime(dateValue,timeValue){
+  const dateRaw=String(dateValue||'').trim();
+  const timeRaw=String(timeValue||'').trim();
+  if(!dateRaw&&!timeRaw) return '--';
+
+  const dateMatch=dateRaw.match(/^(\d{4}-\d{2}-\d{2})/);
+  const timeMatch=timeRaw.match(/^(\d{2}:\d{2})/);
+  let dt=null;
+
+  if(dateMatch){
+    const iso=`${dateMatch[1]}T${timeMatch?`${timeMatch[1]}:00`:'00:00:00'}`;
+    const parsed=new Date(iso);
+    if(!Number.isNaN(parsed.getTime())) dt=parsed;
+  }
+  if(!dt&&dateRaw){
+    const parsed=new Date(dateRaw);
+    if(!Number.isNaN(parsed.getTime())) dt=parsed;
+  }
+
+  const shortDate=dt?dt.toLocaleDateString([], {month:'short', day:'numeric'}):dateRaw;
+  let shortTime='';
+  if(timeMatch){
+    const t=new Date(`1970-01-01T${timeMatch[1]}:00`);
+    shortTime=t.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+  }else if(dt){
+    shortTime=dt.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+  }
+  return `${shortDate}${shortTime?` ${shortTime}`:''}`;
+}
+
+function renderTrips(trips){
+  const list=Array.isArray(trips)?trips:[];
+  const statuses={
+    pending:list.filter(t=>['requested','scheduled','submitted'].includes((t.status||'').toLowerCase())).length,
+    active:list.filter(t=>['assigned','en-route','arrived','in-transit'].includes((t.status||'').toLowerCase())).length,
+    completed:list.filter(t=>['completed','delivered'].includes((t.status||'').toLowerCase())).length
+  };
+
+  const statusColors={requested:'blue',scheduled:'blue',submitted:'blue',assigned:'amber',['en-route']:'amber',arrived:'amber',['in-transit']:'green',completed:'green',delivered:'green'};
+
+  const setText=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=String(val)};
+  setText('totalTrips',list.length); setText('pendingTrips',statuses.pending); setText('activeTrips',statuses.active); setText('completedTrips',statuses.completed);
+  setText('heroTotalTrips',list.length); setText('heroPendingTrips',statuses.pending); setText('heroActiveTrips',statuses.active); setText('heroCompletedTrips',statuses.completed);
+
+  const heroTripList=document.getElementById('heroTripList');
+  if(heroTripList){
+    heroTripList.innerHTML=list.slice(0,6).map(t=>`<div style="background:#fff;border:1px solid #d5e0e8;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="min-width:0"><strong style="font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name||'�'}</strong><small style="color:#52677c;font-size:11px">${t.service||'�'} � ${formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time)}</small></div><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}" style="font-size:10px;flex-shrink:0">${t.statusLabel||t.status||'Requested'}</span></div>`).join('')||'<div style="text-align:center;padding:16px;color:#52677c">No trips yet.</div>';
+  }
+
+  const rowsEl=document.getElementById('tripRows');
+  if(rowsEl){
+    rowsEl.innerHTML=list.map(t=>{
+      const ref=t.reference||t.id||'';
+      const estimateNumber=Number(t.estimatedFare ?? t.estimated_fare ?? t.estimate ?? t.fare);
+      const estimate=Number.isFinite(estimateNumber)?`$${estimateNumber.toFixed(2)}`:'--';
+      const shortDateTime=formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time);
+      return `<tr><td>${ref||'�'}</td><td>${t.name||'�'}</td><td>${t.service||'�'}</td><td>${shortDateTime}</td><td><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}">${t.statusLabel||t.status||'Requested'}</span></td><td>${estimate}</td><td>${riskBadge(t)}</td><td><button class="button secondary" data-advance="${ref}" onclick="advanceTrip('${ref}')">Advance</button></td></tr>`;
+    }).join('');
+  }
+
+  renderAI(list);
+}
+// ========== TRANSPORTATION COMPANY PICKER ==========
+(function(){
+const COMPANIES=[
+  {id:'modivcare',name:'Modivcare',category:'Medicaid Broker',headquarters:'Denver, Colorado',website:'https://www.modivcare.com',providerPortal:'https://www.modivcare.com/transportation-providers-contact-us',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS'],acceptingProviders:true},
+  {id:'mtm',name:'MTM',category:'Medicaid Broker',headquarters:'Lake Saint Louis, Missouri',website:'https://www.mtm-inc.net',states:['National'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'access2care',name:'Access2Care',category:'Medicaid Broker',headquarters:'United States',website:'https://www.access2care.net',states:['Multiple States'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'verida',name:'Verida',category:'Medicaid Broker',headquarters:'Atlanta, Georgia',website:'https://verida.com',states:['Multiple States','District of Columbia'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'saferide-health',name:'SafeRide Health',category:'Health Plan',headquarters:'San Antonio, Texas',phone:'855-955-7433',website:'https://www.saferidehealth.com',states:['National'],services:['Ambulatory','Wheelchair','Rideshare'],acceptingProviders:true},
+  {id:'alivi',name:'Alivi',category:'Health Plan',headquarters:'Miami, Florida',website:'https://www.alivi.com',states:['Multiple States'],services:['Ambulatory','Wheelchair'],acceptingProviders:true},
+  {id:'mas',name:'Medical Answering Services',category:'Medicaid Broker',headquarters:'New York',website:'https://www.medanswering.com',states:['New York'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'american-logistics',name:'American Logistics',category:'Health Plan',headquarters:'California',website:'https://americanlogistics.com',states:['Multiple States'],services:['Ambulatory','Wheelchair','Rideshare'],acceptingProviders:true},
+  {id:'one-call',name:'One Call',category:'Workers Compensation',headquarters:'Jacksonville, Florida',website:'https://www.onecallcm.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS','ALS'],acceptingProviders:true},
+  {id:'go-t-and-t',name:'Go Transportation & Translation',category:'Workers Compensation',headquarters:'United States',website:'https://www.gotandt.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS','ALS','Air Ambulance'],acceptingProviders:true},
+  {id:'corvel',name:'CorVel Corporation',category:'Workers Compensation',headquarters:'Fort Worth, Texas',website:'https://www.corvel.com',states:['National'],services:['Medical Transportation','Case Management'],acceptingProviders:true},
+  {id:'sedgwick',name:'Sedgwick',category:'Workers Compensation',headquarters:'Memphis, Tennessee',website:'https://www.sedgwick.com',states:['National'],services:['Medical Transportation','Claims Management'],acceptingProviders:false},
+  {id:'enlyte',name:'Enlyte',category:'Workers Compensation',headquarters:'San Diego, California',website:'https://www.enlyte.com',states:['National'],services:['Medical Transportation','Case Management'],acceptingProviders:true},
+  {id:'genex',name:'Genex Services',category:'Workers Compensation',headquarters:'Wayne, Pennsylvania',website:'https://www.genexservices.com',states:['National'],services:['Medical Transportation','Case Management'],acceptingProviders:true},
+  {id:'coventry',name:'Coventry Workers Compensation Services',category:'Workers Compensation',headquarters:'United States',website:'https://www.coventrywcs.com',states:['National'],services:['Medical Transportation','Provider Networks'],acceptingProviders:true},
+  {id:'mti-america',name:'MTI America',category:'Workers Compensation',headquarters:'Pompano Beach, Florida',website:'https://www.mtiamerica.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'procare',name:'ProCare Transportation and Language Services',category:'Workers Compensation',headquarters:'United States',website:'https://www.procaretransportation.com',states:['National'],services:['Ambulatory','Wheelchair','Translation'],acceptingProviders:true},
+  {id:'roundtrip',name:'Roundtrip',category:'Hospital Transportation',headquarters:'Philadelphia, Pennsylvania',website:'https://www.roundtriphealth.com',states:['National'],services:['Ambulatory','Wheelchair','Stretcher'],acceptingProviders:true},
+  {id:'ride-health',name:'Ride Health',category:'Hospital Transportation',headquarters:'New York',website:'https://www.ridehealth.com',states:['National'],services:['Ambulatory','Wheelchair','Rideshare'],acceptingProviders:true},
+  {id:'uber-health',name:'Uber Health',category:'Hospital Transportation',headquarters:'San Francisco, California',website:'https://www.uberhealth.com',states:['National'],services:['Ambulatory','Rideshare'],acceptingProviders:false},
+  {id:'lyft-healthcare',name:'Lyft Healthcare',category:'Hospital Transportation',headquarters:'San Francisco, California',website:'https://www.lyft.com/healthcare',states:['National'],services:['Ambulatory','Rideshare'],acceptingProviders:false},
+  {id:'va',name:'U.S. Department of Veterans Affairs',category:'Government',headquarters:'Washington, DC',website:'https://www.va.gov',states:['National'],services:['Ambulatory','Wheelchair','Stretcher','BLS'],acceptingProviders:true},
+];
+let companies=[...COMPANIES];
+let selectedId='';
+let selectedCompanyName='';
+let filterSearch='',filterCat='All',filterSvc='All';
+
+const $=id=>document.getElementById(id);
+const pickerSearch=$('pickerSearch'),pickerCat=$('pickerCategory'),pickerSvc=$('pickerService');
+const pickerSelect=$('pickerSelect'),card=$('pickerCompanyCard');
+
+// Load companies from API, fall back to built-in list on error
+async function loadCompanies(apiUrl){
+  try{
+    const r=await fetch(apiUrl);
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const data=await r.json();
+    if(!Array.isArray(data))throw new Error('API must return an array');
+    companies=data;
+    console.log('[PICKER] Loaded',companies.length,'companies from API');
+  }catch(e){
+    console.warn('[PICKER] API load failed, using built-in list:',e.message);
+    companies=[...COMPANIES];
+  }
+  refresh();
+}
+
+loadCompanies('/api/transportation-companies');
+
+function getFiltered(){
+  const q=filterSearch.toLowerCase().trim();
+  return companies.filter(c=>{
+    const matchQ=!q||c.name.toLowerCase().includes(q)||c.category.toLowerCase().includes(q)||(c.headquarters||'').toLowerCase().includes(q)||(c.states||[]).some(s=>s.toLowerCase().includes(q));
+    const matchCat=filterCat==='All'||c.category===filterCat;
+    const matchSvc=filterSvc==='All'||(c.services||[]).includes(filterSvc);
+    return matchQ&&matchCat&&matchSvc;
+  }).sort((a,b)=>a.name.localeCompare(b.name));
+}
+
+function buildCategoryOptions(){
+  const cats=['All',...new Set(companies.map(c=>c.category))];
+  pickerCat.innerHTML=cats.map(c=>`<option${c===filterCat?' selected':''}>${c}</option>`).join('');
+}
+function buildServiceOptions(){
+  const svcs=['All',...new Set(companies.flatMap(c=>c.services||[]))].sort();
+  pickerSvc.innerHTML=svcs.map(s=>`<option${s===filterSvc?' selected':''}>${s}</option>`).join('');
+}
+function buildSelect(){
+  const filtered=getFiltered();
+  pickerSelect.innerHTML=`<option value="">— Select from ${filtered.length} companies —</option>`+filtered.map(c=>`<option value="${c.id}"${c.id===selectedId?' selected':''}>${c.name} · ${c.category}</option>`).join('');
+  const lbl=document.getElementById('filterSummaryLabel');
+  if(lbl)lbl.textContent=`Filter companies (${filtered.length} shown)`;
+}
+function toggleCompanyCard(){
+  const full=document.getElementById('pickerCardFull');
+  const btn=document.getElementById('pickerCardToggle');
+  const summary=document.getElementById('pickerCardSummary');
+  if(!full)return;
+  const open=full.hidden;
+  full.hidden=!open;
+  if(btn)btn.textContent=open?'Hide details ▴':'Show details ▾';
+  if(summary)summary.setAttribute('aria-expanded',String(open));
+}
+function collapsePicker(){
+  const body=document.getElementById('pickerBody');
+  const bar=document.getElementById('pickerCollapsedBar');
+  const nameEl=document.getElementById('pickerCollapsedName');
+  if(body)body.hidden=true;
+  if(nameEl)nameEl.textContent=selectedCompanyName||'—';
+  if(bar)bar.hidden=false;
+}
+function expandPicker(){
+  const body=document.getElementById('pickerBody');
+  const bar=document.getElementById('pickerCollapsedBar');
+  if(body)body.hidden=false;
+  if(bar)bar.hidden=true;
+}
+function renderCard(company){
+  if(!company){card.hidden=true;return;}
+  card.hidden=false;
+  // Always collapse detail panel when switching company
+  const full=document.getElementById('pickerCardFull');
+  const btn=document.getElementById('pickerCardToggle');
+  if(full)full.hidden=true;
+  if(btn)btn.textContent='Show details ▾';
+  $('pickerCardBadge').textContent=company.category;
+  $('pickerCardName').textContent=company.name;
+  const st=$('pickerCardProviderStatus');
+  st.className='provider-status '+(company.acceptingProviders?'accepting':'verify');
+  st.textContent=company.acceptingProviders?'Provider opportunities':'Verify enrollment';
+  const details=[];
+  if(company.headquarters)details.push(`<p><strong>HQ:</strong> ${company.headquarters}</p>`);
+  if(company.phone)details.push(`<p><strong>Phone:</strong> <a href="tel:${company.phone}">${company.phone}</a></p>`);
+  if(company.email)details.push(`<p><strong>Email:</strong> <a href="mailto:${company.email}">${company.email}</a></p>`);
+  if(company.states?.length)details.push(`<p><strong>Coverage:</strong> ${company.states.join(', ')}</p>`);
+  $('pickerCardDetails').innerHTML=details.join('');
+  $('pickerCardServices').innerHTML=(company.services||[]).map(s=>`<span>${s}</span>`).join('');
+  const actions=[];
+  if(company.website)actions.push(`<a class="secondary-button" href="${company.website}" target="_blank" rel="noreferrer">Company Website</a>`);
+  if(company.providerPortal)actions.push(`<a class="primary-button" href="${company.providerPortal}" target="_blank" rel="noreferrer">Provider Enrollment</a>`);
+  $('pickerCardActions').innerHTML=actions.join('');
+}
+function selectCompany(id){
+  selectedId=id;
+  const company=companies.find(c=>c.id===id)||null;
+  selectedCompanyName=company?.name||'';
+  renderCard(company);
+  // Enable/disable Continue button
+  const btn=$('pickerContinueBtn');
+  const msg=$('pickerContinueMsg');
+  if(company){
+    btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';
+    msg.textContent=`${company.name} selected.`;msg.style.color='#067647';
+  } else {
+    btn.disabled=true;btn.style.opacity='.45';btn.style.cursor='not-allowed';
+    msg.textContent='Select a company to continue.';msg.style.color='#667085';
+  }
+}
+function refresh(){buildSelect();buildCategoryOptions();buildServiceOptions();}
+
+window.expandPicker = expandPicker;
+window.toggleCompanyCard = toggleCompanyCard;
+window.collapsePicker = collapsePicker;
+
+// Events
+pickerSearch.addEventListener('input',()=>{filterSearch=pickerSearch.value;buildSelect();});
+pickerCat.addEventListener('change',()=>{filterCat=pickerCat.value;buildSelect();});
+pickerSvc.addEventListener('change',()=>{filterSvc=pickerSvc.value;buildSelect();});
+pickerSelect.addEventListener('change',()=>selectCompany(pickerSelect.value));
+$('pickerContinueBtn').addEventListener('click',()=>{
+  const company=companies.find(c=>c.id===selectedId)||null;
+  if(!company){alert('Please select a transportation company.');return;}
+  // Collapse the entire picker to just the company name bar
+  collapsePicker();
+  // Scroll to the first broker form field
+  const firstField=$('brokerReference');
+  if(firstField){firstField.closest('.formRow')?.scrollIntoView({behavior:'smooth',block:'start'});}
+});
+$('togglePickerAddForm').addEventListener('click',()=>{
+  const f=$('pickerAddForm');f.hidden=!f.hidden;
+  $('togglePickerAddForm').textContent=f.hidden?'+ Add Company':'Close Form';
+});
+$('cancelAddForm').addEventListener('click',()=>{$('pickerAddForm').hidden=true;$('togglePickerAddForm').textContent='+ Add Company';});
+$('saveCustomCompany').addEventListener('click',()=>{
+  const name=$('addCoName').value.trim();if(!name)return;
+  const newCo={
+    id:name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now(),
+    name,category:$('addCoCategory').value,
+    headquarters:$('addCoHQ').value.trim(),
+    phone:$('addCoPhone').value.trim(),email:$('addCoEmail').value.trim(),
+    website:$('addCoWebsite').value.trim(),
+    states:[],services:[],acceptingProviders:false
+  };
+  companies=[...companies,newCo];
+  refresh();
+  selectCompany(newCo.id);
+  pickerSelect.value=newCo.id;
+  $('pickerAddForm').hidden=true;
+  $('togglePickerAddForm').textContent='+ Add Company';
+  $('addCoName').value='';$('addCoHQ').value='';$('addCoPhone').value='';$('addCoEmail').value='';$('addCoWebsite').value='';
+});
+
+})();
+// ========== /TRANSPORTATION COMPANY PICKER ==========
+</script>
+<script>
+(function(){
+  const viewTypeFilter = document.getElementById('tripViewType');
+  const calendarMonthWrap = document.getElementById('tripCalendarMonthWrap');
+  const calendarMonthInput = document.getElementById('tripCalendarMonth');
+  const sourceFilter = document.getElementById('tripSourceFilter');
+  const timeframeFilter = document.getElementById('tripTimeframeFilter');
+  const refFilter = document.getElementById('tripReferenceFilter');
+  const summaryEl = document.getElementById('tripFilterSummary');
+  const rowsEl = document.getElementById('tripRows');
+  const tableWrap = document.getElementById('tripTableWrap');
+  const calendarView = document.getElementById('tripCalendarView');
+  const loadApiBtn = document.getElementById('loadTrips');
+  const loadLocalBtn = document.getElementById('loadLocal');
+  if(!viewTypeFilter || !calendarMonthWrap || !calendarMonthInput || !sourceFilter || !timeframeFilter || !refFilter || !rowsEl || !tableWrap || !calendarView || !loadApiBtn || !loadLocalBtn) return;
+
+  const baseRenderTrips = typeof window.renderTrips === 'function' ? window.renderTrips.bind(window) : null;
+  const state = { allTrips: [] };
+  const selectedRefs = window.__dispatchSelectedRefs instanceof Set ? window.__dispatchSelectedRefs : new Set();
+  window.__dispatchSelectedRefs = selectedRefs;
+  const now = new Date();
+  calendarMonthInput.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  if(loadLocalBtn) loadLocalBtn.hidden = true;
+
+  function refOf(trip){ return String(trip?.reference || trip?.id || '').trim(); }
+
+  function escapeHtml(value){
+    return String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+  }
+
+  function tripDateKey(trip){
+    const raw = String(trip?.date || '').trim();
+    const direct = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if(direct) return direct[1];
+    const parsed = new Date(raw);
+    if(Number.isNaN(parsed.getTime())) return '';
+    return `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}-${String(parsed.getDate()).padStart(2,'0')}`;
+  }
+
+  function parseTripDateTime(trip){
+    const date = tripDateKey(trip);
+    const time = String(trip?.time || '00:00').trim();
+    if(!date) return null;
+    const normalizedTime = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : '00:00:00';
+    const dt = new Date(`${date}T${normalizedTime}`);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  function classifyTrip(trip){
+    const source = String(trip?.bookingSource || trip?.source || '').toUpperCase();
+    const ref = refOf(trip).toUpperCase();
+    const name = String(trip?.name || '').toUpperCase();
+    const notes = String(trip?.notes || '').toUpperCase();
+    const isDemo =
+      source.includes('DEMO') || source.includes('LOCAL') || source.includes('MOCK') || source.includes('TEST') ||
+      ref.includes('DEMO') || ref.includes('LOCAL') ||
+      name.includes('DEMO RIDER') || name.startsWith('FLETCHER DEMO') ||
+      name.startsWith('PREVIEW RIDER') || name.startsWith('QUICK TEST RIDER') || name.startsWith('DEMO ') ||
+      notes.includes('LOCAL PREVIEW') || notes.includes('TESTING TRIP') || notes.includes('DEMO');
+    return isDemo ? 'DEMO' : 'REAL';
+  }
+
+  function normalizedStatus(trip){
+    const raw = String(trip?.status || trip?.statusLabel || '').trim();
+    if(!raw) return '';
+    return raw.toUpperCase().replaceAll('-', '_').replaceAll(' ', '_');
+  }
+
+  function getTripAppointmentTime(trip){
+    return String(
+      trip?.submittedAppointmentTime ||
+      trip?.appointmentTime ||
+      trip?.time ||
+      extractAppointmentTime(trip?.notes || '') ||
+      ''
+    ).trim();
+  }
+
+  function nextAdvanceLabel(trip){
+    const status = normalizedStatus(trip);
+    const prettyStatus = status
+      ? status.toLowerCase().replaceAll('_',' ').replace(/\b\w/g,(c)=>c.toUpperCase())
+      : 'Closed';
+    if(!getTripAppointmentTime(trip)){
+      return {label:'Missing Appointment', disabled:true, reason:'Appointment time must be entered by the submitter before this trip can proceed.'};
+    }
+    const dt = parseTripDateTime(trip);
+    const now = new Date();
+    if(dt && dt < now && ['SUBMITTED','SCHEDULED','REQUESTED'].includes(status)){
+      return {label:'Past Trip', disabled:true, reason:'This trip is in the past. Edit details or close it from the trip editor.'};
+    }
+    if(['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(status)){
+      return {label:`${prettyStatus} (Closed)`, disabled:true, reason:`This trip is closed with status ${prettyStatus} and cannot be advanced.`};
+    }
+    if(['SUBMITTED','SCHEDULED','REQUESTED'].includes(status)){
+      const hasAssignment =
+        Boolean(String(trip?.driverName || trip?.driver || '').trim()) ||
+        Boolean(String(trip?.vehicleUnit || trip?.vehicle || '').trim());
+      if(!hasAssignment){
+        return {label:'Await Assignment', disabled:true, reason:'Assign a driver or vehicle before advancing this trip.'};
+      }
+      return {label:'Mark Assigned', disabled:false, reason:'Advance to Assigned.'};
+    }
+    if(status === 'ASSIGNED') return {label:'Start Trip', disabled:false, reason:'Advance to En Route.'};
+    if(status === 'EN_ROUTE') return {label:'Mark Arrived', disabled:false, reason:'Advance to Arrived.'};
+    if(status === 'ARRIVED') return {label:'Begin Transit', disabled:false, reason:'Advance to In Transit.'};
+    if(status === 'IN_TRANSIT') return {label:'Complete Trip', disabled:false, reason:'Advance to Completed.'};
+    return {label:'Advance', disabled:false, reason:'Advance to the next trip status.'};
+  }
+
+  function renderCalendar(trips){
+    const value = String(calendarMonthInput.value || '').trim();
+    const monthMatch = value.match(/^(\d{4})-(\d{2})$/);
+    if(!monthMatch){
+      calendarView.innerHTML = '<p class="subtle">Select a valid month to render the calendar.</p>';
+      return;
+    }
+    const year = Number(monthMatch[1]);
+    const month = Number(monthMatch[2]) - 1;
+    const firstDay = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startOffset = firstDay.getDay();
+    const labels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    const byDate = new Map();
+    trips.forEach((trip)=>{
+      const key = tripDateKey(trip);
+      if(!key) return;
+      if(!byDate.has(key)) byDate.set(key, []);
+      byDate.get(key).push(trip);
+    });
+
+    let html = '<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px">';
+    html += labels.map((label)=>`<div style="font-weight:800;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em">${label}</div>`).join('');
+
+    const totalCells = 42;
+    for(let cell=0; cell<totalCells; cell+=1){
+      const dayNum = cell - startOffset + 1;
+      if(dayNum < 1 || dayNum > daysInMonth){
+        html += '<div style="min-height:120px;border:1px dashed #e2e8f0;border-radius:10px;background:#fafcff"></div>';
+        continue;
+      }
+      const key = `${year}-${String(month+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+      const dayTrips = byDate.get(key) || [];
+      const tripRows = dayTrips.slice(0,4).map((trip)=>{
+        const kind = classifyTrip(trip);
+        const tone = kind === 'REAL' ? 'green' : 'amber';
+        const status = escapeHtml(trip.statusLabel || trip.status || 'Submitted');
+        const ref = escapeHtml(refOf(trip) || '—');
+        const time = escapeHtml(String(trip.time || '--:--'));
+        return `<div style="padding:4px 6px;border:1px solid #dbe7f0;border-radius:8px;background:#fff;margin-top:4px"><div style="display:flex;justify-content:space-between;gap:6px;align-items:center"><strong style="font-size:11px">${time}</strong><span class="status ${tone}" style="font-size:10px">${kind}</span></div><div style="font-size:11px;color:#0f172a">${ref}</div><div style="font-size:10px;color:#52677c">${status}</div></div>`;
+      }).join('');
+      const extra = dayTrips.length > 4 ? `<div style="font-size:10px;color:#52677c;margin-top:4px">+${dayTrips.length - 4} more trips</div>` : '';
+      html += `<div style="min-height:120px;border:1px solid #d6e3ee;border-radius:10px;padding:8px;background:#f8fbfd"><div style="display:flex;justify-content:space-between;align-items:center"><strong>${dayNum}</strong><small style="color:#52677c">${dayTrips.length} trip${dayTrips.length===1?'':'s'}</small></div>${tripRows || '<div style="font-size:10px;color:#94a3b8;margin-top:8px">No trips</div>'}${extra}</div>`;
+    }
+    html += '</div>';
+    calendarView.innerHTML = html;
+  }
+
+  function inTimeframe(trip, timeframe){
+    if(timeframe === 'ALL') return true;
+    const dt = parseTripDateTime(trip);
+    if(!dt) return timeframe === 'PAST';
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endToday = new Date(startToday.getTime() + 24*60*60*1000);
+    if(timeframe === 'TODAY') return dt >= startToday && dt < endToday;
+    if(timeframe === 'NEXT_24H') return dt >= now && dt <= new Date(now.getTime() + 24*60*60*1000);
+    if(timeframe === 'NEXT_7D') return dt >= now && dt <= new Date(now.getTime() + 7*24*60*60*1000);
+    if(timeframe === 'PAST') return dt < now;
+    return true;
+  }
+
+  function applyFilters(trips){
+    const source = String(sourceFilter.value || 'ALL').toUpperCase();
+    const timeframe = String(timeframeFilter.value || 'ALL').toUpperCase();
+    const refQuery = String(refFilter.value || '').trim().toUpperCase();
+    return (Array.isArray(trips) ? trips : []).filter((trip) => {
+      const ref = refOf(trip).toUpperCase();
+      if(refQuery && !ref.includes(refQuery)) return false;
+      const kind = classifyTrip(trip);
+      if(source !== 'ALL' && kind !== source) return false;
+      return inTimeframe(trip, timeframe);
+    });
+  }
+
+  function annotateRows(filteredTrips){
+    const rowNodes = Array.from(rowsEl.querySelectorAll('tr'));
+    filteredTrips.forEach((trip, index) => {
+      const row = rowNodes[index];
+      if(!row) return;
+      const cell = row.children[0];
+      if(!cell) return;
+      const ref = refOf(trip) || '—';
+      const kind = classifyTrip(trip);
+      const tone = kind === 'REAL' ? 'green' : 'amber';
+      row.dataset.reference = ref;
+      const isChecked = selectedRefs.has(ref);
+      row.classList.toggle('selected', isChecked);
+      cell.innerHTML = `<label style="display:flex;align-items:flex-start;gap:8px"><input class="dispatch-bulk-select" data-ref="${ref}" type="checkbox" ${isChecked?'checked':''} aria-label="Select ${ref} for bulk updates"><span>${ref}<div style="margin-top:4px"><span class="status ${tone}" style="font-size:10px">${kind === 'REAL' ? 'REAL' : 'DEMO'}</span></div></span></label>`;
+      const advanceBtn = row.querySelector('[data-advance]');
+      if(advanceBtn){
+        const actionState = nextAdvanceLabel(trip);
+        advanceBtn.textContent = actionState.label;
+        advanceBtn.disabled = Boolean(actionState.disabled);
+        advanceBtn.title = actionState.reason;
+        if(kind === 'DEMO'){
+          advanceBtn.title = 'Demo trip: operational advance is disabled.';
+          advanceBtn.disabled = true;
+        }
+      }
+    });
+    if(typeof window.__dispatchBulkSelectionChanged === 'function') window.__dispatchBulkSelectionChanged();
+  }
+
+  function updateSummary(filtered){
+    const total = state.allTrips.length;
+    const realCount = state.allTrips.filter((trip) => classifyTrip(trip) === 'REAL').length;
+    const demoCount = total - realCount;
+    if(summaryEl){
+      summaryEl.textContent = `Showing ${filtered.length} of ${total} trips · Operational: ${realCount} · Demo excluded: ${demoCount}`;
+    }
+  }
+
+  function renderFiltered(){
+    const filtered = applyFilters(state.allTrips);
+    window.__dispatchTripsCache = filtered;
+    const viewType = String(viewTypeFilter.value || 'TABLE').toUpperCase();
+    const useCalendar = viewType === 'CALENDAR';
+    tableWrap.hidden = useCalendar;
+    calendarView.hidden = !useCalendar;
+    calendarMonthWrap.hidden = !useCalendar;
+    if(baseRenderTrips){
+      baseRenderTrips(filtered);
+      annotateRows(filtered);
+    }
+    if(useCalendar) renderCalendar(filtered);
+    updateSummary(filtered);
+  }
+
+  function mergeTrips(realTrips, localTrips){
+    const map = new Map();
+    (Array.isArray(localTrips) ? localTrips : []).forEach((trip) => {
+      const key = refOf(trip);
+      if(!key) return;
+      map.set(key, {...trip});
+    });
+    (Array.isArray(realTrips) ? realTrips : []).forEach((trip) => {
+      const key = refOf(trip);
+      if(!key) return;
+      map.set(key, {...map.get(key), ...trip});
+    });
+    const merged = Array.from(map.values());
+    merged.sort((a,b)=>{
+      const ad = parseTripDateTime(a)?.getTime() || 0;
+      const bd = parseTripDateTime(b)?.getTime() || 0;
+      return bd - ad;
+    });
+    return merged;
+  }
+
+  async function fetchApiTrips(){
+    const token = sessionStorage.getItem('nexusAccessToken') || '';
+    const res = await fetch('/api/portal/trips',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+    const json = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(json.error || 'Unable to load trips from API');
+    return Array.isArray(json.trips) ? json.trips : [];
+  }
+
+  function fetchLocalTrips(){
+    try{
+      return Array.isArray(window.NexusCore?.getTrips?.()) ? window.NexusCore.getTrips() : [];
+    }catch{
+      return [];
+    }
+  }
+
+  async function refreshTripsFromApi(){
+    const apiTrips = await fetchApiTrips();
+    state.allTrips = mergeTrips(apiTrips, []).filter((trip)=>classifyTrip(trip)==='REAL');
+    renderFiltered();
+  }
+
+  function refreshTripsLocalOnly(){
+    // Demo/local trip loading is disabled to keep dispatch view operationally clean.
+    state.allTrips = state.allTrips.filter((trip)=>classifyTrip(trip)==='REAL');
+    renderFiltered();
+  }
+
+  window.renderTrips = function(trips){
+    state.allTrips = Array.isArray(trips) ? trips : [];
+    renderFiltered();
+  };
+
+  window.advanceTrip = async function(id){
+    const reference = String(id || '').trim();
+    if(!reference) return;
+    const trip = state.allTrips.find((t)=>refOf(t)===reference) || null;
+    const actionState = nextAdvanceLabel(trip || {});
+    if(actionState.disabled){
+      window.NexusTripPopup?.show({
+        title:'Advance unavailable',
+        message:`Trip ${reference} cannot be advanced yet.`,
+        detail:actionState.reason,
+        accent:'#b54708'
+      });
+      return;
+    }
+    const button = document.querySelector(`[data-advance="${reference}"]`);
+    const originalText = button?.textContent || 'Advance';
+    if(button){ button.disabled = true; button.textContent = 'Advancing...'; }
+    window.NexusTripPopup?.show({
+      title:'Advancing trip',
+      message:`Trip ${reference} is being advanced.`,
+      detail:`Action: ${actionState.label}. Updating status history, audit logs, and notifications.`,
+      accent:'#0f766e'
+    });
+    try{
+      const token = sessionStorage.getItem('nexusAccessToken') || '';
+      const res = await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}/advance`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`}});
+      const json = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(json.error || 'Unable to advance trip');
+      const updated = json.booking || null;
+      if(updated){
+        state.allTrips = state.allTrips.map((trip)=>refOf(trip)===reference?{...trip,...updated}:trip);
+        renderFiltered();
+      }
+      const notify = json.notifications?.recipients;
+      const notifyDetail = notify ? ` Notifications: SMS ${notify.sms||0}, Email ${notify.email||0}.` : '';
+      window.NexusTripPopup?.show({title:'Trip advanced',message:`Trip ${reference} advanced successfully.`,detail:`Status history and audit logs were updated.${notifyDetail}`,accent:'#0f766e'});
+    }catch(err){
+      window.NexusTripPopup?.show({
+        title:'Advance failed',
+        message:`Trip ${reference} could not be advanced.`,
+        detail:err.message || 'Unable to advance trip',
+        accent:'#b42318'
+      });
+    }finally{
+      if(button){ button.disabled = false; button.textContent = originalText; }
+    }
+  };
+
+  rowsEl.addEventListener('change',(event)=>{
+    const checkbox = event.target.closest('.dispatch-bulk-select');
+    if(!checkbox) return;
+    const ref = String(checkbox.dataset.ref || '').trim();
+    if(!ref) return;
+    if(checkbox.checked) selectedRefs.add(ref);
+    else selectedRefs.delete(ref);
+    const row = checkbox.closest('tr');
+    if(row) row.classList.toggle('selected', checkbox.checked);
+    if(typeof window.__dispatchBulkSelectionChanged === 'function') window.__dispatchBulkSelectionChanged();
+  });
+
+  sourceFilter.addEventListener('change', renderFiltered);
+  timeframeFilter.addEventListener('change', renderFiltered);
+  refFilter.addEventListener('input', renderFiltered);
+  viewTypeFilter.addEventListener('change', renderFiltered);
+  calendarMonthInput.addEventListener('change', renderFiltered);
+
+  loadApiBtn.onclick = async ()=>{
+    try{ await refreshTripsFromApi(); }
+    catch(err){ alert(err.message || 'Unable to load trips from API'); }
+  };
+
+  loadLocalBtn.onclick = ()=>{ refreshTripsLocalOnly(); };
+
+  const autoLoad = async () => {
+    try{ await refreshTripsFromApi(); }
+    catch{ refreshTripsLocalOnly(); }
+  };
+
+  window.addEventListener('nexus:authorized', autoLoad);
+  if(window.NexusAuthorizedUser) autoLoad();
+})();
+</script>
+<script>
+(function(){
+  const board=document.getElementById('tripBoard');
+  const rows=document.getElementById('tripRows');
+  const refreshBtn=document.getElementById('loadTrips');
+  if(!board||!rows||!refreshBtn) return;
+
+  const selectedRefs=window.__dispatchSelectedRefs instanceof Set ? window.__dispatchSelectedRefs : new Set();
+  window.__dispatchSelectedRefs=selectedRefs;
+
+  let importedBulkRows=[];
+
+  const bulkLauncher=document.createElement('section');
+  bulkLauncher.className='card';
+  bulkLauncher.style.marginTop='14px';
+  bulkLauncher.innerHTML=`
+    <div class="sectionHead" style="margin-bottom:0"><div><p class="eyebrow">Dispatch Actions</p><h2 style="margin:0">Bulk template import</h2></div><div style="display:flex;align-items:center;gap:10px"><small class="subtle">Hidden by default. Open only when needed.</small><button id="dispatchBulkOpen" class="button ghost" type="button">Open bulk import</button></div></div>
+  `;
+  board.insertAdjacentElement('afterend',bulkLauncher);
+
+  const bulkPanel=document.createElement('section');
+  bulkPanel.className='card';
+  bulkPanel.style.marginTop='14px';
+  bulkPanel.hidden=true;
+  bulkPanel.innerHTML=`
+    <div class="sectionHead" style="margin-bottom:10px"><div><p class="eyebrow">Dispatch Actions</p><h2 style="margin:0">Bulk template import</h2></div><div style="display:flex;align-items:center;gap:10px"><small class="subtle">Download selected trips to CSV, edit, then upload and submit.</small><button id="dispatchBulkClose" class="button ghost" type="button">Close</button></div></div>
+    <div id="dispatchBulkMsg" class="msgBox" hidden></div>
+    <div style="padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--soft);margin-top:8px">
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+        <div><strong style="font-size:12px;color:#0f172a">1. Select trips</strong><div class="subtle" style="margin-top:4px" id="dispatchBulkSelectedCount">Selected trips: 0</div></div>
+        <div><strong style="font-size:12px;color:#0f172a">2. Download template</strong><div class="subtle" style="margin-top:4px">CSV contains one row per selected trip.</div></div>
+        <div><strong style="font-size:12px;color:#0f172a">3. Upload and submit</strong><div class="subtle" style="margin-top:4px" id="dispatchBulkImportCount">Imported rows: 0</div></div>
+      </div>
+    </div>
+    <input id="dispatchBulkUpload" type="file" accept=".csv,text/csv" hidden>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px">
+      <small class="subtle">Editable CSV columns: appointmentTime, checkInTime, status, service, date, time, driverName, vehicleUnit, bookingSource, submitterEntity, brokerCompanyName, brokerAcceptedRate, dispatchNote</small>
+      <div style="display:flex;gap:10px"><button id="dispatchBulkClear" class="button ghost" type="button">Clear selection</button><button id="dispatchBulkDownload" class="button ghost" type="button">Download CSV template</button><button id="dispatchBulkUploadBtn" class="button ghost" type="button">Upload CSV</button><button id="dispatchBulkSubmit" class="button primary" type="button">Submit imported updates</button></div>
+    </div>
+  `;
+  board.insertAdjacentElement('afterend',bulkPanel);
+
+  const panel=document.createElement('section');
+  panel.className='card';
+  panel.style.marginTop='14px';
+  panel.hidden=true;
+  panel.innerHTML=`
+    <div class="sectionHead" style="margin-bottom:10px"><div><p class="eyebrow">Dispatch Actions</p><h2 style="margin:0">Trip editor</h2></div><div style="display:flex;align-items:center;gap:10px"><small class="subtle">Opens when a trip row is clicked.</small><button id="dispatchEditClose" class="button ghost" type="button">Close</button></div></div>
+    <div id="dispatchEditMsg" class="msgBox" hidden></div>
+    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:8px">
+      <div class="formField"><label>Reference</label><input id="dispatchEditRef" type="text" readonly></div>
+      <div class="formField"><label>Status</label><select id="dispatchEditStatus"><option value="SUBMITTED">Submitted</option><option value="SCHEDULED">Scheduled</option><option value="ASSIGNED">Assigned</option><option value="EN_ROUTE">En Route</option><option value="ARRIVED">Arrived</option><option value="IN_TRANSIT">In Transit</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option><option value="NO_SHOW">No Show</option></select><small id="dispatchEditCurrentStatus" class="subtle">Current status: --</small></div>
+      <div class="formField"><label>Service</label><input id="dispatchEditService" type="text" placeholder="wheelchair"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Pickup</label><input id="dispatchEditPickup" type="text"></div>
+      <div class="formField"><label>Destination</label><input id="dispatchEditDestination" type="text"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Date</label><input id="dispatchEditDate" type="date"></div>
+      <div class="formField"><label>Appointment time</label><input id="dispatchEditAppointmentTime" type="time"></div>
+      <div class="formField"><label>Pickup time (calculated)</label><input id="dispatchEditTime" type="time"></div>
+      <div class="formField"><label>Check-in Time</label><input id="dispatchEditCheckInTime" type="time"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Driver</label><input id="dispatchEditDriver" type="text" placeholder="Driver name"></div>
+      <div class="formField"><label>Vehicle</label><input id="dispatchEditVehicle" type="text" placeholder="Vehicle unit"></div>
+      <div class="formField"><label>Submitter type</label><select id="dispatchEditSubmitterType"><option value="CUSTOMER">Customer</option><option value="FACILITY">Facility</option><option value="BROKER">Broker</option><option value="DISPATCH">Dispatch</option><option value="PATIENT">Patient</option><option value="STAFF">Staff</option><option value="DRIVER_REFERRAL">Driver Referral</option></select><small id="dispatchEditCurrentSubmitterType" class="subtle">Current submitter type: --</small></div>
+      <div class="formField"><label>Submitter login</label><input id="dispatchEditSubmitter" type="text" placeholder="email or entity login"></div>
+    </div>
+    <div class="formRow" id="dispatchEditBrokerRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px" hidden>
+      <div class="formField"><label>Broker company</label><select id="dispatchEditBrokerCompany"><option value="">Select company</option></select><small id="dispatchEditCurrentBrokerCompany" class="subtle">Current broker company: --</small></div>
+      <div class="formField"><label>Our estimate</label><input id="dispatchEditOurEstimate" type="text" readonly></div>
+      <div class="formField"><label>Broker accepted rate</label><input id="dispatchEditBrokerAcceptedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Patient name</label><input id="dispatchEditName" type="text"></div>
+      <div class="formField"><label>Patient phone</label><input id="dispatchEditPhone" type="text"></div>
+      <div class="formField"><label>Patient email</label><input id="dispatchEditEmail" type="email"></div>
+    </div>
+    <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Trip notes</label><input id="dispatchEditTripNotes" type="text" placeholder="Operational notes saved on the booking"></div>
+      <div class="formField"><label>Dispatch communication note</label><input id="dispatchEditNote" type="text" placeholder="Reason for update (shared with stakeholders)"></div>
+    </div>
+    <div id="dispatchEditDetails" style="margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px"><button id="dispatchEditSave" class="button primary" type="button">Save trip update</button></div>
+  `;
+  board.insertAdjacentElement('afterend',panel);
+
+  const get=(id)=>document.getElementById(id);
+  const bulkMsgEl=get('dispatchBulkMsg');
+  const bulkSelectedCountEl=get('dispatchBulkSelectedCount');
+  const bulkImportCountEl=get('dispatchBulkImportCount');
+  const msgEl=get('dispatchEditMsg');
+  const detailsEl=get('dispatchEditDetails');
+  let lastCalculatedPickup='';
+  let lastCalculatedCheckIn='';
+  let currentRef='';
+  let applyingEditorValues=false;
+  let editorBaselineSnapshot='';
+  let editorHasUnsavedChanges=false;
+  let companyYardAddress='22505 Gateway Center Dr, Clarksburg MD 20871';
+  let preTripInspectionMinutes=45;
+  let mapsEnabled=false;
+  let mapsBrowserKey='';
+  let mapsReadyPromise=null;
+  let routeTimingRequestId=0;
+  let currentRouteContext={distanceMiles:0,durationMinutes:0,trafficDurationMinutes:0,liveRouteMinutes:0,liveYardMinutes:0,liveYardTrafficMinutes:0};
+  let currentPersistedTripState={status:'',submitterType:'',brokerCompany:''};
+
+  function setBulkMsg(text,type){
+    if(!bulkMsgEl) return;
+    bulkMsgEl.hidden=false;
+    bulkMsgEl.className=`msgBox ${type==='err'?'err':'ok'}`;
+    bulkMsgEl.textContent=text;
+  }
+
+  function updateBulkSelectionUi(){
+    if(bulkSelectedCountEl) bulkSelectedCountEl.textContent=`Selected trips: ${selectedRefs.size}`;
+  }
+
+  function updateImportCountUi(){
+    if(bulkImportCountEl) bulkImportCountEl.textContent=`Imported rows: ${importedBulkRows.length}`;
+  }
+
+  function csvEscape(value){
+    const v=String(value??'');
+    if(/[",\n]/.test(v)) return `"${v.replaceAll('"','""')}"`;
+    return v;
+  }
+
+  function parseCsvRow(line){
+    const out=[];
+    let current='';
+    let inQuotes=false;
+    for(let i=0;i<line.length;i+=1){
+      const ch=line[i];
+      if(ch==='"'){
+        if(inQuotes&&line[i+1]==='"'){current+='"';i+=1;continue;}
+        inQuotes=!inQuotes;
+        continue;
+      }
+      if(ch===','&&!inQuotes){out.push(current);current='';continue;}
+      current+=ch;
+    }
+    out.push(current);
+    return out.map((x)=>String(x||'').trim());
+  }
+
+  function parseCsv(text){
+    const lines=String(text||'').replace(/\r/g,'').split('\n').filter((line)=>line.trim().length>0);
+    if(!lines.length) return [];
+    const headers=parseCsvRow(lines[0]);
+    const rows=[];
+    for(let i=1;i<lines.length;i+=1){
+      const cells=parseCsvRow(lines[i]);
+      const row={};
+      headers.forEach((h,idx)=>{row[h]=cells[idx]??'';});
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  function openBulkPanel(){
+    bulkPanel.hidden=false;
+    updateBulkSelectionUi();
+    updateImportCountUi();
+  }
+
+  function closeBulkPanel(){
+    bulkPanel.hidden=true;
+  }
+
+  window.__dispatchBulkSelectionChanged=updateBulkSelectionUi;
+  updateBulkSelectionUi();
+  updateImportCountUi();
+
+  function setMsg(text,type){
+    if(!msgEl) return;
+    msgEl.hidden=false;
+    msgEl.className=`msgBox ${type==='err'?'err':'ok'}`;
+    msgEl.textContent=text;
+  }
+
+  function prettyStatusValue(rawStatus){
+    const normalized=String(rawStatus||'').trim().toUpperCase().replaceAll('-','_').replaceAll(' ','_');
+    if(!normalized) return '--';
+    return normalized.toLowerCase().replaceAll('_',' ').replace(/\b\w/g,(c)=>c.toUpperCase());
+  }
+
+  function prettySubmitterType(rawType){
+    const normalized=String(rawType||'').trim().toUpperCase().replaceAll('-','_').replaceAll(' ','_');
+    if(!normalized) return '--';
+    return normalized.toLowerCase().replaceAll('_',' ').replace(/\b\w/g,(c)=>c.toUpperCase());
+  }
+
+  function updateCurrentTripStateLabels(){
+    const statusEl=get('dispatchEditCurrentStatus');
+    const submitterTypeEl=get('dispatchEditCurrentSubmitterType');
+    const brokerEl=get('dispatchEditCurrentBrokerCompany');
+    if(statusEl) statusEl.textContent=`Current status: ${prettyStatusValue(currentPersistedTripState.status)}`;
+    if(submitterTypeEl) submitterTypeEl.textContent=`Current submitter type: ${prettySubmitterType(currentPersistedTripState.submitterType)}`;
+    if(brokerEl) brokerEl.textContent=`Current broker company: ${currentPersistedTripState.brokerCompany||'--'}`;
+  }
+
+  function currentEditorSnapshot(){
+    const fields=[
+      'dispatchEditStatus','dispatchEditService','dispatchEditPickup','dispatchEditDestination','dispatchEditDate',
+      'dispatchEditAppointmentTime','dispatchEditTime','dispatchEditCheckInTime','dispatchEditDriver','dispatchEditVehicle',
+      'dispatchEditSubmitterType','dispatchEditSubmitter','dispatchEditBrokerCompany','dispatchEditBrokerAcceptedRate',
+      'dispatchEditName','dispatchEditPhone','dispatchEditEmail','dispatchEditTripNotes'
+    ];
+    const snapshot={};
+    fields.forEach((id)=>{ snapshot[id]=String(get(id)?.value||''); });
+    return JSON.stringify(snapshot);
+  }
+
+  function markEditorBaseline(){
+    editorBaselineSnapshot=currentEditorSnapshot();
+    editorHasUnsavedChanges=false;
+  }
+
+  function refreshUnsavedState(){
+    if(applyingEditorValues) return;
+    if(!currentRef||!editorBaselineSnapshot){
+      editorHasUnsavedChanges=false;
+      return;
+    }
+    editorHasUnsavedChanges=currentEditorSnapshot()!==editorBaselineSnapshot;
+  }
+
+  function confirmDiscardUnsavedChanges(actionLabel){
+    if(!editorHasUnsavedChanges) return true;
+    return window.confirm(`You have unsaved trip editor changes. Discard and ${actionLabel}?`);
+  }
+
+  function rowReference(row){
+    const fromDataset=String(row?.dataset?.reference||'').trim();
+    if(fromDataset) return fromDataset;
+    const txt=String(row?.cells?.[0]?.textContent||'');
+    const match=txt.match(/NMT-[A-Z0-9-]+/i);
+    return match?match[0]:'';
+  }
+
+  function extractAppointmentTime(note){
+    const text=String(note||'');
+    const m=text.match(/(?:Appointment\s*time|Appointment|Appt\s*time|Appt):\s*([0-2]?\d:[0-5]\d(?:\s*(?:AM|PM))?)/i);
+    if(!m) return '';
+    const raw=String(m[1]||'').trim();
+    const ampm=raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if(ampm){
+      let h=Number(ampm[1]);
+      const mm=Number(ampm[2]);
+      const meridiem=String(ampm[3]||'').toUpperCase();
+      if(!Number.isFinite(h)||!Number.isFinite(mm)||h<1||h>12||mm<0||mm>59) return '';
+      if(meridiem==='AM'&&h===12) h=0;
+      if(meridiem==='PM'&&h!==12) h+=12;
+      return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+    }
+    const hhmm=raw.match(/^(\d{1,2}):(\d{2})$/);
+    if(!hhmm) return '';
+    const h=Number(hhmm[1]);
+    const mm=Number(hhmm[2]);
+    if(!Number.isFinite(h)||!Number.isFinite(mm)||h<0||h>23||mm<0||mm>59) return '';
+    return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  }
+
+  function serviceLeadMinutes(service){
+    const s=String(service||'').toLowerCase();
+    if(s.includes('als2')) return 75;
+    if(s.includes('als1')) return 70;
+    if(s.includes('bls')) return 60;
+    if(s.includes('stretcher')) return 55;
+    if(s.includes('broda')) return 40;
+    if(s.includes('bariatric')) return 65;
+    if(s.includes('wheelchair')) return 35;
+    if(s.includes('facility_transfer_critical')) return 70;
+    if(s.includes('facility_transfer')) return 55;
+    return 25;
+  }
+
+  function parseDurationTextToMinutes(text){
+    const raw=String(text||'').toLowerCase();
+    if(!raw) return 0;
+    let total=0;
+    const hourMatches=[...raw.matchAll(/(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)/g)];
+    const minuteMatches=[...raw.matchAll(/(\d+(?:\.\d+)?)\s*(m|min|mins|minute|minutes)/g)];
+    hourMatches.forEach((m)=>{ total += Math.round(Number(m[1]||0)*60); });
+    minuteMatches.forEach((m)=>{ total += Math.round(Number(m[1]||0)); });
+    if(total>0) return total;
+    const numeric=Number(raw.replace(/[^\d.]/g,''));
+    return Number.isFinite(numeric)?Math.round(numeric):0;
+  }
+
+  function parseRouteContextFromBooking(booking){
+    const estText=String(booking?.estimatedDuration||'');
+    const trafficMatch=estText.match(/traffic[^\d]*(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)?/i);
+    const yardTrafficMatch=String(booking?.notes||'').match(/Yard to pickup traffic estimate:\s*(\d+(?:\.\d+)?)\s*min/i);
+    const yardBaseMatch=String(booking?.notes||'').match(/Yard to pickup estimate:\s*(\d+(?:\.\d+)?)\s*min/i);
+    let trafficMinutes=0;
+    if(trafficMatch){
+      const value=Number(trafficMatch[1]||0);
+      const unit=String(trafficMatch[2]||'m').toLowerCase();
+      trafficMinutes=unit.startsWith('h')?Math.round(value*60):Math.round(value);
+    }
+    return {
+      distanceMiles:Math.max(0,Number(booking?.distanceMiles||0)||0),
+      durationMinutes:Math.max(0,parseDurationTextToMinutes(estText)),
+      trafficDurationMinutes:Math.max(0,trafficMinutes),
+      yardToPickupMinutes:Math.max(0,Number(yardBaseMatch?.[1]||0)||0),
+      yardToPickupTrafficMinutes:Math.max(0,Number(yardTrafficMatch?.[1]||0)||0)
+    };
+  }
+
+  function resolveRouteDepartureTime(tripDate, appointmentTime){
+    const date=String(tripDate||'').trim();
+    const time=String(appointmentTime||'').trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(date)&&/^\d{2}:\d{2}$/.test(time)){
+      const local=new Date(`${date}T${time}:00`);
+      if(!Number.isNaN(local.getTime())) return local;
+    }
+    return new Date();
+  }
+
+  async function loadMaps(){
+    if(mapsReadyPromise) return mapsReadyPromise;
+    mapsReadyPromise=new Promise((resolve,reject)=>{
+      if(window.google?.maps?.DirectionsService){ resolve(); return; }
+      if(!mapsEnabled||!mapsBrowserKey){ reject(new Error('Google Maps is not configured.')); return; }
+      const script=document.createElement('script');
+      script.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsBrowserKey)}&libraries=places`;
+      script.async=true;
+      script.defer=true;
+      script.onload=()=>resolve();
+      script.onerror=()=>reject(new Error('Could not load Google Maps.'));
+      document.head.appendChild(script);
+    });
+    return mapsReadyPromise;
+  }
+
+  async function estimateTripRouteMinutes(pickup, destination, tripDate, appointmentTime){
+    const cleanPickup=String(pickup||'').trim();
+    const cleanDestination=String(destination||'').trim();
+    if(!cleanPickup||!cleanDestination) return {minutes:0, trafficMinutes:0};
+    try{
+      await loadMaps();
+      const dirSvc=new google.maps.DirectionsService();
+      const departureTime=resolveRouteDepartureTime(tripDate, appointmentTime);
+      const result=await new Promise((resolve,reject)=>{
+        dirSvc.route({
+          origin: cleanPickup,
+          destination: cleanDestination,
+          travelMode: google.maps.TravelMode.DRIVING,
+          drivingOptions: { departureTime, trafficModel: google.maps.TrafficModel.BEST_GUESS },
+          unitSystem: google.maps.UnitSystem.IMPERIAL
+        }, (res, status) => status === 'OK' ? resolve(res) : reject(new Error(status)));
+      });
+      const legs=result.routes?.[0]?.legs || [];
+      const minutes=legs.reduce((sum, leg) => sum + (Number(leg?.duration?.value || 0) / 60), 0);
+      const trafficMinutes=legs.reduce((sum, leg) => sum + (Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60), 0);
+      return {
+        minutes: Math.max(0, Math.round(minutes)),
+        trafficMinutes: Math.max(0, Math.round(trafficMinutes || minutes))
+      };
+    }catch{
+      return {minutes:0, trafficMinutes:0};
+    }
+  }
+
+  async function estimateYardToPickupRoute(pickup, tripDate, appointmentTime){
+    const cleanPickup=String(pickup||'').trim();
+    if(!cleanPickup||!companyYardAddress) return {minutes:0, trafficMinutes:0};
+    try{
+      await loadMaps();
+      const dirSvc=new google.maps.DirectionsService();
+      const departureTime=resolveRouteDepartureTime(tripDate, appointmentTime);
+      const result=await new Promise((resolve,reject)=>{
+        dirSvc.route({
+          origin: companyYardAddress,
+          destination: cleanPickup,
+          travelMode: google.maps.TravelMode.DRIVING,
+          drivingOptions: { departureTime, trafficModel: google.maps.TrafficModel.BEST_GUESS },
+          unitSystem: google.maps.UnitSystem.IMPERIAL
+        }, (res, status) => status === 'OK' ? resolve(res) : reject(new Error(status)));
+      });
+      const legs=result.routes?.[0]?.legs || [];
+      const minutes=legs.reduce((sum, leg) => sum + (Number(leg?.duration?.value || 0) / 60), 0);
+      const trafficMinutes=legs.reduce((sum, leg) => sum + (Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60), 0);
+      return {
+        minutes: Math.max(0, Math.round(minutes)),
+        trafficMinutes: Math.max(0, Math.round(trafficMinutes || minutes))
+      };
+    }catch{
+      return {minutes:0, trafficMinutes:0};
+    }
+  }
+
+  function getDynamicRouteMinutes(){
+    const liveMinutes=Math.max(0,Number(currentRouteContext.liveRouteMinutes||0));
+    if(liveMinutes>0) return liveMinutes;
+    const trafficDurationMinutes=Math.max(0,Number(currentRouteContext.trafficDurationMinutes||0));
+    const durationMinutes=Math.max(0,Number(currentRouteContext.durationMinutes||0));
+    const routeMinutes=Math.max(trafficDurationMinutes,durationMinutes);
+    if(routeMinutes>0) return routeMinutes;
+    return serviceLeadMinutes(get('dispatchEditService')?.value||'');
+  }
+
+  function getYardToPickupMinutes(){
+    const yardTraffic=Math.max(0,Number(currentRouteContext.liveYardTrafficMinutes||currentRouteContext.yardToPickupTrafficMinutes||0));
+    const yardBase=Math.max(0,Number(currentRouteContext.liveYardMinutes||currentRouteContext.yardToPickupMinutes||0));
+    return Math.max(yardTraffic,yardBase);
+  }
+
+  function getDriverYardReportTime(){
+    const pickup=get('dispatchEditTime')?.value||'';
+    const m=String(pickup).match(/^(\d{2}):(\d{2})$/);
+    if(!m) return '—';
+    const pickupTotal=(Number(m[1])*60)+Number(m[2]);
+    const yardTravel=Math.ceil(getYardToPickupMinutes());
+    const report=((pickupTotal-yardTravel-Math.max(0,Number(preTripInspectionMinutes||0)))%1440+1440)%1440;
+    const hh=String(Math.floor(report/60)).padStart(2,'0');
+    const mm=String(report%60).padStart(2,'0');
+    return `${hh}:${mm}`;
+  }
+
+  function updateCheckInFromPickup(){
+    const calculated=getDriverYardReportTime();
+    if(calculated==='—') return;
+    get('dispatchEditCheckInTime').value=calculated;
+    lastCalculatedCheckIn=calculated;
+  }
+
+  async function loadDispatchOpsSettings(){
+    try{
+      const [settingsRes, integrationsRes] = await Promise.all([
+        fetch('/api/settings/public',{cache:'no-store'}),
+        fetch('/api/integrations/config',{cache:'no-store'})
+      ]);
+      const settings=await settingsRes.json().catch(()=>({}));
+      if(settingsRes.ok&&settings?.organization){
+        const yard=String(settings.organization.yardAddress||'').trim();
+        if(yard) companyYardAddress=yard;
+        const preTrip=Number(settings.organization.preTripInspectionMinutes);
+        if(Number.isFinite(preTrip)) preTripInspectionMinutes=Math.max(0,Math.min(180,preTrip));
+      }
+      const integrations=await integrationsRes.json().catch(()=>({}));
+      mapsEnabled=!!integrations.googleMapsEnabled;
+      mapsBrowserKey=String(integrations.googleMapsBrowserKey||'').trim();
+    }catch{}
+  }
+
+  function shiftTimeBack(timeHHMM, minutesBack){
+    const m=String(timeHHMM||'').match(/^(\d{2}):(\d{2})$/);
+    if(!m) return '';
+    const total=Number(m[1])*60+Number(m[2]);
+    const shifted=((total-minutesBack)%1440+1440)%1440;
+    const hh=String(Math.floor(shifted/60)).padStart(2,'0');
+    const mm=String(shifted%60).padStart(2,'0');
+    return `${hh}:${mm}`;
+  }
+
+  async function updatePickupFromAppointment(){
+    const requestId=++routeTimingRequestId;
+    const appointment=get('dispatchEditAppointmentTime').value;
+    if(!appointment){
+      get('dispatchEditTime').value='';
+      get('dispatchEditCheckInTime').value='';
+      lastCalculatedPickup='';
+      lastCalculatedCheckIn='';
+      return;
+    }
+    const pickupValue=String(get('dispatchEditPickup').value||'').trim();
+    const destinationValue=String(get('dispatchEditDestination').value||'').trim();
+    const tripDate=String(get('dispatchEditDate').value||'').trim();
+    const [routeEstimate, yardEstimate]=await Promise.all([
+      estimateTripRouteMinutes(pickupValue,destinationValue,tripDate,appointment),
+      estimateYardToPickupRoute(pickupValue,tripDate,appointment)
+    ]);
+    if(requestId!==routeTimingRequestId) return;
+    const liveRouteMinutes=Math.max(0,Number(routeEstimate.trafficMinutes||routeEstimate.minutes||0));
+    if(liveRouteMinutes>0){
+      currentRouteContext.liveRouteMinutes=liveRouteMinutes;
+      currentRouteContext.durationMinutes=Math.max(0,Number(routeEstimate.minutes||0));
+      currentRouteContext.trafficDurationMinutes=Math.max(0,Number(routeEstimate.trafficMinutes||routeEstimate.minutes||0));
+    }
+    const fallbackRouteMinutes=Math.max(0,Math.ceil(getDynamicRouteMinutes()));
+    const liveYardMinutes=Math.max(0,Number(yardEstimate.trafficMinutes||yardEstimate.minutes||0));
+    if(liveYardMinutes>0){
+      currentRouteContext.liveYardMinutes=Math.max(0,Number(yardEstimate.minutes||0));
+      currentRouteContext.liveYardTrafficMinutes=Math.max(0,Number(yardEstimate.trafficMinutes||yardEstimate.minutes||0));
+    }
+    const dispatchBufferMinutes=15;
+    const routeMinutes=Math.max(0,liveRouteMinutes||fallbackRouteMinutes);
+    const calc=appointment?shiftTimeBack(appointment,routeMinutes+dispatchBufferMinutes):'';
+    if(calc){
+      get('dispatchEditTime').value=calc;
+    }
+    lastCalculatedPickup=calc;
+    updateCheckInFromPickup();
+  }
+
+  function toggleBrokerFields(){
+    const type=String(get('dispatchEditSubmitterType').value||'CUSTOMER').toUpperCase();
+    const isBroker=type==='BROKER';
+    const brokerRow=get('dispatchEditBrokerRow');
+    if(brokerRow) brokerRow.hidden=!isBroker;
+  }
+
+  async function loadBrokerCompanies(){
+    const select=get('dispatchEditBrokerCompany');
+    if(!select) return;
+    const names=[];
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    try{
+      const r=await fetch('/api/admin/brokers',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+      const j=await r.json().catch(()=>({}));
+      if(r.ok&&Array.isArray(j.brokers)){
+        j.brokers.forEach((b)=>{ if(b?.name) names.push(String(b.name)); });
+      }
+    }catch{}
+    if(!names.length){
+      try{
+        const r=await fetch('/api/transportation-companies',{cache:'no-store'});
+        const j=await r.json().catch(()=>[]);
+        if(r.ok&&Array.isArray(j)) j.forEach((c)=>{ if(c?.name) names.push(String(c.name)); });
+      }catch{}
+    }
+    const unique=[...new Set(names)].sort((a,b)=>a.localeCompare(b));
+    select.innerHTML='<option value="">Select company</option>'+unique.map((name)=>`<option value="${name}">${name}</option>`).join('');
+  }
+
+  function getBookingAppointmentTime(booking){
+    return String(
+      booking?.submittedAppointmentTime ||
+      booking?.appointmentTime ||
+      extractAppointmentTime(booking?.notes || '') ||
+      ''
+    ).slice(0,5);
+  }
+
+  async function fetchBookingByReference(reference){
+    const ref=String(reference||'').trim();
+    if(!ref) return null;
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    const res=await fetch(`/api/admin/bookings/${encodeURIComponent(ref)}`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Unable to verify saved trip');
+    return data.booking||null;
+  }
+
+  function normalizeHHMM(value){
+    const raw=String(value||'').trim();
+    const m=raw.match(/^([0-2]?\d):([0-5]\d)(?:\s*(AM|PM))?$/i);
+    if(!m) return raw.slice(0,5);
+    let h=Number(m[1]);
+    const mm=Number(m[2]);
+    const meridiem=String(m[3]||'').toUpperCase();
+    if(meridiem){
+      if(meridiem==='AM'&&h===12) h=0;
+      if(meridiem==='PM'&&h!==12) h+=12;
+    }
+    if(!Number.isFinite(h)||h<0||h>23||!Number.isFinite(mm)||mm<0||mm>59) return raw.slice(0,5);
+    return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  }
+
+  function collectSaveMismatches(saved,payload){
+    const mismatches=[];
+    const expected={
+      appointmentTime:normalizeHHMM(payload.appointmentTime),
+      pickupTime:normalizeHHMM(payload.time),
+      checkInTime:normalizeHHMM(payload.checkInTime||''),
+      status:String(payload.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
+      service:String(payload.service||''),
+      date:String(payload.date||'').slice(0,10),
+      pickup:String(payload.pickup||''),
+      destination:String(payload.destination||''),
+      driverName:String(payload.driverName||''),
+      vehicleUnit:String(payload.vehicleUnit||'')
+    };
+    const actual={
+      appointmentTime:normalizeHHMM(getBookingAppointmentTime(saved)),
+      pickupTime:normalizeHHMM(String(saved?.time||'')),
+      checkInTime:normalizeHHMM(String(saved?.checkInTime||'')),
+      status:String(saved?.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
+      service:String(saved?.service||''),
+      date:String(saved?.date||'').slice(0,10),
+      pickup:String(saved?.pickup||''),
+      destination:String(saved?.destination||''),
+      driverName:String(saved?.driverName||saved?.driver||''),
+      vehicleUnit:String(saved?.vehicleUnit||saved?.vehicle||'')
+    };
+    Object.keys(expected).forEach((key)=>{
+      if(expected[key]!==actual[key]) mismatches.push(key);
+    });
+    return mismatches;
+  }
+
+  async function applyEditorValues(b){
+    applyingEditorValues=true;
+    currentPersistedTripState={
+      status:String(b.status||''),
+      submitterType:String(b.bookingSource||'CUSTOMER'),
+      brokerCompany:String(b.brokerCompanyName||'')
+    };
+    updateCurrentTripStateLabels();
+    currentRouteContext=parseRouteContextFromBooking(b);
+    currentRouteContext.liveRouteMinutes=0;
+    currentRouteContext.liveYardMinutes=0;
+    currentRouteContext.liveYardTrafficMinutes=0;
+    get('dispatchEditRef').value=b.reference||currentRef||'';
+    get('dispatchEditStatus').value=String((b.status||'SUBMITTED')).toUpperCase().replaceAll('-','_').replaceAll(' ','_');
+    get('dispatchEditService').value=b.service||'';
+    get('dispatchEditPickup').value=b.pickup||'';
+    get('dispatchEditDestination').value=b.destination||'';
+    get('dispatchEditDate').value=String(b.date||'').slice(0,10);
+    get('dispatchEditTime').value='';
+    get('dispatchEditDriver').value=b.driverName||b.driver||'';
+    get('dispatchEditVehicle').value=b.vehicleUnit||b.vehicle||'';
+    get('dispatchEditSubmitterType').value=String(b.bookingSource||'CUSTOMER').toUpperCase();
+    get('dispatchEditSubmitter').value=b.submitterEntity||'';
+    get('dispatchEditBrokerCompany').value=b.brokerCompanyName||'';
+    get('dispatchEditOurEstimate').value=b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'--';
+    get('dispatchEditBrokerAcceptedRate').value=b.brokerAcceptedRate!=null?String(Number(b.brokerAcceptedRate).toFixed(2)):'';
+    get('dispatchEditName').value=b.name||'';
+    get('dispatchEditPhone').value=b.phone||'';
+    get('dispatchEditEmail').value=b.email||'';
+    get('dispatchEditTripNotes').value=b.notes||'';
+    get('dispatchEditAppointmentTime').value=getBookingAppointmentTime(b);
+    get('dispatchEditCheckInTime').value='';
+    await updatePickupFromAppointment();
+    if(!get('dispatchEditAppointmentTime').value){
+      const persistedPickup=String(b.time||'').slice(0,5);
+      if(persistedPickup){
+        get('dispatchEditTime').value=persistedPickup;
+        lastCalculatedPickup=persistedPickup;
+      }
+      const persistedCheckIn=String(b.checkInTime||'').slice(0,5);
+      if(persistedCheckIn){
+        get('dispatchEditCheckInTime').value=persistedCheckIn;
+        lastCalculatedCheckIn=persistedCheckIn;
+      }else{
+        updateCheckInFromPickup();
+      }
+    }
+    applyingEditorValues=false;
+    markEditorBaseline();
+    toggleBrokerFields();
+    updateEditorDetails(b);
+    if(b.appointmentMissing && !get('dispatchEditAppointmentTime').value){
+      setMsg('Warning: Appointment time is missing from submitter data. Enter appointment time and save before any further actions.','err');
+    }
+  }
+
+  function updateEditorDetails(b){
+    if(!detailsEl) return;
+    const details=[
+      ['Booking source', b.bookingSource || 'CUSTOMER'],
+      ['Submitter login', b.submitterEntity || '—'],
+      ['Broker company', b.brokerCompanyName || '—'],
+      ['Broker accepted rate', b.brokerAcceptedRate!=null?`$${Number(b.brokerAcceptedRate).toFixed(2)}`:'—'],
+      ['Submitter appointment', b.submittedAppointmentTime || 'MISSING'],
+      ['Route minutes used', String(getDynamicRouteMinutes() || '—')],
+      ['Company yard', companyYardAddress || '—'],
+      ['Yard to pickup minutes', getYardToPickupMinutes()>0?String(Math.round(getYardToPickupMinutes())):'—'],
+      ['Pre-trip inspection (min)', String(Math.round(preTripInspectionMinutes||0))],
+      ['Check-in Time', get('dispatchEditCheckInTime')?.value || getDriverYardReportTime()],
+      ['Payment status', b.paymentStatus || 'UNPAID'],
+      ['Estimated fare', b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'—'],
+      ['Distance miles', b.distanceMiles!=null?String(b.distanceMiles):'—'],
+      ['Estimated duration', b.estimatedDuration || '—'],
+      ['Deposit amount', b.depositAmount!=null?`$${Number(b.depositAmount).toFixed(2)}`:'—'],
+      ['Balance due', b.balanceDue!=null?`$${Number(b.balanceDue).toFixed(2)}`:'—'],
+      ['Facility ID', b.facilityId || '—'],
+      ['Last updated by', b.lastUpdatedBy || '—'],
+      ['Last updated at', b.lastUpdatedAt || '—'],
+      ['Alternate phone', b.alternatePhone || '—'],
+      ['Alternate email', b.alternateEmail || '—']
+    ];
+    detailsEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${details.map(([k,v])=>`<div style="background:#fff;border:1px solid #d6e3ee;border-radius:10px;padding:8px"><div style="font-size:11px;color:#52677c">${k}</div><div style="font-weight:700;color:#0f172a;word-break:break-word">${String(v||'—')}</div></div>`).join('')}</div>`;
+  }
+
+  async function loadTrip(reference){
+    if(!reference)return;
+    const cached=(window.__dispatchTripsCache||[]).find((trip)=>String(trip?.reference||trip?.id||'')===String(reference));
+    if(cached){
+      currentRef=reference;
+      await applyEditorValues(cached);
+      setMsg(`Loaded ${reference}. Refreshing full trip details...`,'ok');
+    }
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    const res=await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Unable to load trip details');
+    const b=data.booking||{};
+    if(!data.booking) throw new Error('Trip details response was incomplete. Please refresh and retry.');
+    currentRef=reference;
+    await applyEditorValues(b);
+    get('dispatchEditNote').value='';
+    setMsg(`Loaded ${reference}. Edit fields and save to notify stakeholders.`,'ok');
+  }
+
+  rows.addEventListener('click',async(event)=>{
+    const clickedAction=event.target.closest('button,a,input,select');
+    if(clickedAction) return;
+    const row=event.target.closest('tr');
+    if(!row) return;
+    const ref=rowReference(row);
+    if(!ref) return;
+    if(!confirmDiscardUnsavedChanges('open another trip')) return;
+    panel.hidden=false;
+    try{await loadTrip(ref);}catch(err){setMsg(err.message||'Unable to load selected trip','err');}
+  });
+
+  get('dispatchEditClose').addEventListener('click',()=>{
+    if(!confirmDiscardUnsavedChanges('close the trip editor')) return;
+    panel.hidden=true;
+    currentRef='';
+    editorHasUnsavedChanges=false;
+    editorBaselineSnapshot='';
+  });
+
+  get('dispatchEditSave').addEventListener('click',async()=>{
+    if(!currentRef){setMsg('Click a trip row first.','err');return;}
+    const appointmentTime=get('dispatchEditAppointmentTime').value;
+    if(!appointmentTime){setMsg('Appointment time is required. Enter appointment time to proceed.','err');return;}
+    await updatePickupFromAppointment();
+    const confirmUpdate=window.confirm(
+      `Confirm trip update for ${currentRef}?\n\n`+
+      `Appointment: ${get('dispatchEditAppointmentTime').value || '--:--'}\n`+
+      `Pickup: ${get('dispatchEditTime').value || '--:--'}\n`+
+      `Check-in: ${get('dispatchEditCheckInTime').value || '--:--'}\n\n`+
+      'Click OK to save and notify stakeholders.'
+    );
+    if(!confirmUpdate){
+      setMsg('Trip update canceled before save.','err');
+      return;
+    }
+    const payload={
+      status:get('dispatchEditStatus').value,
+      service:get('dispatchEditService').value,
+      pickup:get('dispatchEditPickup').value,
+      destination:get('dispatchEditDestination').value,
+      date:get('dispatchEditDate').value,
+      time:get('dispatchEditTime').value,
+      driverName:get('dispatchEditDriver').value,
+      vehicleUnit:get('dispatchEditVehicle').value,
+      appointmentTime:appointmentTime,
+      bookingSource:get('dispatchEditSubmitterType').value,
+      submitterEntity:get('dispatchEditSubmitter').value,
+      brokerCompanyName:get('dispatchEditSubmitterType').value==='BROKER'?get('dispatchEditBrokerCompany').value:'',
+      brokerAcceptedRate:get('dispatchEditSubmitterType').value==='BROKER'?get('dispatchEditBrokerAcceptedRate').value:'',
+      name:get('dispatchEditName').value,
+      phone:get('dispatchEditPhone').value,
+      email:get('dispatchEditEmail').value,
+      notes:get('dispatchEditTripNotes').value,
+      dispatchNote:get('dispatchEditNote').value
+    };
+    const checkInTimeValue=get('dispatchEditCheckInTime').value;
+    if(checkInTimeValue) payload.checkInTime=checkInTimeValue;
+    const button=get('dispatchEditSave');
+    button.disabled=true;
+    button.textContent='Saving...';
+    try{
+      const token=sessionStorage.getItem('nexusAccessToken')||'';
+      const res=await fetch(`/api/admin/bookings/${encodeURIComponent(currentRef)}`,{method:'PATCH',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(payload)});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.error||'Unable to save trip update');
+      const notify=data.notifications||{};
+      const recipients=notify.recipients||null;
+      let recipientMsg='';
+      if(recipients){
+        recipientMsg=` Notifications sent (SMS: ${recipients.sms||0}, Email: ${recipients.email||0}).`;
+      }else if(notify.status==='skipped-no-diff'){
+        recipientMsg=' Notification skipped: no meaningful trip changes were detected.';
+      }else if(notify.status==='skipped'){
+        recipientMsg=' Notification skipped.';
+      }else if(notify.status==='failed'){
+        recipientMsg=` Notification failed${notify.error?`: ${notify.error}`:''}.`;
+      }else if(notify.status){
+        recipientMsg=` Notification status: ${notify.status}.`;
+      }
+      let saved=data.booking||null;
+      try{
+        const verified=await fetchBookingByReference(currentRef);
+        if(verified) saved=verified;
+      }catch{}
+      if(saved){
+        await applyEditorValues(saved);
+        get('dispatchEditNote').value='';
+        const mismatches=collectSaveMismatches(saved,payload);
+        if(mismatches.length){
+          editorHasUnsavedChanges=true;
+          const labelMap={
+            appointmentTime:'Appointment',
+            pickupTime:'Pickup',
+            checkInTime:'Check-in',
+            status:'Status',
+            service:'Service',
+            date:'Date',
+            pickup:'Pickup address',
+            destination:'Destination address',
+            driverName:'Driver',
+            vehicleUnit:'Vehicle'
+          };
+          const labels=mismatches.map((k)=>labelMap[k]||k).join(', ');
+          setMsg(`Trip ${currentRef} update response received, but server values differ for: ${labels}. Please review and save again.`,'err');
+          return;
+        }
+      }
+      markEditorBaseline();
+      const savedAppointment=String(saved?.submittedAppointmentTime||saved?.appointmentTime||'').slice(0,5)||'MISSING';
+      const savedPickup=String(saved?.time||'').slice(0,5)||'--:--';
+      const savedCheckIn=String(saved?.checkInTime||'').slice(0,5)||'--:--';
+      const verifyMsg=saved?' Persisted values verified from database.':' Save succeeded but database verification was unavailable.';
+      const persistedMsg=` Saved values -> Appointment: ${savedAppointment}; Pickup: ${savedPickup}; Check-in: ${savedCheckIn}.${verifyMsg}`;
+      setMsg(`Trip ${currentRef} updated successfully.${recipientMsg}${persistedMsg}`,'ok');
+      refreshBtn.click();
+    }catch(err){
+      setMsg(err.message||'Unable to save trip update','err');
+    }finally{
+      button.disabled=false;
+      button.textContent='Save trip update';
+    }
+  });
+
+  get('dispatchBulkOpen').addEventListener('click',openBulkPanel);
+  get('dispatchBulkClose').addEventListener('click',closeBulkPanel);
+
+  get('dispatchBulkClear').addEventListener('click',()=>{
+    selectedRefs.clear();
+    rows.querySelectorAll('.dispatch-bulk-select').forEach((checkbox)=>{
+      checkbox.checked=false;
+      const row=checkbox.closest('tr');
+      if(row) row.classList.remove('selected');
+    });
+    updateBulkSelectionUi();
+    setBulkMsg('Selection cleared.','ok');
+  });
+
+  get('dispatchBulkDownload').addEventListener('click',()=>{
+    if(!selectedRefs.size){setBulkMsg('Select at least one trip before downloading template.','err');return;}
+    const selectedTrips=(window.__dispatchTripsCache||[]).filter((trip)=>selectedRefs.has(String(trip.reference||trip.id||'')));
+    if(!selectedTrips.length){setBulkMsg('Selected trips are not available in current filtered view. Refresh and retry.','err');return;}
+    const headers=['reference','appointmentTime','checkInTime','status','service','date','time','driverName','vehicleUnit','bookingSource','submitterEntity','brokerCompanyName','brokerAcceptedRate','dispatchNote'];
+    const rows=[headers.join(',')];
+    selectedTrips.forEach((trip)=>{
+      const values=[
+        trip.reference||trip.id||'',
+        trip.submittedAppointmentTime||'',
+        trip.checkInTime||'',
+        String(trip.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
+        trip.service||'',
+        String(trip.date||'').slice(0,10),
+        String(trip.time||'').slice(0,5),
+        trip.driverName||trip.driver||'',
+        trip.vehicleUnit||trip.vehicle||'',
+        trip.bookingSource||'',
+        trip.submitterEntity||'',
+        trip.brokerCompanyName||'',
+        trip.brokerAcceptedRate!=null?Number(trip.brokerAcceptedRate).toFixed(2):'',
+        ''
+      ];
+      rows.push(values.map(csvEscape).join(','));
+    });
+    const blob=new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;
+    link.download=`dispatch-bulk-template-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setBulkMsg(`Template downloaded for ${selectedTrips.length} selected trip${selectedTrips.length===1?'':'s'}.`,'ok');
+  });
+
+  get('dispatchBulkUploadBtn').addEventListener('click',()=>get('dispatchBulkUpload').click());
+
+  get('dispatchBulkUpload').addEventListener('change',async(event)=>{
+    const file=event.target.files?.[0];
+    if(!file) return;
+    try{
+      const text=await file.text();
+      const parsed=parseCsv(text);
+      if(!parsed.length){setBulkMsg('Uploaded CSV is empty.','err');return;}
+      const hasReference=Object.keys(parsed[0]||{}).some((key)=>String(key).trim().toLowerCase()==='reference');
+      if(!hasReference){setBulkMsg('CSV must include a reference column.','err');return;}
+      importedBulkRows=parsed.map((row)=>{
+        const normalized={};
+        Object.keys(row).forEach((key)=>{normalized[String(key).trim()]=row[key];});
+        return normalized;
+      });
+      updateImportCountUi();
+      setBulkMsg(`CSV uploaded. ${importedBulkRows.length} row${importedBulkRows.length===1?'':'s'} ready to submit.`,'ok');
+    }catch(err){
+      setBulkMsg(err.message||'Unable to parse CSV file.','err');
+    }finally{
+      event.target.value='';
+    }
+  });
+
+  get('dispatchBulkSubmit').addEventListener('click',async()=>{
+    if(!importedBulkRows.length){setBulkMsg('Upload an edited CSV before submitting.','err');return;}
+    const button=get('dispatchBulkSubmit');
+    button.disabled=true;
+    button.textContent='Submitting...';
+    let success=0;
+    const failures=[];
+    try{
+      const token=sessionStorage.getItem('nexusAccessToken')||'';
+      for(const row of importedBulkRows){
+        const reference=String(row.reference||row.Reference||'').trim();
+        if(!reference){failures.push('Row missing reference.');continue;}
+        const payload={};
+        const status=String(row.status||row.Status||'').trim();
+        const appointmentTime=String(row.appointmentTime||row.AppointmentTime||'').trim();
+        const checkInTime=String(row.checkInTime||row.CheckInTime||'').trim();
+        const service=String(row.service||row.Service||'').trim();
+        const date=String(row.date||row.Date||'').trim();
+        const time=String(row.time||row.Time||'').trim();
+        const driverName=String(row.driverName||row.DriverName||'').trim();
+        const vehicleUnit=String(row.vehicleUnit||row.VehicleUnit||'').trim();
+        const bookingSource=String(row.bookingSource||row.BookingSource||'').trim();
+        const submitterEntity=String(row.submitterEntity||row.SubmitterEntity||'').trim();
+        const brokerCompanyName=String(row.brokerCompanyName||row.BrokerCompanyName||'').trim();
+        const brokerAcceptedRate=String(row.brokerAcceptedRate||row.BrokerAcceptedRate||'').trim();
+        const dispatchNote=String(row.dispatchNote||row.DispatchNote||'').trim();
+        if(appointmentTime) payload.appointmentTime=appointmentTime;
+        if(checkInTime) payload.checkInTime=checkInTime;
+        if(status) payload.status=status;
+        if(service) payload.service=service;
+        if(date) payload.date=date;
+        if(time) payload.time=time;
+        if(driverName) payload.driverName=driverName;
+        if(vehicleUnit) payload.vehicleUnit=vehicleUnit;
+        if(bookingSource) payload.bookingSource=bookingSource;
+        if(submitterEntity) payload.submitterEntity=submitterEntity;
+        if(brokerCompanyName) payload.brokerCompanyName=brokerCompanyName;
+        if(brokerAcceptedRate) payload.brokerAcceptedRate=brokerAcceptedRate;
+        if(dispatchNote) payload.dispatchNote=dispatchNote;
+        if(!Object.keys(payload).length) continue;
+
+        const res=await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}`,{method:'PATCH',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(payload)});
+        const data=await res.json().catch(()=>({}));
+        if(!res.ok){
+          failures.push(`${reference}: ${data.error||'Unable to update'}`);
+          continue;
+        }
+        selectedRefs.delete(reference);
+        success+=1;
+      }
+      updateBulkSelectionUi();
+      importedBulkRows=[];
+      updateImportCountUi();
+      if(failures.length){
+        setBulkMsg(`Bulk import submitted. Updated ${success}. First error: ${failures[0]}`,'err');
+      }else{
+        setBulkMsg(`Bulk import submitted successfully. Updated ${success} trip${success===1?'':'s'}.`,'ok');
+      }
+      refreshBtn.click();
+    }catch(err){
+      setBulkMsg(err.message||'Bulk import submit failed.','err');
+    }finally{
+      button.disabled=false;
+      button.textContent='Submit imported updates';
+    }
+  });
+
+  get('dispatchEditAppointmentTime').addEventListener('input',updatePickupFromAppointment);
+  get('dispatchEditService').addEventListener('input',updatePickupFromAppointment);
+  get('dispatchEditPickup').addEventListener('input',updatePickupFromAppointment);
+  get('dispatchEditDestination').addEventListener('input',updatePickupFromAppointment);
+  get('dispatchEditDate').addEventListener('change',updatePickupFromAppointment);
+  get('dispatchEditTime').addEventListener('input',updateCheckInFromPickup);
+  get('dispatchEditSubmitterType').addEventListener('change',toggleBrokerFields);
+  panel.addEventListener('input',refreshUnsavedState);
+  panel.addEventListener('change',refreshUnsavedState);
+  loadDispatchOpsSettings();
+  loadBrokerCompanies();
+})();
 </script></body></html>
+
+
