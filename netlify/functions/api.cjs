@@ -968,15 +968,19 @@ function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary'}){
  const dialNumber=xmlEscape(targetNumber);
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(message)}</Say>\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
 }
-function voiceOpeningScript(){
- return "Thank you for calling Nexus Medical Transit. You’ve reached the Nexus Virtual Receptionist. I can help request transportation, answer questions about our services, check how to reach dispatch, or connect you with the appropriate team. How may I assist you today?";
+function voiceOpeningScript(config){
+ const now=nowInTimeZone(config?.businessHoursTz||'America/New_York');
+ const hour=Number(now.hour||0);
+ const dayGreeting=hour<12?'Good morning':(hour<17?'Good afternoon':'Good evening');
+ const base="Thank you for calling Nexus Medical Transit. You've reached the Nexus Virtual Receptionist. I'm here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?";
+ return `${dayGreeting}. ${base}`;
 }
 function buildVoiceAssistantInstructions(){
  return [
   'You are the Nexus Virtual Receptionist for Nexus Medical Transit.',
   '',
-  'Begin every new call by saying exactly:',
-  '"Thank you for calling Nexus Medical Transit. You’ve reached the Nexus Virtual Receptionist. I can help request transportation, answer questions about our services, check how to reach dispatch, or connect you with the appropriate team. How may I assist you today?"',
+  'Begin every new call by including a time-of-day greeting (Good morning, Good afternoon, or Good evening) and then saying:',
+  '"Thank you for calling Nexus Medical Transit. You\'ve reached the Nexus Virtual Receptionist. I\'m here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?"',
   '',
   'IDENTITY AND DISCLOSURE',
   '- Clearly identify yourself as an AI virtual receptionist.',
@@ -1134,7 +1138,7 @@ async function handler(event){
     const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
     return xmlResponse(200,body);
    }
-  const opening=voiceOpeningScript();
+  const opening=voiceOpeningScript(config);
    const nonPhiNotice=config.nonPhiMode?' For privacy, I can only collect general callback information until a Nexus representative joins the call.':'';
    if(!config.streamUrl){
     const fallbackTwiml=config.primaryDispatch
