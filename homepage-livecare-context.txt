@@ -1,4 +1,4 @@
-﻿
+
   __deploy_temp\assets\index-drvotlb1.js:15:            ${v}px !important;
   __deploy_temp\assets\index-drvotlb1.js:16:          }
 > __deploy_temp\assets\index-drvotlb1.js:17:        `),()=>{s.current?.removeAt
@@ -512,9 +512,9 @@ Shuttle`,tag:`Community`,copy:`Accessible group and facility shuttle options
 for healthcare and senior programs.`,accent:`green`}],Qu=[{label:`Services`,hre
 f:`#services`},{label:`Experience`,href:`#patient-experience`},{label:`Coverage
 `,href:`#coverage`},{label:`Facilities`,href:`#facilities`},{label:`Assurance`,
-href:`#safety-and-quality`}],$u=[[`en-US`,`ðŸ‡ºðŸ‡¸`,`English`],[`en-GB`,`ðŸ‡¬ð
-Ÿ‡§`,`English 
-UK`],[`fr`,`ðŸ‡«ðŸ‡·`,`FranÃ§ais`],[`es`,`ðŸ‡ªðŸ‡¸`,`EspaÃ±ol`]];function ed(){
+href:`#safety-and-quality`}],$u=[[`en-US`,`🇺🇸`,`English`],[`en-GB`,`🇬�
+���`,`English 
+UK`],[`fr`,`🇫🇷`,`Français`],[`es`,`🇪🇸`,`Español`]];function ed(){
 let[e,t]=(0,S.useState)(()=>localStorage.getItem(`nexus_locale`)||`en-US`);retu
 rn(0,S.useEffect)(()=>{let e=e=>t(e.detail?.locale||document.documentElement.da
 taset.locale||`en-US`);return window.addEventListener(`nexus:localechange`,e),(
@@ -632,7 +632,7 @@ navigation`,className:e?`navlinks open`:`navlinks`,children:Qu.map(e=>(0,V.jsx)
 (`a`,{href:e.href,onClick:()=>t(!1),children:e.label},e.label))}),(0,V.jsxs)(`d
 iv`,{className:`navRight`,children:[(0,V.jsx)(`a`,{className:`livecareLink`,hre
 f:`/livecare.html`,children:`Livecare`}),(0,V.jsx)(ed,{}),(0,V.jsxs)(`a`,{class
-Name:`call`,href:`tel:+18887604990`,"aria-label":`Call Nexus at 888-760-4990`,c
+Name:`call`,href:`tel:+18886395766`,"aria-label":`Call Nexus at 888-639-5766`,c
 hildren:[(0,V.jsx)(Wu,{size:18,"aria-hidden":`true`}),(0,V.jsxs)(`span`,{childr
 en:[(0,V.jsx)(`small`,{children:`Call Nexus`}),(0,V.jsx)(`b`,{children:`(888) 7
 60-4990`})]})]}),(0,V.jsxs)(rd,{onBook:b,className:`navBookRide`,children:[(0,V
@@ -690,7 +690,7 @@ muted`,children:(0,V.jsxs)(`div`,{className:`shell split`,children:[(0,V.jsxs)(
 dark`,children:[(0,V.jsx)(`span`,{}),` A better patient 
 journey`]}),(0,V.jsx)(`h2`,{children:`Confidence before, during and after the 
 ride.`}),(0,V.jsx)(`p`,{className:`lead`,children:`The new Nexus experience 
-combines compassionate care with practical technologyâ€”without replacing the 
+combines compassionate care with practical technology—without replacing the 
 human support patients rely on.`}),(0,V.jsx)(`div`,{className:`journey`,childre
 n:ad.map(([e,t,n])=>(0,V.jsxs)(`article`,{children:[(0,V.jsx)(`b`,{children:e})
 ,(0,V.jsxs)(`div`,{children:[(0,V.jsx)(`h3`,{children:t}),(0,V.jsx)(`p`,{childr
@@ -701,7 +701,7 @@ Status`}),(0,V.jsx)(`button`,{type:`button`,"aria-label":`View trip status
 details`,onClick:()=>x(`Trip-status experience`,`Patients and authorized 
 caregivers can view request receipt, coordination review, driver assignment, 
 ETA updates and safe-arrival confirmation.`,`Book a transportation request`),ch
-ildren:`â€¢â€¢â€¢`})]}),(0,V.jsxs)(`div`,{className:`phoneMap`,children:[(0,V.j
+ildren:`•••`})]}),(0,V.jsxs)(`div`,{className:`phoneMap`,children:[(0,V.j
 sx)(`div`,{className:`street one`}),(0,V.jsx)(`div`,{className:`street 
 two`}),(0,V.jsx)(`div`,{className:`street three`}),(0,V.jsx)(`span`,{className:
 `mapStart`}),(0,V.jsx)(`span`,{className:`mapEnd`}),(0,V.jsx)(`span`,{className
@@ -711,7 +711,7 @@ update`}),(0,V.jsx)(`b`,{children:`Driver assignment pending`})]}),(0,V.jsx)(`s
 pan`,{children:`Coordinating`})]}),(0,V.jsx)(`div`,{className:`phoneTimeline`,c
 hildren:[`Request received`,`Coordination review`,`Driver assigned`,`Safe arriv
 al`].map((e,t)=>(0,V.jsxs)(`div`,{className:t===0?`done`:t===1?`active`:``,chil
-dren:[(0,V.jsx)(`b`,{children:t===0?`âœ“`:t+1}),(0,V.jsxs)(`span`,{children:[(0
+dren:[(0,V.jsx)(`b`,{children:t===0?`✓`:t+1}),(0,V.jsxs)(`span`,{children:[(0
 ,V.jsx)(`strong`,{children:e}),(0,V.jsx)(`small`,{children:[`Transportation 
 details submitted`,`Matching service and availability`,`Vehicle and arrival 
 window shared`,`Trip completion confirmed`][t]})]})]},e))})]})]})}),(0,V.jsx)(`
@@ -732,7 +732,7 @@ region.`}),(0,V.jsx)(`p`,{className:`lead lightText`,children:`Transportation
 throughout Maryland, Washington, DC and Northern Virginia, subject to trip 
 needs and availability.`}),(0,V.jsxs)(`div`,{className:`coverageList`,children:
 [(0,V.jsxs)(`article`,{children:[(0,V.jsx)(`b`,{children:`Maryland`}),(0,V.jsx)
-(`span`,{children:`Montgomery, Prince Georgeâ€™s, Frederick, Howard, Anne 
+(`span`,{children:`Montgomery, Prince George’s, Frederick, Howard, Anne 
 Arundel and surrounding communities.`})]}),(0,V.jsxs)(`article`,{children:[(0,V
 .jsx)(`b`,{children:`Washington, DC`}),(0,V.jsx)(`span`,{children:`Hospital 
 discharge, dialysis, rehabilitation and specialty appointments.`})]}),(0,V.jsxs
@@ -755,7 +755,7 @@ jsx)(Fu,{size:16})]})]},t))}),(0,V.jsxs)(`div`,{className:`heroActions`,childre
 n:[(0,V.jsx)(`button`,{className:`primary 
 xl`,onClick:()=>a(!0),children:`Become a Facility 
 Partner`}),(0,V.jsx)(`a`,{className:`outline 
-xl`,href:`tel:+18887604990`,children:`Speak with 
+xl`,href:`tel:+18886395766`,children:`Speak with 
 Nexus`})]})]}),(0,V.jsx)(cd,{onAction:(e,t)=>x(e,t,`Open facility partnership r
 equest`)})]})}),(0,V.jsx)(`section`,{id:`safety-and-quality`,className:`section
  muted`,children:(0,V.jsxs)(`div`,{className:`shell qualityGrid`,children:[(0,V
@@ -788,12 +788,12 @@ notifications and corrective action tracking.`})]}),(0,V.jsx)(Fu,{})]})]})]})})
 ,(0,V.jsx)(`section`,{className:`cta`,children:(0,V.jsxs)(`div`,{className:`she
 ll ctaInner`,children:[(0,V.jsxs)(`div`,{children:[(0,V.jsxs)(`div`,{className:
 `eyebrow`,children:[(0,V.jsx)(`span`,{}),` Access Drives 
-Equity`]}),(0,V.jsx)(`h2`,{children:`Letâ€™s coordinate the next medical 
+Equity`]}),(0,V.jsx)(`h2`,{children:`Let’s coordinate the next medical 
 journey.`}),(0,V.jsx)(`p`,{children:`Request a ride online or speak directly 
 with the Nexus team.`})]}),(0,V.jsxs)(`div`,{className:`heroActions`,children:[
 (0,V.jsx)(rd,{onBook:b,className:`white xl`,children:`Book a 
 Ride`}),(0,V.jsx)(`a`,{className:`ghost 
-xl`,href:`tel:+18887604990`,children:`Call (888) 760-4990`})]})]})})]}),(0,V.js
+xl`,href:`tel:+18886395766`,children:`Call (888) 639-5766`})]})]})})]}),(0,V.js
 xs)(`footer`,{children:[(0,V.jsxs)(`div`,{className:`shell footerGrid`,children
 :[(0,V.jsxs)(`div`,{className:`footerBrand`,children:[(0,V.jsx)(`a`,{className:
 `brand footerLogoLink`,href:`#home`,"aria-label":`Nexus Medical Transit 
@@ -810,19 +810,19 @@ st`}),(0,V.jsx)(`a`,{href:`#services`,children:`Services`}),(0,V.jsx)(`a`,{href
 Partners`}),(0,V.jsx)(`button`,{onClick:()=>a(!0),children:`Facility Partnershi
 p`}),(0,V.jsx)(`a`,{href:`#coverage`,children:`Coverage`}),(0,V.jsx)(`a`,{href:
 `/facility.html`,children:`Facility Portal`})]}),(0,V.jsxs)(`div`,{children:[(0
-,V.jsx)(`h4`,{children:`Contact`}),(0,V.jsx)(`a`,{href:`tel:+18887604990`,child
+,V.jsx)(`h4`,{children:`Contact`}),(0,V.jsx)(`a`,{href:`tel:+18886395766`,child
 ren:`(888) 760-4990`}),(0,V.jsx)(`a`,{href:`mailto:contact@nexusmt.com`,childre
 n:`contact@nexusmt.com`}),(0,V.jsxs)(`a`,{href:`https://wa.me/12023159253`,targ
 et:`_blank`,rel:`noopener noreferrer`,children:[`WhatsApp: (202) 315-9253 
 `,(0,V.jsx)(`span`,{className:`srOnly`,children:`(opens in a new 
 tab)`})]}),(0,V.jsx)(`span`,{children:`Dispatch: 
-24/7`}),(0,V.jsx)(`span`,{children:`Office: Monâ€“Fri, 8 AMâ€“6 PM 
+24/7`}),(0,V.jsx)(`span`,{children:`Office: Mon–Fri, 8 AM–6 PM 
 ET`}),(0,V.jsxs)(`a`,{href:`https://nexusmt.com`,target:`_blank`,rel:`noopener 
 noreferrer`,children:[`nexusmt.com 
 `,(0,V.jsx)(`span`,{className:`srOnly`,children:`(opens in a new 
 tab)`})]}),(0,V.jsx)(`a`,{href:`./accessibility.html`,children:`Accessibility 
 statement`})]})]}),(0,V.jsxs)(`div`,{className:`shell 
-footerBottom`,children:[(0,V.jsx)(`span`,{children:`Â© 2026 Nexus Medical 
+footerBottom`,children:[(0,V.jsx)(`span`,{children:`© 2026 Nexus Medical 
 Transit LLC`}),(0,V.jsx)(`span`,{children:`For emergencies, call 911.`})]})]}),
 (0,V.jsxs)(`button`,{className:`accessButton`,type:`button`,"aria-expanded":u,"
 aria-controls":`accessibility-options`,"aria-label":u?`Close Section 508 
@@ -849,7 +849,7 @@ div`,{className:`infoActions`,children:[(0,V.jsxs)(`button`,{className:`primary
 )},children:[c.action?.toLowerCase().includes(`facility`)?`Open Facility 
 Request`:`Book a Ride`,` `,(0,V.jsx)(ju,{size:18,"aria-hidden":`true`})]}),(0,V
 .jsxs)(`a`,{className:`outline 
-xl`,href:`tel:+18887604990`,children:[(0,V.jsx)(Wu,{size:17}),` Call 
+xl`,href:`tel:+18886395766`,children:[(0,V.jsx)(Wu,{size:17}),` Call 
 Nexus`]})]})})]})]})}function sd({kicker:e,title:t,copy:n}){return(0,V.jsxs)(`d
 iv`,{className:`sectionHeader`,children:[(0,V.jsxs)(`div`,{children:[(0,V.jsxs)
 (`div`,{className:`eyebrow dark`,children:[(0,V.jsx)(`span`,{}),` 
@@ -1005,7 +1005,7 @@ received`}),(0,V.jsxs)(`p`,{children:[`Confirmation: `,(0,V.jsx)(`b`,{children:
 n.reference})]}),(0,V.jsxs)(`div`,{className:`summaryBox`,children:[(0,V.jsxs)(
 `span`,{children:[(0,V.jsx)(`b`,{children:`Status`}),n.statusLabel]}),(0,V.jsxs
 )(`span`,{children:[(0,V.jsx)(`b`,{children:`Service`}),n.service]}),(0,V.jsxs)
-(`span`,{children:[(0,V.jsx)(`b`,{children:`Trip`}),n.pickup,` â†’ `,n.destinat
+(`span`,{children:[(0,V.jsx)(`b`,{children:`Trip`}),n.pickup,` → `,n.destinat
 ion]}),(0,V.jsxs)(`span`,{children:[(0,V.jsx)(`b`,{children:`Requested`}),n.dat
 e,` at `,n.time]}),n.distanceMiles&&(0,V.jsxs)(`span`,{children:[(0,V.jsx)(`b`,
 {children:`Distance`}),Number(n.distanceMiles).toFixed(1),` miles`]}),n.estimat
@@ -1050,7 +1050,7 @@ ldren:[(0,V.jsxs)(`div`,{className:`routePlannerHeader`,children:[(0,V.jsxs)(`d
 iv`,{children:[(0,V.jsx)(`b`,{children:`Trip route and fare 
 estimate`}),(0,V.jsx)(`span`,{children:g?`Select both addresses to calculate 
 mileage and ETA.`:`Loading secure map 
-servicesâ€¦`})]}),(0,V.jsxs)(`button`,{type:`button`,className:`outline 
+services…`})]}),(0,V.jsxs)(`button`,{type:`button`,className:`outline 
 compact`,onClick:ee,disabled:!g,children:[(0,V.jsx)(Gu,{size:17}),` Calculate r
 oute`]})]}),(0,V.jsx)(`div`,{ref:b,className:`bookingMap`,role:`img`,"aria-labe
 l":`Map showing the calculated route between pickup and destination`,children:(
@@ -1075,7 +1075,7 @@ requirements.`]}),(0,V.jsxs)(`label`,{className:`check wide`,children:[(0,V.jsx
 understand this request is not confirmed until Nexus contacts 
 me.`]}),i&&(0,V.jsx)(`div`,{className:`apiError wide`,role:`alert`,children:i})
 ,(0,V.jsx)(`button`,{type:`submit`,disabled:o,className:`primary xl 
-wide`,children:o?`Submittingâ€¦`:`Submit Transportation Request`})]})}function 
+wide`,children:o?`Submitting…`:`Submit Transportation Request`})]})}function 
 Sd(){let[e,t]=(0,S.useState)(null),[n,r]=(0,S.useState)(``),[i,a]=(0,S.useState
 )(!1);return e?(0,V.jsxs)(`div`,{className:`success`,role:`status`,"aria-live":
 `polite`,children:[(0,V.jsx)(Iu,{"aria-hidden":`true`}),(0,V.jsx)(`h3`,{childre
@@ -1109,7 +1109,7 @@ tel`,maxLength:`30`})]}),(0,V.jsxs)(`label`,{className:`wide`,children:[`Transp
 ortation needs`,(0,V.jsx)(`textarea`,{required:!0,name:`needs`,rows:`4`,maxLeng
 th:`3000`})]}),n&&(0,V.jsx)(`div`,{className:`apiError wide`,role:`alert`,child
 ren:n}),(0,V.jsx)(`button`,{type:`submit`,disabled:i,className:`primary xl 
-wide`,children:i?`Submittingâ€¦`:`Submit Partnership Request`})]})}function Cd(
+wide`,children:i?`Submitting…`:`Submit Partnership Request`})]})}function Cd(
 ){let[e,t]=(0,S.useState)(null),[n,r]=(0,S.useState)(``),[i,a]=(0,S.useState)(!
 1);return e?(0,V.jsxs)(`div`,{className:`trackResult`,role:`status`,"aria-live"
 :`polite`,children:[(0,V.jsxs)(`div`,{className:`trackStatus`,children:[(0,V.js
@@ -1118,7 +1118,7 @@ ll`,{children:`Current status`}),(0,V.jsx)(`h3`,{children:e.statusLabel})]})]})
 ,(0,V.jsxs)(`div`,{className:`summaryBox`,children:[(0,V.jsxs)(`span`,{children
 :[(0,V.jsx)(`b`,{children:`Reference`}),e.reference]}),(0,V.jsxs)(`span`,{child
 ren:[(0,V.jsx)(`b`,{children:`Service`}),e.service]}),(0,V.jsxs)(`span`,{childr
-en:[(0,V.jsx)(`b`,{children:`Requested trip`}),e.pickup,` â†’ 
+en:[(0,V.jsx)(`b`,{children:`Requested trip`}),e.pickup,` → 
 `,e.destination]}),(0,V.jsxs)(`span`,{children:[(0,V.jsx)(`b`,{children:`Date 
 / time`}),e.date,` at `,e.time]}),e.driverName&&(0,V.jsxs)(`span`,{children:[(0
 ,V.jsx)(`b`,{children:`Driver`}),e.driverName]}),e.vehicleUnit&&(0,V.jsxs)(`spa
@@ -1135,8 +1135,10 @@ quired:!0,name:`reference`,placeholder:`NMT-20260715-0001`,autoCapitalize:`char
 acters`})]}),(0,V.jsxs)(`label`,{className:`wide`,children:[`Phone number`,(0,V
 .jsx)(`input`,{required:!0,name:`phone`,type:`tel`})]}),n&&(0,V.jsx)(`div`,{cla
 ssName:`apiError wide`,role:`alert`,children:n}),(0,V.jsx)(`button`,{type:`subm
-it`,disabled:i,className:`primary xl wide`,children:i?`Checkingâ€¦`:`Check 
+it`,disabled:i,className:`primary xl wide`,children:i?`Checking…`:`Check 
 Request Status`})]})}(0,Xu.createRoot)(document.getElementById(`root`)).render(
 (0,V.jsx)(S.StrictMode,{children:(0,V.jsx)(od,{})}));
+
+
 
 

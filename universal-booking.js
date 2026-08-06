@@ -1,4 +1,4 @@
-﻿// @version 2.1.0 - Optimized layout deployment
+// @version 2.1.0 - Optimized layout deployment
 (function(){
   'use strict';
   // Build v2.1 - Optimized layout deployed
@@ -129,7 +129,7 @@
     if(!list){list=document.createElement('datalist');list.id=listId;document.body.appendChild(list);input.setAttribute('list',listId);}
     const update=async()=>{
       const q=input.value.trim();if(q.length<2)return;
-      try{const data=await api('/locations/search?q='+encodeURIComponent(q));list.innerHTML='';(data.locations||[]).slice(0,10).forEach(x=>{const o=document.createElement('option');o.value=x.address||x.name;o.label=x.name+(x.address?' — '+x.address:'');list.appendChild(o)});}catch{}
+      try{const data=await api('/locations/search?q='+encodeURIComponent(q));list.innerHTML='';(data.locations||[]).slice(0,10).forEach(x=>{const o=document.createElement('option');o.value=x.address||x.name;o.label=x.name+(x.address?' � '+x.address:'');list.appendChild(o)});}catch{}
     };
     input.addEventListener('input',()=>{clearTimeout(input._nexusSearchTimer);input._nexusSearchTimer=setTimeout(update,180)});
   }
@@ -283,7 +283,7 @@
   setTimeout(scan,500);setTimeout(scan,1500);setTimeout(scan,3000);
   scan();
 
-  // ── Cancel / Reschedule ──────────────────────────────────────────────────
+  // -- Cancel / Reschedule --------------------------------------------------
   function injectManageTrip(){
     // Look for booking form container - if tabs already exist, skip
     if(document.querySelector('.nexusManagedTrip'))return;
@@ -404,8 +404,8 @@
       console.log('[Nexus] Manage button clicked - formHeading:',formHeading?.tagName,formHeading?.textContent);
       // Swap form heading inside the dialog
       if(formHeading){
-        console.log('[Nexus] Swapping heading text to: ← Manage Trip');
-        formHeading.textContent='← Manage Trip';
+        console.log('[Nexus] Swapping heading text to: ? Manage Trip');
+        formHeading.textContent='? Manage Trip';
       }else{
         console.log('[Nexus] WARNING: formHeading is null or undefined');
       }
@@ -509,7 +509,7 @@
       const mapId='nexus-map-'+Math.random().toString(36).slice(2);
       const tabContents={
         timeline:`<em style="color:#94a3b8">No timeline events yet.</em>`,
-        notes:`<p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#082f49">Trip Notes</p><textarea placeholder="Add a note…" style="width:100%;height:56px;padding:7px 9px;border:1px solid #dce6ee;border-radius:6px;box-sizing:border-box;font-size:12px;resize:vertical"></textarea>`,
+        notes:`<p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#082f49">Trip Notes</p><textarea placeholder="Add a note�" style="width:100%;height:56px;padding:7px 9px;border:1px solid #dce6ee;border-radius:6px;box-sizing:border-box;font-size:12px;resize:vertical"></textarea>`,
         driver:`<em style="color:#94a3b8">No driver assigned yet.</em>`,
         vehicle:`<em style="color:#94a3b8">No vehicle assigned yet.</em>`,
         billing:`<em style="color:#94a3b8">No billing information available.</em>`,
@@ -560,15 +560,15 @@
               <div style="padding:12px;border:2px solid #0369a1;border-radius:8px;background:#dbeafe;display:flex;flex-direction:column;gap:8px">
                 <div style="display:flex;justify-content:space-between;align-items:center">
                   <span style="font-weight:600;color:#082f49">Subtotal</span>
-                  <span style="font-weight:600;color:#0369a1;font-size:14px" data-fare="subtotal">—</span>
+                  <span style="font-weight:600;color:#0369a1;font-size:14px" data-fare="subtotal">�</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center" data-discount-row style="display:none">
                   <span style="font-weight:600;color:#059669">Discount (applied)</span>
-                  <span style="font-weight:600;color:#059669;font-size:14px" data-fare="discount">-—</span>
+                  <span style="font-weight:600;color:#059669;font-size:14px" data-fare="discount">-�</span>
                 </div>
                 <div style="border-top:1px solid #0369a1;padding-top:8px;display:flex;justify-content:space-between;align-items:center">
                   <span style="font-weight:700;color:#082f49;font-size:13px">Fare Estimate</span>
-                  <span style="font-weight:700;color:#0369a1;font-size:16px" data-fare="total">—</span>
+                  <span style="font-weight:700;color:#0369a1;font-size:16px" data-fare="total">�</span>
                 </div>
               </div>
             </div>
@@ -584,7 +584,7 @@
                   <div style="font-size:11px;font-weight:600;color:#082f49">Pay 25%</div>
                   <div style="font-size:10px;color:#62758a">Reserve</div>
                 </div>
-                <span style="font-weight:700;color:#0369a1;font-size:12px;position:absolute;right:10px;top:8px" data-payment-deposit>—</span>
+                <span style="font-weight:700;color:#0369a1;font-size:12px;position:absolute;right:10px;top:8px" data-payment-deposit>�</span>
               </label>
               <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:8px 10px;border:1.5px solid #dce6ee;border-radius:8px;background:#fff;transition:border-color 0.15s;position:relative">
                 <input type="radio" name="payment-option" value="full" style="cursor:pointer;width:15px;height:15px;accent-color:#0369a1;margin-top:2px;flex-shrink:0">
@@ -592,7 +592,7 @@
                   <div style="font-size:11px;font-weight:600;color:#082f49">Pay Full</div>
                   <div style="font-size:10px;color:#62758a">Now</div>
                 </div>
-                <span style="font-weight:700;color:#0369a1;font-size:12px;position:absolute;right:10px;top:8px" data-payment-full>—</span>
+                <span style="font-weight:700;color:#0369a1;font-size:12px;position:absolute;right:10px;top:8px" data-payment-full>�</span>
               </label>
             </div>
           </div>
@@ -714,7 +714,7 @@
         if(mapContainer){
           const cfg=await config().catch(()=>({googleMapsEnabled:false}));
           if(cfg.googleMapsEnabled&&cfg.googleMapsBrowserKey){
-            mapContainer.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#62758a;font-size:12px">Loading route…</div>';
+            mapContainer.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#62758a;font-size:12px">Loading route�</div>';
             const origin=encodeURIComponent(pickup);
             const dest=encodeURIComponent(destination);
             const key=encodeURIComponent(cfg.googleMapsBrowserKey);
@@ -749,7 +749,7 @@
       const completeBtn=actions.querySelector('[data-nexus-action="complete"]');
       if(completeBtn){
         try{completeBtn.addEventListener('click',()=>{
-          window.location.href='tel:+18887604990';
+          window.location.href='tel:+18886395766';
         });}catch(e){console.warn('[Nexus] Call In button error',e);}
       }
       
@@ -835,12 +835,12 @@
         const time=result.querySelector('[name="time"]').value;
         if(!date||!time){showManageMsg('Please select both date and time.',false);return;}
         const btn=result.querySelector('[data-nexus-do-update]');
-        btn.disabled=true;btn.textContent='Updating…';
+        btn.disabled=true;btn.textContent='Updating�';
         try{
           const r=await fetch(`/api/bookings/${encodeURIComponent(ref)}/reschedule`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone,date,time})});
           const data=await r.json();
           if(!r.ok)throw new Error(data.error||'Update failed');
-          showManageMsg(`✓ Trip updated to ${date} at ${time}. Confirmation sent.`,true);
+          showManageMsg(`? Trip updated to ${date} at ${time}. Confirmation sent.`,true);
           result.style.display='none';
         }catch(e){showManageMsg(e.message,false);btn.disabled=false;btn.textContent='Confirm Update';}
         });
@@ -863,7 +863,7 @@
           const r=await fetch(`/api/bookings/${encodeURIComponent(ref)}/cancel`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone,reason})});
           const data=await r.json();
           if(!r.ok)throw new Error(data.error||'Cancellation failed');
-          showManageMsg('✓ Trip cancelled. Confirmation sent via text and email.',true);
+          showManageMsg('? Trip cancelled. Confirmation sent via text and email.',true);
           actions.style.display='none';
         }catch(e){const msg=result.querySelector('.nexusMsg')||document.createElement('div');msg.textContent=e.message;msg.style.cssText='padding:8px;background:#fff1f2;color:#e11d48;border-radius:6px;margin-bottom:8px;font-size:12px;font-weight:600';result.insertBefore(msg,result.firstChild);btn.disabled=false;btn.textContent='Confirm Cancellation';}
         });
@@ -892,7 +892,7 @@
           const r=await fetch(`/api/bookings/${encodeURIComponent(ref)}/reschedule`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone,date,time})});
           const data=await r.json();
           if(!r.ok)throw new Error(data.error||'Reschedule failed');
-          showManageMsg(`✓ Trip rescheduled to ${date} at ${time}. Confirmation sent via text and email.`,true);
+          showManageMsg(`? Trip rescheduled to ${date} at ${time}. Confirmation sent via text and email.`,true);
           actions.style.display='none';
         }catch(e){const msg=result.querySelector('.nexusMsg')||document.createElement('div');msg.textContent=e.message;msg.style.cssText='padding:8px;background:#fff1f2;color:#e11d48;border-radius:6px;margin-bottom:8px;font-size:12px;font-weight:600';result.insertBefore(msg,result.firstChild);btn.disabled=false;btn.textContent='Confirm Reschedule';}
         });
@@ -949,13 +949,13 @@
       btn.onclick=async()=>{
         const phone=pf.querySelector('input').value.trim();
         if(!phone){showMsg('Please enter your phone number to confirm.', false);return;}
-        btn.disabled=true;btn.textContent='Cancelling…';
+        btn.disabled=true;btn.textContent='Cancelling�';
         try{
           const r=await fetch(`/api/bookings/${encodeURIComponent(ref)}/cancel`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone})});
           const data=await r.json();
           if(!r.ok)throw new Error(data.error||'Cancellation failed');
           form.style.display='none';
-          showMsg('✓ Trip cancelled. A confirmation text/email has been sent.',true);
+          showMsg('? Trip cancelled. A confirmation text/email has been sent.',true);
           section.querySelectorAll('[data-nexus-action]').forEach(b=>b.style.display='none');
         }catch(e){showMsg(e.message,false);btn.disabled=false;btn.textContent='Confirm Cancellation';}
       };
@@ -989,13 +989,13 @@
         const time=form.querySelector('[name="time"]').value;
         if(!phone||!date||!time){showMsg('Please fill in all fields.',false);return;}
         const btn2=form.querySelector('[data-nexus-submit]');
-        btn2.disabled=true;btn2.textContent='Rescheduling…';
+        btn2.disabled=true;btn2.textContent='Rescheduling�';
         try{
           const r=await fetch(`/api/bookings/${encodeURIComponent(ref)}/reschedule`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone,date,time})});
           const data=await r.json();
           if(!r.ok)throw new Error(data.error||'Reschedule failed');
           form.style.display='none';
-          showMsg(`✓ Trip rescheduled to ${date} at ${time}. A confirmation text/email has been sent.`,true);
+          showMsg(`? Trip rescheduled to ${date} at ${time}. A confirmation text/email has been sent.`,true);
           section.querySelectorAll('[data-nexus-action]').forEach(b=>b.style.display='none');
         }catch(e){showMsg(e.message,false);btn2.disabled=false;btn2.textContent='Confirm Reschedule';}
         });}catch(e){console.warn('[Nexus] Reschedule submit button error',e);}
@@ -1072,3 +1072,4 @@
   new MutationObserver(attachBookingInterceptors).observe(document.documentElement,{childList:true,subtree:true});
   window.NexusBooking={scan,refresh:scan,openBookingOverlay,version:'0.42.0'};
 })();
+

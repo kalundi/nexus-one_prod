@@ -926,6 +926,8 @@ function getVoiceConfig(){
  const callerId=clean(process.env.DISPATCH_CALLER_ID)||'+18886395766';
  const primaryDispatch=clean(process.env.DISPATCH_PRIMARY_NUMBER||process.env.DISPATCH_PHONE||'');
  const secondaryDispatch=clean(process.env.DISPATCH_SECONDARY_NUMBER||'');
+ const supportPhoneE164=clean(process.env.DISPATCH_PHONE||process.env.NEXUS_DISPATCH_PHONE||'+18887604990');
+ const supportPhone=formatPhoneDisplay(supportPhoneE164);
  const afterHoursVoicemail=clean(process.env.AFTER_HOURS_VOICEMAIL_NUMBER||'');
  const streamUrl=clean(process.env.TWILIO_MEDIA_STREAM_URL||'');
  const voiceName=clean(process.env.TWILIO_VOICE_NAME||'Polly.Joanna-Neural');
@@ -936,6 +938,8 @@ function getVoiceConfig(){
   callerId,
   primaryDispatch,
   secondaryDispatch,
+  supportPhone,
+  supportPhoneE164,
   afterHoursVoicemail,
   streamUrl,
   voiceName,
@@ -947,6 +951,12 @@ function getVoiceConfig(){
   businessStartMinutes:parseHmToMinutes(process.env.BUSINESS_HOURS_START,8*60),
   businessEndMinutes:parseHmToMinutes(process.env.BUSINESS_HOURS_END,18*60),
  };
+}
+function formatPhoneDisplay(value){
+ const digits=String(value||'').replace(/\D/g,'');
+ const normalized=digits.length===11&&digits.startsWith('1')?digits.slice(1):digits;
+ if(normalized.length===10)return `(${normalized.slice(0,3)}) ${normalized.slice(3,6)}-${normalized.slice(6)}`;
+ return clean(value)||'(888) 760-4990';
 }
 function sayTag(text,config){
  const voice=xmlEscape(config?.voiceName||'Polly.Joanna-Neural');
@@ -1076,8 +1086,8 @@ function buildVoiceKnowledgePack(){
   brandPhone:'1-888-NEX-5766',
   brandPhoneDisplay:'(888) 639-5766',
   websiteDerived:{
-   supportPhone:'(888) 760-4990',
-   supportPhoneE164:'+18887604990',
+    supportPhone:config.supportPhone,
+    supportPhoneE164:config.supportPhoneE164,
    supportEmail:'contact@nexusmt.com',
    bookingUrl:'/booking-app.html',
    livecareUrl:'/livecare.html',
@@ -1269,7 +1279,7 @@ async function handler(event){
        const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Dispatch is temporarily unavailable. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
      return xmlResponse(200,body);
     }
-      return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Dispatch is temporarily unavailable. Please call us at 888-760-4990.',config)}\n</Response>`);
+      return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(`Dispatch is temporarily unavailable. Please call us at ${config.supportPhone}.`,config)}\n</Response>`);
    }
   if(/(trip\s*status|check\s*my\s*trip|where\s*is\s*my\s*ride|where\s*is\s*the\s*driver|eta)/i.test(intentText)){
    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can help with trip status.',config)}\n  <Pause length="1" />\n  ${sayTag('For active trip issues or if a driver cannot be located, I will connect you with dispatch now.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch'))}</Redirect>\n</Response>`;
@@ -1340,7 +1350,7 @@ async function handler(event){
     const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>We were unable to reach dispatch. Please leave a voicemail and we will return your call.</Say>\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
     return xmlResponse(200,body);
    }
-   return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>We were unable to connect to dispatch. Please call us back at 888-760-4990.</Say>\n</Response>');
+  return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(`We were unable to connect to dispatch. Please call us back at ${config.supportPhone}.`,config)}\n</Response>`);
   }
   if(p[0]==='voice'&&p[1]==='primary-webhook-failure'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();
