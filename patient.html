@@ -438,13 +438,13 @@ a{text-decoration:none;color:var(--blue)}
       <div class="cardBody">
         <form id="profileForm">
           <div class="formGrid">
-            <label class="field">Full name<input name="name" required value="Jordan Patient"></label>
-            <label class="field">Phone<input name="phone" required value="301-555-0184"></label>
-            <label class="field">Email<input name="email" type="email" value="patient@example.com"></label>
+            <label class="field">Full name<input name="name" required placeholder="Enter your full name"></label>
+            <label class="field">Phone<input name="phone" required placeholder="(555) 123-4567"></label>
+            <label class="field">Email<input name="email" type="email" placeholder="name@example.com"></label>
             <label class="field">Mobility<select name="mobility"><option>Wheelchair</option><option>Ambulatory</option><option>Broda</option><option>Stretcher</option><option>Bariatric</option></select></label>
-            <label class="field">Preferred language<input name="language" value="English"></label>
-            <label class="field">Default pickup<input name="pickup" value="Home residence"></label>
-            <label class="field wide">Transportation notes<textarea name="notes" rows="3">Door-through-door assistance requested.</textarea></label>
+            <label class="field">Preferred language<input name="language" placeholder="English, Spanish, etc."></label>
+            <label class="field">Default pickup<input name="pickup" placeholder="Home, facility, or usual pickup"></label>
+            <label class="field wide">Transportation notes<textarea name="notes" rows="3" placeholder="Add any mobility or ride instructions"></textarea></label>
           </div>
           <button class="button" type="submit" style="margin-top:10px">Save profile</button>
         </form>
@@ -608,7 +608,7 @@ a{text-decoration:none;color:var(--blue)}
     </nav>
   </div>
 
-  <dialog id="contactDialog" class="portalDialog" aria-labelledby="contactTitle"><button class="dialogClose" data-close aria-label="Close">x</button><h2 id="contactTitle">Add authorized contact</h2><form id="contactForm"><div class="formGrid"><label class="field">Name<input name="name" required></label><label class="field">Relationship<input name="relationship" required></label><label class="field">Phone<input name="phone" required></label><label class="field checkField"><input name="notify" type="checkbox" checked> Receive ride updates</label></div><button class="button" type="submit" style="margin-top:10px">Add contact</button></form></dialog>
+  <dialog id="contactDialog" class="portalDialog" aria-labelledby="contactTitle"><button class="dialogClose" data-close aria-label="Close">x</button><h2 id="contactTitle">Add authorized contact</h2><form id="contactForm"><div class="formGrid"><label class="field">Name<input name="name" required></label><label class="field">Relationship<input name="relationship" required></label><label class="field">Phone<input name="phone" required></label><label class="field checkField"><input name="notify" type="checkbox"> Receive ride updates</label></div><button class="button" type="submit" style="margin-top:10px">Add contact</button></form></dialog>
   <dialog id="documentDialog" class="portalDialog" aria-labelledby="documentTitle"><button class="dialogClose" data-close aria-label="Close">x</button><h2 id="documentTitle">Add transportation document</h2><form id="documentForm"><div class="formGrid"><label class="field">Document type<select name="type"><option>Authorization</option><option>Insurance</option><option>Mobility instructions</option><option>Other</option></select></label><label class="field">Choose file<input name="file" type="file" required></label></div><p class="muted">This prototype records file metadata in the browser. Production deployment requires encrypted server storage and access controls.</p><button class="button" type="submit">Save document</button></form></dialog>
 </div>
 
@@ -695,15 +695,7 @@ a{text-decoration:none;color:var(--blue)}
       const portalNotice=$('#portalNotice');
       if(portalNotice && j.user?.displayName) portalNotice.textContent='Welcome back, '+j.user.displayName+'.';
     }catch(err){
-      const offlineDemo = email.toLowerCase()==='patient@example.com' && password==='Patient123!';
-      if(offlineDemo){
-        sessionStorage.setItem(demoKey,'1');
-        hideLogin();
-        const notice=$('#portalNotice');
-        if(notice) notice.textContent='Demo patient session active.';
-      }else{
-        showNotice(err.message||'Unable to sign in.');
-      }
+      showNotice(err.message||'Unable to sign in.');
     }finally{
       if(btn){btn.disabled=false;btn.textContent='Sign In';}
     }

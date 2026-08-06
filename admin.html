@@ -185,73 +185,73 @@
 <section class="sectionTab card" id="settingsSection" style="margin-top:32px;margin-bottom:40px">
   <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">System</div><h2>Organization Settings</h2><p>Platform-wide configuration, branding and contact details.</p></div></div>
   <div class="formRow">
-    <div class="formField"><label for="orgName">Organization name</label><input id="orgName" type="text" value="Nexus Medical Transit"></div>
-    <div class="formField"><label for="orgPhone">Support phone</label><input id="orgPhone" type="tel" value="(888) 760-4990"></div>
+    <div class="formField"><label for="orgName">Organization name</label><input id="orgName" type="text" placeholder="Enter organization name"></div>
+    <div class="formField"><label for="orgPhone">Support phone</label><input id="orgPhone" type="tel" placeholder="(555) 123-4567"></div>
   </div>
   <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="orgEmail">Support email</label><input id="orgEmail" type="email" value="contact@nexusmt.com"></div>
-    <div class="formField"><label for="orgWebsite">Website</label><input id="orgWebsite" type="url" value="https://nexusmt.com"></div>
+    <div class="formField"><label for="orgEmail">Support email</label><input id="orgEmail" type="email" placeholder="support@example.com"></div>
+    <div class="formField"><label for="orgWebsite">Website</label><input id="orgWebsite" type="url" placeholder="https://example.com"></div>
   </div>
   <div style="margin-top:18px"><p style="margin:0 0 10px;font-weight:750">Active services</p>
   <div style="display:flex;flex-wrap:wrap;gap:14px" id="activeServicesGroup">
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="AMBULANCE" checked> Ambulance</label>
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="WHEELCHAIR" checked> Wheelchair</label>
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="STRETCHER" checked> Stretcher</label>
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="HOSPITAL_DISCHARGE" checked> Hospital discharge</label>
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="FACILITY_TRANSFER" checked> IFT routine transfer</label>
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="FACILITY_TRANSFER_CRITICAL" checked> IFT high-acuity transfer</label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="AMBULANCE"> Ambulance</label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="WHEELCHAIR"> Wheelchair</label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="STRETCHER"> Stretcher</label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="HOSPITAL_DISCHARGE"> Hospital discharge</label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="FACILITY_TRANSFER"> IFT routine transfer</label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="FACILITY_TRANSFER_CRITICAL"> IFT high-acuity transfer</label>
   </div></div>
   <div class="formRow" style="margin-top:18px">
-    <div class="formField"><label for="minimumFare">Minimum fare ($)</label><input id="minimumFare" type="number" min="0" step="0.01" value="0"></div>
-    <div class="formField"><label for="fuelSurchargePerMile">Fuel surcharge ($/mile)</label><input id="fuelSurchargePerMile" type="number" min="0" step="0.01" value="0"></div>
+    <div class="formField"><label for="minimumFare">Minimum fare ($)</label><input id="minimumFare" type="number" min="0" step="0.01" placeholder="0.00"></div>
+    <div class="formField"><label for="fuelSurchargePerMile">Fuel surcharge ($/mile)</label><input id="fuelSurchargePerMile" type="number" min="0" step="0.01" placeholder="0.00"></div>
   </div>
   <div class="formRow" style="margin-top:14px">
     <div class="formField"><label for="fuelPricingMode">Fuel pricing mode</label><select id="fuelPricingMode"><option value="MANUAL">Manual override</option><option value="AUTO">Auto weekly update</option></select></div>
-    <div class="formField"><label for="fuelIndexPricePerGallon">Fuel index price ($/gallon)</label><input id="fuelIndexPricePerGallon" type="number" min="0" step="0.001" value="0"></div>
+    <div class="formField"><label for="fuelIndexPricePerGallon">Fuel index price ($/gallon)</label><input id="fuelIndexPricePerGallon" type="number" min="0" step="0.001" placeholder="0.000"></div>
   </div>
   <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="fuelBaselinePricePerGallon">Baseline fuel price ($/gallon)</label><input id="fuelBaselinePricePerGallon" type="number" min="0" step="0.001" value="3.25"></div>
-    <div class="formField"><label for="fuelEfficiencyMpg">Fleet fuel efficiency (MPG)</label><input id="fuelEfficiencyMpg" type="number" min="1" max="50" step="0.1" value="10"></div>
+    <div class="formField"><label for="fuelBaselinePricePerGallon">Baseline fuel price ($/gallon)</label><input id="fuelBaselinePricePerGallon" type="number" min="0" step="0.001" placeholder="0.000"></div>
+    <div class="formField"><label for="fuelEfficiencyMpg">Fleet fuel efficiency (MPG)</label><input id="fuelEfficiencyMpg" type="number" min="1" max="50" step="0.1" placeholder="0.0"></div>
   </div>
   <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="fuelOperationalBufferPct">Fuel ops buffer (%)</label><input id="fuelOperationalBufferPct" type="number" min="0" max="200" step="0.1" value="20"></div>
-    <div class="formField"><label for="fuelLastUpdatedAt">Fuel index last updated</label><input id="fuelLastUpdatedAt" type="text" value="Not updated" readonly></div>
+    <div class="formField"><label for="fuelOperationalBufferPct">Fuel ops buffer (%)</label><input id="fuelOperationalBufferPct" type="number" min="0" max="200" step="0.1" placeholder="0.0"></div>
+    <div class="formField"><label for="fuelLastUpdatedAt">Fuel index last updated</label><input id="fuelLastUpdatedAt" type="text" placeholder="Not updated" readonly></div>
   </div>
   <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
     <button class="button" id="refreshFuelIndexBtn" type="button">Refresh fuel index now</button>
     <small id="refreshFuelIndexMsg" style="color:var(--muted)"></small>
   </div>
   <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="afterHoursSurchargePct">After-hours surcharge (%) (7:01 PM - 6:59 AM)</label><input id="afterHoursSurchargePct" type="number" min="0" max="100" step="0.1" value="0"></div>
-    <div class="formField"><label for="weekendSurchargePct">Weekend surcharge (%)</label><input id="weekendSurchargePct" type="number" min="0" max="100" step="0.1" value="0"></div>
+    <div class="formField"><label for="afterHoursSurchargePct">After-hours surcharge (%) (7:01 PM - 6:59 AM)</label><input id="afterHoursSurchargePct" type="number" min="0" max="100" step="0.1" placeholder="0.0"></div>
+    <div class="formField"><label for="weekendSurchargePct">Weekend surcharge (%)</label><input id="weekendSurchargePct" type="number" min="0" max="100" step="0.1" placeholder="0.0"></div>
   </div>
   <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="holidaySurchargePct">Holiday surcharge (%)</label><input id="holidaySurchargePct" type="number" min="0" max="100" step="0.1" value="10"></div>
-    <div class="formField"><label for="cancellationFee">Cancellation fee ($)</label><input id="cancellationFee" type="number" min="0" step="0.01" value="30"></div>
+    <div class="formField"><label for="holidaySurchargePct">Holiday surcharge (%)</label><input id="holidaySurchargePct" type="number" min="0" max="100" step="0.1" placeholder="0.0"></div>
+    <div class="formField"><label for="cancellationFee">Cancellation fee ($)</label><input id="cancellationFee" type="number" min="0" step="0.01" placeholder="0.00"></div>
   </div>
   <p style="margin:8px 0 0;color:var(--muted);font-size:12px">Holidays: New Year, MLK Day, President's Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus / Indigenous Peoples' Day, Veterans Day, Thanksgiving Day, Christmas Day.</p>
   <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="cancellationWindowHours">Cancellation window (hours before trip)</label><input id="cancellationWindowHours" type="number" min="0" max="240" step="1" value="24"></div>
-    <div class="formField"><label for="cancellationLeadHours">Minimum booking lead (hours before trip)</label><input id="cancellationLeadHours" type="number" min="0" max="720" step="1" value="72"></div>
+    <div class="formField"><label for="cancellationWindowHours">Cancellation window (hours before trip)</label><input id="cancellationWindowHours" type="number" min="0" max="240" step="1" placeholder="0"></div>
+    <div class="formField"><label for="cancellationLeadHours">Minimum booking lead (hours before trip)</label><input id="cancellationLeadHours" type="number" min="0" max="720" step="1" placeholder="0"></div>
   </div>
   <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="noShowFee">No-show fee ($)</label><input id="noShowFee" type="number" min="0" step="0.01" value="50"></div>
-    <div class="formField"><label for="freeWaitMinutes">Free wait minutes</label><input id="freeWaitMinutes" type="number" min="0" max="180" step="1" value="15"></div>
+    <div class="formField"><label for="noShowFee">No-show fee ($)</label><input id="noShowFee" type="number" min="0" step="0.01" placeholder="0.00"></div>
+    <div class="formField"><label for="freeWaitMinutes">Free wait minutes</label><input id="freeWaitMinutes" type="number" min="0" max="180" step="1" placeholder="0"></div>
   </div>
   <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="mileageRoundingRule">Mileage rounding rule</label><select id="mileageRoundingRule"><option value="EXACT">Exact</option><option value="TENTH_MILE" selected>Tenth mile</option><option value="WHOLE_MILE">Whole mile</option></select></div>
-    <div class="formField"><label for="telemetryRefreshSeconds">Telemetry refresh (seconds)</label><input id="telemetryRefreshSeconds" type="number" min="5" max="120" step="1" value="20"></div>
+    <div class="formField"><label for="mileageRoundingRule">Mileage rounding rule</label><select id="mileageRoundingRule"><option value="EXACT">Exact</option><option value="TENTH_MILE">Tenth mile</option><option value="WHOLE_MILE">Whole mile</option></select></div>
+    <div class="formField"><label for="telemetryRefreshSeconds">Telemetry refresh (seconds)</label><input id="telemetryRefreshSeconds" type="number" min="5" max="120" step="1" placeholder="0"></div>
   </div>
   <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="maxBookingDistanceMiles">Max booking distance (miles)</label><input id="maxBookingDistanceMiles" type="number" min="5" max="500" step="1" value="125"></div>
+    <div class="formField"><label for="maxBookingDistanceMiles">Max booking distance (miles)</label><input id="maxBookingDistanceMiles" type="number" min="5" max="500" step="1" placeholder="0"></div>
   </div>
   <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="returnMilesThreshold">Return-mile threshold (miles)</label><input id="returnMilesThreshold" type="number" min="0" max="500" step="0.1" value="10"></div>
-    <div class="formField"><label for="returnMilesInclusionPct">Return-mile inclusion (%)</label><input id="returnMilesInclusionPct" type="number" min="0" max="100" step="1" value="100"></div>
+    <div class="formField"><label for="returnMilesThreshold">Return-mile threshold (miles)</label><input id="returnMilesThreshold" type="number" min="0" max="500" step="0.1" placeholder="0.0"></div>
+    <div class="formField"><label for="returnMilesInclusionPct">Return-mile inclusion (%)</label><input id="returnMilesInclusionPct" type="number" min="0" max="100" step="1" placeholder="0"></div>
   </div>
   <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="trafficOverageFeePerHour">Traffic overage fee ($/hour)</label><input id="trafficOverageFeePerHour" type="number" min="0" max="1000" step="0.01" value="0"></div>
-    <div class="formField"><label for="trafficOverageGraceMinutes">Traffic overage grace (minutes)</label><input id="trafficOverageGraceMinutes" type="number" min="0" max="180" step="1" value="0"></div>
+    <div class="formField"><label for="trafficOverageFeePerHour">Traffic overage fee ($/hour)</label><input id="trafficOverageFeePerHour" type="number" min="0" max="1000" step="0.01" placeholder="0.00"></div>
+    <div class="formField"><label for="trafficOverageGraceMinutes">Traffic overage grace (minutes)</label><input id="trafficOverageGraceMinutes" type="number" min="0" max="180" step="1" placeholder="0"></div>
   </div>
   <div style="margin-top:18px">
     <p style="margin:0 0 10px;font-weight:750">Per-service policy overrides</p>

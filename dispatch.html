@@ -142,7 +142,7 @@
           <h3>Add a New Company</h3>
           <div class="form-grid" style="grid-template-columns:repeat(3,1fr)">
             <label for="addCoName">Company Name *<input id="addCoName" type="text" required></label>
-            <label for="addCoCategory">Category<select id="addCoCategory"><option>Medicaid Broker</option><option>Workers Compensation</option><option>Health Plan</option><option>Hospital Transportation</option><option>Government</option><option>Facility Network</option><option selected>Other</option></select></label>
+            <label for="addCoCategory">Category<select id="addCoCategory"><option>Medicaid Broker</option><option>Workers Compensation</option><option>Health Plan</option><option>Hospital Transportation</option><option>Government</option><option>Facility Network</option><option>Other</option></select></label>
             <label for="addCoHQ">Headquarters<input id="addCoHQ" type="text" placeholder="City, State"></label>
             <label for="addCoPhone">Phone<input id="addCoPhone" type="tel" placeholder="(555) 123-4567"></label>
             <label for="addCoEmail">Email<input id="addCoEmail" type="email" placeholder="contact@company.com"></label>
@@ -212,7 +212,7 @@
         <div class="formField"><label for="brokerTripDate">Appt. date</label><input id="brokerTripDate" name="tripDate" type="date" required></div>
         <div class="formField"><label for="brokerTripTime">Appt. time</label><input id="brokerTripTime" name="tripTime" type="time" required></div>
         <div class="formField"><label for="brokerService">Service</label><select id="brokerService" name="service"><option value="wheelchair">Wheelchair Transportation</option><option value="ambulatory">Ambulatory Transportation</option><option value="facility_transfer">Facility-to-Facility Transfer</option><option value="facility_transfer_critical">High-Acuity IFT</option><option value="broda">Broda Chair Transportation</option><option value="stretcher">Stretcher Transportation</option><option value="bariatric">Bariatric Transportation</option><option value="bls">BLS Ambulance</option><option value="als1">ALS I Ambulance</option><option value="als2">ALS II Ambulance</option></select></div>
-        <div class="formField"><label for="brokerWaitMinutes">Wait (min)</label><input id="brokerWaitMinutes" name="waitMinutes" type="number" min="0" step="5" value="0"></div>
+        <div class="formField"><label for="brokerWaitMinutes">Wait (min)</label><input id="brokerWaitMinutes" name="waitMinutes" type="number" min="0" step="5" placeholder="0"></div>
         <div class="formField"><label for="brokerReturnTrip">Return Trip</label><div style="display:flex;align-items:center;height:37px;padding:0 2px"><input id="brokerReturnTrip" type="checkbox" style="width:18px;height:18px;accent-color:var(--brand,#d61f1f);margin:0;cursor:pointer"></div></div>
       </div>
       <div class="formRow" style="grid-template-columns:1fr 1fr 1fr">
@@ -250,7 +250,7 @@
       </div>
       <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
         <label class="field" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><input id="customerReturnTrip" type="checkbox"> <span>Return trip / round trip</span></label>
-        <div class="formField"><label for="customerWaitMinutes">Wait minutes</label><input id="customerWaitMinutes" name="waitMinutes" type="number" min="0" step="5" value="0"></div>
+        <div class="formField"><label for="customerWaitMinutes">Wait minutes</label><input id="customerWaitMinutes" name="waitMinutes" type="number" min="0" step="5" placeholder="0"></div>
         <div class="formField"><label for="customerNotes">Notes</label><input id="customerNotes" name="notes" type="text" placeholder="Pickup assistance, oxygen, etc."></div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
@@ -285,7 +285,7 @@
       </div>
       <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr))">
         <label class="field" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><input id="facilityReturnTrip" type="checkbox"> <span>Return trip / round trip</span></label>
-        <div class="formField"><label for="facilityWaitMinutes">Wait minutes</label><input id="facilityWaitMinutes" name="waitMinutes" type="number" min="0" step="5" value="0"></div>
+        <div class="formField"><label for="facilityWaitMinutes">Wait minutes</label><input id="facilityWaitMinutes" name="waitMinutes" type="number" min="0" step="5" placeholder="0"></div>
         <div class="formField"><label for="facilityNotes">Notes</label><input id="facilityNotes" name="notes" type="text" placeholder="Transfer support, bed status"></div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
@@ -470,7 +470,7 @@ async function submitBrokerRequest(event){
     });
     form.reset();
     document.getElementById('brokerCalculatedRate').value='';
-    document.getElementById('brokerWaitMinutes').value='0';
+    document.getElementById('brokerWaitMinutes').value='';
     // Re-expand picker for next request
     window.expandPicker();
     selectedId=''; selectedCompanyName='';

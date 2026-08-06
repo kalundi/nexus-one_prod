@@ -21,7 +21,7 @@
  }
  checkTestPortalVisibility();
  if(!isProductionHost()){
-  document.querySelectorAll('[data-test-email]').forEach(btn=>{btn.addEventListener('click',()=>{const email=btn.dataset.testEmail,pw=btn.dataset.testPw||'NexusTest042!';document.querySelectorAll('.securePanel').forEach(x=>x.hidden=true);$('#staffAccess').hidden=false;$('#expectedRole').value='';$('#password').type='password';$('#togglePassword').textContent='👁';$('#identifier').value=email;$('#password').value=pw;$('#staffAccess').scrollIntoView({behavior:'smooth',block:'center'});$('#staffSubmit')?.click();})});
+  document.querySelectorAll('[data-test-email]').forEach(btn=>{btn.addEventListener('click',()=>{const email=btn.dataset.testEmail,pw=btn.dataset.testPw||'';document.querySelectorAll('.securePanel').forEach(x=>x.hidden=true);$('#staffAccess').hidden=false;$('#expectedRole').value='';$('#password').type='password';$('#togglePassword').textContent='👁';$('#identifier').value=email;$('#password').value=pw;$('#staffAccess').scrollIntoView({behavior:'smooth',block:'center'});if(email&&pw)$('#staffSubmit')?.click();})});
  }
  $('#livecareLogout')?.addEventListener('click',async()=>{const token=sessionStorage.getItem('nexusAccessToken');try{if(token)await fetch('/api/auth/logout',{method:'POST',headers:{authorization:`Bearer ${token}`}})}catch{}sessionStorage.removeItem('nexusAccessToken');sessionStorage.removeItem('nexusUser');sessionStorage.removeItem('nexusPatientRide');verified={reference:'',phone:''};location.assign('/livecare.html');});
  const qp=new URLSearchParams(location.search); if(qp.get('reference')){$('#reference').value=qp.get('reference');$('#patientAccess').hidden=false}
