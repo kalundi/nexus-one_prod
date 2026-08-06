@@ -969,17 +969,13 @@ function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary'}){
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(message)}</Say>\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
 }
 function voiceOpeningScript(config){
- const now=nowInTimeZone(config?.businessHoursTz||'America/New_York');
- const hour=Number(now.hour||0);
- const dayGreeting=hour<12?'Good morning':(hour<17?'Good afternoon':'Good evening');
- const base="Thank you for calling Nexus Medical Transit. You've reached the Nexus Virtual Receptionist. I'm here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?";
- return `${dayGreeting}. ${base}`;
+ return "Thank you for calling Nexus Medical Transit. You've reached the Nexus Virtual Receptionist. I'm here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?";
 }
 function buildVoiceAssistantInstructions(){
  return [
   'You are the Nexus Virtual Receptionist for Nexus Medical Transit.',
   '',
-  'Begin every new call by including a time-of-day greeting (Good morning, Good afternoon, or Good evening) and then saying:',
+  'Begin every new call by saying exactly:',
   '"Thank you for calling Nexus Medical Transit. You\'ve reached the Nexus Virtual Receptionist. I\'m here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?"',
   '',
   'IDENTITY AND DISCLOSURE',
@@ -1038,6 +1034,79 @@ function buildVoiceAssistantInstructions(){
   '- Give detailed, helpful responses in short sections so callers can follow easily.',
   '- When explaining services or next steps, provide clear specifics and then confirm understanding.'
  ].join('\n');
+}
+function buildVoiceKnowledgePack(){
+ return {
+  services:[
+   'Wheelchair transportation',
+   'Stretcher transportation',
+   'Bariatric transportation',
+   'Ambulatory transportation',
+   'Hospital discharges',
+   'Dialysis transportation',
+   'Nursing home transportation'
+  ],
+  operations:[
+   'Facility partnerships',
+   'Broker relationships',
+   'Service areas',
+   'Hours of operation',
+   'Contact information',
+   'Frequently asked questions'
+  ],
+  optionalTopics:[
+   'Pricing (only if configured and approved for quoting)'
+  ],
+  routingExamples:[
+   'Book a ride',
+   'Check my trip',
+   'I am calling from a hospital',
+   'I would like to become a facility partner',
+   'I need billing',
+   'I want to speak with dispatch'
+  ],
+  futureEnhancements:[
+   'Caller recognition for repeat customers',
+   'Real-time trip status from dispatch integration',
+   'SMS confirmations and reminders',
+   'Support for multiple languages',
+   'Voice analytics and call summaries',
+   'Website-integrated appointment scheduling'
+  ],
+  brandPhone:'1-888-NEX-5766',
+  brandPhoneDisplay:'(888) 639-5766',
+  websiteDerived:{
+   supportPhone:'(888) 760-4990',
+   supportPhoneE164:'+18887604990',
+   supportEmail:'contact@nexusmt.com',
+   bookingUrl:'/booking-app.html',
+   livecareUrl:'/livecare.html',
+   dispatchUrl:'/dispatch.html',
+   facilityUrl:'/facility.html',
+   billingUrl:'/billing.html',
+   customerBookingServices:[
+    'Ambulatory',
+    'Wheelchair',
+    'Stretcher',
+    'Bariatric',
+    'IFT Routine',
+    'IFT High-Acuity'
+   ],
+   livecareFilters:[
+    'Wheelchair',
+    'Stretcher',
+    'Hospital discharge'
+   ],
+   audiencePortals:[
+    'Patient',
+    'Facility',
+    'Dispatch',
+    'Driver',
+    'Executive'
+   ],
+   defaultOperationsHours:'Mon-Friday, 7 AM-7 PM'
+  }
+ };
 }
 function wantsHumanTransfer(text){
  const value=clean(text).toLowerCase();
@@ -1155,10 +1224,21 @@ async function handler(event){
    return xmlResponse(200,body);
   }
   if(p[0]==='voice'&&p[1]==='assistant-instructions'&&method==='GET'){
+  const knowledge=buildVoiceKnowledgePack();
   return json(200,{
    persona:'Nexus Virtual Receptionist',
    version:'2026-08-06',
-   instructions:buildVoiceAssistantInstructions()
+   instructions:buildVoiceAssistantInstructions(),
+   knowledge,
+   callRouting:{
+    bookRide:'Handle basic intake or route to dispatch for confirmation',
+    facilityScheduling:'Route hospital/facility callers to dispatch/facility scheduling support',
+    tripStatus:'Route active trip issues to dispatch immediately',
+    billing:'Route billing questions to billing support',
+    dispatch:'Transfer to dispatch immediately',
+    hr:'Route careers/employment questions to HR support',
+    emergencyScreening:'Direct life-threatening emergencies to 911 immediately'
+   }
   });
   }
   if(p[0]==='voice'&&p[1]==='menu'&&(method==='POST'||method==='GET')){
@@ -1187,7 +1267,19 @@ async function handler(event){
     }
       return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Dispatch is temporarily unavailable. Please call us at 888-760-4990.',config)}\n</Response>`);
    }
-   if(digits==='2'||/(book|booking|ride|transport|request|schedule)/i.test(intentText)){
+  if(/(trip\s*status|check\s*my\s*trip|where\s*is\s*my\s*ride|where\s*is\s*the\s*driver|eta)/i.test(intentText)){
+   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can help with trip status.',config)}\n  <Pause length="1" />\n  ${sayTag('For active trip issues or if a driver cannot be located, I will connect you with dispatch now.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch'))}</Redirect>\n</Response>`;
+   return xmlResponse(200,body);
+  }
+  if(/(hospital|discharge|facility|nursing\s*home|social\s*worker|case\s*manager|facility\s*partner|partnership)/i.test(intentText)){
+   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you. I can route facility and hospital scheduling requests to the appropriate Nexus team.',config)}\n  <Pause length="1" />\n  ${sayTag('Please hold while I connect you with dispatch for time-sensitive coordination.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch'))}</Redirect>\n</Response>`;
+   return xmlResponse(200,body);
+  }
+  if(/(billing|invoice|payment|balance|statement|claim)/i.test(intentText)){
+   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can help with billing questions.',config)}\n  <Pause length="1" />\n  ${sayTag('For account-specific billing support, I can connect you with a Nexus representative now.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch'))}</Redirect>\n</Response>`;
+   return xmlResponse(200,body);
+  }
+  if(digits==='2'||/(book|booking|ride|transport|request|schedule|dialysis|wheelchair|stretcher|bariatric|ambulatory)/i.test(intentText)){
       const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can submit a general callback request, or you can book online at nexusmt dot com slash booking.',config)}\n  <Pause length="1" />\n  ${sayTag('Please note that this is not a confirmed reservation until a Nexus representative confirms availability, pickup details, and pricing.',config)}\n  <Pause length="1" />\n  ${sayTag('If you would like to speak to dispatch now, say dispatch or press 1.',config)}\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
