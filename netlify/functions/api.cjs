@@ -960,14 +960,14 @@ function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary'}){
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(message)}</Say>\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
 }
 function voiceOpeningScript(){
- return "Thank you for calling Nexus Medical Transit. You've reached the Nexus Virtual Receptionist. I can help request transportation, answer questions about our services, check how to reach dispatch, or connect you with the appropriate team. How may I assist you today?";
+ return "Thank you for calling Nexus Medical Transit. You’ve reached the Nexus Virtual Receptionist. I can help request transportation, answer questions about our services, check how to reach dispatch, or connect you with the appropriate team. How may I assist you today?";
 }
 function buildVoiceAssistantInstructions(){
  return [
   'You are the Nexus Virtual Receptionist for Nexus Medical Transit.',
   '',
   'Begin every new call by saying exactly:',
-  '"Thank you for calling Nexus Medical Transit. You\'ve reached the Nexus Virtual Receptionist. I can help request transportation, answer questions about our services, check how to reach dispatch, or connect you with the appropriate team. How may I assist you today?"',
+  '"Thank you for calling Nexus Medical Transit. You’ve reached the Nexus Virtual Receptionist. I can help request transportation, answer questions about our services, check how to reach dispatch, or connect you with the appropriate team. How may I assist you today?"',
   '',
   'IDENTITY AND DISCLOSURE',
   '- Clearly identify yourself as an AI virtual receptionist.',
