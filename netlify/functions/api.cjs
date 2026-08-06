@@ -928,6 +928,8 @@ function getVoiceConfig(){
  const secondaryDispatch=clean(process.env.DISPATCH_SECONDARY_NUMBER||'');
  const afterHoursVoicemail=clean(process.env.AFTER_HOURS_VOICEMAIL_NUMBER||'');
  const streamUrl=clean(process.env.TWILIO_MEDIA_STREAM_URL||'');
+ const voiceName=clean(process.env.TWILIO_VOICE_NAME||'Polly.Joanna-Neural');
+ const voiceLanguage=clean(process.env.TWILIO_VOICE_LANGUAGE||'en-US');
  const nonPhiMode=String(process.env.NON_PHI_MODE||'true').toLowerCase()!=='false';
  const allowPhiIntake=String(process.env.ALLOW_PHI_INTAKE||'false').toLowerCase()==='true';
  return {
@@ -936,6 +938,8 @@ function getVoiceConfig(){
   secondaryDispatch,
   afterHoursVoicemail,
   streamUrl,
+  voiceName,
+  voiceLanguage,
   nonPhiMode,
   allowPhiIntake,
   businessHoursTz:tz,
@@ -943,6 +947,11 @@ function getVoiceConfig(){
   businessStartMinutes:parseHmToMinutes(process.env.BUSINESS_HOURS_START,8*60),
   businessEndMinutes:parseHmToMinutes(process.env.BUSINESS_HOURS_END,18*60),
  };
+}
+function sayTag(text,config){
+ const voice=xmlEscape(config?.voiceName||'Polly.Joanna-Neural');
+ const language=xmlEscape(config?.voiceLanguage||'en-US');
+ return `<Say voice="${voice}" language="${language}">${xmlEscape(text)}</Say>`;
 }
 function toE164(value){
  const digits=String(value||'').replace(/\D/g,'');
@@ -1021,7 +1030,9 @@ function buildVoiceAssistantInstructions(){
   '- Speak calmly and naturally.',
   '- Keep a moderate pace and use short pauses between key points.',
   '- Ask one clear question at a time.',
-  '- Avoid rushing through menus or long lists.'
+  '- Avoid rushing through menus or long lists.',
+  '- Give detailed, helpful responses in short sections so callers can follow easily.',
+  '- When explaining services or next steps, provide clear specifics and then confirm understanding.'
  ].join('\n');
 }
 function wantsHumanTransfer(text){
@@ -1034,7 +1045,7 @@ function voiceMenuTwiml(config,retryCount=0){
  const sayIntro=retryCount>0
   ?'Sorry, I did not catch that.'
   :'How may I assist you today?';
- return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(sayIntro)}</Say>\n  <Pause length="1" />\n  <Gather input="speech dtmf" numDigits="1" timeout="6" speechTimeout="auto" action="${gatherAction}" method="POST">\n    <Say>You can say dispatch, representative, or human at any time.</Say>\n    <Pause length="1" />\n    <Say>Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours.</Say>\n  </Gather>\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`))}</Redirect>\n</Response>`;
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(sayIntro,config)}\n  <Pause length="1" />\n  <Gather input="speech dtmf" numDigits="1" timeout="7" speechTimeout="auto" action="${gatherAction}" method="POST">\n    ${sayTag('You can say dispatch, representative, or human at any time.',config)}\n    <Pause length="1" />\n    ${sayTag('Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours.',config)}\n  </Gather>\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`))}</Redirect>\n</Response>`;
 }
 async function createStripeCheckoutSession(amountCents,metadata){
  if(!envEnabled('STRIPE_SECRET_KEY'))throw Object.assign(new Error('Stripe is not configured'),{statusCode:503});
@@ -1120,7 +1131,7 @@ async function handler(event){
    const config=getVoiceConfig();
    const openNow=isBusinessHoursOpen(config);
    if(!openNow&&config.afterHoursVoicemail){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Thank you for calling Nexus Medical Transit. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.</Say>\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
     return xmlResponse(200,body);
    }
   const opening=voiceOpeningScript();
@@ -1136,7 +1147,7 @@ async function handler(event){
      :voiceMenuTwiml(config,0);
     return xmlResponse(200,fallbackTwiml);
    }
-  const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(opening)}</Say>\n  <Pause length="1" />\n  ${nonPhiNotice?`<Say>${xmlEscape(nonPhiNotice)}</Say>\n  <Pause length="1" />\n  `:''}<Connect>\n    <Stream url="${xmlEscape(config.streamUrl)}" />\n  </Connect>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
+  const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(opening,config)}\n  <Pause length="1" />\n  ${nonPhiNotice?`${sayTag(nonPhiNotice,config)}\n  <Pause length="1" />\n  `:''}<Connect>\n    <Stream url="${xmlEscape(config.streamUrl)}" />\n  </Connect>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
    return xmlResponse(200,body);
   }
   if(p[0]==='voice'&&p[1]==='assistant-instructions'&&method==='GET'){
@@ -1167,17 +1178,17 @@ async function handler(event){
      }));
     }
     if(config.afterHoursVoicemail){
-     const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Dispatch is temporarily unavailable. Please leave a voicemail and we will return your call.</Say>\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
+       const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Dispatch is temporarily unavailable. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
      return xmlResponse(200,body);
     }
-    return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Dispatch is temporarily unavailable. Please call us at 888-760-4990.</Say>\n</Response>');
+      return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Dispatch is temporarily unavailable. Please call us at 888-760-4990.',config)}\n</Response>`);
    }
    if(digits==='2'||/(book|booking|ride|transport|request|schedule)/i.test(intentText)){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>I can submit a general callback request, or you can book online at nexusmt dot com slash booking. This is not a confirmed reservation until a Nexus representative confirms availability, pickup details, and pricing.</Say>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
+      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can submit a general callback request, or you can book online at nexusmt dot com slash booking.',config)}\n  <Pause length="1" />\n  ${sayTag('Please note that this is not a confirmed reservation until a Nexus representative confirms availability, pickup details, and pricing.',config)}\n  <Pause length="1" />\n  ${sayTag('If you would like to speak to dispatch now, say dispatch or press 1.',config)}\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
    if(digits==='3'||/(hours|service|area|location|coverage)/i.test(intentText)){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Nexus Medical Transit provides ambulatory, wheelchair, stretcher, and bariatric transportation services. For current service areas and business hours, please visit nexusmt dot com, or say dispatch to speak with a representative.</Say>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
+      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Nexus Medical Transit provides ambulatory, wheelchair, stretcher, and bariatric transportation services.',config)}\n  <Pause length="1" />\n  ${sayTag('For current service areas and business hours, please visit nexusmt dot com. You can also say dispatch, representative, or human to speak with our team.',config)}\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
    if(retry>=1){
@@ -1190,10 +1201,10 @@ async function handler(event){
      }));
     }
     if(config.afterHoursVoicemail){
-      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>I was unable to understand the request. Please leave a voicemail and we will return your call.</Say>\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
+      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I was unable to understand the request. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
       return xmlResponse(200,body);
     }
-    return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>I was unable to understand the request. Please call back and say dispatch for a live representative.</Say>\n</Response>');
+    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I was unable to understand the request. Please call back and say dispatch for a live representative.',config)}\n</Response>`);
    }
    return xmlResponse(200,voiceMenuTwiml(config,retry+1));
   }
