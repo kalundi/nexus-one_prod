@@ -243,6 +243,8 @@ async function createBookingFromBrokerRequest(requestBody,requestRow){
  const bookingResult=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,now(),now()) RETURNING *`,[payload.reference,payload.name,payload.phone,payload.email,payload.service,payload.pickup,payload.destination,payload.trip_date,payload.trip_time,brokerNotes,payload.pickup_lat,payload.pickup_lng,payload.destination_lat,payload.destination_lng,null,null,payload.estimated_fare||null,payload.booking_source,clean(requestBody?.submitted_by||requestRow?.submitted_by||payload.email||'')||null,clean(requestBody?.broker_name||requestRow?.broker_name||'')||null,payload.estimated_fare||null]);
  const booking=bookingResult.rows[0];
+ const teamsNotification=await sendBookingTeamsAlert(booking,'🚐 New Broker Trip Booked — Admin_NMT','New Broker Trip Booked');
+ await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[booking.reference,JSON.stringify({teams:teamsNotification})]).catch(()=>{});
  await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[booking.reference,'SUBMITTED','submitted','Broker request materialized into a booking','DISPATCH']);
  const autoAssignResult=await autoAssign(booking);
  const requestStatus=resolveBrokerRequestStatus({bookingCreated:true,autoAssigned:autoAssignResult.assigned});
@@ -687,6 +689,33 @@ async function sendTeamsAlert(text,title='Nexus Medical Transit'){
   return r.ok?{status:'sent'}:{status:'failed',code:r.status};
  }catch(e){return {status:'failed',error:e.message};}
 }
+function buildBookingTeamsMessage(booking,label='New Trip Booked'){
+ const b=booking||{};
+ const reference=clean(b.reference||b.bookingReference||'—');
+ const patient=clean(b.name||b.passenger_name||b.passengerName||'—');
+ const pickup=clean(b.pickup||b.pickup_address||b.pickupAddress||'—');
+ const destination=clean(b.destination||b.dropoff||b.dropoff_address||b.dropoffAddress||'—');
+ const date=clean(b.date||b.trip_date||b.requested_date||'—');
+ const time=clean(b.pickupTime||b.time||b.trip_time||b.requested_time||'—');
+ const status=clean(b.status||'');
+ const source=clean(b.bookingSource||b.booking_source||'');
+ const driver=clean(b.driverName||b.driver_name||'');
+ const details=[
+  `**${label}** | Ref: ${reference}`,
+  `- **Patient:** ${patient}`,
+  `- **Pickup:** ${pickup}`,
+  `- **Destination:** ${destination}`,
+  `- **Date/Time:** ${date} at ${time}`
+ ];
+ if(status)details.push(`- **Status:** ${status}`);
+ if(source)details.push(`- **Source:** ${source}`);
+ if(driver)details.push(`- **Driver:** ${driver}`);
+ return details.join('\n');
+}
+async function sendBookingTeamsAlert(booking,title='🚐 New Trip Booked — Admin_NMT',label='New Trip Booked'){
+ const message=buildBookingTeamsMessage(booking,label);
+ return sendTeamsAlert(message,title);
+}
 function setupLink(token){
   const base=String(process.env.SITE_URL||process.env.URL||process.env.DEPLOY_PRIME_URL||'https://nexusmt.com').replace(/\/$/,'');
   return `${base}/set-password.html?token=${encodeURIComponent(token)}`;
@@ -696,10 +725,9 @@ async function notifyBooking(b){
  const pickupLine=b.pickupTime||b.time;
  const text=`Nexus Medical Transit: Your trip ${b.reference} is confirmed for ${b.date} at ${pickupLine}.${driverLine} Questions? Call (888) 760-4990.`;
  const html=`<h2 style="color:#082f49">Trip Confirmed — ${b.reference}</h2><table style="width:100%;border-collapse:collapse;margin:16px 0">${b.driverName?`<tr><td style="padding:8px;font-weight:600;color:#62758a">Driver</td><td style="padding:8px"><strong>${b.driverName}</strong></td></tr>`:''}<tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup Time</td><td style="padding:8px"><strong>${pickupLine}</strong></td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Date</td><td style="padding:8px">${b.date}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup</td><td style="padding:8px">${b.pickup}</td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Destination</td><td style="padding:8px">${b.destination}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Service</td><td style="padding:8px">${b.service||'—'}</td></tr></table><p>Questions? Call <strong>(888) 760-4990</strong></p>`;
- const teamsMsg=`**New Trip Booked** | Ref: ${b.reference}\n- **Patient:** ${b.name||'—'}\n- **Pickup:** ${b.pickup}\n- **Destination:** ${b.destination}\n- **Date/Time:** ${b.date} at ${pickupLine}${b.driverName?`\n- **Driver:** ${b.driverName}`:''}`;
  const smsRecipients=buildSmsRecipients(b.phone);
  const emailRecipients=buildEmailRecipients(b.email);
- const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Trip confirmed — ${b.reference}`,html),sendTeamsAlert(teamsMsg,'🚐 New Trip Booked — Admin_NMT')]);
+ const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Trip confirmed — ${b.reference}`,html),sendBookingTeamsAlert({...b,pickupTime:pickupLine},'🚐 New Trip Booked — Admin_NMT','New Trip Booked')]);
  return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message},teams:results[2].status==='fulfilled'?results[2].value:{status:'failed',error:results[2].reason?.message}};
 }
 async function sendInvoice(b){
@@ -1411,7 +1439,17 @@ async function handler(event){
    const emailHtml=`<h2>Voice ride request pending review</h2><p><strong>Reference:</strong> ${xmlEscape(requestReference)}</p><p><strong>Caller:</strong> ${xmlEscape(clean(b.caller_name))} (${xmlEscape(callbackNumber)})</p><p><strong>Passenger:</strong> ${xmlEscape(clean(b.passenger_name))}</p><p><strong>Route:</strong> ${xmlEscape(clean(b.pickup_address))} → ${xmlEscape(clean(b.destination))}</p><p><strong>Date/Time:</strong> ${xmlEscape(normalizeTripDate(b.requested_date))} at ${xmlEscape(requestedTimeRaw)}</p><p><strong>Trip type:</strong> ${xmlEscape(tripType||'one_way')}</p><p><strong>Service type:</strong> ${xmlEscape(normalizedService)}</p><p><strong>Special assistance:</strong> ${xmlEscape(clean(b.special_assistance||b.notes||'none'))}</p><p><strong>Status:</strong> pending_review</p>`;
    await Promise.allSettled([
     dispatchPhone?sendSms(dispatchPhone,smsMessage):Promise.resolve({status:'skipped'}),
-    sendEmail(dispatchEmail,`Voice request pending review — ${requestReference}`,emailHtml)
+    sendEmail(dispatchEmail,`Voice request pending review — ${requestReference}`,emailHtml),
+    sendBookingTeamsAlert({
+     reference:requestReference,
+     name:clean(b.passenger_name),
+     pickup:clean(b.pickup_address),
+     destination:clean(b.destination),
+     date:normalizeTripDate(b.requested_date),
+     time:requestedTimeRaw,
+     status:'REQUESTED',
+     bookingSource:'VOICE_PENDING'
+    },'☎️ New Voice Booking Request — Admin_NMT','New Voice Booking Request')
    ]).catch(()=>{});
    return json(201,{
     request:{
@@ -1552,8 +1590,10 @@ async function handler(event){
       ? clean(bookingActor?.email||booking.email)
       : clean(booking.email||bookingActor?.email);
     notifications=await sendInvoice({...booking,email:invoiceTargetEmail||booking.email});
-    await query('UPDATE bookings SET payment_status=$2,notification_status=$3::jsonb WHERE reference=$1',[ref,'INVOICED',JSON.stringify(notifications)]).catch(()=>{});
-    return json(201,{booking:{...booking,paymentStatus:'INVOICED',notifications},invoiceSent:true,requiresOnlinePayment:false,clientMessage:'Booking created. Invoice sent by email.'});
+      const teamsNotification=await sendBookingTeamsAlert(booking,'🚐 New Trip Booked — Admin_NMT','New Trip Booked');
+      const mergedNotifications={...notifications,teams:teamsNotification};
+      await query('UPDATE bookings SET payment_status=$2,notification_status=$3::jsonb WHERE reference=$1',[ref,'INVOICED',JSON.stringify(mergedNotifications)]).catch(()=>{});
+      return json(201,{booking:{...booking,paymentStatus:'INVOICED',notifications:mergedNotifications},invoiceSent:true,requiresOnlinePayment:false,clientMessage:'Booking created. Invoice sent by email.'});
    }
 
   notifications=await notifyBooking(booking);
@@ -2695,4 +2735,6 @@ function mapBooking(b){
 exports.handler=handler;
 exports.sendBrokerRequestConfirmation=sendBrokerRequestConfirmation;
 exports.sendBrokerRequestDispatchNotifications=sendBrokerRequestDispatchNotifications;
+exports.buildBookingTeamsMessage=buildBookingTeamsMessage;
+exports.sendBookingTeamsAlert=sendBookingTeamsAlert;
 
