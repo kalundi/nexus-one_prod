@@ -81,3 +81,55 @@ Load the JSON file into your scheduler or automation tool and map each post to a
 - TikTok: short hook + on-screen text + caption
 - Bluesky: concise text + direct page link
 - YouTube Shorts: headline + short description + CTA link in description
+
+## Code Automation (Implemented)
+
+The repository now includes a daily scheduler function and helpers:
+
+- `netlify/functions/social-publisher.cjs`
+- `netlify/functions/_shared/social-queue.cjs`
+- `netlify/functions/_shared/social-formatters.cjs`
+- `netlify/functions/_shared/social-clients.cjs`
+
+The scheduler is configured in `netlify.toml` as:
+
+- `[functions.social-publisher]`
+- `schedule = "0 14 * * *"` (daily, 14:00 UTC)
+
+## Safe Rollout Mode
+
+By default, posting runs in dry-run mode so nothing is published publicly.
+
+Set environment variables in Netlify:
+
+- `SOCIAL_AUTOMATION_DRY_RUN=true` (default/safe)
+- `SOCIAL_AUTOMATION_CHANNELS=facebook,instagram,bluesky`
+
+When ready for live posting:
+
+- `SOCIAL_AUTOMATION_DRY_RUN=false`
+
+## Channel Credentials
+
+Current live publisher support in code:
+
+- Bluesky (live when credentials are set)
+
+Required Bluesky variables:
+
+- `BLUESKY_IDENTIFIER`
+- `BLUESKY_APP_PASSWORD`
+
+Planned next integrations (placeholders currently return skipped):
+
+- Facebook
+- Instagram
+- TikTok
+- YouTube Shorts
+
+## Data Logging
+
+Migration `database/migrations/056.001_social_automation.sql` adds:
+
+- `social_publish_history` (run log, payload, response, error)
+- `social_channel_credentials` (channel enablement/credential hints)

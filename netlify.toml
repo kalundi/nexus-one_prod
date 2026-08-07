@@ -22,6 +22,10 @@
 [functions.fuel-index-refresh]
   schedule = "0 6 * * 1"
 
+# Scheduled function: publish one post per configured social channel daily (default dry-run until env is switched)
+[functions.social-publisher]
+  schedule = "0 14 * * *"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
