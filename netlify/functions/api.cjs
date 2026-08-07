@@ -680,10 +680,27 @@ async function sendTeamsAlert(text,title='Nexus Medical Transit'){
  // To add: Teams → Admin_NMT channel → ... → Connectors → Incoming Webhook → copy URL
  const webhookUrl=process.env.TEAMS_WEBHOOK_URL;
  if(!webhookUrl)return {status:'skipped'};
- const body={
-  '@type':'MessageCard','@context':'https://schema.org/extensions',
-  themeColor:'#082f49',summary:title,title,text
- };
+ const isPowerAutomateWebhook=/environment\.api\.powerplatform\.com|\/powerautomate\/automations\/direct\//i.test(webhookUrl);
+ const body=isPowerAutomateWebhook
+  ?{
+    type:'message',
+    attachments:[{
+     contentType:'application/vnd.microsoft.card.adaptive',
+     content:{
+      '$schema':'http://adaptivecards.io/schemas/adaptive-card.json',
+      type:'AdaptiveCard',
+      version:'1.4',
+      body:[
+       {type:'TextBlock',size:'Medium',weight:'Bolder',text:String(title||'Nexus Medical Transit')},
+       {type:'TextBlock',text:String(text||''),wrap:true}
+      ]
+     }
+    }]
+   }
+  :{
+    '@type':'MessageCard','@context':'https://schema.org/extensions',
+    themeColor:'#082f49',summary:title,title,text
+   };
  try{
   const r=await fetch(webhookUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
   return r.ok?{status:'sent'}:{status:'failed',code:r.status};

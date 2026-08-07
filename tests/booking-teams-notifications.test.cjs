@@ -42,6 +42,43 @@ test('sendBookingTeamsAlert posts a customer booking payload to Teams webhook', 
   assert.match(body.text, /Source:\*\* CUSTOMER/);
 });
 
+test('sendBookingTeamsAlert uses Adaptive Card wrapper for Power Automate webhook URLs', async () => {
+  const calls = [];
+  process.env.TEAMS_WEBHOOK_URL = 'https://example.environment.api.powerplatform.com/powerautomate/automations/direct/flow/triggers/manual/paths/invoke?api-version=1&sp=x&sv=1.0&sig=y';
+  global.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return {
+      ok: true,
+      status: 202,
+      json: async () => ({})
+    };
+  };
+
+  const result = await api.sendBookingTeamsAlert(
+    {
+      reference: 'NMT-20260807-7777',
+      name: 'Flow Rider',
+      pickup: '10 Power St',
+      destination: '20 Flow Ave',
+      date: '2026-08-08',
+      pickupTime: '12:00',
+      status: 'SUBMITTED',
+      bookingSource: 'CUSTOMER'
+    },
+    'Flow Test Title',
+    'New Trip Booked'
+  );
+
+  assert.equal(result.status, 'sent');
+  assert.equal(calls.length, 1);
+  const body = JSON.parse(calls[0].options.body);
+  assert.equal(body.type, 'message');
+  assert.equal(Array.isArray(body.attachments), true);
+  assert.equal(body.attachments[0].contentType, 'application/vnd.microsoft.card.adaptive');
+  assert.equal(body.attachments[0].content.type, 'AdaptiveCard');
+  assert.match(String(body.attachments[0].content.body[1].text || ''), /NMT-20260807-7777/);
+});
+
 test('buildBookingTeamsMessage supports broker and voice booking variants', () => {
   const brokerMessage = api.buildBookingTeamsMessage(
     {
