@@ -441,12 +441,94 @@ function applyRoleRestrictions(){
   if(canEditSettings()) return;
   const userSection=document.getElementById('userSection');
   const auditSection=document.getElementById('auditSection');
+  const socialSection=document.getElementById('socialSection');
   if(userSection) userSection.style.display='none';
   if(auditSection) auditSection.style.display='none';
+  if(socialSection) socialSection.style.display='none';
   document.getElementById('savePricing').disabled=true;
   document.getElementById('resetPricing').disabled=true;
   document.getElementById('saveSettings').disabled=true;
   document.getElementById('refreshFuelIndexBtn').disabled=true;
+}
+
+function getSelectedSocialChannels(){
+  return Array.from(document.querySelectorAll('.socialChannel:checked')).map((el)=>String(el.value||'').trim()).filter(Boolean);
+}
+
+function socialMsg(text,type='ok'){
+  const el=document.getElementById('socialMsg');
+  if(!el) return;
+  showMsg(el,text,type);
+}
+
+function renderSocialPreviewRows(items=[]){
+  const body=document.getElementById('socialPreviewRows');
+  if(!body) return;
+  if(!items.length){
+    body.innerHTML='<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--muted)">No social preview items found.</td></tr>';
+    return;
+  }
+  body.innerHTML=items.map((item)=>{
+    const channel=String(item.channel||'--');
+    const postId=String(item.postId||'--');
+    const pillar=String(item.pillar||'--');
+    const status=String(item.status||'--');
+    const text=String(item.payload?.text||item.response?.error||item.reason||'').replaceAll('<','&lt;').replaceAll('>','&gt;');
+    return `<tr>
+      <td>${channel}</td>
+      <td>${postId}</td>
+      <td>${pillar}</td>
+      <td><span class="pill ${status==='published'?'green':status==='failed'?'red':'blue'}">${status}</span></td>
+      <td style="max-width:520px;white-space:normal">${text||'--'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadSocialPreview(){
+  const channels=getSelectedSocialChannels();
+  if(!channels.length){socialMsg('Select at least one channel.','err');return;}
+  const btn=document.getElementById('socialPreviewBtn');
+  if(btn){btn.disabled=true;btn.textContent='Loading...';}
+  try{
+    const qs=`channels=${encodeURIComponent(channels.join(','))}`;
+    const res=await fetch(`/api/admin/social/preview?${qs}`,{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Failed to load social preview');
+    const selected=Array.isArray(data.preview?.selected)?data.preview.selected:[];
+    renderSocialPreviewRows(selected);
+    socialMsg(`Loaded preview for ${channels.join(', ')}.`,'ok');
+  }catch(error){
+    renderSocialPreviewRows([]);
+    socialMsg(error.message,'err');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Refresh preview';}
+  }
+}
+
+async function runSocialPublish(){
+  const channels=getSelectedSocialChannels();
+  if(!channels.length){socialMsg('Select at least one channel.','err');return;}
+  const btn=document.getElementById('socialPublishBtn');
+  if(btn){btn.disabled=true;btn.textContent='Running...';}
+  try{
+    const dryRun=Boolean(document.getElementById('socialDryRun')?.checked);
+    const postId=String(document.getElementById('socialForcePostId')?.value||'').trim();
+    const res=await fetch('/api/admin/social/publish',{
+      method:'POST',
+      headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},
+      body:JSON.stringify({channels:channels.join(','),dryRun,postId})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Failed to run social publish');
+    const items=Array.isArray(data.report?.results)?data.report.results:[];
+    renderSocialPreviewRows(items);
+    const publishedCount=items.filter((item)=>String(item.status||'')==='published').length;
+    socialMsg(dryRun?`Dry run complete for ${channels.join(', ')}.`:`Publish run complete. ${publishedCount} channel(s) published.`, 'ok');
+  }catch(error){
+    socialMsg(error.message,'err');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Run publish';}
+  }
 }
 
 let adminTripsCache=[];
@@ -579,6 +661,9 @@ document.getElementById('adminTripRows')?.addEventListener('click',(event)=>{
   const ref=button.getAttribute('data-admin-advance');
   if(ref) advanceAdminTrip(ref);
 });
+document.getElementById('socialPreviewBtn')?.addEventListener('click',()=>{loadSocialPreview().catch((err)=>console.error(err));});
+document.getElementById('socialPublishBtn')?.addEventListener('click',()=>{runSocialPublish().catch((err)=>console.error(err));});
+document.querySelectorAll('.socialChannel').forEach((el)=>el.addEventListener('change',()=>{loadSocialPreview().catch((err)=>console.error(err));}));
 
 // Wait for auth-guard to authorize, then load data
 window.addEventListener('nexus:authorized',async()=>{
@@ -587,6 +672,7 @@ window.addEventListener('nexus:authorized',async()=>{
     loadUsers();
     loadAudit();
     loadAdminTrips().catch((err)=>console.error(err));
+    loadSocialPreview().catch((err)=>console.error(err));
   }
   try{await loadPlatformSettings();}catch(e){console.error(e);}
 });
@@ -597,6 +683,7 @@ if(window.NexusAuthorizedUser){
     loadUsers();
     loadAudit();
     loadAdminTrips().catch((err)=>console.error(err));
+    loadSocialPreview().catch((err)=>console.error(err));
   }
   loadPlatformSettings().catch(()=>{});
 }
