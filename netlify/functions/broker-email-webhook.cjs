@@ -342,18 +342,25 @@ function reference(){
  return `NMT-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${crypto.randomInt(1000,9999)}`;
 }
 
-async function ensureBrokerVarianceColumn(){
+async function ensureBrokerEmailReplayColumns(){
  await query(`ALTER TABLE broker_requests ADD COLUMN IF NOT EXISTS variance numeric(10,2)`).catch(()=>{});
+ await query(`ALTER TABLE broker_requests ADD COLUMN IF NOT EXISTS source_message_id text`).catch(()=>{});
+ await query(`ALTER TABLE broker_requests ADD COLUMN IF NOT EXISTS source_received_at timestamptz`).catch(()=>{});
+ await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_broker_requests_source_message_id ON broker_requests(source_message_id) WHERE source_message_id IS NOT NULL`).catch(()=>{});
 }
 
-async function insertBrokerRequest({brokerId,brokerName,service,pickup,destination,tripDate,tripTime,brokerRate,platformRate,variance,submissionMethod,submittedBy,distanceMiles}){
- await ensureBrokerVarianceColumn();
+async function insertBrokerRequest({brokerId,brokerName,service,pickup,destination,tripDate,tripTime,brokerRate,platformRate,variance,submissionMethod,submittedBy,distanceMiles,sourceMessageId,sourceReceivedAt}){
+ await ensureBrokerEmailReplayColumns();
+ if(sourceMessageId){
+  const existing=await query('SELECT * FROM broker_requests WHERE source_message_id=$1 LIMIT 1',[sourceMessageId]).catch(()=>({rows:[]}));
+  if(existing.rows?.[0])return existing.rows[0];
+ }
  const insertSql=`INSERT INTO broker_requests(
   broker_id,booking_reference,broker_name,service,pickup,destination,
   pickup_lat,pickup_lng,destination_lat,destination_lng,
   trip_date,trip_time,broker_quoted_rate,platform_calculated_rate,rate_delta,variance,
-  submission_method,submitted_by,request_status,dispatch_notes
- ) VALUES($1,null,$2,$3,$4,$5,null,null,null,null,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+  submission_method,submitted_by,request_status,dispatch_notes,source_message_id,source_received_at
+ ) VALUES($1,null,$2,$3,$4,$5,null,null,null,null,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
  RETURNING *`;
  const dispatchNote=`Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Includes 2h wait time in broker/platform rate calculations.`;
  const result=await query(insertSql,[
@@ -371,7 +378,9 @@ async function insertBrokerRequest({brokerId,brokerName,service,pickup,destinati
   submissionMethod,
   submittedBy,
   'PENDING_DISPATCH_CONFIRMATION',
-  dispatchNote
+  dispatchNote,
+  sourceMessageId||null,
+  sourceReceivedAt||null
  ]);
  return result.rows[0];
 }
@@ -447,6 +456,10 @@ exports.handler=async(event)=>{
   const senderEmail=clean(payload.from||payload.sender||'',200).toLowerCase();
   const senderName=clean(payload.sender_name||payload.from_name||senderEmail.split('@')[0]||'Unknown Broker',160);
   const recipient=clean(payload.to||payload.recipient||'',320);
+  const messageId=clean(payload.messageId||payload.internetMessageId||payload.id||'',320) || null;
+  const receivedAtRaw=clean(payload.receivedAt||payload.receivedDateTime||payload.date||payload.sentAt||'',80);
+  const receivedAt=receivedAtRaw?new Date(receivedAtRaw):null;
+  const normalizedReceivedAt=receivedAt&&!Number.isNaN(receivedAt.getTime())?receivedAt.toISOString():null;
   const subject=clean(payload.subject||'',240);
   const emailBody=clean(payload.text||payload.html||payload.body||'',20000);
   if(!senderEmail||!emailBody)return json(400,{error:'Missing from or body'});
@@ -489,7 +502,9 @@ exports.handler=async(event)=>{
    variance,
    submissionMethod:'EMAIL_ATTACHMENT',
    submittedBy:senderEmail,
-   distanceMiles:rateInfo.distanceMiles
+  distanceMiles:rateInfo.distanceMiles,
+  sourceMessageId:messageId,
+  sourceReceivedAt:normalizedReceivedAt
   });
 
   let booking=null;
@@ -523,6 +538,8 @@ exports.handler=async(event)=>{
     from:senderEmail,
     to:recipient,
     subject,
+      messageId,
+      receivedAt:normalizedReceivedAt,
     hasConfirmationSubject,
     attachmentCount:attachments.length,
     bookingReference:booking?.reference||null,
