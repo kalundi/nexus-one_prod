@@ -19,20 +19,20 @@
 <link rel="stylesheet" href="./nexus-shared-app.css">
 <style>
 :root{
-  --bg:#f4f7fb;
-  --sheet:#ffffff;
-  --ink:#07142c;
-  --muted:#5a6c7b;
-  --line:#d0dde8;
-  --brand:#d61f1f;
-  --navy:#07142c;
-  --blue:#0a6b99;
-  --ok:#067647;
-  --ok-bg:#ecfdf3;
-  --err:#be123c;
-  --err-bg:#fff1f3;
-  --warn:#92400e;
-  --warn-bg:#fffbeb;
+  --bg:#061224;
+  --sheet:#102744;
+  --ink:#e6f1ff;
+  --muted:#93aeca;
+  --line:#2a4667;
+  --brand:#ef3d2f;
+  --navy:#0a1832;
+  --blue:#4fa7ff;
+  --ok:#22c55e;
+  --ok-bg:#0f2f22;
+  --err:#f87171;
+  --err-bg:#3a1721;
+  --warn:#f59e0b;
+  --warn-bg:#3a2b0f;
   --safe-bottom:max(16px,env(safe-area-inset-bottom));
   --text-xs:clamp(11px,2.5vw,12px);
   --text-sm:clamp(12px,2.9vw,13px);
@@ -41,23 +41,24 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
-body{margin:0;font-family:'Nunito Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:var(--text-md);line-height:1.45;overflow:hidden;text-rendering:optimizeLegibility}
-a{color:var(--blue);text-decoration:none}
+body{margin:0;font-family:'Nunito Sans',system-ui,sans-serif;background:radial-gradient(circle at 12% 12%,#123966 0%,#08172c 42%,#060f1d 100%);color:var(--ink);font-size:var(--text-md);line-height:1.45;overflow:hidden;text-rendering:optimizeLegibility}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at 84% 18%,rgba(239,61,47,.2),transparent 42%),radial-gradient(circle at 24% 80%,rgba(79,167,255,.2),transparent 50%);opacity:.9;z-index:-1}
+a{color:#7fc1ff;text-decoration:none}
 
-/* â”€â”€ Phone shell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.phone{max-width:460px;margin:0 auto;height:100svh;display:flex;flex-direction:column;padding:0 0 calc(72px + var(--safe-bottom));overflow:hidden}
+/* Phone shell */
+.phone{max-width:500px;margin:0 auto;height:100svh;display:flex;flex-direction:column;padding:0 10px calc(82px + var(--safe-bottom));overflow:hidden}
 
-/* â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Top bar */
 .topBar{background:transparent;color:#fff;padding:env(safe-area-inset-top,0) 0 0;position:sticky;top:0;z-index:50}
-.topBarInner{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:16px 14px;min-height:76px;background:linear-gradient(140deg,#07142c,#0b1d47 56%,#d61f1f 130%);border-radius:0 0 22px 22px;box-shadow:0 16px 34px rgba(7,42,63,.28)}
+.topBarInner{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:16px 14px;min-height:76px;background:linear-gradient(140deg,rgba(8,30,55,.94),rgba(11,44,82,.9) 56%,rgba(160,35,28,.85) 130%);border:1px solid rgba(144,191,240,.2);border-radius:0 0 18px 18px;box-shadow:0 18px 36px rgba(3,11,24,.46);backdrop-filter:blur(10px)}
 .driverBrand{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;justify-self:start;min-width:0}
 .driverBrand:focus-visible{outline:3px solid rgba(255,255,255,.35);outline-offset:4px;border-radius:16px}
-.topLogo{display:block;width:min(156px,34vw);height:auto;object-fit:contain;object-position:left center;background:transparent;filter:none;mix-blend-mode:normal;opacity:1;animation:logoPop .9s cubic-bezier(.36,.07,.19,.97) both;transform-origin:center center}
+.topLogo{display:block;width:min(156px,34vw);height:auto;object-fit:contain;object-position:left center;background:transparent;filter:drop-shadow(0 4px 12px rgba(0,0,0,.35));mix-blend-mode:normal;opacity:1;animation:logoPop .9s cubic-bezier(.36,.07,.19,.97) both;transform-origin:center center}
 .topTitle{font:900 clamp(16px,4.4vw,20px)/1.08 Sora,sans-serif;letter-spacing:-.03em;text-align:center;justify-self:stretch;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;max-width:100%}
 .topBadge{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;font:800 11px/1 Sora,sans-serif;letter-spacing:.06em;text-transform:uppercase;border:0;cursor:pointer}
 .topBadge{justify-self:end}
 .topBadge.on{background:rgba(22,163,74,.28);color:#86efac}
-.topBadge.off{background:rgba(255,255,255,.14);color:#eef2ff}
+.topBadge.off{background:rgba(230,241,255,.16);color:#dbeafe}
 .topBadge.break{background:rgba(234,179,8,.24);color:#fde047}
 .topBadge::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
 .topBadge:focus-visible{outline:3px solid rgba(255,255,255,.35);outline-offset:2px}
@@ -70,21 +71,21 @@ a{color:var(--blue);text-decoration:none}
 
 @keyframes logoPop{0%{transform:scale(1) rotate(0deg)}15%{transform:scale(1.28) rotate(-4deg)}30%{transform:scale(1.35) rotate(4deg)}50%{transform:scale(1.25) rotate(-2deg)}70%{transform:scale(1.12) rotate(1.5deg)}85%{transform:scale(1.05) rotate(-0.5deg)}100%{transform:scale(1) rotate(0deg)}}
 
-/* â”€â”€ Bottom nav â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.bottomNav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(480px,100%);background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding:0 0 var(--safe-bottom);z-index:50;box-shadow:0 -4px 16px rgba(0,0,0,.08)}
+/* Bottom nav */
+.bottomNav{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);width:min(500px,calc(100% - 18px));background:rgba(10,25,46,.92);border:1px solid rgba(159,199,240,.2);display:grid;grid-template-columns:repeat(4,1fr);padding:0 0 var(--safe-bottom);z-index:50;box-shadow:0 18px 34px rgba(2,8,18,.48);backdrop-filter:blur(14px);border-radius:18px}
 .navBtn{border:0;background:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:10px 4px 8px;font:700 var(--text-xs)/1 Sora,sans-serif;color:var(--muted);cursor:pointer;min-height:56px;letter-spacing:.04em;text-transform:uppercase;-webkit-tap-highlight-color:transparent}
 .navBtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.navBtn.active{color:var(--brand)}
+.navBtn.active{color:#ffffff;background:linear-gradient(135deg,rgba(79,167,255,.28),rgba(239,61,47,.26));border-radius:12px}
 .navBadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--brand);color:#fff;font-size:10px;font-weight:900;position:absolute;top:6px;right:calc(50% - 20px)}
 .navBtnWrap{position:relative;display:flex;flex-direction:column;align-items:center}
 
-/* â”€â”€ Sections / cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Sections and cards */
 .padded{padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-height:0}
-.card{background:var(--sheet);border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 30px rgba(0,0,0,.08);margin-bottom:10px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.card{background:linear-gradient(180deg,rgba(18,43,73,.94),rgba(11,30,52,.96));border:1px solid rgba(143,187,230,.22);border-radius:18px;box-shadow:0 16px 32px rgba(4,12,24,.4);margin-bottom:10px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
 .cardHead{padding:14px 16px 0;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .cardHead h2{margin:0;font:800 var(--text-lg)/1.2 Sora,sans-serif;letter-spacing:-.02em}
 .cardBody{padding:12px 16px 16px;min-width:0}
-.eyebrow{font:800 var(--text-xs)/1 Sora,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.eyebrow{font:800 var(--text-xs)/1 Sora,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#9fcbf7;margin-bottom:4px}
 .cardHead,.cardBody,.routeFocusPanel,.notice,.summaryItem,.analyticsTile{min-width:0}
 .cardBody p,.routeFocusPanel span,.notice,.tripInfo span,.inspLabel small,.legInfo span,.summaryItem span,.analyticsLegend,.analyticsInsight{overflow-wrap:anywhere}
 
@@ -96,7 +97,7 @@ a{color:var(--blue);text-decoration:none}
 #dashView .cardHead{padding:12px 14px 0}
 #dashView .cardBody{padding:10px 14px 14px}
 .dashStatGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.dashStat{display:grid;gap:4px;text-align:center;padding:9px 6px;background:var(--bg);border-radius:10px;border:1px solid var(--line)}
+.dashStat{display:grid;gap:4px;text-align:center;padding:9px 6px;background:rgba(8,24,44,.76);border-radius:10px;border:1px solid rgba(144,191,240,.22)}
 .dashStat strong{display:block;font:800 clamp(18px,4.8vw,20px)/1 Sora,sans-serif}
 .dashStat span{font-size:var(--text-xs);color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
 #dashView #nextTripBody{display:grid;gap:4px}
@@ -108,60 +109,60 @@ a{color:var(--blue);text-decoration:none}
 #routeFocusCard{display:none}
 #dashView.route-mode #routeFocusCard{display:block!important}
 .routeFocusBody{display:grid;gap:12px;min-height:calc(100svh - 280px)}
-.routeFocusPanel{border:1px solid var(--line);border-radius:14px;background:#f8fafc;padding:12px}
+.routeFocusPanel{border:1px solid rgba(149,197,242,.22);border-radius:14px;background:rgba(8,24,44,.74);padding:12px}
 .routeFocusPanel strong{display:block;font:800 var(--text-md)/1.2 Sora,sans-serif}
 .routeFocusPanel span{display:block;margin-top:4px;font-size:var(--text-sm);color:var(--muted)}
-.routeFocusMapWrap{position:sticky;top:0;z-index:3;padding:2px 0 8px;background:linear-gradient(to bottom,#fff 82%,rgba(255,255,255,0))}
-.routeFocusMap{width:100%;min-height:260px;border:1px solid var(--line);border-radius:14px;background:#eaf3fb}
+.routeFocusMapWrap{position:sticky;top:0;z-index:3;padding:2px 0 8px;background:linear-gradient(to bottom,rgba(9,21,38,.98) 82%,rgba(9,21,38,0))}
+.routeFocusMap{width:100%;min-height:260px;border:1px solid rgba(149,197,242,.24);border-radius:14px;background:#0b1f36}
 
 #dashView.route-mode .routeFocusBody{overflow:auto;padding-bottom:10px}
 
-/* â”€â”€ Forms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Forms */
 .field{display:grid;gap:6px;margin-bottom:12px}
 .field:last-child{margin-bottom:0}
 .field label{font:700 var(--text-sm)/1.15 Sora,sans-serif;color:var(--ink)}
-.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px 12px;font:500 var(--text-md)/1.4 'Nunito Sans',sans-serif;background:#fff;color:var(--ink);-webkit-appearance:none;appearance:none}
-.field input:focus,.field select:focus,.field textarea:focus{outline:3px solid rgba(10,107,153,.2);border-color:var(--blue)}
+.field input,.field select,.field textarea{width:100%;border:1px solid rgba(147,174,202,.34);border-radius:12px;padding:13px 12px;font:500 var(--text-md)/1.4 'Nunito Sans',sans-serif;background:rgba(6,20,37,.88);color:var(--ink);-webkit-appearance:none;appearance:none}
+.field input:focus,.field select:focus,.field textarea:focus{outline:3px solid rgba(79,167,255,.22);border-color:var(--blue)}
 .field textarea{min-height:80px;resize:vertical}
 .fieldRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .passwordField{position:relative}
 .passwordField input{padding-right:58px}
 .passwordToggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--blue);font:700 13px/1.2 Sora,sans-serif;cursor:pointer;padding:0}
 
-/* â”€â”€ Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;border:0;padding:0 20px;font:800 15px/1 Sora,sans-serif;cursor:pointer;min-height:52px;letter-spacing:-.01em;transition:transform .1s,box-shadow .1s}
 .btn:active{transform:scale(.97)}
-.btn.primary{background:linear-gradient(135deg,var(--brand),#a91616);color:#fff;box-shadow:0 8px 20px rgba(214,31,31,.28);width:100%}
-.btn.navy{background:linear-gradient(135deg,var(--navy),#0e2a55);color:#fff;box-shadow:0 8px 20px rgba(7,20,44,.28);width:100%}
-.btn.ok{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;width:100%;box-shadow:0 8px 18px rgba(22,163,74,.24)}
-.btn.ghost{background:transparent;border:1.5px solid var(--line);color:var(--ink)}
+.btn.primary{background:linear-gradient(135deg,var(--brand),#ca2a21);color:#fff;box-shadow:0 12px 24px rgba(202,42,33,.34);width:100%}
+.btn.navy{background:linear-gradient(135deg,#2e7cd4,#1c4d93);color:#fff;box-shadow:0 12px 24px rgba(26,76,140,.35);width:100%}
+.btn.ok{background:linear-gradient(135deg,#22c55e,#16934a);color:#fff;width:100%;box-shadow:0 12px 22px rgba(23,148,75,.34)}
+.btn.ghost{background:rgba(6,20,37,.66);border:1.5px solid rgba(143,187,230,.28);color:var(--ink)}
 .btn.sm{min-height:38px;font-size:var(--text-sm);padding:0 14px;border-radius:10px}
 .btnRow{display:flex;gap:8px;flex-wrap:wrap}
 .btnRow .btn{flex:1}
 
-/* â”€â”€ Status badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Status badges */
 .badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;font:800 11px/1 Sora,sans-serif;letter-spacing:.06em;text-transform:uppercase}
 .badge.blue{background:#dbeafe;color:#1e40af}
 .badge.green{background:var(--ok-bg);color:var(--ok)}
 .badge.red{background:var(--err-bg);color:var(--err)}
 .badge.amber{background:var(--warn-bg);color:var(--warn)}
-.badge.gray{background:#f1f5f9;color:#475569}
+.badge.gray{background:#12314f;color:#b9ddff}
 
-/* â”€â”€ Trip card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Trip card */
 .tripCard{display:grid;grid-template-columns:56px 1fr auto;gap:12px;align-items:center;padding:13px 14px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .15s}
 .tripCard:last-child{border-bottom:0}
-.tripCard:hover,.tripCard:focus-visible{background:#f8fafc;outline:none}
-.tripCard.active-trip{background:#edf7fd;border-left:4px solid var(--blue)}
+.tripCard:hover,.tripCard:focus-visible{background:rgba(79,167,255,.1);outline:none}
+.tripCard.active-trip{background:rgba(79,167,255,.14);border-left:4px solid var(--blue)}
 .tripTime{text-align:center}.tripTime strong{display:block;font:800 16px/1 Sora,sans-serif}.tripTime small{font-size:11px;color:var(--muted)}
 .tripInfo strong{display:block;font:700 var(--text-md)/1.2 Sora,sans-serif}.tripInfo span{display:block;font-size:var(--text-sm);color:var(--muted);margin-top:2px;white-space:normal;overflow:visible;text-overflow:clip;max-width:none}
 
-/* â”€â”€ Inspection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.inspSection{margin-bottom:12px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
-.inspGroupHead{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:10px 12px;background:#f0f7fc;border-bottom:1px solid var(--line)}
+/* Inspection */
+.inspSection{margin-bottom:12px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:rgba(11,29,50,.84)}
+.inspGroupHead{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:10px 12px;background:rgba(7,22,39,.88);border-bottom:1px solid var(--line)}
 .inspGroupTitleBtn{display:flex;align-items:center;justify-content:space-between;gap:10px;border:0;background:transparent;padding:0;text-align:left;cursor:pointer;color:var(--blue);font:800 13px/1 Sora,sans-serif;letter-spacing:.06em;text-transform:uppercase}
 .inspGroupTitleBtn .meta{font:700 11px/1 Sora,sans-serif;color:var(--muted);letter-spacing:.04em}
 .inspGroupActions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.inspGroupBulkBtn{min-height:30px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);font:800 11px/1 Sora,sans-serif;letter-spacing:.04em;cursor:pointer}
+.inspGroupBulkBtn{min-height:30px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:#0b2038;color:var(--muted);font:800 11px/1 Sora,sans-serif;letter-spacing:.04em;cursor:pointer}
 .inspGroupBulkBtn.active-pass{background:var(--ok-bg);border-color:#86efac;color:var(--ok)}
 .inspGroupBulkBtn.active-fail{background:var(--err-bg);border-color:#fda4af;color:var(--err)}
 .inspGroupItems[hidden]{display:none}
@@ -171,75 +172,75 @@ a{color:var(--blue);text-decoration:none}
 .inspLabel{flex:1;font:600 var(--text-md)/1.35 'Nunito Sans',sans-serif}
 .inspLabel small{display:block;font-size:var(--text-sm);color:var(--muted);margin-top:2px}
 .inspToggle{display:flex;gap:6px}
-.inspToggle button{min-width:52px;min-height:34px;border-radius:8px;border:1.5px solid var(--line);background:#fff;font:700 12px/1 Sora,sans-serif;cursor:pointer;transition:all .15s}
+.inspToggle button{min-width:52px;min-height:34px;border-radius:8px;border:1.5px solid var(--line);background:#0b2038;font:700 12px/1 Sora,sans-serif;color:var(--ink);cursor:pointer;transition:all .15s}
 .inspToggle button.pass{background:var(--ok-bg);border-color:#86efac;color:var(--ok)}
 .inspToggle button.fail{background:var(--err-bg);border-color:#fda4af;color:var(--err)}
 .inspProgress{height:4px;background:var(--line);border-radius:999px;margin:10px 16px}
 .inspProgress span{display:block;height:100%;background:var(--ok);border-radius:999px;transition:width .3s}
 
-/* â”€â”€ Mileage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Mileage */
 .legRow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--line)}
 .legRow:last-child{border-bottom:0}
 .legInfo strong{font:700 var(--text-sm)/1.2 Sora,sans-serif;display:block}.legInfo span{font-size:var(--text-xs);color:var(--muted);margin-top:2px;display:block}
 .legMiles{font:800 clamp(16px,4.2vw,18px)/1 Sora,sans-serif;color:var(--ink);white-space:nowrap}
 .legMiles small{font-size:var(--text-xs);color:var(--muted);font-weight:600}
-.milesTotal{background:var(--navy);color:#fff;border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;margin:10px 14px}
+.milesTotal{background:linear-gradient(135deg,#0f2745,#173963);color:#fff;border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;margin:10px 14px;border:1px solid rgba(149,197,242,.24)}
 .milesTotal strong{font:800 26px/1 Sora,sans-serif}
 .milesTotal span{font-size:13px;color:#94a3b8}
 
-/* â”€â”€ Shift summary (end) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Shift summary (end) */
 .summaryGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 16px}
-.summaryItem{padding:14px;background:var(--bg);border-radius:12px;border:1px solid var(--line)}
+.summaryItem{padding:14px;background:rgba(8,24,44,.76);border-radius:12px;border:1px solid rgba(144,191,240,.2)}
 .summaryItem strong{display:block;font:800 28px/1 Sora,sans-serif;margin-bottom:4px}
 .summaryItem span{font-size:var(--text-xs);color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
 
-/* â”€â”€ Alert / notice â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Alert and notice */
 .notice{border-radius:12px;padding:12px 14px;font-size:var(--text-md);margin-bottom:10px;border:1px solid}
-.notice.ok{background:var(--ok-bg);border-color:#bbf7d0;color:var(--ok)}
-.notice.err{background:var(--err-bg);border-color:#fecdd3;color:var(--err)}
-.notice.info{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
-.notice.warn{background:var(--warn-bg);border-color:#fde68a;color:var(--warn)}
+.notice.ok{background:var(--ok-bg);border-color:#2a8750;color:#7ee8a5}
+.notice.err{background:var(--err-bg);border-color:#9f344f;color:#fda4b8}
+.notice.info{background:#122c49;border-color:#2f6eaa;color:#b8ddff}
+.notice.warn{background:var(--warn-bg);border-color:#9b6c19;color:#f8cf6c}
 
-/* â”€â”€ Login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-#loginView{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;background:var(--navy)}
-.loginCard{width:min(400px,100%);background:#fff;border-radius:20px;padding:28px;box-shadow:0 30px 60px rgba(0,0,0,.3)}
+/* Login */
+#loginView{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;background:radial-gradient(circle at 20% 0%,#173963 0%,#0a1931 45%,#060f1d 100%)}
+.loginCard{width:min(420px,100%);background:linear-gradient(180deg,rgba(18,43,73,.96),rgba(11,30,52,.96));border:1px solid rgba(144,191,240,.26);border-radius:22px;padding:28px;box-shadow:0 30px 60px rgba(0,0,0,.44)}
 .loginLogo{display:block;width:160px;margin:0 auto 24px}
 .loginCard h1{margin:0 0 4px;font:900 22px/1 Sora,sans-serif;text-align:center}
 .loginCard p{margin:0 0 20px;color:var(--muted);text-align:center;font-size:14px}
 
-/* â”€â”€ Date filter tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Date filter tabs */
 .tabBar{display:flex;gap:6px;padding:12px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .tabBar::-webkit-scrollbar{display:none}
-.tabBar button{flex:0 0 auto;padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font:700 13px/1 Sora,sans-serif;color:var(--muted);cursor:pointer;white-space:nowrap}
-.tabBar button.active{background:var(--navy);border-color:var(--navy);color:#fff}
+.tabBar button{flex:0 0 auto;padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);background:#0e2a45;font:700 13px/1 Sora,sans-serif;color:var(--muted);cursor:pointer;white-space:nowrap}
+.tabBar button.active{background:linear-gradient(135deg,#2e7cd4,#1c4d93);border-color:#3c81cf;color:#fff}
 
-/* â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Empty state */
 .empty{text-align:center;padding:40px 20px;color:var(--muted)}
 .empty svg{width:48px;height:48px;margin:0 auto 12px;opacity:.4;display:block}
 .empty p{margin:0;font-size:14px}
 
-/* â”€â”€ Divider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Divider */
 .divider{height:1px;background:var(--line);margin:12px 0}
 
 /* Driver insights charts */
 .analyticsHead{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .analyticsTabs{display:flex;gap:6px;flex-wrap:wrap}
-.analyticsTabs button{min-height:32px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);font:800 11px/1 Sora,sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.analyticsTabs button{min-height:32px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:#0e2a45;color:var(--muted);font:800 11px/1 Sora,sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
 .analyticsTabs button.active{background:var(--navy);border-color:var(--navy);color:#fff}
 .analyticsGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.analyticsTile{border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px 10px 14px}
+.analyticsTile{border:1px solid rgba(143,187,230,.24);border-radius:12px;background:rgba(8,24,44,.78);padding:10px 10px 14px}
 .analyticsTile h3{margin:0 0 8px;font:800 var(--text-xs)/1.2 Sora,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 .analyticsMetric{display:flex;align-items:baseline;gap:6px;margin-bottom:8px}
 .analyticsMetric strong{font:900 clamp(20px,5vw,22px)/1 Sora,sans-serif;color:var(--ink)}
 .analyticsMetric span{font:700 var(--text-xs)/1 Sora,sans-serif;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
 .analyticsBars{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;align-items:end;height:74px;margin-bottom:18px}
-.analyticsBar{position:relative;border-radius:8px 8px 5px 5px;background:#dbeafe;min-height:6px}
+.analyticsBar{position:relative;border-radius:8px 8px 5px 5px;background:linear-gradient(180deg,#7bb9ff,#2e7cd4);min-height:6px}
 .analyticsBar::after{content:attr(data-label);position:absolute;left:50%;transform:translateX(-50%);bottom:-16px;font:700 8px/1 Sora,sans-serif;color:var(--muted);letter-spacing:.03em}
 .analyticsLegend{margin-top:0;font-size:var(--text-xs);color:var(--muted);line-height:1.3}
-.analyticsInsight{margin-top:12px;padding:10px;border-radius:10px;background:#f8fbff;border:1px dashed #b9d7ea;color:#244762;font-size:var(--text-sm);line-height:1.4}
+.analyticsInsight{margin-top:12px;padding:10px;border-radius:10px;background:#0d2844;border:1px dashed #3e78af;color:#d3e9ff;font-size:var(--text-sm);line-height:1.4}
 @media(max-width:420px){.analyticsGrid{grid-template-columns:1fr}.analyticsBars{height:70px}}
 
-/* â”€â”€ View transitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* View transitions */
 .view{display:none;flex:1;flex-direction:column;min-height:0;overflow:hidden}
 .view.active{display:flex;flex-direction:column;animation:fadeUp .25s ease-out;overflow:auto;scrollbar-gutter:stable both-edges}
 .view.focus-mode .card{display:none!important}
@@ -247,7 +248,7 @@ a{color:var(--blue);text-decoration:none}
 .view.focus-mode .padded{overflow:hidden}
 .view.focus-mode .card.card-focus-active{display:flex!important;flex-direction:column;flex:1;min-height:0;max-height:100%;margin-bottom:0;overflow:auto;overscroll-behavior:contain}
 .view.focus-mode .card.card-focus-active .cardBody{overflow:visible;min-height:auto}
-.focusToggle{position:fixed;right:16px;bottom:calc(80px + var(--safe-bottom));z-index:60;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:8px 12px;font:800 12px/1 Sora,sans-serif;box-shadow:0 8px 18px rgba(7,20,44,.16);cursor:pointer}
+.focusToggle{position:fixed;right:16px;bottom:calc(92px + var(--safe-bottom));z-index:60;border:1px solid rgba(149,197,242,.24);background:#0f2745;color:var(--ink);border-radius:999px;padding:8px 12px;font:800 12px/1 Sora,sans-serif;box-shadow:0 12px 22px rgba(4,12,24,.42);cursor:pointer}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 
 @media(max-width:380px){
@@ -261,7 +262,7 @@ a{color:var(--blue);text-decoration:none}
 
 /* Modal */
 .modalBackdrop{position:fixed;inset:0;background:rgba(7,20,44,.55);display:grid;place-items:end center;padding:16px;z-index:120}
-.modalCard{width:min(480px,100%);background:#fff;border:1px solid var(--line);border-radius:16px 16px 12px 12px;box-shadow:0 -10px 30px rgba(7,20,44,.22);padding:14px}
+.modalCard{width:min(480px,100%);background:linear-gradient(180deg,#143256,#0d243f);border:1px solid rgba(143,187,230,.24);border-radius:16px 16px 12px 12px;box-shadow:0 -10px 30px rgba(7,20,44,.38);padding:14px}
 .modalCard h3{margin:0 0 8px;font:800 18px/1.2 Sora,sans-serif;color:var(--ink)}
 .modalCard p{margin:0 0 10px;font-size:14px;line-height:1.4;color:var(--muted)}
 @media(min-width:700px){.modalBackdrop{place-items:center}.modalCard{border-radius:16px}}
@@ -269,7 +270,7 @@ a{color:var(--blue);text-decoration:none}
 </head>
 <body>
 
-<!-- â•â• LOGIN â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!-- LOGIN -->
 <div id="loginView">
   <div class="loginCard">
     <img class="loginLogo" src="./nexus-logo.png" alt="Nexus Medical Transit">
@@ -310,7 +311,7 @@ a{color:var(--blue);text-decoration:none}
   </div>
 </div>
 
-<!-- â•â• APP SHELL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!-- APP SHELL -->
 <div id="appShell" hidden>
 <div class="phone">
 
@@ -325,7 +326,7 @@ a{color:var(--blue);text-decoration:none}
     </div>
   </header>
 
-  <!-- â”€â”€ DASHBOARD VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- DASHBOARD VIEW -->
   <div id="dashView" class="view active">
     <div class="padded">
       <div id="dashNotice" class="notice info route-hidden" hidden></div>
@@ -476,7 +477,7 @@ a{color:var(--blue);text-decoration:none}
     </div>
   </div>
 
-  <!-- â”€â”€ INSPECTION VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- INSPECTION VIEW -->
   <div id="inspectionView" class="view">
     <div class="padded">
       <!-- Step 1: Select vehicle -->
@@ -531,7 +532,7 @@ a{color:var(--blue);text-decoration:none}
     </form>
   </div>
 
-  <!-- â”€â”€ MANIFEST VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- MANIFEST VIEW -->
   <div id="manifestView" class="view">
     <div class="tabBar" id="manifestTabs" role="tablist">
       <button class="active" data-days="1">Today</button>
@@ -549,7 +550,7 @@ a{color:var(--blue);text-decoration:none}
     <div style="height:14px"></div>
   </div>
 
-  <!-- â”€â”€ TRIP DETAIL VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- TRIP DETAIL VIEW -->
   <div id="tripView" class="view">
     <div class="padded">
       <!-- Trip header -->
@@ -644,7 +645,7 @@ a{color:var(--blue);text-decoration:none}
     </div>
   </div>
 
-  <!-- â”€â”€ MILES VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- MILES VIEW -->
   <div id="milesView" class="view">
     <div class="padded">
       <div id="milesOdoCard" class="card">
@@ -668,7 +669,7 @@ a{color:var(--blue);text-decoration:none}
     </div>
   </div>
 
-  <!-- â”€â”€ END SHIFT VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- END SHIFT VIEW -->
   <div id="endView" class="view">
     <div class="padded">
       <div class="notice warn">Review your shift summary before signing out. This data is submitted to Dispatch and Fleet.</div>
@@ -720,7 +721,7 @@ a{color:var(--blue);text-decoration:none}
 
 </div><!-- .phone -->
 
-<!-- â”€â”€ BOTTOM NAV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<!-- BOTTOM NAV -->
 <nav class="bottomNav" aria-label="Driver navigation">
   <button class="navBtn active" data-view="dashView">
     <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
