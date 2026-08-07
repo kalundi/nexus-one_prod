@@ -31,22 +31,26 @@
 .formField{display:grid;gap:5px}
 .formField label{font-size:13px;font-weight:700;color:#344054}
 .formField input,.formField select,.formField textarea{border:1px solid #d0d5dd;border-radius:9px;padding:9px 11px;font-size:14px;width:100%;box-sizing:border-box}
+.dispatchTripEditor .formRow{align-items:start}
+.dispatchTripEditor .formField{align-content:start}
+.dispatchTripEditor .formField input,.dispatchTripEditor .formField select,.dispatchTripEditor .formField textarea{min-height:40px}
+.dispatchTripEditor .subtle{display:block;min-height:18px}
 @media(max-width:760px){.transportation-picker{padding:var(--sp);border-radius:12px}.picker-header,.company-card-heading{align-items:flex-start;flex-direction:column}.filter-grid,.form-grid{grid-template-columns:1fr}.company-actions a{width:100%}}
   </style>
   <script src="/trustedsite.js" defer></script>
   <script src="/i18n.js" defer></script>
 <script src="./auth-guard.js"></script><script src="./nexus-data.js"></script>
 <script src="./nexus-availability.js" defer></script>
-<script src="./universal-booking.js" defer></script></head><body><a class="skip" href="#main">Skip to main content</a><header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="dispatchNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a aria-current="page" href="/dispatch.html">Dispatch</a><a href="/fleet.html">Fleet</a></nav><div class="globalActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18886395766"><small>Call Nexus</small><strong>(888) 639-5766</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true">â†’</span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="dispatchNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header><section class="hero livecareMapHero"><div class="shell livecareExperience">
+<script src="./universal-booking.js" defer></script></head><body><a class="skip" href="#main">Skip to main content</a><header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="dispatchNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a aria-current="page" href="/dispatch.html">Dispatch</a><a href="/fleet.html">Fleet</a></nav><div class="globalActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18886395766"><small>Call Nexus</small><strong>(888) 639-5766</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true"></span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="dispatchNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header><section class="hero livecareMapHero"><div class="shell livecareExperience">
 <div class="livecareStoryPanel">
   <div><div class="eyebrow"><span class="liveDot" aria-hidden="true"></span>NEXUS Dispatch</div>
   <h1>A live command center for every trip.</h1>
   <p>Coordinate requests, assign drivers and vehicles, monitor progress and communicate with patients and facilities in real time.</p></div>
   <div class="livecareCompactMetrics" aria-label="Live dispatch overview" aria-live="polite">
-    <span><small>Requests</small><strong id="totalTrips">â€”</strong></span>
-    <span><small>Pending</small><strong id="pendingTrips">â€”</strong></span>
-    <span><small>Active</small><strong id="activeTrips">â€”</strong></span>
-    <span><small>Completed</small><strong id="completedTrips">â€”</strong></span>
+    <span><small>Requests</small><strong id="totalTrips"></strong></span>
+    <span><small>Pending</small><strong id="pendingTrips"></strong></span>
+    <span><small>Active</small><strong id="activeTrips"></strong></span>
+    <span><small>Completed</small><strong id="completedTrips"></strong></span>
   </div>
   <div class="livecareStoryActions" style="margin-top:4px">
     <a class="button lightButton" href="#tripBoard" onclick="event.preventDefault();document.getElementById('tripBoard').scrollIntoView({behavior:'smooth'})">Trip board</a>
@@ -55,21 +59,21 @@
   </div>
 </div>
 <aside class="livecareMapPanel" aria-label="Dispatch fleet telemetry">
-  <div class="mapTopBar"><div><span class="mapLiveBadge" id="heroFleetStatus">Connectingâ€¦</span><small id="heroFleetUpdated">Loading fleet telemetryâ€¦</small></div><button id="heroRefreshFleet" type="button" class="mapRefresh">Refresh</button></div>
+  <div class="mapTopBar"><div><span class="mapLiveBadge" id="heroFleetStatus">Connecting</span><small id="heroFleetUpdated">Loading fleet telemetry</small></div><button id="heroRefreshFleet" type="button" class="mapRefresh">Refresh</button></div>
   <div class="liveFleetMapShell mapOnlyShell" style="background:#061f35">
     <div style="padding:16px 18px;height:100%;display:flex;flex-direction:column;gap:10px;overflow:auto">
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
-        <div style="background:rgba(22,163,106,.15);border:1px solid rgba(22,163,106,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#4ade80" id="heroFleetMoving">â€”</strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Moving</small></div>
-        <div style="background:rgba(129,70,214,.15);border:1px solid rgba(129,70,214,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#c4b5fd" id="heroFleetOnboard">â€”</strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">On-board</small></div>
-        <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#d1d5db" id="heroFleetAvail">â€”</strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Available</small></div>
-        <div style="background:rgba(217,130,24,.15);border:1px solid rgba(217,130,24,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#fbbf24" id="heroFleetAttn">â€”</strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Attention</small></div>
+        <div style="background:rgba(22,163,106,.15);border:1px solid rgba(22,163,106,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#4ade80" id="heroFleetMoving"></strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Moving</small></div>
+        <div style="background:rgba(129,70,214,.15);border:1px solid rgba(129,70,214,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#c4b5fd" id="heroFleetOnboard"></strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">On-board</small></div>
+        <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#d1d5db" id="heroFleetAvail"></strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Available</small></div>
+        <div style="background:rgba(217,130,24,.15);border:1px solid rgba(217,130,24,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#fbbf24" id="heroFleetAttn"></strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Attention</small></div>
       </div>
-      <div id="heroVehicleList" style="flex:1;overflow:auto;display:grid;gap:8px"><div style="text-align:center;padding:20px;color:#9fc2d8">Loading fleet telemetryâ€¦</div></div>
+      <div id="heroVehicleList" style="flex:1;overflow:auto;display:grid;gap:8px"><div style="text-align:center;padding:20px;color:#9fc2d8">Loading fleet telemetry</div></div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px">
-        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#fff" id="heroTotalTrips">â€”</strong>Trips</span>
-        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#fbbf24" id="heroPendingTrips">â€”</strong>Pending</span>
-        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#4ade80" id="heroActiveTrips">â€”</strong>Active</span>
-        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#60a5fa" id="heroCompletedTrips">â€”</strong>Done</span>
+        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#fff" id="heroTotalTrips"></strong>Trips</span>
+        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#fbbf24" id="heroPendingTrips"></strong>Pending</span>
+        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#4ade80" id="heroActiveTrips"></strong>Active</span>
+        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#60a5fa" id="heroCompletedTrips"></strong>Done</span>
       </div>
     </div>
   </div>
@@ -94,16 +98,16 @@
 
       <!-- Transportation Company Picker -->
       <div id="transportationPickerBlock" class="transportation-picker">
-        <!-- Collapsed summary â€” shown after Continue, hidden initially -->
-        <div id="pickerCollapsedBar" hidden style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:#f0f7fc;border:1px solid #cce0f0;border-radius:12px;cursor:pointer" onclick="window.expandPicker()">
+        <!-- Collapsed summary shown by default -->
+        <div id="pickerCollapsedBar" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:#f0f7fc;border:1px solid #cce0f0;border-radius:12px;cursor:pointer" onclick="window.expandPicker()">
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:13px;color:#667085;font-weight:700">Company:</span>
-            <strong id="pickerCollapsedName" style="font-size:14px;color:#082f49"></strong>
+            <strong id="pickerCollapsedName" style="font-size:14px;color:#082f49">No company selected</strong>
           </div>
-          <button type="button" style="border:0;background:0;color:#0a6b99;font-size:13px;font-weight:700;cursor:pointer;padding:0;white-space:nowrap">Change âœŽ</button>
+          <button type="button" style="border:0;background:0;color:#0a6b99;font-size:13px;font-weight:700;cursor:pointer;padding:0;white-space:nowrap">Choose company</button>
         </div>
-        <!-- Full picker body â€” hidden after Continue -->
-        <div id="pickerBody">
+        <!-- Full picker body hidden until expanded -->
+        <div id="pickerBody" hidden>
         <div class="picker-header">
           <div>
             <p class="eyebrow">Nexus Medical Transit</p>
@@ -113,13 +117,13 @@
           <button type="button" id="togglePickerAddForm" class="secondary-button">+ Add Company</button>
         </div>
 
-        <!-- Primary dropdown â€” main selection -->
+        <!-- Primary dropdown  main selection -->
         <label class="company-select-label" for="pickerSelect" style="margin-top:18px">
           Select Company
-          <select id="pickerSelect" style="font-size:15px;min-height:52px"><option value="">Choose a companyâ€¦</option></select>
+          <select id="pickerSelect" style="font-size:15px;min-height:52px"><option value="">Choose a company</option></select>
         </label>
 
-        <!-- Secondary filters â€” collapsible -->
+        <!-- Secondary filters  collapsible -->
         <details style="margin-top:14px">
           <summary style="cursor:pointer;font-size:13px;font-weight:700;color:#667085;user-select:none;list-style:none;display:flex;align-items:center;gap:6px">
             <span id="filterSummaryLabel">Filter companies</span>
@@ -154,7 +158,7 @@
           </div>
         </div>
 
-        <!-- Company Card â€” collapsed by default, expandable -->
+        <!-- Company Card  collapsed by default, expandable -->
         <div id="pickerCompanyCard" hidden>
           <!-- Compact summary row (always visible once company selected) -->
           <div id="pickerCardSummary" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:10px 14px;background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;cursor:pointer" onclick="window.toggleCompanyCard()" aria-expanded="false">
@@ -163,9 +167,9 @@
               <strong id="pickerCardName" style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></strong>
               <span id="pickerCardProviderStatus" class="provider-status" style="flex-shrink:0"></span>
             </div>
-            <button type="button" id="pickerCardToggle" style="border:0;background:0;color:#667085;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer;padding:0">Show details â–¾</button>
+            <button type="button" id="pickerCardToggle" style="border:0;background:0;color:#667085;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer;padding:0">Show details </button>
           </div>
-          <!-- Full details â€” hidden until expanded -->
+          <!-- Full details  hidden until expanded -->
           <div id="pickerCardFull" hidden class="company-card" style="margin-top:4px;border-radius:12px">
             <div id="pickerCardDetails" class="company-details"></div>
             <div id="pickerCardServices" class="service-list"></div>
@@ -220,7 +224,7 @@
         <div class="formField"><label for="brokerQuotedRate">Broker quoted rate ($)</label><input id="brokerQuotedRate" name="brokerQuotedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
         <div class="formField"><label for="brokerCalculatedRate">Platform rate ($) <small style="color:var(--muted);font-weight:400">(auto)</small></label><input id="brokerCalculatedRate" name="platformCalculatedRate" type="number" min="0" step="0.01" readonly style="background:var(--soft,#f8fafc)"></div>
       </div>
-      <div class="formField"><label for="brokerNotes">Notes</label><input id="brokerNotes" name="notes" type="text" placeholder="Special instructions, equipment needs, patient conditionâ€¦"></div>
+      <div class="formField"><label for="brokerNotes">Notes</label><input id="brokerNotes" name="notes" type="text" placeholder="Special instructions, equipment needs, patient condition"></div>
 
       <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
         <div id="brokerIntakeMessage" class="msgBox" hidden></div>
@@ -331,12 +335,12 @@
     <small id="tripFilterSummary" class="subtle" style="margin-left:auto">Showing all trips</small>
   </div>
   <p class="subtle" style="margin-top:0">All booking and trip actions are tracked in platform records and audit logs for operational review and follow-up.</p>
-  <div class="tableWrap" id="tripTableWrap"><table class="table"><thead><tr><th>Reference</th><th>Patient</th><th>Service</th><th>Date / Time</th><th>Status</th><th>Estimate</th><th>AI risk</th><th>Action</th></tr></thead><tbody id="tripRows"></tbody></table></div>
+  <div class="tableWrap" id="tripTableWrap"><table class="table"><thead><tr><th>Reference</th><th>Patient</th><th>Service</th><th>Date / Time</th><th>Status</th><th>Estimate</th><th>Broker quoted</th><th>AI risk</th><th>Action</th></tr></thead><tbody id="tripRows"></tbody></table></div>
   <div id="tripCalendarView" hidden style="margin-top:10px"></div>
 </section>
-<section class="grid cols2" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Live staffing</p><h2>Drivers on duty</h2></div><span id="driversOnDutyCount" class="status blue">Loadingâ€¦</span></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver rosterâ€¦</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Shift availability</p><h2>Fleet &amp; driver summary</h2></div><button id="refreshDrivers" class="button secondary" style="min-height:36px;font-size:13px">â†» Refresh</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loadingâ€¦</p></div></article></section>
+<section class="grid cols2" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Live staffing</p><h2>Drivers on duty</h2></div><span id="driversOnDutyCount" class="status blue">Loading</span></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Shift availability</p><h2>Fleet &amp; driver summary</h2></div><button id="refreshDrivers" class="button secondary" style="min-height:36px;font-size:13px"> Refresh</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading</p></div></article></section>
 <section id="aiSection" class="grid cols2" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
-</main><footer class="footer"><div class="shell footerGrid" data-unified-footer-applied="1" data-compact-redesign-applied="1"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Patients</strong><a href="/booking-app.html">Book Transportation</a><a href="/livecare.html">Track a Ride</a></div><div><strong>Authorized portals</strong><a href="/facility.html">Facility</a><a href="/dispatch.html">Dispatch</a><a href="/driver-app.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18886395766">Main line: (888) 639-5766</a><a href="tel:+18887604990">Customer service: (888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">â™¿</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js?v=30"></script><script>
+</main><footer class="footer"><div class="shell footerGrid" data-unified-footer-applied="1" data-compact-redesign-applied="1"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Patients</strong><a href="/booking-app.html">Book Transportation</a><a href="/livecare.html">Track a Ride</a></div><div><strong>Authorized portals</strong><a href="/facility.html">Facility</a><a href="/dispatch.html">Dispatch</a><a href="/driver-app.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18886395766">Main line: (888) 639-5766</a><a href="tel:+18887604990">Customer service: (888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true"></span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js?v=30"></script><script>
 async function loadDriverRoster(){
   try{
     const token=sessionStorage.getItem('nexusAccessToken');
@@ -370,9 +374,9 @@ async function loadDriverRoster(){
         <div>
           <strong>${d.name||'Unnamed driver'}</strong>
           <div style="font-size:13px;color:var(--muted);margin-top:2px">
-            ${(d.vehicleUnit||d.vehicleType)?`${d.vehicleUnit||d.vehicleType} Â· `:'No vehicle Â· '}
-            Shift ${d.shiftStart||'?'}â€“${d.shiftEnd||'?'}
-            ${d.tripsToday?` Â· ${d.tripsToday} trips today`:''}
+            ${(d.vehicleUnit||d.vehicleType)?`${d.vehicleUnit||d.vehicleType}  `:'No vehicle  '}
+            Shift ${d.shiftStart||'?'}${d.shiftEnd||'?'}
+            ${d.tripsToday?`  ${d.tripsToday} trips today`:''}
           </div>
         </div>
         <span class="status ${d.status==='ON_TRIP'?'amber':'green'}" style="font-size:11px">${d.status==='ON_TRIP'?'On trip':'Available'}</span>
@@ -397,7 +401,7 @@ async function loadDriverRoster(){
         <span class="status blue">${onboard} with patient</span>
         <span class="status amber">${attention} need attention</span>
       </div>
-      <a href="/driver-app.html" class="button secondary" style="font-size:13px;display:inline-flex" target="_blank">Open driver app â†—</a>`;
+      <a href="/driver-app.html" class="button secondary" style="font-size:13px;display:inline-flex" target="_blank">Open driver app </a>`;
   }catch(e){console.error('[DISPATCH] loadDriverRoster:',e)}
 }
 document.getElementById('refreshDrivers')?.addEventListener('click',loadDriverRoster);
@@ -472,9 +476,9 @@ async function submitBrokerRequest(event){
     document.getElementById('brokerCalculatedRate').value='';
     document.getElementById('brokerWaitMinutes').value='';
     // Re-expand picker for next request
-    window.expandPicker();
+    window.collapsePicker();
     selectedId=''; selectedCompanyName='';
-    document.getElementById('pickerCollapsedBar').hidden=true;
+    document.getElementById('pickerCollapsedName').textContent='No company selected';
     document.getElementById('pickerCompanyCard').hidden=true;
   }catch(err){
     setBrokerIntakeMessage(err.message||'Unable to submit broker request.','err');
@@ -564,7 +568,7 @@ function renderTrips(trips){
 
   const heroTripList=document.getElementById('heroTripList');
   if(heroTripList){
-    heroTripList.innerHTML=list.slice(0,6).map(t=>`<div style="background:#fff;border:1px solid #d5e0e8;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="min-width:0"><strong style="font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name||'ï¿½'}</strong><small style="color:#52677c;font-size:11px">${t.service||'ï¿½'} ï¿½ ${formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time)}</small></div><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}" style="font-size:10px;flex-shrink:0">${t.statusLabel||t.status||'Requested'}</span></div>`).join('')||'<div style="text-align:center;padding:16px;color:#52677c">No trips yet.</div>';
+    heroTripList.innerHTML=list.slice(0,6).map(t=>`<div style="background:#fff;border:1px solid #d5e0e8;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="min-width:0"><strong style="font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name||''}</strong><small style="color:#52677c;font-size:11px">${t.service||''}  ${formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time)}</small></div><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}" style="font-size:10px;flex-shrink:0">${t.statusLabel||t.status||'Requested'}</span></div>`).join('')||'<div style="text-align:center;padding:16px;color:#52677c">No trips yet.</div>';
   }
 
   const rowsEl=document.getElementById('tripRows');
@@ -574,7 +578,9 @@ function renderTrips(trips){
       const estimateNumber=Number(t.estimatedFare ?? t.estimated_fare ?? t.estimate ?? t.fare);
       const estimate=Number.isFinite(estimateNumber)?`$${estimateNumber.toFixed(2)}`:'--';
       const shortDateTime=formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time);
-      return `<tr><td>${ref||'ï¿½'}</td><td>${t.name||'ï¿½'}</td><td>${t.service||'ï¿½'}</td><td>${shortDateTime}</td><td><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}">${t.statusLabel||t.status||'Requested'}</span></td><td>${estimate}</td><td>${riskBadge(t)}</td><td><button class="button secondary" data-advance="${ref}" onclick="advanceTrip('${ref}')">Advance</button></td></tr>`;
+      const brokerQuotedNumber=Number(t.brokerQuotedRate ?? t.broker_quoted_rate ?? t.quotedRate);
+      const brokerQuoted=Number.isFinite(brokerQuotedNumber)?`$${brokerQuotedNumber.toFixed(2)}`:'--';
+      return `<tr><td>${ref||''}</td><td>${t.name||''}</td><td>${t.service||''}</td><td>${shortDateTime}</td><td><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}">${t.statusLabel||t.status||'Requested'}</span></td><td>${estimate}</td><td>${brokerQuoted}</td><td>${riskBadge(t)}</td><td><button class="button secondary" data-advance="${ref}" onclick="advanceTrip('${ref}')">Advance</button></td></tr>`;
     }).join('');
   }
 
@@ -653,7 +659,7 @@ function buildServiceOptions(){
 }
 function buildSelect(){
   const filtered=getFiltered();
-  pickerSelect.innerHTML=`<option value="">â€” Select from ${filtered.length} companies â€”</option>`+filtered.map(c=>`<option value="${c.id}"${c.id===selectedId?' selected':''}>${c.name} Â· ${c.category}</option>`).join('');
+  pickerSelect.innerHTML=`<option value="">Select from ${filtered.length} companies</option>`+filtered.map(c=>`<option value="${c.id}"${c.id===selectedId?' selected':''}>${c.name} - ${c.category}</option>`).join('');
   const lbl=document.getElementById('filterSummaryLabel');
   if(lbl)lbl.textContent=`Filter companies (${filtered.length} shown)`;
 }
@@ -664,7 +670,7 @@ function toggleCompanyCard(){
   if(!full)return;
   const open=full.hidden;
   full.hidden=!open;
-  if(btn)btn.textContent=open?'Hide details â–´':'Show details â–¾';
+  if(btn)btn.textContent=open?'Hide details ':'Show details ';
   if(summary)summary.setAttribute('aria-expanded',String(open));
 }
 function collapsePicker(){
@@ -672,7 +678,7 @@ function collapsePicker(){
   const bar=document.getElementById('pickerCollapsedBar');
   const nameEl=document.getElementById('pickerCollapsedName');
   if(body)body.hidden=true;
-  if(nameEl)nameEl.textContent=selectedCompanyName||'â€”';
+  if(nameEl)nameEl.textContent=selectedCompanyName||'No company selected';
   if(bar)bar.hidden=false;
 }
 function expandPicker(){
@@ -688,7 +694,7 @@ function renderCard(company){
   const full=document.getElementById('pickerCardFull');
   const btn=document.getElementById('pickerCardToggle');
   if(full)full.hidden=true;
-  if(btn)btn.textContent='Show details â–¾';
+  if(btn)btn.textContent='Show details ';
   $('pickerCardBadge').textContent=company.category;
   $('pickerCardName').textContent=company.name;
   const st=$('pickerCardProviderStatus');
@@ -864,13 +870,12 @@ $('saveCustomCompany').addEventListener('click',()=>{
       return {label:`${prettyStatus} (Closed)`, disabled:true, reason:`This trip is closed with status ${prettyStatus} and cannot be advanced.`};
     }
     if(['SUBMITTED','SCHEDULED','REQUESTED'].includes(status)){
-      const hasAssignment =
-        Boolean(String(trip?.driverName || trip?.driver || '').trim()) ||
-        Boolean(String(trip?.vehicleUnit || trip?.vehicle || '').trim());
-      if(!hasAssignment){
-        return {label:'Await Assignment', disabled:true, reason:'Assign a driver or vehicle before advancing this trip.'};
+      const hasDriver=Boolean(String(trip?.driverName || trip?.driver || '').trim());
+      const hasVehicle=Boolean(String(trip?.vehicleUnit || trip?.vehicle || '').trim());
+      if(!(hasDriver&&hasVehicle)){
+        return {label:'Assignment Conflict', disabled:true, reason:'No driver and vehicle are both assigned due to a scheduling conflict. Resolve assignment in Trip Editor.'};
       }
-      return {label:'Mark Assigned', disabled:false, reason:'Advance to Assigned.'};
+      return {label:'Assigned', disabled:true, reason:'Driver and vehicle are assigned. Trip is ready to start.'};
     }
     if(status === 'ASSIGNED') return {label:'Start Trip', disabled:false, reason:'Advance to En Route.'};
     if(status === 'EN_ROUTE') return {label:'Mark Arrived', disabled:false, reason:'Advance to Arrived.'};
@@ -917,7 +922,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         const kind = classifyTrip(trip);
         const tone = kind === 'REAL' ? 'green' : 'amber';
         const status = escapeHtml(trip.statusLabel || trip.status || 'Submitted');
-        const ref = escapeHtml(refOf(trip) || 'â€”');
+        const ref = escapeHtml(refOf(trip) || '');
         const time = escapeHtml(String(trip.time || '--:--'));
         return `<div style="padding:4px 6px;border:1px solid #dbe7f0;border-radius:8px;background:#fff;margin-top:4px"><div style="display:flex;justify-content:space-between;gap:6px;align-items:center"><strong style="font-size:11px">${time}</strong><span class="status ${tone}" style="font-size:10px">${kind}</span></div><div style="font-size:11px;color:#0f172a">${ref}</div><div style="font-size:10px;color:#52677c">${status}</div></div>`;
       }).join('');
@@ -962,7 +967,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       if(!row) return;
       const cell = row.children[0];
       if(!cell) return;
-      const ref = refOf(trip) || 'â€”';
+      const ref = refOf(trip) || '';
       const kind = classifyTrip(trip);
       const tone = kind === 'REAL' ? 'green' : 'amber';
       row.dataset.reference = ref;
@@ -989,7 +994,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const realCount = state.allTrips.filter((trip) => classifyTrip(trip) === 'REAL').length;
     const demoCount = total - realCount;
     if(summaryEl){
-      summaryEl.textContent = `Showing ${filtered.length} of ${total} trips Â· Operational: ${realCount} Â· Demo excluded: ${demoCount}`;
+      summaryEl.textContent = `Showing ${filtered.length} of ${total} trips  Operational: ${realCount}  Demo excluded: ${demoCount}`;
     }
   }
 
@@ -1188,7 +1193,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
   board.insertAdjacentElement('afterend',bulkPanel);
 
   const panel=document.createElement('section');
-  panel.className='card';
+  panel.className='card dispatchTripEditor';
+  panel.id='dispatchTripEditorPanel';
   panel.style.marginTop='14px';
   panel.hidden=true;
   panel.innerHTML=`
@@ -1210,14 +1216,15 @@ $('saveCustomCompany').addEventListener('click',()=>{
       <div class="formField"><label>Check-in Time</label><input id="dispatchEditCheckInTime" type="time"></div>
     </div>
     <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
-      <div class="formField"><label>Driver</label><input id="dispatchEditDriver" type="text" placeholder="Driver name"></div>
-      <div class="formField"><label>Vehicle</label><input id="dispatchEditVehicle" type="text" placeholder="Vehicle unit"></div>
+      <div class="formField"><label>Driver</label><select id="dispatchEditDriver"><option value="">Select driver</option></select></div>
+      <div class="formField"><label>Vehicle</label><select id="dispatchEditVehicle"><option value="">Select vehicle</option></select></div>
       <div class="formField"><label>Submitter type</label><select id="dispatchEditSubmitterType"><option value="CUSTOMER">Customer</option><option value="FACILITY">Facility</option><option value="BROKER">Broker</option><option value="DISPATCH">Dispatch</option><option value="PATIENT">Patient</option><option value="STAFF">Staff</option><option value="DRIVER_REFERRAL">Driver Referral</option></select><small id="dispatchEditCurrentSubmitterType" class="subtle">Current submitter type: --</small></div>
       <div class="formField"><label>Submitter login</label><input id="dispatchEditSubmitter" type="text" placeholder="email or entity login"></div>
     </div>
-    <div class="formRow" id="dispatchEditBrokerRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px" hidden>
+    <div class="formRow" id="dispatchEditBrokerRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px" hidden>
       <div class="formField"><label>Broker company</label><select id="dispatchEditBrokerCompany"><option value="">Select company</option></select><small id="dispatchEditCurrentBrokerCompany" class="subtle">Current broker company: --</small></div>
       <div class="formField"><label>Our estimate</label><input id="dispatchEditOurEstimate" type="text" readonly></div>
+      <div class="formField"><label>Broker quoted rate</label><input id="dispatchEditBrokerQuotedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
       <div class="formField"><label>Broker accepted rate</label><input id="dispatchEditBrokerAcceptedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
     </div>
     <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">
@@ -1561,7 +1568,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   function getDriverYardReportTime(){
     const pickup=get('dispatchEditTime')?.value||'';
     const m=String(pickup).match(/^(\d{2}):(\d{2})$/);
-    if(!m) return 'â€”';
+    if(!m) return '';
     const pickupTotal=(Number(m[1])*60)+Number(m[2]);
     const yardTravel=Math.ceil(getYardToPickupMinutes());
     const report=((pickupTotal-yardTravel-Math.max(0,Number(preTripInspectionMinutes||0)))%1440+1440)%1440;
@@ -1572,7 +1579,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function updateCheckInFromPickup(){
     const calculated=getDriverYardReportTime();
-    if(calculated==='â€”') return;
+    if(calculated==='') return;
     get('dispatchEditCheckInTime').value=calculated;
     lastCalculatedCheckIn=calculated;
   }
@@ -1676,6 +1683,146 @@ $('saveCustomCompany').addEventListener('click',()=>{
     select.innerHTML='<option value="">Select company</option>'+unique.map((name)=>`<option value="${name}">${name}</option>`).join('');
   }
 
+  function setSelectValueWithFallback(selectEl, value){
+    if(!selectEl) return;
+    const normalized=String(value||'').trim();
+    if(!normalized){
+      selectEl.value='';
+      return;
+    }
+    const existing=Array.from(selectEl.options).find((opt)=>opt.value===normalized);
+    if(!existing){
+      const option=document.createElement('option');
+      option.value=normalized;
+      option.textContent=normalized;
+      selectEl.appendChild(option);
+    }
+    selectEl.value=normalized;
+  }
+
+  let dispatchAssignmentDirectory={
+    drivers:[],
+    vehicles:[],
+    driverToVehicles:new Map(),
+    vehicleToDrivers:new Map()
+  };
+
+  function setMapValue(map,key,value){
+    if(!key||!value) return;
+    if(!map.has(key)) map.set(key,new Set());
+    map.get(key).add(value);
+  }
+
+  function renderAssignmentSelect(selectEl, placeholder, values){
+    if(!selectEl) return;
+    selectEl.innerHTML=`<option value="">${placeholder}</option>`+values.map((value)=>`<option value="${value}">${value}</option>`).join('');
+  }
+
+  function applyDispatchAssignmentFilters(source){
+    const driverSelect=get('dispatchEditDriver');
+    const vehicleSelect=get('dispatchEditVehicle');
+    if(!driverSelect||!vehicleSelect) return;
+
+    const selectedDriver=String(driverSelect.value||'').trim();
+    const selectedVehicle=String(vehicleSelect.value||'').trim();
+    const allDrivers=Array.isArray(dispatchAssignmentDirectory.drivers)?dispatchAssignmentDirectory.drivers:[];
+    const allVehicles=Array.isArray(dispatchAssignmentDirectory.vehicles)?dispatchAssignmentDirectory.vehicles:[];
+
+    let filteredDrivers=[...allDrivers];
+    let filteredVehicles=[...allVehicles];
+
+    if(selectedDriver&&dispatchAssignmentDirectory.driverToVehicles.has(selectedDriver)){
+      filteredVehicles=[...dispatchAssignmentDirectory.driverToVehicles.get(selectedDriver)].sort((a,b)=>a.localeCompare(b));
+    }
+    if(selectedVehicle&&dispatchAssignmentDirectory.vehicleToDrivers.has(selectedVehicle)){
+      filteredDrivers=[...dispatchAssignmentDirectory.vehicleToDrivers.get(selectedVehicle)].sort((a,b)=>a.localeCompare(b));
+    }
+
+    renderAssignmentSelect(driverSelect,'Select driver',filteredDrivers);
+    renderAssignmentSelect(vehicleSelect,'Select vehicle',filteredVehicles);
+
+    if(source==='driver'&&selectedVehicle&&!filteredVehicles.includes(selectedVehicle)){
+      driverSelect.value=selectedDriver;
+      vehicleSelect.value='';
+      return;
+    }
+    if(source==='vehicle'&&selectedDriver&&!filteredDrivers.includes(selectedDriver)){
+      vehicleSelect.value=selectedVehicle;
+      driverSelect.value='';
+      return;
+    }
+
+    setSelectValueWithFallback(driverSelect, selectedDriver);
+    setSelectValueWithFallback(vehicleSelect, selectedVehicle);
+  }
+
+  async function loadDispatchAssignmentOptions(){
+    const driverSelect=get('dispatchEditDriver');
+    const vehicleSelect=get('dispatchEditVehicle');
+    if(!driverSelect||!vehicleSelect) return;
+
+    const selectedDriver=String(driverSelect.value||'').trim();
+    const selectedVehicle=String(vehicleSelect.value||'').trim();
+    const driverNames=[];
+    const vehicleUnits=[];
+    const driverToVehicles=new Map();
+    const vehicleToDrivers=new Map();
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    const headers=token?{authorization:`Bearer ${token}`}:{ };
+
+    try{
+      const [driversRes,fleetRes]=await Promise.all([
+        fetch('/api/dispatch/drivers',{headers,cache:'no-store'}),
+        fetch('/api/fleet/live',{headers,cache:'no-store'})
+      ]);
+      const driversJson=await driversRes.json().catch(()=>({drivers:[]}));
+      const fleetJson=await fleetRes.json().catch(()=>({vehicles:[]}));
+
+      if(driversRes.ok&&Array.isArray(driversJson?.drivers)){
+        driversJson.drivers.forEach((driver)=>{
+          const driverName=String(driver?.name||'').trim();
+          const vehicleUnit=String(driver?.vehicleUnit||'').trim();
+          if(driverName) driverNames.push(driverName);
+          if(vehicleUnit) vehicleUnits.push(vehicleUnit);
+          setMapValue(driverToVehicles,driverName,vehicleUnit);
+          setMapValue(vehicleToDrivers,vehicleUnit,driverName);
+        });
+      }
+      if(fleetRes.ok&&Array.isArray(fleetJson?.vehicles)){
+        fleetJson.vehicles.forEach((vehicle)=>{
+          const unit=vehicle?.unit||vehicle?.vehicleUnit||vehicle?.id;
+          if(unit) vehicleUnits.push(String(unit));
+        });
+      }
+    }catch{}
+
+    const cachedTrips=Array.isArray(window.__dispatchTripsCache)?window.__dispatchTripsCache:[];
+    cachedTrips.forEach((trip)=>{
+      const driverName=String(trip?.driverName||trip?.driver||'').trim();
+      const vehicleUnit=String(trip?.vehicleUnit||trip?.vehicle||'').trim();
+      if(driverName) driverNames.push(driverName);
+      if(vehicleUnit) vehicleUnits.push(vehicleUnit);
+      setMapValue(driverToVehicles,driverName,vehicleUnit);
+      setMapValue(vehicleToDrivers,vehicleUnit,driverName);
+    });
+
+    const uniqueDrivers=[...new Set(driverNames.map((name)=>String(name||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    const uniqueVehicles=[...new Set(vehicleUnits.map((unit)=>String(unit||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+
+    dispatchAssignmentDirectory={
+      drivers:uniqueDrivers,
+      vehicles:uniqueVehicles,
+      driverToVehicles,
+      vehicleToDrivers
+    };
+
+    renderAssignmentSelect(driverSelect,'Select driver',uniqueDrivers);
+    renderAssignmentSelect(vehicleSelect,'Select vehicle',uniqueVehicles);
+    setSelectValueWithFallback(driverSelect, selectedDriver);
+    setSelectValueWithFallback(vehicleSelect, selectedVehicle);
+    applyDispatchAssignmentFilters('init');
+  }
+
   function getBookingAppointmentTime(booking){
     return String(
       booking?.submittedAppointmentTime ||
@@ -1761,12 +1908,14 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditDestination').value=b.destination||'';
     get('dispatchEditDate').value=String(b.date||'').slice(0,10);
     get('dispatchEditTime').value='';
-    get('dispatchEditDriver').value=b.driverName||b.driver||'';
-    get('dispatchEditVehicle').value=b.vehicleUnit||b.vehicle||'';
+    await loadDispatchAssignmentOptions();
+    setSelectValueWithFallback(get('dispatchEditDriver'), b.driverName||b.driver||'');
+    setSelectValueWithFallback(get('dispatchEditVehicle'), b.vehicleUnit||b.vehicle||'');
     get('dispatchEditSubmitterType').value=String(b.bookingSource||'CUSTOMER').toUpperCase();
     get('dispatchEditSubmitter').value=b.submitterEntity||'';
     get('dispatchEditBrokerCompany').value=b.brokerCompanyName||'';
     get('dispatchEditOurEstimate').value=b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'--';
+    get('dispatchEditBrokerQuotedRate').value=b.brokerQuotedRate!=null?String(Number(b.brokerQuotedRate).toFixed(2)):(b.broker_quoted_rate!=null?String(Number(b.broker_quoted_rate).toFixed(2)):'' );
     get('dispatchEditBrokerAcceptedRate').value=b.brokerAcceptedRate!=null?String(Number(b.brokerAcceptedRate).toFixed(2)):'';
     get('dispatchEditName').value=b.name||'';
     get('dispatchEditPhone').value=b.phone||'';
@@ -1800,30 +1949,37 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function updateEditorDetails(b){
     if(!detailsEl) return;
+    const displayValue=(value)=>{
+      const text=String(value ?? '').trim();
+      if(!text) return 'N/A';
+      if(/[âÃ]/.test(text) || text==='ï¿½' || text==='—') return 'N/A';
+      return text;
+    };
     const details=[
       ['Booking source', b.bookingSource || 'CUSTOMER'],
-      ['Submitter login', b.submitterEntity || 'â€”'],
-      ['Broker company', b.brokerCompanyName || 'â€”'],
-      ['Broker accepted rate', b.brokerAcceptedRate!=null?`$${Number(b.brokerAcceptedRate).toFixed(2)}`:'â€”'],
+      ['Submitter login', b.submitterEntity || 'N/A'],
+      ['Broker company', b.brokerCompanyName || 'N/A'],
+      ['Broker quoted rate', b.brokerQuotedRate!=null?`$${Number(b.brokerQuotedRate).toFixed(2)}`:(b.broker_quoted_rate!=null?`$${Number(b.broker_quoted_rate).toFixed(2)}`:'N/A')],
+      ['Broker accepted rate', b.brokerAcceptedRate!=null?`$${Number(b.brokerAcceptedRate).toFixed(2)}`:'N/A'],
       ['Submitter appointment', b.submittedAppointmentTime || 'MISSING'],
-      ['Route minutes used', String(getDynamicRouteMinutes() || 'â€”')],
-      ['Company yard', companyYardAddress || 'â€”'],
-      ['Yard to pickup minutes', getYardToPickupMinutes()>0?String(Math.round(getYardToPickupMinutes())):'â€”'],
+      ['Route minutes used', String(getDynamicRouteMinutes() || 'N/A')],
+      ['Company yard', companyYardAddress || 'N/A'],
+      ['Yard to pickup minutes', getYardToPickupMinutes()>0?String(Math.round(getYardToPickupMinutes())):'N/A'],
       ['Pre-trip inspection (min)', String(Math.round(preTripInspectionMinutes||0))],
       ['Check-in Time', get('dispatchEditCheckInTime')?.value || getDriverYardReportTime()],
       ['Payment status', b.paymentStatus || 'UNPAID'],
-      ['Estimated fare', b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'â€”'],
-      ['Distance miles', b.distanceMiles!=null?String(b.distanceMiles):'â€”'],
-      ['Estimated duration', b.estimatedDuration || 'â€”'],
-      ['Deposit amount', b.depositAmount!=null?`$${Number(b.depositAmount).toFixed(2)}`:'â€”'],
-      ['Balance due', b.balanceDue!=null?`$${Number(b.balanceDue).toFixed(2)}`:'â€”'],
-      ['Facility ID', b.facilityId || 'â€”'],
-      ['Last updated by', b.lastUpdatedBy || 'â€”'],
-      ['Last updated at', b.lastUpdatedAt || 'â€”'],
-      ['Alternate phone', b.alternatePhone || 'â€”'],
-      ['Alternate email', b.alternateEmail || 'â€”']
+      ['Estimated fare', b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'N/A'],
+      ['Distance miles', b.distanceMiles!=null?String(b.distanceMiles):'N/A'],
+      ['Estimated duration', b.estimatedDuration || 'N/A'],
+      ['Deposit amount', b.depositAmount!=null?`$${Number(b.depositAmount).toFixed(2)}`:'N/A'],
+      ['Balance due', b.balanceDue!=null?`$${Number(b.balanceDue).toFixed(2)}`:'N/A'],
+      ['Facility ID', b.facilityId || 'N/A'],
+      ['Last updated by', b.lastUpdatedBy || 'N/A'],
+      ['Last updated at', b.lastUpdatedAt || 'N/A'],
+      ['Alternate phone', b.alternatePhone || 'N/A'],
+      ['Alternate email', b.alternateEmail || 'N/A']
     ];
-    detailsEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${details.map(([k,v])=>`<div style="background:#fff;border:1px solid #d6e3ee;border-radius:10px;padding:8px"><div style="font-size:11px;color:#52677c">${k}</div><div style="font-weight:700;color:#0f172a;word-break:break-word">${String(v||'â€”')}</div></div>`).join('')}</div>`;
+    detailsEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${details.map(([k,v])=>`<div style="background:#fff;border:1px solid #d6e3ee;border-radius:10px;padding:8px"><div style="font-size:11px;color:#52677c">${k}</div><div style="font-weight:700;color:#0f172a;word-break:break-word">${displayValue(v)}</div></div>`).join('')}</div>`;
   }
 
   async function loadTrip(reference){
@@ -1895,6 +2051,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       bookingSource:get('dispatchEditSubmitterType').value,
       submitterEntity:get('dispatchEditSubmitter').value,
       brokerCompanyName:get('dispatchEditSubmitterType').value==='BROKER'?get('dispatchEditBrokerCompany').value:'',
+      brokerQuotedRate:get('dispatchEditSubmitterType').value==='BROKER'?get('dispatchEditBrokerQuotedRate').value:'',
       brokerAcceptedRate:get('dispatchEditSubmitterType').value==='BROKER'?get('dispatchEditBrokerAcceptedRate').value:'',
       name:get('dispatchEditName').value,
       phone:get('dispatchEditPhone').value,
@@ -2120,10 +2277,13 @@ $('saveCustomCompany').addEventListener('click',()=>{
   get('dispatchEditDate').addEventListener('change',updatePickupFromAppointment);
   get('dispatchEditTime').addEventListener('input',updateCheckInFromPickup);
   get('dispatchEditSubmitterType').addEventListener('change',toggleBrokerFields);
+  get('dispatchEditDriver').addEventListener('change',()=>applyDispatchAssignmentFilters('driver'));
+  get('dispatchEditVehicle').addEventListener('change',()=>applyDispatchAssignmentFilters('vehicle'));
   panel.addEventListener('input',refreshUnsavedState);
   panel.addEventListener('change',refreshUnsavedState);
   loadDispatchOpsSettings();
   loadBrokerCompanies();
+  loadDispatchAssignmentOptions();
 })();
 </script></body></html>
 
