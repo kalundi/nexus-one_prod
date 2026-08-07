@@ -26,6 +26,11 @@
 [functions.social-publisher]
   schedule = "0 14 * * *"
 
+# Scheduled function: send a daily cost report to admin recipients and Teams
+# Set COST_ANALYZER_REPORT_DAYS to change the report window length.
+[functions.cost-analyzer-report]
+  schedule = "0 7 * * *"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
