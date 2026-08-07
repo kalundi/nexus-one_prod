@@ -291,6 +291,13 @@ const DEFAULT_PLATFORM_SETTINGS={
   fuelBaselinePricePerGallon:3.25,
   fuelEfficiencyMpg:10,
   fuelOperationalBufferPct:20,
+  tollCostPerTrip:0,
+  maintenanceCostPerMile:0,
+  insuranceCostPerTrip:0,
+  dispatchOverheadPerTrip:0,
+  cleaningCostPerTrip:0,
+  complianceCostPerTrip:0,
+  otherVariableCostPerTrip:0,
   fuelLastUpdatedAt:null,
   afterHoursSurchargePct:0,
   weekendSurchargePct:0,
@@ -549,10 +556,35 @@ async function getRevenueAnalytics(start,end,groupBy){
   }
 
   function toCostAnalyzerCsv(rows){
-   const header=['reference','trip_date','trip_time','service','driver_name','vehicle_unit','distance_miles','estimated_fare','cost_band','driver_pay','fuel_price_per_gallon','mpg_used','fuel_cost','trip_cost','profit'];
+    const header=['reference','trip_date','trip_time','service','driver_name','vehicle_unit','distance_miles','estimated_fare','cost_band','driver_pay','fuel_price_per_gallon','mpg_used','fuel_cost','toll_cost','maintenance_cost','insurance_cost','dispatch_overhead_cost','cleaning_cost','compliance_cost','other_variable_cost','other_cost_total','trip_cost','profit'];
    const escape=(value)=>{const str=String(value??'');return /[",\n]/.test(str)?`"${str.replaceAll('"','""')}"`:str;};
    return [header.join(','),...rows.map((row)=>header.map((key)=>escape(row[key])).join(','))].join('\n');
   }
+
+    function sortTextOptions(values=[]){
+    return Array.from(new Set(values.map((value)=>clean(value)).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+    }
+
+    async function getCostAnalyzerFilterOptions(options){
+    const where=['trip_date >= $1','trip_date <= $2'];
+    const params=[options.start,options.end];
+    if(!options.includeCancelled)where.push(`COALESCE(status,'') <> 'CANCELLED'`);
+    const sqlWhere=where.join(' AND ');
+    const [drivers,vehicles,services,sources,statuses]=await Promise.all([
+     query(`SELECT DISTINCT COALESCE(NULLIF(trim(driver_name),''),'Unassigned') AS value FROM bookings WHERE ${sqlWhere} ORDER BY 1`,params),
+     query(`SELECT DISTINCT COALESCE(NULLIF(trim(vehicle_unit),''),'Unassigned') AS value FROM bookings WHERE ${sqlWhere} ORDER BY 1`,params),
+     query(`SELECT DISTINCT COALESCE(NULLIF(trim(service),''),'unknown') AS value FROM bookings WHERE ${sqlWhere} ORDER BY 1`,params),
+     query(`SELECT DISTINCT COALESCE(NULLIF(trim(booking_source),''),'CUSTOMER') AS value FROM bookings WHERE ${sqlWhere} ORDER BY 1`,params),
+     query(`SELECT DISTINCT COALESCE(NULLIF(trim(status),''),'SUBMITTED') AS value FROM bookings WHERE ${sqlWhere} ORDER BY 1`,params)
+    ]);
+    return {
+     drivers:sortTextOptions((drivers.rows||[]).map((row)=>row.value)),
+     vehicles:sortTextOptions((vehicles.rows||[]).map((row)=>row.value)),
+     services:sortTextOptions((services.rows||[]).map((row)=>row.value)),
+     sources:sortTextOptions((sources.rows||[]).map((row)=>String(row.value||'').toUpperCase())),
+     statuses:sortTextOptions((statuses.rows||[]).map((row)=>String(row.value||'').toUpperCase()))
+    };
+    }
 
   async function getCostAnalyzerAnalytics(options){
    const settings=await readPlatformSettings();
@@ -561,6 +593,13 @@ async function getRevenueAnalytics(start,end,groupBy){
    const fuelPricePerGallon=fuelIndexPrice>0?fuelIndexPrice:n(fareRules.fuelBaselinePricePerGallon,3.25);
    const defaultMpg=clamp(n(fareRules.fuelEfficiencyMpg,10),1,100);
    const fuelBufferPct=clamp(n(fareRules.fuelOperationalBufferPct,0),0,300);
+    const tollCostPerTrip=clamp(n(fareRules.tollCostPerTrip,0),0,1000);
+    const maintenanceCostPerMile=clamp(n(fareRules.maintenanceCostPerMile,0),0,100);
+    const insuranceCostPerTrip=clamp(n(fareRules.insuranceCostPerTrip,0),0,1000);
+    const dispatchOverheadPerTrip=clamp(n(fareRules.dispatchOverheadPerTrip,0),0,1000);
+    const cleaningCostPerTrip=clamp(n(fareRules.cleaningCostPerTrip,0),0,1000);
+    const complianceCostPerTrip=clamp(n(fareRules.complianceCostPerTrip,0),0,1000);
+    const otherVariableCostPerTrip=clamp(n(fareRules.otherVariableCostPerTrip,0),0,1000);
 
    const where=['b.trip_date >= $1','b.trip_date <= $2'];
    const params=[options.start,options.end];
@@ -597,7 +636,8 @@ async function getRevenueAnalytics(start,end,groupBy){
    const byStatus={};
    const tripRows=[];
 
-   let totalTrips=0;let totalRevenue=0;let totalCost=0;let totalDriverPay=0;let totalFuelCost=0;
+  let totalTrips=0;let totalRevenue=0;let totalCost=0;let totalDriverPay=0;let totalFuelCost=0;
+  let totalTollCost=0;let totalMaintenanceCost=0;let totalInsuranceCost=0;let totalDispatchOverheadCost=0;let totalCleaningCost=0;let totalComplianceCost=0;let totalOtherVariableCost=0;
 
    for(const row of bookings.rows||[]){
     const distance=n(row.distance_miles,0);
@@ -609,7 +649,15 @@ async function getRevenueAnalytics(start,end,groupBy){
     const gallonsUsed=distance>0?distance/mpgUsed:0;
     const fuelCostRaw=gallonsUsed*fuelPricePerGallon;
     const fuelCost=fuelCostRaw*(1+(fuelBufferPct/100));
-    const tripCost=driverPay+fuelCost;
+    const tollCost=tollCostPerTrip;
+    const maintenanceCost=distance*maintenanceCostPerMile;
+    const insuranceCost=insuranceCostPerTrip;
+    const dispatchOverheadCost=dispatchOverheadPerTrip;
+    const cleaningCost=cleaningCostPerTrip;
+    const complianceCost=complianceCostPerTrip;
+    const otherVariableCost=otherVariableCostPerTrip;
+    const otherCostTotal=tollCost+maintenanceCost+insuranceCost+dispatchOverheadCost+cleaningCost+complianceCost+otherVariableCost;
+    const tripCost=driverPay+fuelCost+otherCostTotal;
     const profit=estimatedFare-tripCost;
     const bucket=costBucketLabel(row.trip_date,options.groupBy);
 
@@ -618,6 +666,13 @@ async function getRevenueAnalytics(start,end,groupBy){
     totalCost+=tripCost;
     totalDriverPay+=driverPay;
     totalFuelCost+=fuelCost;
+    totalTollCost+=tollCost;
+    totalMaintenanceCost+=maintenanceCost;
+    totalInsuranceCost+=insuranceCost;
+    totalDispatchOverheadCost+=dispatchOverheadCost;
+    totalCleaningCost+=cleaningCost;
+    totalComplianceCost+=complianceCost;
+    totalOtherVariableCost+=otherVariableCost;
 
     sumCostBucket(seriesMap,bucket,tripCost,estimatedFare,profit,1);
 
@@ -626,8 +681,9 @@ async function getRevenueAnalytics(start,end,groupBy){
     byDriver[driverKey].trips+=1;byDriver[driverKey].totalCost+=tripCost;byDriver[driverKey].totalRevenue+=estimatedFare;byDriver[driverKey].totalProfit+=profit;
 
     const vehicleKey=clean(row.vehicle_unit)||'Unassigned';
-    if(!byVehicle[vehicleKey])byVehicle[vehicleKey]={vehicleUnit:vehicleKey,vehicleType:clean(row.vehicle_type)||'Unknown',trips:0,totalCost:0,totalRevenue:0,totalProfit:0};
+    if(!byVehicle[vehicleKey])byVehicle[vehicleKey]={vehicleUnit:vehicleKey,vehicleType:clean(row.vehicle_type)||'Unknown',trips:0,totalCost:0,totalRevenue:0,totalProfit:0,driverPayCost:0,fuelCost:0,tollCost:0,maintenanceCost:0,insuranceCost:0,dispatchOverheadCost:0,cleaningCost:0,complianceCost:0,otherVariableCost:0};
     byVehicle[vehicleKey].trips+=1;byVehicle[vehicleKey].totalCost+=tripCost;byVehicle[vehicleKey].totalRevenue+=estimatedFare;byVehicle[vehicleKey].totalProfit+=profit;
+    byVehicle[vehicleKey].driverPayCost+=driverPay;byVehicle[vehicleKey].fuelCost+=fuelCost;byVehicle[vehicleKey].tollCost+=tollCost;byVehicle[vehicleKey].maintenanceCost+=maintenanceCost;byVehicle[vehicleKey].insuranceCost+=insuranceCost;byVehicle[vehicleKey].dispatchOverheadCost+=dispatchOverheadCost;byVehicle[vehicleKey].cleaningCost+=cleaningCost;byVehicle[vehicleKey].complianceCost+=complianceCost;byVehicle[vehicleKey].otherVariableCost+=otherVariableCost;
 
     const serviceKey=clean(row.service)||'unknown';
     if(!byService[serviceKey])byService[serviceKey]={service:serviceKey,trips:0,totalCost:0,totalRevenue:0,totalProfit:0};
@@ -655,6 +711,14 @@ async function getRevenueAnalytics(start,end,groupBy){
      fuel_price_per_gallon:Number(fuelPricePerGallon.toFixed(3)),
      mpg_used:Number(mpgUsed.toFixed(2)),
      fuel_cost:Number(fuelCost.toFixed(2)),
+    toll_cost:Number(tollCost.toFixed(2)),
+    maintenance_cost:Number(maintenanceCost.toFixed(2)),
+    insurance_cost:Number(insuranceCost.toFixed(2)),
+    dispatch_overhead_cost:Number(dispatchOverheadCost.toFixed(2)),
+    cleaning_cost:Number(cleaningCost.toFixed(2)),
+    compliance_cost:Number(complianceCost.toFixed(2)),
+    other_variable_cost:Number(otherVariableCost.toFixed(2)),
+    other_cost_total:Number(otherCostTotal.toFixed(2)),
      trip_cost:Number(tripCost.toFixed(2)),
      profit:Number(profit.toFixed(2))
     });
@@ -669,8 +733,18 @@ async function getRevenueAnalytics(start,end,groupBy){
     averageRevenuePerTrip:totalTrips?Number((totalRevenue/totalTrips).toFixed(2)):0,
     averageProfitPerTrip:totalTrips?Number(((totalRevenue-totalCost)/totalTrips).toFixed(2)):0,
     driverLaborCost:Number(totalDriverPay.toFixed(2)),
-    fuelCost:Number(totalFuelCost.toFixed(2))
+    fuelCost:Number(totalFuelCost.toFixed(2)),
+    tollCost:Number(totalTollCost.toFixed(2)),
+    maintenanceCost:Number(totalMaintenanceCost.toFixed(2)),
+    insuranceCost:Number(totalInsuranceCost.toFixed(2)),
+    dispatchOverheadCost:Number(totalDispatchOverheadCost.toFixed(2)),
+    cleaningCost:Number(totalCleaningCost.toFixed(2)),
+    complianceCost:Number(totalComplianceCost.toFixed(2)),
+    otherVariableCost:Number(totalOtherVariableCost.toFixed(2)),
+    nonFuelVariableCost:Number((totalTollCost+totalMaintenanceCost+totalInsuranceCost+totalDispatchOverheadCost+totalCleaningCost+totalComplianceCost+totalOtherVariableCost).toFixed(2))
    };
+
+     const filters=await getCostAnalyzerFilterOptions(options);
 
    return {
     period:{start:options.start,end:options.end,groupBy:options.groupBy,limit:options.limit,includeCancelled:options.includeCancelled},
@@ -679,13 +753,21 @@ async function getRevenueAnalytics(start,end,groupBy){
      fuelSource:fuelIndexPrice>0?'platform_fuel_index':'platform_fuel_baseline',
      defaultMpg,
      fuelOperationalBufferPct:Number(fuelBufferPct.toFixed(2)),
+    tollCostPerTrip:Number(tollCostPerTrip.toFixed(2)),
+    maintenanceCostPerMile:Number(maintenanceCostPerMile.toFixed(4)),
+    insuranceCostPerTrip:Number(insuranceCostPerTrip.toFixed(2)),
+    dispatchOverheadPerTrip:Number(dispatchOverheadPerTrip.toFixed(2)),
+    cleaningCostPerTrip:Number(cleaningCostPerTrip.toFixed(2)),
+    complianceCostPerTrip:Number(complianceCostPerTrip.toFixed(2)),
+    otherVariableCostPerTrip:Number(otherVariableCostPerTrip.toFixed(2)),
      driverPayRates:DRIVER_PAY_RATES
     },
+      filters,
     summary,
     series:Object.values(seriesMap).sort((a,b)=>String(a.bucket).localeCompare(String(b.bucket))).map((item)=>({bucket:item.bucket,trips:item.trips,totalCost:Number(item.totalCost.toFixed(2)),totalRevenue:Number(item.totalRevenue.toFixed(2)),totalProfit:Number(item.totalProfit.toFixed(2))})),
     breakdowns:{
      byDriver:rankBreakdown(byDriver,'driver'),
-     byVehicle:Object.values(byVehicle).sort((a,b)=>b.totalCost-a.totalCost||b.trips-a.trips).map((item)=>({vehicleUnit:item.vehicleUnit,vehicleType:item.vehicleType,trips:item.trips,totalCost:Number(item.totalCost.toFixed(2)),totalRevenue:Number(item.totalRevenue.toFixed(2)),totalProfit:Number(item.totalProfit.toFixed(2)),averageCostPerTrip:item.trips?Number((item.totalCost/item.trips).toFixed(2)):0})),
+    byVehicle:Object.values(byVehicle).sort((a,b)=>b.totalCost-a.totalCost||b.trips-a.trips).map((item)=>({vehicleUnit:item.vehicleUnit,vehicleType:item.vehicleType,trips:item.trips,totalCost:Number(item.totalCost.toFixed(2)),totalRevenue:Number(item.totalRevenue.toFixed(2)),totalProfit:Number(item.totalProfit.toFixed(2)),averageCostPerTrip:item.trips?Number((item.totalCost/item.trips).toFixed(2)):0,driverPayCost:Number(item.driverPayCost.toFixed(2)),fuelCost:Number(item.fuelCost.toFixed(2)),tollCost:Number(item.tollCost.toFixed(2)),maintenanceCost:Number(item.maintenanceCost.toFixed(2)),insuranceCost:Number(item.insuranceCost.toFixed(2)),dispatchOverheadCost:Number(item.dispatchOverheadCost.toFixed(2)),cleaningCost:Number(item.cleaningCost.toFixed(2)),complianceCost:Number(item.complianceCost.toFixed(2)),otherVariableCost:Number(item.otherVariableCost.toFixed(2))})),
      byService:rankBreakdown(byService,'service'),
      bySource:rankBreakdown(bySource,'bookingSource'),
      byStatus:rankBreakdown(byStatus,'status')
@@ -714,11 +796,15 @@ async function getRevenueAnalytics(start,end,groupBy){
     `- **Total Cost:** $${Number(summary.totalCost||0).toFixed(2)}`,
     `- **Total Revenue:** $${Number(summary.totalRevenue||0).toFixed(2)}`,
     `- **Total Profit:** $${Number(summary.totalProfit||0).toFixed(2)}`,
+      `- **Driver Labor:** $${Number(summary.driverLaborCost||0).toFixed(2)}`,
+      `- **Fuel:** $${Number(summary.fuelCost||0).toFixed(2)}`,
+      `- **Tolls:** $${Number(summary.tollCost||0).toFixed(2)}`,
+      `- **Other Variable Costs:** $${Number(summary.nonFuelVariableCost||0).toFixed(2)}`,
     topVehicle?`- **Highest Cost Vehicle:** ${topVehicle.vehicleUnit} ($${Number(topVehicle.totalCost||0).toFixed(2)})`:null,
     topDriver?`- **Highest Cost Driver:** ${topDriver.driver} ($${Number(topDriver.totalCost||0).toFixed(2)})`:null,
     `- **Requested by:** ${requestedBy}`
    ].filter(Boolean).join('\n');
-   const html=`<h2 style="color:#082f49">Cost Analyzer Report</h2><p><strong>Period:</strong> ${period.start} to ${period.end}</p><table style="width:100%;border-collapse:collapse;margin:12px 0"><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Trips</td><td style="padding:8px;border:1px solid #dbe5ed">${summary.trips||0}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalCost||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Revenue</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalRevenue||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Profit</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalProfit||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Driver Labor Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.driverLaborCost||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Fuel Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.fuelCost||0).toFixed(2)}</td></tr></table><p><strong>Top vehicle by cost:</strong> ${topVehicle?`${topVehicle.vehicleUnit} ($${Number(topVehicle.totalCost||0).toFixed(2)})`:'N/A'}</p><p><strong>Top driver by cost:</strong> ${topDriver?`${topDriver.driver} ($${Number(topDriver.totalCost||0).toFixed(2)})`:'N/A'}</p><p style="color:#62758a">Generated by ${requestedBy}</p>`;
+  const html=`<h2 style="color:#082f49">Cost Analyzer Report</h2><p><strong>Period:</strong> ${period.start} to ${period.end}</p><table style="width:100%;border-collapse:collapse;margin:12px 0"><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Trips</td><td style="padding:8px;border:1px solid #dbe5ed">${summary.trips||0}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalCost||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Revenue</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalRevenue||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Profit</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalProfit||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Driver Labor Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.driverLaborCost||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Fuel Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.fuelCost||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Toll Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.tollCost||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Other Variable Costs</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.nonFuelVariableCost||0).toFixed(2)}</td></tr></table><p><strong>Top vehicle by cost:</strong> ${topVehicle?`${topVehicle.vehicleUnit} ($${Number(topVehicle.totalCost||0).toFixed(2)})`:'N/A'}</p><p><strong>Top driver by cost:</strong> ${topDriver?`${topDriver.driver} ($${Number(topDriver.totalCost||0).toFixed(2)})`:'N/A'}</p><p style="color:#62758a">Generated by ${requestedBy}</p>`;
 
    const emails=await listAdminEmails();
    const [emailResult,teamsResult]=await Promise.allSettled([
@@ -814,6 +900,13 @@ function mergePlatformSettings(raw){
     fuelBaselinePricePerGallon:clamp(n(fareSrc.fuelBaselinePricePerGallon,DEFAULT_PLATFORM_SETTINGS.fareRules.fuelBaselinePricePerGallon),0,25),
     fuelEfficiencyMpg:clamp(n(fareSrc.fuelEfficiencyMpg,DEFAULT_PLATFORM_SETTINGS.fareRules.fuelEfficiencyMpg),1,50),
     fuelOperationalBufferPct:clamp(n(fareSrc.fuelOperationalBufferPct,DEFAULT_PLATFORM_SETTINGS.fareRules.fuelOperationalBufferPct),0,200),
+    tollCostPerTrip:clamp(n(fareSrc.tollCostPerTrip,DEFAULT_PLATFORM_SETTINGS.fareRules.tollCostPerTrip),0,1000),
+    maintenanceCostPerMile:clamp(n(fareSrc.maintenanceCostPerMile,DEFAULT_PLATFORM_SETTINGS.fareRules.maintenanceCostPerMile),0,100),
+    insuranceCostPerTrip:clamp(n(fareSrc.insuranceCostPerTrip,DEFAULT_PLATFORM_SETTINGS.fareRules.insuranceCostPerTrip),0,1000),
+    dispatchOverheadPerTrip:clamp(n(fareSrc.dispatchOverheadPerTrip,DEFAULT_PLATFORM_SETTINGS.fareRules.dispatchOverheadPerTrip),0,1000),
+    cleaningCostPerTrip:clamp(n(fareSrc.cleaningCostPerTrip,DEFAULT_PLATFORM_SETTINGS.fareRules.cleaningCostPerTrip),0,1000),
+    complianceCostPerTrip:clamp(n(fareSrc.complianceCostPerTrip,DEFAULT_PLATFORM_SETTINGS.fareRules.complianceCostPerTrip),0,1000),
+    otherVariableCostPerTrip:clamp(n(fareSrc.otherVariableCostPerTrip,DEFAULT_PLATFORM_SETTINGS.fareRules.otherVariableCostPerTrip),0,1000),
     fuelLastUpdatedAt:fareSrc.fuelLastUpdatedAt?String(fareSrc.fuelLastUpdatedAt):null,
    afterHoursSurchargePct:clamp(n(fareSrc.afterHoursSurchargePct,DEFAULT_PLATFORM_SETTINGS.fareRules.afterHoursSurchargePct),0,100),
    weekendSurchargePct:clamp(n(fareSrc.weekendSurchargePct,DEFAULT_PLATFORM_SETTINGS.fareRules.weekendSurchargePct),0,100),

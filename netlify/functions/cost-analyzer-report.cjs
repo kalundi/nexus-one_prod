@@ -109,6 +109,13 @@ async function getCostAnalyzerAnalytics(options) {
  const fuelPricePerGallon = fuelIndexPrice > 0 ? fuelIndexPrice : n(fareRules.fuelBaselinePricePerGallon, 3.25);
  const defaultMpg = clamp(n(fareRules.fuelEfficiencyMpg, 10), 1, 100);
  const fuelBufferPct = clamp(n(fareRules.fuelOperationalBufferPct, 0), 0, 300);
+ const tollCostPerTrip = clamp(n(fareRules.tollCostPerTrip, 0), 0, 1000);
+ const maintenanceCostPerMile = clamp(n(fareRules.maintenanceCostPerMile, 0), 0, 100);
+ const insuranceCostPerTrip = clamp(n(fareRules.insuranceCostPerTrip, 0), 0, 1000);
+ const dispatchOverheadPerTrip = clamp(n(fareRules.dispatchOverheadPerTrip, 0), 0, 1000);
+ const cleaningCostPerTrip = clamp(n(fareRules.cleaningCostPerTrip, 0), 0, 1000);
+ const complianceCostPerTrip = clamp(n(fareRules.complianceCostPerTrip, 0), 0, 1000);
+ const otherVariableCostPerTrip = clamp(n(fareRules.otherVariableCostPerTrip, 0), 0, 1000);
 
  const rows = await query(
   `SELECT
@@ -137,6 +144,13 @@ async function getCostAnalyzerAnalytics(options) {
  let totalCost = 0;
  let totalDriverPay = 0;
  let totalFuelCost = 0;
+ let totalTollCost = 0;
+ let totalMaintenanceCost = 0;
+ let totalInsuranceCost = 0;
+ let totalDispatchOverheadCost = 0;
+ let totalCleaningCost = 0;
+ let totalComplianceCost = 0;
+ let totalOtherVariableCost = 0;
 
  for (const row of rows.rows || []) {
   const distance = n(row.distance_miles, 0);
@@ -147,7 +161,15 @@ async function getCostAnalyzerAnalytics(options) {
   const mpgUsed = mpgCandidate > 0 ? mpgCandidate : defaultMpg;
   const gallonsUsed = distance > 0 ? distance / mpgUsed : 0;
   const fuelCost = gallonsUsed * fuelPricePerGallon * (1 + (fuelBufferPct / 100));
-  const tripCost = driverPay + fuelCost;
+  const tollCost = tollCostPerTrip;
+  const maintenanceCost = distance * maintenanceCostPerMile;
+  const insuranceCost = insuranceCostPerTrip;
+  const dispatchOverheadCost = dispatchOverheadPerTrip;
+  const cleaningCost = cleaningCostPerTrip;
+  const complianceCost = complianceCostPerTrip;
+  const otherVariableCost = otherVariableCostPerTrip;
+  const otherCostTotal = tollCost + maintenanceCost + insuranceCost + dispatchOverheadCost + cleaningCost + complianceCost + otherVariableCost;
+  const tripCost = driverPay + fuelCost + otherCostTotal;
   const profit = estimatedFare - tripCost;
 
   totalTrips += 1;
@@ -155,6 +177,13 @@ async function getCostAnalyzerAnalytics(options) {
   totalCost += tripCost;
   totalDriverPay += driverPay;
   totalFuelCost += fuelCost;
+  totalTollCost += tollCost;
+  totalMaintenanceCost += maintenanceCost;
+  totalInsuranceCost += insuranceCost;
+  totalDispatchOverheadCost += dispatchOverheadCost;
+  totalCleaningCost += cleaningCost;
+  totalComplianceCost += complianceCost;
+  totalOtherVariableCost += otherVariableCost;
 
   const driverKey = clean(row.driver_name) || 'Unassigned';
   if (!breakdownByDriver[driverKey]) breakdownByDriver[driverKey] = {driver: driverKey, trips: 0, totalCost: 0, totalRevenue: 0, totalProfit: 0};
@@ -187,7 +216,15 @@ async function getCostAnalyzerAnalytics(options) {
   averageRevenuePerTrip: totalTrips ? Number((totalRevenue / totalTrips).toFixed(2)) : 0,
   averageProfitPerTrip: totalTrips ? Number(((totalRevenue - totalCost) / totalTrips).toFixed(2)) : 0,
   driverLaborCost: Number(totalDriverPay.toFixed(2)),
-  fuelCost: Number(totalFuelCost.toFixed(2))
+  fuelCost: Number(totalFuelCost.toFixed(2)),
+  tollCost: Number(totalTollCost.toFixed(2)),
+  maintenanceCost: Number(totalMaintenanceCost.toFixed(2)),
+  insuranceCost: Number(totalInsuranceCost.toFixed(2)),
+  dispatchOverheadCost: Number(totalDispatchOverheadCost.toFixed(2)),
+  cleaningCost: Number(totalCleaningCost.toFixed(2)),
+  complianceCost: Number(totalComplianceCost.toFixed(2)),
+  otherVariableCost: Number(totalOtherVariableCost.toFixed(2)),
+  nonFuelVariableCost: Number((totalTollCost + totalMaintenanceCost + totalInsuranceCost + totalDispatchOverheadCost + totalCleaningCost + totalComplianceCost + totalOtherVariableCost).toFixed(2))
  };
 
  const topVehicle = Object.values(breakdownByVehicle).sort((a, b) => b.totalCost - a.totalCost || b.trips - a.trips)[0];
@@ -200,6 +237,13 @@ async function getCostAnalyzerAnalytics(options) {
    fuelSource: fuelIndexPrice > 0 ? 'platform_fuel_index' : 'platform_fuel_baseline',
    defaultMpg,
    fuelOperationalBufferPct: Number(fuelBufferPct.toFixed(2)),
+  tollCostPerTrip: Number(tollCostPerTrip.toFixed(2)),
+  maintenanceCostPerMile: Number(maintenanceCostPerMile.toFixed(4)),
+  insuranceCostPerTrip: Number(insuranceCostPerTrip.toFixed(2)),
+  dispatchOverheadPerTrip: Number(dispatchOverheadPerTrip.toFixed(2)),
+  cleaningCostPerTrip: Number(cleaningCostPerTrip.toFixed(2)),
+  complianceCostPerTrip: Number(complianceCostPerTrip.toFixed(2)),
+  otherVariableCostPerTrip: Number(otherVariableCostPerTrip.toFixed(2)),
    driverPayRates: DRIVER_PAY_RATES
   },
   summary,
@@ -239,11 +283,15 @@ async function sendCostAnalyzerReport(analytics, requestedBy = 'Automated Cost A
   `- **Total Cost:** $${Number(summary.totalCost || 0).toFixed(2)}`,
   `- **Total Revenue:** $${Number(summary.totalRevenue || 0).toFixed(2)}`,
   `- **Total Profit:** $${Number(summary.totalProfit || 0).toFixed(2)}`,
+  `- **Driver Labor:** $${Number(summary.driverLaborCost || 0).toFixed(2)}`,
+  `- **Fuel:** $${Number(summary.fuelCost || 0).toFixed(2)}`,
+  `- **Tolls:** $${Number(summary.tollCost || 0).toFixed(2)}`,
+  `- **Other Variable Costs:** $${Number(summary.nonFuelVariableCost || 0).toFixed(2)}`,
   topVehicle ? `- **Highest Cost Vehicle:** ${topVehicle.vehicleUnit} ($${Number(topVehicle.totalCost || 0).toFixed(2)})` : null,
   topDriver ? `- **Highest Cost Driver:** ${topDriver.driver} ($${Number(topDriver.totalCost || 0).toFixed(2)})` : null,
   `- **Requested by:** ${requestedBy}`
  ].filter(Boolean).join('\n');
- const html = `<h2 style="color:#082f49">Cost Analyzer Report</h2><p><strong>Period:</strong> ${period.start} to ${period.end}</p><table style="width:100%;border-collapse:collapse;margin:12px 0"><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Trips</td><td style="padding:8px;border:1px solid #dbe5ed">${summary.trips || 0}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalCost || 0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Revenue</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalRevenue || 0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Profit</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalProfit || 0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Driver Labor Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.driverLaborCost || 0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Fuel Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.fuelCost || 0).toFixed(2)}</td></tr></table><p><strong>Top vehicle by cost:</strong> ${topVehicle ? `${topVehicle.vehicleUnit} ($${Number(topVehicle.totalCost || 0).toFixed(2)})` : 'N/A'}</p><p><strong>Top driver by cost:</strong> ${topDriver ? `${topDriver.driver} ($${Number(topDriver.totalCost || 0).toFixed(2)})` : 'N/A'}</p><p style="color:#62758a">Generated by ${requestedBy}</p>`;
+ const html = `<h2 style="color:#082f49">Cost Analyzer Report</h2><p><strong>Period:</strong> ${period.start} to ${period.end}</p><table style="width:100%;border-collapse:collapse;margin:12px 0"><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Trips</td><td style="padding:8px;border:1px solid #dbe5ed">${summary.trips || 0}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalCost || 0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Revenue</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalRevenue || 0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Profit</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalProfit || 0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Driver Labor Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.driverLaborCost || 0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Fuel Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.fuelCost || 0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Toll Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.tollCost || 0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Other Variable Costs</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.nonFuelVariableCost || 0).toFixed(2)}</td></tr></table><p><strong>Top vehicle by cost:</strong> ${topVehicle ? `${topVehicle.vehicleUnit} ($${Number(topVehicle.totalCost || 0).toFixed(2)})` : 'N/A'}</p><p><strong>Top driver by cost:</strong> ${topDriver ? `${topDriver.driver} ($${Number(topDriver.totalCost || 0).toFixed(2)})` : 'N/A'}</p><p style="color:#62758a">Generated by ${requestedBy}</p>`;
 
  const [emailResult, teamsResult] = await Promise.allSettled([
   sendEmail(emails, `Nexus Cost Analyzer Report — ${period.start} to ${period.end}`, html),

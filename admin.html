@@ -219,6 +219,21 @@
     <div class="formField"><label for="fuelOperationalBufferPct">Fuel ops buffer (%)</label><input id="fuelOperationalBufferPct" type="number" min="0" max="200" step="0.1" placeholder="0.0"></div>
     <div class="formField"><label for="fuelLastUpdatedAt">Fuel index last updated</label><input id="fuelLastUpdatedAt" type="text" placeholder="Not updated" readonly></div>
   </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="tollCostPerTrip">Toll cost per trip ($)</label><input id="tollCostPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
+    <div class="formField"><label for="maintenanceCostPerMile">Maintenance cost per mile ($)</label><input id="maintenanceCostPerMile" type="number" min="0" step="0.0001" placeholder="0.0000"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="insuranceCostPerTrip">Insurance cost per trip ($)</label><input id="insuranceCostPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
+    <div class="formField"><label for="dispatchOverheadPerTrip">Dispatch overhead per trip ($)</label><input id="dispatchOverheadPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="cleaningCostPerTrip">Cleaning / sanitize per trip ($)</label><input id="cleaningCostPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
+    <div class="formField"><label for="complianceCostPerTrip">Compliance / admin per trip ($)</label><input id="complianceCostPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
+  </div>
+  <div class="formRow" style="margin-top:14px">
+    <div class="formField"><label for="otherVariableCostPerTrip">Other variable cost per trip ($)</label><input id="otherVariableCostPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
+  </div>
   <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
     <button class="button" id="refreshFuelIndexBtn" type="button">Refresh fuel index now</button>
     <small id="refreshFuelIndexMsg" style="color:var(--muted)"></small>
@@ -287,13 +302,13 @@
     <div class="formField"><label for="costGroupBy">Group by</label><select id="costGroupBy"><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></select></div>
   </div>
   <div class="formRow triple" style="margin-bottom:12px">
-    <div class="formField"><label for="costDriverFilter">Driver</label><input id="costDriverFilter" type="text" placeholder="Any driver"></div>
-    <div class="formField"><label for="costVehicleFilter">Vehicle</label><input id="costVehicleFilter" type="text" placeholder="Any vehicle"></div>
-    <div class="formField"><label for="costServiceFilter">Service</label><input id="costServiceFilter" type="text" placeholder="Any service"></div>
+    <div class="formField"><label for="costDriverFilter">Driver</label><select id="costDriverFilter"><option value="">Any driver</option></select></div>
+    <div class="formField"><label for="costVehicleFilter">Vehicle</label><select id="costVehicleFilter"><option value="">Any vehicle</option></select></div>
+    <div class="formField"><label for="costServiceFilter">Service</label><select id="costServiceFilter"><option value="">Any service</option></select></div>
   </div>
   <div class="formRow triple" style="margin-bottom:12px">
-    <div class="formField"><label for="costSourceFilter">Source</label><input id="costSourceFilter" type="text" placeholder="Any source"></div>
-    <div class="formField"><label for="costStatusFilter">Status</label><input id="costStatusFilter" type="text" placeholder="Any status"></div>
+    <div class="formField"><label for="costSourceFilter">Source</label><select id="costSourceFilter"><option value="">Any source</option></select></div>
+    <div class="formField"><label for="costStatusFilter">Status</label><select id="costStatusFilter"><option value="">Any status</option></select></div>
     <div class="formField" style="align-self:end"><label style="display:flex;align-items:center;gap:8px"><input id="costIncludeCancelled" type="checkbox"> Include cancelled trips</label></div>
   </div>
   <div id="costAnalyzerMsg" hidden></div>
@@ -303,10 +318,11 @@
     <div class="adminStat"><strong id="costRevenue">—</strong><small>Total revenue</small></div>
     <div class="adminStat"><strong id="costProfit">—</strong><small>Total profit</small></div>
   </div>
+  <p id="costComponentSummary" style="margin:12px 0 0;color:var(--muted);font-size:13px"></p>
   <div class="tableWrap" style="margin-top:14px">
     <table class="table" aria-label="Cost analyzer breakdown by vehicle">
-      <thead><tr><th>Vehicle</th><th>Type</th><th>Trips</th><th>Total Cost</th><th>Avg Cost / Trip</th><th>Total Profit</th></tr></thead>
-      <tbody id="costVehicleRows"><tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Run analysis to load cost breakdowns.</td></tr></tbody>
+      <thead><tr><th>Vehicle</th><th>Type</th><th>Trips</th><th>Driver</th><th>Fuel</th><th>Tolls</th><th>Other Costs</th><th>Total Cost</th><th>Avg Cost / Trip</th><th>Total Profit</th></tr></thead>
+      <tbody id="costVehicleRows"><tr><td colspan="10" style="padding:20px;text-align:center;color:var(--muted)">Run analysis to load cost breakdowns.</td></tr></tbody>
     </table>
   </div>
 </section>

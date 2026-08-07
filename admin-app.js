@@ -316,6 +316,13 @@ function readSettingsForm(){
       fuelBaselinePricePerGallon:Number(document.getElementById('fuelBaselinePricePerGallon').value||3.25),
       fuelEfficiencyMpg:Number(document.getElementById('fuelEfficiencyMpg').value||10),
       fuelOperationalBufferPct:Number(document.getElementById('fuelOperationalBufferPct').value||20),
+      tollCostPerTrip:Number(document.getElementById('tollCostPerTrip').value||0),
+      maintenanceCostPerMile:Number(document.getElementById('maintenanceCostPerMile').value||0),
+      insuranceCostPerTrip:Number(document.getElementById('insuranceCostPerTrip').value||0),
+      dispatchOverheadPerTrip:Number(document.getElementById('dispatchOverheadPerTrip').value||0),
+      cleaningCostPerTrip:Number(document.getElementById('cleaningCostPerTrip').value||0),
+      complianceCostPerTrip:Number(document.getElementById('complianceCostPerTrip').value||0),
+      otherVariableCostPerTrip:Number(document.getElementById('otherVariableCostPerTrip').value||0),
       afterHoursSurchargePct:Number(document.getElementById('afterHoursSurchargePct').value||0),
       weekendSurchargePct:Number(document.getElementById('weekendSurchargePct').value||0),
       holidaySurchargePct:Number(document.getElementById('holidaySurchargePct').value||0),
@@ -360,6 +367,13 @@ function applySettingsToForm(settings){
   document.getElementById('fuelBaselinePricePerGallon').value=fare.fuelBaselinePricePerGallon==null?'':Number(fare.fuelBaselinePricePerGallon);
   document.getElementById('fuelEfficiencyMpg').value=fare.fuelEfficiencyMpg==null?'':Number(fare.fuelEfficiencyMpg);
   document.getElementById('fuelOperationalBufferPct').value=fare.fuelOperationalBufferPct==null?'':Number(fare.fuelOperationalBufferPct);
+  document.getElementById('tollCostPerTrip').value=fare.tollCostPerTrip==null?'':Number(fare.tollCostPerTrip);
+  document.getElementById('maintenanceCostPerMile').value=fare.maintenanceCostPerMile==null?'':Number(fare.maintenanceCostPerMile);
+  document.getElementById('insuranceCostPerTrip').value=fare.insuranceCostPerTrip==null?'':Number(fare.insuranceCostPerTrip);
+  document.getElementById('dispatchOverheadPerTrip').value=fare.dispatchOverheadPerTrip==null?'':Number(fare.dispatchOverheadPerTrip);
+  document.getElementById('cleaningCostPerTrip').value=fare.cleaningCostPerTrip==null?'':Number(fare.cleaningCostPerTrip);
+  document.getElementById('complianceCostPerTrip').value=fare.complianceCostPerTrip==null?'':Number(fare.complianceCostPerTrip);
+  document.getElementById('otherVariableCostPerTrip').value=fare.otherVariableCostPerTrip==null?'':Number(fare.otherVariableCostPerTrip);
   document.getElementById('fuelLastUpdatedAt').value=fare.fuelLastUpdatedAt?new Date(fare.fuelLastUpdatedAt).toLocaleString():'';
   document.getElementById('afterHoursSurchargePct').value=fare.afterHoursSurchargePct==null?'':Number(fare.afterHoursSurchargePct);
   document.getElementById('weekendSurchargePct').value=fare.weekendSurchargePct==null?'':Number(fare.weekendSurchargePct);
@@ -466,6 +480,23 @@ function costMsg(text,type='ok'){
   showMsg(el,text,type);
 }
 
+function setCostSelectOptions(selectId,values=[],placeholder='Any'){
+  const select=document.getElementById(selectId);
+  if(!select) return;
+  const current=select.value||'';
+  const options=Array.from(new Set((values||[]).map((value)=>String(value||'').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  select.innerHTML=`<option value="">${placeholder}</option>${options.map((value)=>`<option value="${value.replaceAll('"','&quot;')}">${value}</option>`).join('')}`;
+  if(current&&options.includes(current)) select.value=current;
+}
+
+function applyCostFilters(filters={}){
+  setCostSelectOptions('costDriverFilter',filters.drivers||[],'Any driver');
+  setCostSelectOptions('costVehicleFilter',filters.vehicles||[],'Any vehicle');
+  setCostSelectOptions('costServiceFilter',filters.services||[],'Any service');
+  setCostSelectOptions('costSourceFilter',filters.sources||[],'Any source');
+  setCostSelectOptions('costStatusFilter',filters.statuses||[],'Any status');
+}
+
 function buildCostQuery(){
   const params=new URLSearchParams();
   const start=document.getElementById('costStart')?.value||'';
@@ -494,10 +525,13 @@ function renderCostVehicleRows(rows=[]){
   const body=document.getElementById('costVehicleRows');
   if(!body)return;
   if(!rows.length){
-    body.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">No trip cost records found for selected filters.</td></tr>';
+    body.innerHTML='<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--muted)">No trip cost records found for selected filters.</td></tr>';
     return;
   }
-  body.innerHTML=rows.slice(0,50).map((item)=>`<tr><td>${item.vehicleUnit||'Unassigned'}</td><td>${item.vehicleType||'Unknown'}</td><td>${item.trips||0}</td><td>${money(item.totalCost)}</td><td>${money(item.averageCostPerTrip)}</td><td>${money(item.totalProfit)}</td></tr>`).join('');
+  body.innerHTML=rows.slice(0,50).map((item)=>{
+    const otherCosts=Number(item.maintenanceCost||0)+Number(item.insuranceCost||0)+Number(item.dispatchOverheadCost||0)+Number(item.cleaningCost||0)+Number(item.complianceCost||0)+Number(item.otherVariableCost||0);
+    return `<tr><td>${item.vehicleUnit||'Unassigned'}</td><td>${item.vehicleType||'Unknown'}</td><td>${item.trips||0}</td><td>${money(item.driverPayCost||0)}</td><td>${money(item.fuelCost||0)}</td><td>${money(item.tollCost||0)}</td><td>${money(otherCosts)}</td><td>${money(item.totalCost)}</td><td>${money(item.averageCostPerTrip)}</td><td>${money(item.totalProfit)}</td></tr>`;
+  }).join('');
 }
 
 async function runCostAnalyzer(){
@@ -510,14 +544,21 @@ async function runCostAnalyzer(){
     const data=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error||'Failed to load cost analysis');
     const summary=data.summary||{};
+    applyCostFilters(data.filters||{});
     document.getElementById('costTrips').textContent=String(summary.trips||0);
     document.getElementById('costTotal').textContent=money(summary.totalCost||0);
     document.getElementById('costRevenue').textContent=money(summary.totalRevenue||0);
     document.getElementById('costProfit').textContent=money(summary.totalProfit||0);
     renderCostVehicleRows(data.breakdowns?.byVehicle||[]);
+    const componentSummary=document.getElementById('costComponentSummary');
+    if(componentSummary){
+      componentSummary.textContent=`Cost composition totals -> Driver ${money(summary.driverLaborCost||0)}, Fuel ${money(summary.fuelCost||0)}, Tolls ${money(summary.tollCost||0)}, Other Variable ${money(summary.nonFuelVariableCost||0)}.`;
+    }
     costMsg('Cost analysis loaded.','ok');
   }catch(error){
     renderCostVehicleRows([]);
+    const componentSummary=document.getElementById('costComponentSummary');
+    if(componentSummary) componentSummary.textContent='';
     costMsg(error.message,'err');
   }finally{
     if(btn){btn.disabled=false;btn.textContent='Run analysis';}
