@@ -114,11 +114,33 @@ When ready for live posting:
 Current live publisher support in code:
 
 - Bluesky (live when credentials are set)
+- Facebook Page feed publishing (live when Meta credentials are set)
+- Instagram Business image publishing (live when Meta credentials are set)
 
 Required Bluesky variables:
 
 - `BLUESKY_IDENTIFIER`
 - `BLUESKY_APP_PASSWORD`
+
+Required Meta variables:
+
+- `FACEBOOK_PAGE_ID`
+- `FACEBOOK_PAGE_ACCESS_TOKEN`
+- `INSTAGRAM_BUSINESS_ACCOUNT_ID`
+- `INSTAGRAM_PAGE_ACCESS_TOKEN` (optional; falls back to `FACEBOOK_PAGE_ACCESS_TOKEN`)
+
+## Admin Controls (Phase 2)
+
+The API now includes admin-only endpoints:
+
+- `GET /api/admin/social/preview?channels=facebook,instagram,bluesky`
+- `POST /api/admin/social/publish`
+
+`POST /api/admin/social/publish` body options:
+
+- `channels`: comma-separated string or omitted for defaults
+- `dryRun`: `true` or `false`
+- `postId`: force a specific post ID for manual campaign runs
 
 Planned next integrations (placeholders currently return skipped):
 

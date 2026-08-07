@@ -11,6 +11,7 @@ const {hashPassword, verifyPassword}=require('./_shared/password.cjs');
 const {ensureDefaultTestUsers, ensureDefaultUserForEmail}=require('./_shared/default-users.cjs');
 const {buildDriverEmployeeLookupSql, buildDriverAvailabilitySql}=require('./_shared/employee-driver-lookup.cjs');
 const {getFallbackUser, createFallbackSession, getFallbackSession, revokeFallbackSession, getFallbackAssignments, acceptFallbackAssignment, updateFallbackAssignmentStatus}=require('./_shared/fallback-auth.cjs');
+const {parseChannels,isDryRunValue,previewSocialSelection,runSocialPublish}=require('./_shared/social-engine.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -1518,6 +1519,21 @@ async function handler(event){
   }
   if(p.join('/')==='integrations/config'&&method==='GET')return json(200,{build:'042',googleMapsEnabled:envEnabled('GOOGLE_MAPS_BROWSER_KEY'),googleMapsBrowserKey:process.env.GOOGLE_MAPS_BROWSER_KEY||'',stripeEnabled:envEnabled('STRIPE_SECRET_KEY') || envEnabled('STRIPE_PUBLISHABLE_KEY'),stripePublishableKey:process.env.STRIPE_PUBLISHABLE_KEY||'',squareEnabled:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')});
   if(p.join('/')==='integrations/health'&&method==='GET')return json(200,{googleMaps:envEnabled('GOOGLE_MAPS_BROWSER_KEY')?'configured':'not-configured',twilio:envEnabled('TWILIO_ACCOUNT_SID')&&envEnabled('TWILIO_AUTH_TOKEN')&&envEnabled('TWILIO_PHONE_NUMBER')?'configured':'not-configured',sendGrid:envEnabled('SENDGRID_API_KEY')&&envEnabled('SENDGRID_FROM_EMAIL')?'configured':'not-configured',stripe:envEnabled('STRIPE_SECRET_KEY')||envEnabled('STRIPE_PUBLISHABLE_KEY')?'configured':'not-configured',square:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')?'configured':'not-configured',gps:'enabled',checkedAt:new Date().toISOString()});
+  if(p[0]==='admin'&&p[1]==='social'&&p[2]==='preview'&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN']);
+   const channels=parseChannels(event.queryStringParameters?.channels||process.env.SOCIAL_AUTOMATION_CHANNELS||'');
+   const preview=await previewSocialSelection({channels});
+   return json(200,{preview});
+  }
+  if(p[0]==='admin'&&p[1]==='social'&&p[2]==='publish'&&method==='POST'){
+   await requireUser(bearer(event),['ADMIN']);
+   const body=parseBody(event);
+   const channels=parseChannels(body.channels||event.queryStringParameters?.channels||process.env.SOCIAL_AUTOMATION_CHANNELS||'');
+   const dryRun=isDryRunValue(body.dryRun, isDryRunValue(process.env.SOCIAL_AUTOMATION_DRY_RUN,true));
+   const forcedPostId=clean(body.postId||'');
+   const report=await runSocialPublish({channels,dryRun,forcedPostId});
+   return json(200,{report});
+  }
   if(p[0]==='settings'&&p[1]==='public'&&method==='GET'){
    const settings=await readPlatformSettings();
    return json(200,{pricing:settings.pricing,fareRules:settings.fareRules,activeServices:settings.activeServices,organization:settings.organization});

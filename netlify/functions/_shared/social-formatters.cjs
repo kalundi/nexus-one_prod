@@ -37,12 +37,22 @@ function buildPostText(post,feed,channel){
  return `${brand}: ${headline}\n${baseCaption}\n${link}\n${hashtags}`.trim();
 }
 
-function buildPublishPayload(post,feed,channel){
+function toAbsoluteAssetUrl(assetPath,baseUrl){
+ const asset=String(assetPath||'').trim();
+ if(!asset) return '';
+ if(/^https?:\/\//i.test(asset)) return asset;
+ const base=String(baseUrl||'https://nexusmt.com').replace(/\/$/,'');
+ const rel=asset.startsWith('/')?asset:`/${asset}`;
+ return `${base}${rel}`;
+}
+
+function buildPublishPayload(post,feed,channel,baseUrl='https://nexusmt.com'){
  return {
   channel,
   postId:post.id,
   pillar:post.pillar,
   asset:String(post.asset||''),
+    assetUrl:toAbsoluteAssetUrl(post.asset,baseUrl),
   altText:String(post.altText||''),
   text:buildPostText(post,feed,channel),
   link:String(post.url||'https://nexusmt.com/'),
