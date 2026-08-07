@@ -487,6 +487,251 @@ async function getRevenueAnalytics(start,end,groupBy){
  };
 }
 
+  const DRIVER_PAY_RATES={ambulatory:20,wheelchair:25,stretcher:30,ambulance:40};
+
+  function resolveCostBand(service){
+   const raw=String(service||'').trim().toLowerCase();
+   if(!raw)return 'ambulatory';
+   if(raw.includes('wheel')||raw.includes('broda'))return 'wheelchair';
+   if(raw.includes('stretcher')||raw.includes('bariatric'))return 'stretcher';
+   if(raw.includes('ambulance')||raw.includes('bls')||raw.includes('als')||raw.includes('critical')||raw.includes('cct'))return 'ambulance';
+   if(raw.includes('facility_transfer_critical'))return 'ambulance';
+   return 'ambulatory';
+  }
+
+  function parseCostAnalyzerRange(event){
+   const qs=event.queryStringParameters||{};
+   const {start,end,groupBy}=parseAnalyticsRange(event);
+   const limit=Math.min(5000,Math.max(50,Number(qs.limit||500)||500));
+   return {
+    start,
+    end,
+    groupBy,
+    limit,
+    driver:clean(qs.driver),
+    vehicle:clean(qs.vehicle),
+    service:clean(qs.service),
+    source:clean(qs.source).toUpperCase(),
+    status:clean(qs.status).toUpperCase(),
+    includeCancelled:String(qs.includeCancelled||'false').toLowerCase()==='true'
+   };
+  }
+
+  function costBucketLabel(dateValue,groupBy){
+   const dateText=String(dateValue||'').slice(0,10);
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(dateText))return dateText||'unknown';
+   if(groupBy==='day')return dateText;
+   const dt=new Date(`${dateText}T00:00:00Z`);
+   if(Number.isNaN(dt.getTime()))return dateText;
+   if(groupBy==='month')return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}`;
+   const day=dt.getUTCDay()||7;
+   dt.setUTCDate(dt.getUTCDate()-(day-1));
+   return dt.toISOString().slice(0,10);
+  }
+
+  function sumCostBucket(map,key,cost,revenue,profit,trips){
+   if(!map[key])map[key]={bucket:key,trips:0,totalCost:0,totalRevenue:0,totalProfit:0};
+   map[key].trips+=trips;
+   map[key].totalCost+=cost;
+   map[key].totalRevenue+=revenue;
+   map[key].totalProfit+=profit;
+  }
+
+  function rankBreakdown(map,labelKey){
+   return Object.values(map).sort((a,b)=>b.totalCost-a.totalCost||b.trips-a.trips).map((item)=>({
+    [labelKey]:item[labelKey],
+    trips:item.trips,
+    totalCost:Number(item.totalCost.toFixed(2)),
+    totalRevenue:Number(item.totalRevenue.toFixed(2)),
+    totalProfit:Number(item.totalProfit.toFixed(2)),
+    averageCostPerTrip:item.trips?Number((item.totalCost/item.trips).toFixed(2)):0
+   }));
+  }
+
+  function toCostAnalyzerCsv(rows){
+   const header=['reference','trip_date','trip_time','service','driver_name','vehicle_unit','distance_miles','estimated_fare','cost_band','driver_pay','fuel_price_per_gallon','mpg_used','fuel_cost','trip_cost','profit'];
+   const escape=(value)=>{const str=String(value??'');return /[",\n]/.test(str)?`"${str.replaceAll('"','""')}"`:str;};
+   return [header.join(','),...rows.map((row)=>header.map((key)=>escape(row[key])).join(','))].join('\n');
+  }
+
+  async function getCostAnalyzerAnalytics(options){
+   const settings=await readPlatformSettings();
+   const fareRules=settings.fareRules||{};
+   const fuelIndexPrice=n(fareRules.fuelIndexPricePerGallon,0);
+   const fuelPricePerGallon=fuelIndexPrice>0?fuelIndexPrice:n(fareRules.fuelBaselinePricePerGallon,3.25);
+   const defaultMpg=clamp(n(fareRules.fuelEfficiencyMpg,10),1,100);
+   const fuelBufferPct=clamp(n(fareRules.fuelOperationalBufferPct,0),0,300);
+
+   const where=['b.trip_date >= $1','b.trip_date <= $2'];
+   const params=[options.start,options.end];
+   let idx=3;
+   if(options.driver){where.push(`COALESCE(b.driver_name,'') ILIKE $${idx++}`);params.push(`%${options.driver}%`);}
+   if(options.vehicle){where.push(`COALESCE(b.vehicle_unit,'') ILIKE $${idx++}`);params.push(`%${options.vehicle}%`);}
+   if(options.service){where.push(`COALESCE(b.service,'') ILIKE $${idx++}`);params.push(`%${options.service}%`);}
+   if(options.source){where.push(`COALESCE(b.booking_source,'CUSTOMER') = $${idx++}`);params.push(options.source);}
+   if(options.status){where.push(`COALESCE(b.status,'SUBMITTED') = $${idx++}`);params.push(options.status);}
+   if(!options.includeCancelled){where.push(`COALESCE(b.status,'') <> 'CANCELLED'`);}
+   params.push(options.limit);
+
+   const bookings=await query(`
+    SELECT
+     b.reference,b.trip_date,b.trip_time,b.service,b.status,b.booking_source,
+     b.driver_name,b.vehicle_unit,
+     COALESCE(b.distance_miles,0)::numeric(12,2) AS distance_miles,
+     COALESCE(b.estimated_fare,0)::numeric(12,2) AS estimated_fare,
+     v.vehicle_type,
+     v.fuel_efficiency_mpg,
+     COALESCE(NULLIF(v.metadata->>'mpg_rating',''),'0')::numeric(12,2) AS vehicle_metadata_mpg
+    FROM bookings b
+    LEFT JOIN vehicles v ON v.unit_number=b.vehicle_unit
+    WHERE ${where.join(' AND ')}
+    ORDER BY b.trip_date DESC,b.trip_time DESC,b.reference DESC
+    LIMIT $${idx}
+   `,params);
+
+   const seriesMap={};
+   const byDriver={};
+   const byVehicle={};
+   const byService={};
+   const bySource={};
+   const byStatus={};
+   const tripRows=[];
+
+   let totalTrips=0;let totalRevenue=0;let totalCost=0;let totalDriverPay=0;let totalFuelCost=0;
+
+   for(const row of bookings.rows||[]){
+    const distance=n(row.distance_miles,0);
+    const estimatedFare=n(row.estimated_fare,0);
+    const band=resolveCostBand(row.service);
+    const driverPay=n(DRIVER_PAY_RATES[band],20);
+    const mpgCandidate=n(row.fuel_efficiency_mpg,0)>0?n(row.fuel_efficiency_mpg,0):n(row.vehicle_metadata_mpg,0);
+    const mpgUsed=mpgCandidate>0?mpgCandidate:defaultMpg;
+    const gallonsUsed=distance>0?distance/mpgUsed:0;
+    const fuelCostRaw=gallonsUsed*fuelPricePerGallon;
+    const fuelCost=fuelCostRaw*(1+(fuelBufferPct/100));
+    const tripCost=driverPay+fuelCost;
+    const profit=estimatedFare-tripCost;
+    const bucket=costBucketLabel(row.trip_date,options.groupBy);
+
+    totalTrips+=1;
+    totalRevenue+=estimatedFare;
+    totalCost+=tripCost;
+    totalDriverPay+=driverPay;
+    totalFuelCost+=fuelCost;
+
+    sumCostBucket(seriesMap,bucket,tripCost,estimatedFare,profit,1);
+
+    const driverKey=clean(row.driver_name)||'Unassigned';
+    if(!byDriver[driverKey])byDriver[driverKey]={driver:driverKey,trips:0,totalCost:0,totalRevenue:0,totalProfit:0};
+    byDriver[driverKey].trips+=1;byDriver[driverKey].totalCost+=tripCost;byDriver[driverKey].totalRevenue+=estimatedFare;byDriver[driverKey].totalProfit+=profit;
+
+    const vehicleKey=clean(row.vehicle_unit)||'Unassigned';
+    if(!byVehicle[vehicleKey])byVehicle[vehicleKey]={vehicleUnit:vehicleKey,vehicleType:clean(row.vehicle_type)||'Unknown',trips:0,totalCost:0,totalRevenue:0,totalProfit:0};
+    byVehicle[vehicleKey].trips+=1;byVehicle[vehicleKey].totalCost+=tripCost;byVehicle[vehicleKey].totalRevenue+=estimatedFare;byVehicle[vehicleKey].totalProfit+=profit;
+
+    const serviceKey=clean(row.service)||'unknown';
+    if(!byService[serviceKey])byService[serviceKey]={service:serviceKey,trips:0,totalCost:0,totalRevenue:0,totalProfit:0};
+    byService[serviceKey].trips+=1;byService[serviceKey].totalCost+=tripCost;byService[serviceKey].totalRevenue+=estimatedFare;byService[serviceKey].totalProfit+=profit;
+
+    const sourceKey=clean(row.booking_source)||'CUSTOMER';
+    if(!bySource[sourceKey])bySource[sourceKey]={bookingSource:sourceKey,trips:0,totalCost:0,totalRevenue:0,totalProfit:0};
+    bySource[sourceKey].trips+=1;bySource[sourceKey].totalCost+=tripCost;bySource[sourceKey].totalRevenue+=estimatedFare;bySource[sourceKey].totalProfit+=profit;
+
+    const statusKey=clean(row.status)||'SUBMITTED';
+    if(!byStatus[statusKey])byStatus[statusKey]={status:statusKey,trips:0,totalCost:0,totalRevenue:0,totalProfit:0};
+    byStatus[statusKey].trips+=1;byStatus[statusKey].totalCost+=tripCost;byStatus[statusKey].totalRevenue+=estimatedFare;byStatus[statusKey].totalProfit+=profit;
+
+    tripRows.push({
+     reference:clean(row.reference),
+     trip_date:String(row.trip_date||''),
+     trip_time:clean(row.trip_time||''),
+     service:serviceKey,
+     driver_name:driverKey,
+     vehicle_unit:vehicleKey,
+     distance_miles:Number(distance.toFixed(2)),
+     estimated_fare:Number(estimatedFare.toFixed(2)),
+     cost_band:band,
+     driver_pay:Number(driverPay.toFixed(2)),
+     fuel_price_per_gallon:Number(fuelPricePerGallon.toFixed(3)),
+     mpg_used:Number(mpgUsed.toFixed(2)),
+     fuel_cost:Number(fuelCost.toFixed(2)),
+     trip_cost:Number(tripCost.toFixed(2)),
+     profit:Number(profit.toFixed(2))
+    });
+   }
+
+   const summary={
+    trips:totalTrips,
+    totalCost:Number(totalCost.toFixed(2)),
+    totalRevenue:Number(totalRevenue.toFixed(2)),
+    totalProfit:Number((totalRevenue-totalCost).toFixed(2)),
+    averageCostPerTrip:totalTrips?Number((totalCost/totalTrips).toFixed(2)):0,
+    averageRevenuePerTrip:totalTrips?Number((totalRevenue/totalTrips).toFixed(2)):0,
+    averageProfitPerTrip:totalTrips?Number(((totalRevenue-totalCost)/totalTrips).toFixed(2)):0,
+    driverLaborCost:Number(totalDriverPay.toFixed(2)),
+    fuelCost:Number(totalFuelCost.toFixed(2))
+   };
+
+   return {
+    period:{start:options.start,end:options.end,groupBy:options.groupBy,limit:options.limit,includeCancelled:options.includeCancelled},
+    assumptions:{
+     fuelPricePerGallon:Number(fuelPricePerGallon.toFixed(3)),
+     fuelSource:fuelIndexPrice>0?'platform_fuel_index':'platform_fuel_baseline',
+     defaultMpg,
+     fuelOperationalBufferPct:Number(fuelBufferPct.toFixed(2)),
+     driverPayRates:DRIVER_PAY_RATES
+    },
+    summary,
+    series:Object.values(seriesMap).sort((a,b)=>String(a.bucket).localeCompare(String(b.bucket))).map((item)=>({bucket:item.bucket,trips:item.trips,totalCost:Number(item.totalCost.toFixed(2)),totalRevenue:Number(item.totalRevenue.toFixed(2)),totalProfit:Number(item.totalProfit.toFixed(2))})),
+    breakdowns:{
+     byDriver:rankBreakdown(byDriver,'driver'),
+     byVehicle:Object.values(byVehicle).sort((a,b)=>b.totalCost-a.totalCost||b.trips-a.trips).map((item)=>({vehicleUnit:item.vehicleUnit,vehicleType:item.vehicleType,trips:item.trips,totalCost:Number(item.totalCost.toFixed(2)),totalRevenue:Number(item.totalRevenue.toFixed(2)),totalProfit:Number(item.totalProfit.toFixed(2)),averageCostPerTrip:item.trips?Number((item.totalCost/item.trips).toFixed(2)):0})),
+     byService:rankBreakdown(byService,'service'),
+     bySource:rankBreakdown(bySource,'bookingSource'),
+     byStatus:rankBreakdown(byStatus,'status')
+    },
+    trips:tripRows
+   };
+  }
+
+  async function listAdminEmails(){
+   const rowset=await query(`SELECT DISTINCT lower(trim(email)) AS email FROM users WHERE role='ADMIN' AND active=true AND email IS NOT NULL AND trim(email)<>''`).catch(()=>({rows:[]}));
+   const emails=new Set((rowset.rows||[]).map((row)=>clean(row.email).toLowerCase()).filter(Boolean));
+   if(clean(process.env.NEXUS_ADMIN_EMAIL))emails.add(clean(process.env.NEXUS_ADMIN_EMAIL).toLowerCase());
+   emails.add('admin@nexusmt.com');
+   return Array.from(emails);
+  }
+
+  async function sendCostAnalyzerReport(analytics,requestedBy='Admin'){
+   const summary=analytics.summary||{};
+   const period=analytics.period||{};
+   const topVehicle=analytics.breakdowns?.byVehicle?.[0];
+   const topDriver=analytics.breakdowns?.byDriver?.[0];
+   const title=`📊 Cost Analyzer Report — ${period.start} to ${period.end}`;
+   const teamsText=[
+    `**Cost Analyzer** (${period.start} → ${period.end})`,
+    `- **Trips:** ${summary.trips||0}`,
+    `- **Total Cost:** $${Number(summary.totalCost||0).toFixed(2)}`,
+    `- **Total Revenue:** $${Number(summary.totalRevenue||0).toFixed(2)}`,
+    `- **Total Profit:** $${Number(summary.totalProfit||0).toFixed(2)}`,
+    topVehicle?`- **Highest Cost Vehicle:** ${topVehicle.vehicleUnit} ($${Number(topVehicle.totalCost||0).toFixed(2)})`:null,
+    topDriver?`- **Highest Cost Driver:** ${topDriver.driver} ($${Number(topDriver.totalCost||0).toFixed(2)})`:null,
+    `- **Requested by:** ${requestedBy}`
+   ].filter(Boolean).join('\n');
+   const html=`<h2 style="color:#082f49">Cost Analyzer Report</h2><p><strong>Period:</strong> ${period.start} to ${period.end}</p><table style="width:100%;border-collapse:collapse;margin:12px 0"><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Trips</td><td style="padding:8px;border:1px solid #dbe5ed">${summary.trips||0}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalCost||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Revenue</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalRevenue||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Total Profit</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.totalProfit||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Driver Labor Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.driverLaborCost||0).toFixed(2)}</td></tr><tr><td style="padding:8px;font-weight:700;border:1px solid #dbe5ed">Fuel Cost</td><td style="padding:8px;border:1px solid #dbe5ed">$${Number(summary.fuelCost||0).toFixed(2)}</td></tr></table><p><strong>Top vehicle by cost:</strong> ${topVehicle?`${topVehicle.vehicleUnit} ($${Number(topVehicle.totalCost||0).toFixed(2)})`:'N/A'}</p><p><strong>Top driver by cost:</strong> ${topDriver?`${topDriver.driver} ($${Number(topDriver.totalCost||0).toFixed(2)})`:'N/A'}</p><p style="color:#62758a">Generated by ${requestedBy}</p>`;
+
+   const emails=await listAdminEmails();
+   const [emailResult,teamsResult]=await Promise.allSettled([
+    sendEmail(emails,`Nexus Cost Analyzer Report — ${period.start} to ${period.end}`,html),
+    sendTeamsAlert(teamsText,title)
+   ]);
+   return {
+    recipients:emails,
+    email:emailResult.status==='fulfilled'?emailResult.value:{status:'failed',error:emailResult.reason?.message},
+    teams:teamsResult.status==='fulfilled'?teamsResult.value:{status:'failed',error:teamsResult.reason?.message}
+   };
+  }
+
 function toRevenueExportCsv(rows){
  const header=['reference','trip_date','trip_time','service','booking_source','status','payment_status','estimated_fare','deposit_amount','balance_due','cancellation_fee_amount','driver_name','vehicle_unit'];
  const escape=(value)=>{
@@ -2092,6 +2337,30 @@ async function handler(event){
    `,[start,end]);
    await audit('REPORT','revenue-export','EXPORTED',{start,end,rowCount:exportRows.rowCount,role:u.role});
    return {statusCode:200,headers:{'Content-Type':'text/csv','Content-Disposition':`attachment; filename=revenue-export-${start}-to-${end}.csv`},body:toRevenueExportCsv(exportRows.rows)};
+  }
+  if(p[0]==='admin'&&p[1]==='analytics'&&p[2]==='cost'&&method==='GET'){
+   const u=await requireUser(bearer(event),['ADMIN']);
+   const options=parseCostAnalyzerRange(event);
+   const analytics=await getCostAnalyzerAnalytics(options);
+   await audit('REPORT','cost-analyzer','VIEWED',{start:options.start,end:options.end,groupBy:options.groupBy,limit:options.limit,role:u.role});
+   return json(200,analytics);
+  }
+  if(p[0]==='admin'&&p[1]==='analytics'&&p[2]==='cost-export'&&method==='GET'){
+   const u=await requireUser(bearer(event),['ADMIN']);
+   const options=parseCostAnalyzerRange(event);
+   const analytics=await getCostAnalyzerAnalytics(options);
+   await audit('REPORT','cost-analyzer-export','EXPORTED',{start:options.start,end:options.end,rows:analytics.trips?.length||0,role:u.role});
+   return {statusCode:200,headers:{'Content-Type':'text/csv','Content-Disposition':`attachment; filename=cost-analyzer-${options.start}-to-${options.end}.csv`},body:toCostAnalyzerCsv(analytics.trips||[])};
+  }
+  if(p[0]==='admin'&&p[1]==='analytics'&&p[2]==='cost-report'&&method==='POST'){
+   const u=await requireUser(bearer(event),['ADMIN']);
+   const body=parseBody(event);
+   const mergedQuery={queryStringParameters:{...(event.queryStringParameters||{}),...(body||{})}};
+   const options=parseCostAnalyzerRange(mergedQuery);
+   const analytics=await getCostAnalyzerAnalytics(options);
+   const delivery=await sendCostAnalyzerReport(analytics,clean(u.display_name||u.email||'Admin'));
+   await audit('REPORT','cost-analyzer-report','SENT',{start:options.start,end:options.end,emails:delivery.recipients?.length||0,role:u.role});
+   return json(200,{analytics:{period:analytics.period,summary:analytics.summary,assumptions:analytics.assumptions},delivery});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='PATCH'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','DRIVER']);

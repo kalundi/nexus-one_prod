@@ -72,6 +72,7 @@
     <a class="adminShortcut primary" href="#userSection">Manage users</a>
     <a class="adminShortcut" href="#pricingSection">Pricing config</a>
     <a class="adminShortcut" href="#manageTripSection">Manage trip</a>
+    <a class="adminShortcut" href="#costAnalyzerSection">Cost analyzer</a>
     <a class="adminShortcut" href="#socialSection">Social automation</a>
     <a class="adminShortcut" href="#settingsSection">Settings</a>
     <a class="adminShortcut" href="#auditSection">Audit log</a>
@@ -265,6 +266,49 @@
     </div>
   </div>
   <div style="margin-top:22px"><button class="button primary" id="saveSettings">Save settings</button><span id="settingsSavedMsg" style="margin-left:12px;color:var(--green);font-weight:700;display:none">Settings saved.</span></div>
+</section>
+
+<section class="sectionTab card" id="costAnalyzerSection" style="margin-top:24px">
+  <div class="sectionTitle">
+    <div>
+      <div class="eyebrow" style="color:var(--blue)">Financial Intelligence</div>
+      <h2>Cost Analyzer</h2>
+      <p>Track true trip cost by timeframe, driver, vehicle, service, source, and status.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="button" id="costAnalyzerLoadBtn" type="button">Run analysis</button>
+      <button class="button" id="costAnalyzerExportBtn" type="button">Export CSV</button>
+      <button class="button primary" id="costAnalyzerSendBtn" type="button">Send report</button>
+    </div>
+  </div>
+  <div class="formRow triple" style="margin-bottom:12px">
+    <div class="formField"><label for="costStart">Start</label><input id="costStart" type="date"></div>
+    <div class="formField"><label for="costEnd">End</label><input id="costEnd" type="date"></div>
+    <div class="formField"><label for="costGroupBy">Group by</label><select id="costGroupBy"><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></select></div>
+  </div>
+  <div class="formRow triple" style="margin-bottom:12px">
+    <div class="formField"><label for="costDriverFilter">Driver</label><input id="costDriverFilter" type="text" placeholder="Any driver"></div>
+    <div class="formField"><label for="costVehicleFilter">Vehicle</label><input id="costVehicleFilter" type="text" placeholder="Any vehicle"></div>
+    <div class="formField"><label for="costServiceFilter">Service</label><input id="costServiceFilter" type="text" placeholder="Any service"></div>
+  </div>
+  <div class="formRow triple" style="margin-bottom:12px">
+    <div class="formField"><label for="costSourceFilter">Source</label><input id="costSourceFilter" type="text" placeholder="Any source"></div>
+    <div class="formField"><label for="costStatusFilter">Status</label><input id="costStatusFilter" type="text" placeholder="Any status"></div>
+    <div class="formField" style="align-self:end"><label style="display:flex;align-items:center;gap:8px"><input id="costIncludeCancelled" type="checkbox"> Include cancelled trips</label></div>
+  </div>
+  <div id="costAnalyzerMsg" hidden></div>
+  <div class="adminStatGrid" style="margin-top:12px">
+    <div class="adminStat"><strong id="costTrips">—</strong><small>Trips</small></div>
+    <div class="adminStat"><strong id="costTotal">—</strong><small>Total cost</small></div>
+    <div class="adminStat"><strong id="costRevenue">—</strong><small>Total revenue</small></div>
+    <div class="adminStat"><strong id="costProfit">—</strong><small>Total profit</small></div>
+  </div>
+  <div class="tableWrap" style="margin-top:14px">
+    <table class="table" aria-label="Cost analyzer breakdown by vehicle">
+      <thead><tr><th>Vehicle</th><th>Type</th><th>Trips</th><th>Total Cost</th><th>Avg Cost / Trip</th><th>Total Profit</th></tr></thead>
+      <tbody id="costVehicleRows"><tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Run analysis to load cost breakdowns.</td></tr></tbody>
+    </table>
+  </div>
 </section>
 
 <section class="sectionTab card" id="socialSection" style="margin-top:32px">

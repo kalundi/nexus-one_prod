@@ -441,14 +441,128 @@ function applyRoleRestrictions(){
   if(canEditSettings()) return;
   const userSection=document.getElementById('userSection');
   const auditSection=document.getElementById('auditSection');
+  const costSection=document.getElementById('costAnalyzerSection');
   const socialSection=document.getElementById('socialSection');
   if(userSection) userSection.style.display='none';
   if(auditSection) auditSection.style.display='none';
+  if(costSection) costSection.style.display='none';
   if(socialSection) socialSection.style.display='none';
   document.getElementById('savePricing').disabled=true;
   document.getElementById('resetPricing').disabled=true;
   document.getElementById('saveSettings').disabled=true;
   document.getElementById('refreshFuelIndexBtn').disabled=true;
+}
+
+let lastCostQuery='';
+
+function money(value){
+  const num=Number(value||0);
+  return `$${num.toFixed(2)}`;
+}
+
+function costMsg(text,type='ok'){
+  const el=document.getElementById('costAnalyzerMsg');
+  if(!el) return;
+  showMsg(el,text,type);
+}
+
+function buildCostQuery(){
+  const params=new URLSearchParams();
+  const start=document.getElementById('costStart')?.value||'';
+  const end=document.getElementById('costEnd')?.value||'';
+  const groupBy=document.getElementById('costGroupBy')?.value||'day';
+  const driver=document.getElementById('costDriverFilter')?.value?.trim()||'';
+  const vehicle=document.getElementById('costVehicleFilter')?.value?.trim()||'';
+  const service=document.getElementById('costServiceFilter')?.value?.trim()||'';
+  const source=document.getElementById('costSourceFilter')?.value?.trim()||'';
+  const status=document.getElementById('costStatusFilter')?.value?.trim()||'';
+  const includeCancelled=Boolean(document.getElementById('costIncludeCancelled')?.checked);
+  if(start)params.set('start',start);
+  if(end)params.set('end',end);
+  if(groupBy)params.set('groupBy',groupBy);
+  if(driver)params.set('driver',driver);
+  if(vehicle)params.set('vehicle',vehicle);
+  if(service)params.set('service',service);
+  if(source)params.set('source',source);
+  if(status)params.set('status',status);
+  if(includeCancelled)params.set('includeCancelled','true');
+  params.set('limit','1500');
+  return params.toString();
+}
+
+function renderCostVehicleRows(rows=[]){
+  const body=document.getElementById('costVehicleRows');
+  if(!body)return;
+  if(!rows.length){
+    body.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">No trip cost records found for selected filters.</td></tr>';
+    return;
+  }
+  body.innerHTML=rows.slice(0,50).map((item)=>`<tr><td>${item.vehicleUnit||'Unassigned'}</td><td>${item.vehicleType||'Unknown'}</td><td>${item.trips||0}</td><td>${money(item.totalCost)}</td><td>${money(item.averageCostPerTrip)}</td><td>${money(item.totalProfit)}</td></tr>`).join('');
+}
+
+async function runCostAnalyzer(){
+  const btn=document.getElementById('costAnalyzerLoadBtn');
+  if(btn){btn.disabled=true;btn.textContent='Running...';}
+  try{
+    const qs=buildCostQuery();
+    lastCostQuery=qs;
+    const res=await fetch(`/api/admin/analytics/cost?${qs}`,{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Failed to load cost analysis');
+    const summary=data.summary||{};
+    document.getElementById('costTrips').textContent=String(summary.trips||0);
+    document.getElementById('costTotal').textContent=money(summary.totalCost||0);
+    document.getElementById('costRevenue').textContent=money(summary.totalRevenue||0);
+    document.getElementById('costProfit').textContent=money(summary.totalProfit||0);
+    renderCostVehicleRows(data.breakdowns?.byVehicle||[]);
+    costMsg('Cost analysis loaded.','ok');
+  }catch(error){
+    renderCostVehicleRows([]);
+    costMsg(error.message,'err');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Run analysis';}
+  }
+}
+
+async function exportCostAnalyzerCsv(){
+  try{
+    const qs=lastCostQuery||buildCostQuery();
+    const res=await fetch(`/api/admin/analytics/cost-export?${qs}`,{headers:{authorization:`Bearer ${token()}`}});
+    if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err.error||'Failed to export cost report');}
+    const text=await res.text();
+    const blob=new Blob([text],{type:'text/csv'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='cost-analyzer-export.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    costMsg('Cost CSV exported.','ok');
+  }catch(error){
+    costMsg(error.message,'err');
+  }
+}
+
+async function sendCostAnalyzerReport(){
+  const btn=document.getElementById('costAnalyzerSendBtn');
+  if(btn){btn.disabled=true;btn.textContent='Sending...';}
+  try{
+    const qs=lastCostQuery||buildCostQuery();
+    const body={};
+    new URLSearchParams(qs).forEach((value,key)=>{body[key]=value;});
+    const res=await fetch('/api/admin/analytics/cost-report',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify(body)});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Failed to send cost report');
+    const emailStatus=data.delivery?.email?.status||'unknown';
+    const teamsStatus=data.delivery?.teams?.status||'unknown';
+    costMsg(`Report sent. Email: ${emailStatus}. Teams: ${teamsStatus}.`,'ok');
+  }catch(error){
+    costMsg(error.message,'err');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Send report';}
+  }
 }
 
 function getSelectedSocialChannels(){
@@ -710,6 +824,9 @@ document.getElementById('socialPreviewBtn')?.addEventListener('click',()=>{loadS
 document.getElementById('socialPublishBtn')?.addEventListener('click',()=>{runSocialPublish().catch((err)=>console.error(err));});
 document.getElementById('socialHistoryRefreshBtn')?.addEventListener('click',()=>{loadSocialHistory().catch((err)=>console.error(err));});
 document.querySelectorAll('.socialChannel').forEach((el)=>el.addEventListener('change',()=>{loadSocialPreview().catch((err)=>console.error(err));}));
+document.getElementById('costAnalyzerLoadBtn')?.addEventListener('click',()=>{runCostAnalyzer().catch((err)=>console.error(err));});
+document.getElementById('costAnalyzerExportBtn')?.addEventListener('click',()=>{exportCostAnalyzerCsv().catch((err)=>console.error(err));});
+document.getElementById('costAnalyzerSendBtn')?.addEventListener('click',()=>{sendCostAnalyzerReport().catch((err)=>console.error(err));});
 
 // Wait for auth-guard to authorize, then load data
 window.addEventListener('nexus:authorized',async()=>{
@@ -718,6 +835,7 @@ window.addEventListener('nexus:authorized',async()=>{
     loadUsers();
     loadAudit();
     loadAdminTrips().catch((err)=>console.error(err));
+    runCostAnalyzer().catch((err)=>console.error(err));
     loadSocialPreview().catch((err)=>console.error(err));
     loadSocialHistory().catch((err)=>console.error(err));
   }
@@ -730,6 +848,7 @@ if(window.NexusAuthorizedUser){
     loadUsers();
     loadAudit();
     loadAdminTrips().catch((err)=>console.error(err));
+    runCostAnalyzer().catch((err)=>console.error(err));
     loadSocialPreview().catch((err)=>console.error(err));
     loadSocialHistory().catch((err)=>console.error(err));
   }
