@@ -484,6 +484,49 @@ function renderSocialPreviewRows(items=[]){
   }).join('');
 }
 
+function renderSocialHistoryRows(rows=[]){
+  const body=document.getElementById('socialHistoryRows');
+  if(!body) return;
+  if(!rows.length){
+    body.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">No social publish history found.</td></tr>';
+    return;
+  }
+  body.innerHTML=rows.map((row)=>{
+    const createdAt=row.created_at?new Date(row.created_at).toLocaleString():'--';
+    const channel=String(row.channel||'--');
+    const postId=String(row.post_id||'--');
+    const status=String(row.status||'--');
+    const mode=row.dry_run?'Dry run':'Live';
+    const error=String(row.error_message||'').replaceAll('<','&lt;').replaceAll('>','&gt;');
+    const tone=status==='published'?'green':status==='failed'?'red':'blue';
+    return `<tr>
+      <td>${createdAt}</td>
+      <td>${channel}</td>
+      <td>${postId}</td>
+      <td><span class="pill ${tone}">${status}</span></td>
+      <td>${mode}</td>
+      <td style="max-width:360px;white-space:normal">${error||'--'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadSocialHistory(){
+  const btn=document.getElementById('socialHistoryRefreshBtn');
+  if(btn){btn.disabled=true;btn.textContent='Loading...';}
+  try{
+    const res=await fetch('/api/admin/social/history?limit=50',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Failed to load social history');
+    const rows=Array.isArray(data.history)?data.history:[];
+    renderSocialHistoryRows(rows);
+  }catch(error){
+    renderSocialHistoryRows([]);
+    socialMsg(error.message,'err');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Refresh history';}
+  }
+}
+
 async function loadSocialPreview(){
   const channels=getSelectedSocialChannels();
   if(!channels.length){socialMsg('Select at least one channel.','err');return;}
@@ -497,6 +540,7 @@ async function loadSocialPreview(){
     const selected=Array.isArray(data.preview?.selected)?data.preview.selected:[];
     renderSocialPreviewRows(selected);
     socialMsg(`Loaded preview for ${channels.join(', ')}.`,'ok');
+    loadSocialHistory().catch((err)=>console.error(err));
   }catch(error){
     renderSocialPreviewRows([]);
     socialMsg(error.message,'err');
@@ -524,6 +568,7 @@ async function runSocialPublish(){
     renderSocialPreviewRows(items);
     const publishedCount=items.filter((item)=>String(item.status||'')==='published').length;
     socialMsg(dryRun?`Dry run complete for ${channels.join(', ')}.`:`Publish run complete. ${publishedCount} channel(s) published.`, 'ok');
+    loadSocialHistory().catch((err)=>console.error(err));
   }catch(error){
     socialMsg(error.message,'err');
   }finally{
@@ -663,6 +708,7 @@ document.getElementById('adminTripRows')?.addEventListener('click',(event)=>{
 });
 document.getElementById('socialPreviewBtn')?.addEventListener('click',()=>{loadSocialPreview().catch((err)=>console.error(err));});
 document.getElementById('socialPublishBtn')?.addEventListener('click',()=>{runSocialPublish().catch((err)=>console.error(err));});
+document.getElementById('socialHistoryRefreshBtn')?.addEventListener('click',()=>{loadSocialHistory().catch((err)=>console.error(err));});
 document.querySelectorAll('.socialChannel').forEach((el)=>el.addEventListener('change',()=>{loadSocialPreview().catch((err)=>console.error(err));}));
 
 // Wait for auth-guard to authorize, then load data
@@ -673,6 +719,7 @@ window.addEventListener('nexus:authorized',async()=>{
     loadAudit();
     loadAdminTrips().catch((err)=>console.error(err));
     loadSocialPreview().catch((err)=>console.error(err));
+    loadSocialHistory().catch((err)=>console.error(err));
   }
   try{await loadPlatformSettings();}catch(e){console.error(e);}
 });
@@ -684,6 +731,7 @@ if(window.NexusAuthorizedUser){
     loadAudit();
     loadAdminTrips().catch((err)=>console.error(err));
     loadSocialPreview().catch((err)=>console.error(err));
+    loadSocialHistory().catch((err)=>console.error(err));
   }
   loadPlatformSettings().catch(()=>{});
 }

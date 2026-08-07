@@ -303,6 +303,16 @@
       <tbody id="socialPreviewRows"><tr><td colspan="5" style="padding:20px;text-align:center;color:var(--muted)">Load preview to view today's queue.</td></tr></tbody>
     </table>
   </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;margin-bottom:8px">
+    <strong style="font-family:Manrope,sans-serif">Recent publish history</strong>
+    <button class="button" id="socialHistoryRefreshBtn" type="button">Refresh history</button>
+  </div>
+  <div class="tableWrap">
+    <table class="table" aria-label="Social automation history">
+      <thead><tr><th>Time</th><th>Channel</th><th>Post ID</th><th>Status</th><th>Mode</th><th>Error</th></tr></thead>
+      <tbody id="socialHistoryRows"><tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Loading history…</td></tr></tbody>
+    </table>
+  </div>
 </section>
 
 <!-- Audit Log -->

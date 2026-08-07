@@ -1534,6 +1534,18 @@ async function handler(event){
    const report=await runSocialPublish({channels,dryRun,forcedPostId});
    return json(200,{report});
   }
+  if(p[0]==='admin'&&p[1]==='social'&&p[2]==='history'&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN']);
+   const limit=Math.min(200,Math.max(1,Number(event.queryStringParameters?.limit||50)||50));
+   const rows=await query(
+    `SELECT run_date, channel, post_id, status, dry_run, payload, response, error_message, created_at
+     FROM social_publish_history
+     ORDER BY created_at DESC
+     LIMIT $1`,
+    [limit]
+   ).catch(()=>({rows:[]}));
+   return json(200,{history:rows.rows||[]});
+  }
   if(p[0]==='settings'&&p[1]==='public'&&method==='GET'){
    const settings=await readPlatformSettings();
    return json(200,{pricing:settings.pricing,fareRules:settings.fareRules,activeServices:settings.activeServices,organization:settings.organization});
