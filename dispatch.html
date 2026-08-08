@@ -684,7 +684,7 @@ function renderTrips(trips){
       const shortDateTime=formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time);
       const brokerQuotedNumber=Number(t.brokerQuotedRate ?? t.broker_quoted_rate ?? t.quotedRate);
       const brokerQuoted=Number.isFinite(brokerQuotedNumber)?`$${brokerQuotedNumber.toFixed(2)}`:'--';
-      return `<tr><td>${ref||''}</td><td>${t.name||''}${parseSourceBadge(t)}</td><td>${t.service||''}</td><td>${shortDateTime}</td><td><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}">${t.statusLabel||t.status||'Requested'}</span></td><td>${estimate}</td><td>${brokerQuoted}</td><td>${riskBadge(t)}</td><td style="display:flex;gap:6px;flex-wrap:wrap"><button class="button secondary" type="button" data-advance="${ref}" onclick="advanceTrip('${ref}')">Advance</button><button class="button ghost" type="button" onclick="showBookingDocuments('${ref}')">Docs</button></td></tr>`;
+      return `<tr><td>${ref||''}</td><td>${t.name||''}${parseSourceBadge(t)}</td><td>${t.service||''}</td><td>${shortDateTime}</td><td><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}">${t.statusLabel||t.status||'Requested'}</span></td><td>${estimate}</td><td>${brokerQuoted}</td><td>${riskBadge(t)}</td><td style="display:flex;gap:6px;flex-wrap:wrap"><button class="button secondary" type="button" data-delete="${ref}" onclick="deleteTrip('${ref}')">Delete</button><button class="button ghost" type="button" onclick="showBookingDocuments('${ref}')">Docs</button></td></tr>`;
     }).join('');
   }
 
@@ -1088,16 +1088,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
       const isChecked = selectedRefs.has(ref);
       row.classList.toggle('selected', isChecked);
       cell.innerHTML = `<label style="display:flex;align-items:flex-start;gap:8px"><input class="dispatch-bulk-select" data-ref="${ref}" type="checkbox" ${isChecked?'checked':''} aria-label="Select ${ref} for bulk updates"><span>${ref}<div style="margin-top:4px"><span class="status ${tone}" style="font-size:10px">${kind === 'REAL' ? 'REAL' : 'DEMO'}</span></div></span></label>`;
-      const advanceBtn = row.querySelector('[data-advance]');
-      if(advanceBtn){
-        const actionState = nextAdvanceLabel(trip);
-        advanceBtn.textContent = actionState.label;
-        advanceBtn.disabled = Boolean(actionState.disabled);
-        advanceBtn.title = actionState.reason;
-        if(kind === 'DEMO'){
-          advanceBtn.title = 'Demo trip: operational advance is disabled.';
-          advanceBtn.disabled = true;
-        }
+      const deleteBtn = row.querySelector('[data-delete]');
+      if(deleteBtn){
+        deleteBtn.disabled = kind === 'DEMO';
+        deleteBtn.title = kind === 'DEMO' ? 'Demo trip: delete is disabled.' : 'Delete trip';
       }
     });
     if(typeof window.__dispatchBulkSelectionChanged === 'function') window.__dispatchBulkSelectionChanged();
@@ -1219,47 +1213,34 @@ $('saveCustomCompany').addEventListener('click',()=>{
     renderFiltered();
   };
 
-  window.advanceTrip = async function(id){
+  window.deleteTrip = async function(id){
     const reference = String(id || '').trim();
     if(!reference) return;
-    const trip = state.allTrips.find((t)=>refOf(t)===reference) || null;
-    const actionState = nextAdvanceLabel(trip || {});
-    if(actionState.disabled){
-      window.NexusTripPopup?.show({
-        title:'Advance unavailable',
-        message:`Trip ${reference} cannot be advanced yet.`,
-        detail:actionState.reason,
-        accent:'#b54708'
-      });
-      return;
-    }
-    const button = document.querySelector(`[data-advance="${reference}"]`);
-    const originalText = button?.textContent || 'Advance';
-    if(button){ button.disabled = true; button.textContent = 'Advancing...'; }
+    const confirmed = window.confirm(`Delete trip ${reference}? This action cannot be undone.`);
+    if(!confirmed) return;
+    const button = document.querySelector(`[data-delete="${reference}"]`);
+    const originalText = button?.textContent || 'Delete';
+    if(button){ button.disabled = true; button.textContent = 'Deleting...'; }
     window.NexusTripPopup?.show({
-      title:'Advancing trip',
-      message:`Trip ${reference} is being advanced.`,
-      detail:`Action: ${actionState.label}. Updating status history, audit logs, and notifications.`,
-      accent:'#0f766e'
+      title:'Deleting trip',
+      message:`Trip ${reference} is being removed.`,
+      detail:'Deleting booking and related dispatch records.',
+      accent:'#b42318'
     });
     try{
       const token = sessionStorage.getItem('nexusAccessToken') || '';
-      const res = await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}/advance`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`}});
+      const res = await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}`,{method:'DELETE',headers:{authorization:`Bearer ${token}`}});
       const json = await res.json().catch(()=>({}));
-      if(!res.ok) throw new Error(json.error || 'Unable to advance trip');
-      const updated = json.booking || null;
-      if(updated){
-        state.allTrips = state.allTrips.map((trip)=>refOf(trip)===reference?{...trip,...updated}:trip);
-        renderFiltered();
-      }
-      const notify = json.notifications?.recipients;
-      const notifyDetail = notify ? ` Notifications: SMS ${notify.sms||0}, Email ${notify.email||0}.` : '';
-      window.NexusTripPopup?.show({title:'Trip advanced',message:`Trip ${reference} advanced successfully.`,detail:`Status history and audit logs were updated.${notifyDetail}`,accent:'#0f766e'});
+      if(!res.ok) throw new Error(json.error || 'Unable to delete trip');
+      selectedRefs.delete(reference);
+      state.allTrips = state.allTrips.filter((trip)=>refOf(trip)!==reference);
+      renderFiltered();
+      window.NexusTripPopup?.show({title:'Trip deleted',message:`Trip ${reference} was deleted.`,detail:'The trip has been removed from dispatch.',accent:'#0f766e'});
     }catch(err){
       window.NexusTripPopup?.show({
-        title:'Advance failed',
-        message:`Trip ${reference} could not be advanced.`,
-        detail:err.message || 'Unable to advance trip',
+        title:'Delete failed',
+        message:`Trip ${reference} could not be deleted.`,
+        detail:err.message || 'Unable to delete trip',
         accent:'#b42318'
       });
     }finally{

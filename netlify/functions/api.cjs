@@ -2490,6 +2490,26 @@ async function handler(event){
    }:null;
    return json(200,{booking:mapBooking(r.rows[0]),intakeAudit});
   }
+  if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='DELETE'){
+   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);
+   const ref=decodeURIComponent(p[2]);
+   const current=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref]);
+   if(!current.rows[0])return json(404,{error:'Booking not found'});
+
+   await query('DELETE FROM trip_status_history WHERE booking_reference=$1',[ref]).catch(()=>{});
+   await query('DELETE FROM booking_attachments WHERE booking_reference=$1',[ref]).catch(()=>{});
+   const deleted=await query('DELETE FROM bookings WHERE reference=$1 RETURNING *',[ref]);
+   if(!deleted.rows[0])return json(404,{error:'Booking not found'});
+
+   await audit('BOOKING',ref,'DELETED',{
+    actor:u.display_name||u.email||u.role,
+    role:u.role,
+    previousStatus:current.rows[0].status||null,
+    bookingSource:current.rows[0].booking_source||null
+   });
+
+   return json(200,{deleted:true,reference:ref});
+  }
   if(p[0]==='admin'&&p[1]==='analytics'&&p[2]==='revenue'&&method==='GET'){
    const u=await requireUser(bearer(event),['ADMIN','EXECUTIVE','BILLING']);
    const {start,end,groupBy}=parseAnalyticsRange(event);
