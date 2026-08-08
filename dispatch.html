@@ -1296,7 +1296,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   calendarMonthInput.addEventListener('change', renderFiltered);
   boardToggleBtn.addEventListener('click',()=>{setBoardOpen(boardBody.hidden);});
 
-  setBoardOpen(false);
+  setBoardOpen(true);
 
   loadApiBtn.onclick = async ()=>{
     try{ await refreshTripsFromApi(); }
@@ -1317,6 +1317,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
 <script>
 (function(){
   const board=document.getElementById('tripBoard');
+  const boardBody=document.getElementById('tripBoardBody');
   const rows=document.getElementById('tripRows');
   const refreshBtn=document.getElementById('loadTrips');
   if(!board||!rows||!refreshBtn) return;
@@ -1355,6 +1356,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
     </div>
   `;
   board.insertAdjacentElement('afterend',bulkPanel);
+
+  const editorHomeAnchor=document.createElement('div');
+  editorHomeAnchor.id='dispatchTripEditorAnchor';
+  board.insertAdjacentElement('afterend',editorHomeAnchor);
 
   const panel=document.createElement('section');
   panel.className='card dispatchTripEditor';
@@ -1403,7 +1408,41 @@ $('saveCustomCompany').addEventListener('click',()=>{
     <div id="dispatchEditDetails" style="margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"></div>
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px"><button id="dispatchEditSave" class="button primary" type="button">Save trip update</button></div>
   `;
-  board.insertAdjacentElement('afterend',panel);
+  editorHomeAnchor.appendChild(panel);
+
+  let inlineEditorRow=null;
+
+  function clearInlineEditorRow(){
+    if(inlineEditorRow&&inlineEditorRow.parentNode){
+      inlineEditorRow.parentNode.removeChild(inlineEditorRow);
+    }
+    inlineEditorRow=null;
+  }
+
+  function mountEditorUnderReference(reference){
+    const ref=String(reference||'').trim();
+    if(!ref) return false;
+    const targetRow=Array.from(rows.querySelectorAll('tr')).find((row)=>rowReference(row)===ref);
+    if(!targetRow) return false;
+    clearInlineEditorRow();
+    inlineEditorRow=document.createElement('tr');
+    inlineEditorRow.className='dispatch-inline-editor-row';
+    const cell=document.createElement('td');
+    cell.colSpan=Math.max(1,targetRow.cells?.length||1);
+    cell.style.padding='12px 0 16px';
+    panel.style.marginTop='0';
+    cell.appendChild(panel);
+    inlineEditorRow.appendChild(cell);
+    targetRow.insertAdjacentElement('afterend',inlineEditorRow);
+    return true;
+  }
+
+  function resetEditorPlacement(){
+    clearInlineEditorRow();
+    panel.style.marginTop='14px';
+    panel.hidden=true;
+    editorHomeAnchor.appendChild(panel);
+  }
 
   const get=(id)=>document.getElementById(id);
   const bulkMsgEl=get('dispatchBulkMsg');
@@ -2340,9 +2379,15 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const ref = String(reference || '').trim();
     if(!ref) return;
     if(!confirmDiscardUnsavedChanges('open another trip')) return;
-    boardBody.hidden = false;
+    if(boardBody) boardBody.hidden = false;
     panel.hidden = false;
-    try{ await loadTrip(ref); }
+    try{
+      await loadTrip(ref);
+      if(!mountEditorUnderReference(ref)){
+        panel.style.marginTop='14px';
+        editorHomeAnchor.appendChild(panel);
+      }
+    }
     catch(err){ setMsg(err.message||'Unable to load selected trip','err'); }
   };
 
@@ -2358,7 +2403,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   get('dispatchEditClose').addEventListener('click',()=>{
     if(!confirmDiscardUnsavedChanges('close the trip editor')) return;
-    panel.hidden=true;
+    resetEditorPlacement();
     currentRef='';
     currentBookingIntakeAudit=null;
     editorHasUnsavedChanges=false;
