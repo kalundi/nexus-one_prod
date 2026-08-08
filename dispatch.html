@@ -1839,6 +1839,22 @@ $('saveCustomCompany').addEventListener('click',()=>{
     updateCheckInFromPickup();
   }
 
+  async function ensureScheduleDefaultsBeforeSave(){
+    const appointmentValue=String(get('dispatchEditAppointmentTime')?.value||'').trim();
+    if(!appointmentValue) return;
+    const pickupInput=get('dispatchEditTime');
+    const checkInInput=get('dispatchEditCheckInTime');
+    const pickupValue=String(pickupInput?.value||'').trim();
+    const checkInValue=String(checkInInput?.value||'').trim();
+    if(!pickupValue){
+      await updatePickupFromAppointment();
+      return;
+    }
+    if(!checkInValue){
+      updateCheckInFromPickup();
+    }
+  }
+
   function toggleBrokerFields(){
     const type=String(get('dispatchEditSubmitterType').value||'CUSTOMER').toUpperCase();
     const isBroker=type==='BROKER';
@@ -2025,7 +2041,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const res=await fetch(`/api/admin/bookings/${encodeURIComponent(ref)}`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
     const data=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error||'Unable to verify saved trip');
-    return data.booking||null;
+    return {
+      booking:data.booking||null,
+      intakeAudit:data.intakeAudit||null
+    };
   }
 
   function normalizeHHMM(value){
@@ -2121,28 +2140,30 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditSubmitter').value=b.submitterEntity||'';
     get('dispatchEditBrokerCompany').value=b.brokerCompanyName||'';
     get('dispatchEditOurEstimate').value=b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'--';
-    get('dispatchEditBrokerQuotedRate').value=b.brokerQuotedRate!=null?String(Number(b.brokerQuotedRate).toFixed(2)):(b.broker_quoted_rate!=null?String(Number(b.broker_quoted_rate).toFixed(2)):'' );
+    const intakeBrokerQuoted=currentBookingIntakeAudit?.brokerQuotedRate;
+    const effectiveBrokerQuoted=b.brokerQuotedRate!=null?b.brokerQuotedRate:(b.broker_quoted_rate!=null?b.broker_quoted_rate:intakeBrokerQuoted);
+    get('dispatchEditBrokerQuotedRate').value=effectiveBrokerQuoted!=null&&effectiveBrokerQuoted!==''?String(Number(effectiveBrokerQuoted).toFixed(2)):'';
     get('dispatchEditBrokerAcceptedRate').value=b.brokerAcceptedRate!=null?String(Number(b.brokerAcceptedRate).toFixed(2)):'';
     get('dispatchEditName').value=b.name||'';
     get('dispatchEditPhone').value=b.phone||'';
     get('dispatchEditEmail').value=b.email||'';
     get('dispatchEditTripNotes').value=b.notes||'';
-    get('dispatchEditAppointmentTime').value=getBookingAppointmentTime(b);
+    const persistedAppointment=getBookingAppointmentTime(b);
+    get('dispatchEditAppointmentTime').value=persistedAppointment;
     get('dispatchEditCheckInTime').value='';
-    await updatePickupFromAppointment();
-    if(!get('dispatchEditAppointmentTime').value){
-      const persistedPickup=String(b.time||'').slice(0,5);
-      if(persistedPickup){
-        get('dispatchEditTime').value=persistedPickup;
-        lastCalculatedPickup=persistedPickup;
-      }
-      const persistedCheckIn=String(b.checkInTime||'').slice(0,5);
-      if(persistedCheckIn){
-        get('dispatchEditCheckInTime').value=persistedCheckIn;
-        lastCalculatedCheckIn=persistedCheckIn;
-      }else{
-        updateCheckInFromPickup();
-      }
+    const persistedPickup=String(b.time||'').slice(0,5);
+    if(persistedPickup){
+      get('dispatchEditTime').value=persistedPickup;
+      lastCalculatedPickup=persistedPickup;
+    }else if(persistedAppointment){
+      await updatePickupFromAppointment();
+    }
+    const persistedCheckIn=String(b.checkInTime||'').slice(0,5);
+    if(persistedCheckIn){
+      get('dispatchEditCheckInTime').value=persistedCheckIn;
+      lastCalculatedCheckIn=persistedCheckIn;
+    }else if(get('dispatchEditTime').value){
+      updateCheckInFromPickup();
     }
     applyingEditorValues=false;
     markEditorBaseline();
@@ -2395,7 +2416,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(!currentRef){setMsg('Click a trip row first.','err');return;}
     const appointmentTime=get('dispatchEditAppointmentTime').value;
     if(!appointmentTime){setMsg('Appointment time is required. Enter appointment time to proceed.','err');return;}
-    await updatePickupFromAppointment();
+    await ensureScheduleDefaultsBeforeSave();
     const confirmUpdate=window.confirm(
       `Confirm trip update for ${currentRef}?\n\n`+
       `Appointment: ${get('dispatchEditAppointmentTime').value || '--:--'}\n`+
@@ -2455,7 +2476,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
       let saved=data.booking||null;
       try{
         const verified=await fetchBookingByReference(currentRef);
-        if(verified) saved=verified;
+        if(verified?.booking) saved=verified.booking;
+        if(verified?.intakeAudit) currentBookingIntakeAudit=verified.intakeAudit;
       }catch{}
       if(saved){
         await applyEditorValues(saved);

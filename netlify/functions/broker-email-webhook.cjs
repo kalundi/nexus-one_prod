@@ -211,6 +211,20 @@ function cleanupParsedAddress(value){
   .replace(/\b(?:for\s*drop\s*off|for\s*pickup)\s*:?[\s\S]*$/i,'')
   .replace(/\s+/g,' ')
   .trim();
+ text=text.replace(/\s+,/g,',').replace(/,{2,}/g,',').replace(/,\s*,/g,',').trim();
+
+ const stateCodes='AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC';
+ const embeddedAddress=text.match(new RegExp(`(\\d{1,6}[A-Za-z0-9# .'/\\-]{2,140}?\\s+[A-Za-z][A-Za-z .'-]{1,80}\\s+(${stateCodes})\\s+\\d{5}(?:-\\d{4})?)`,'i'));
+ if(embeddedAddress&&embeddedAddress[1])text=clean(embeddedAddress[1],320);
+ const streetCityStateZip=text.match(new RegExp(`^(.+?)\\s+([A-Za-z][A-Za-z .'-]{1,80})\\s+(${stateCodes})\\s+(\\d{5}(?:-\\d{4})?)$`,'i'));
+ if(streetCityStateZip&&streetCityStateZip[1]&&!streetCityStateZip[1].includes(',')){
+  text=`${streetCityStateZip[1].trim()}, ${streetCityStateZip[2].trim()}, ${streetCityStateZip[3].toUpperCase()} ${streetCityStateZip[4]}`;
+ }
+
+ text=text.replace(new RegExp(`,\\s*([A-Za-z][A-Za-z .'-]{1,80})\\s+(${stateCodes})\\s+(\\d{5}(?:-\\d{4})?)$`,'i'),(_all,city,state,zip)=>`, ${String(city).trim()}, ${String(state).toUpperCase()} ${String(zip).trim()}`);
+ const stateZipRegex=new RegExp(`\\b(?:${stateCodes})\\s+\\d{5}(?:-\\d{4})?\\b`,'i');
+ const hasStreetSignal=/\b(?:\d{1,6}|st\b|street\b|ave\b|avenue\b|rd\b|road\b|blvd\b|boulevard\b|dr\b|drive\b|ln\b|lane\b|ct\b|court\b|pl\b|place\b|pkwy\b|parkway\b|hwy\b|highway\b|way\b|cir\b|circle\b)\b/i.test(text);
+ if(!stateZipRegex.test(text)||!hasStreetSignal)return '';
  return clean(text,320);
 }
 
@@ -230,7 +244,7 @@ function parseGtTableAddresses(text){
   .replace(/^\s*(?:\d{1,2}:\d{2}\s*(?:am|pm)?\s*){1,2}/i,'')
   .trim();
 
- let chunks=extractZipBoundedAddressChunks(beforeDropOff,3);
+ let chunks=extractZipBoundedAddressChunks(beforeDropOff,3).map(cleanupParsedAddress).filter(Boolean);
  let pickup=chunks[0]||'';
  let destination=chunks[1]||'';
 
@@ -239,7 +253,7 @@ function parseGtTableAddresses(text){
   const waitMatch=sectionCompact.match(/wait\s*time[\s\S]{0,1800}/i);
   if(waitMatch&&waitMatch[0]){
    const waitBlock=waitMatch[0].split(/for\s*pickup\s*:/i)[0]||waitMatch[0];
-   const waitChunks=extractZipBoundedAddressChunks(waitBlock,3);
+  const waitChunks=extractZipBoundedAddressChunks(waitBlock,3).map(cleanupParsedAddress).filter(Boolean);
    if(waitChunks.length>=2){
     if(!destination)destination=waitChunks[0];
     if(!pickup)pickup=waitChunks[1];
@@ -694,6 +708,9 @@ function parseBrokerIntakeText(input){
   if(!result.pickup&&tableParsed.pickup)result.pickup=tableParsed.pickup;
   if(!result.destination&&tableParsed.destination)result.destination=tableParsed.destination;
  }
+
+ result.pickup=cleanupParsedAddress(result.pickup);
+ result.destination=cleanupParsedAddress(result.destination);
 
  const extraFields={
   member_id:firstField(labeledFields,['member_id','member_number','medicaid_id','id_number']),

@@ -494,6 +494,11 @@ async function getRevenueAnalytics(start,end,groupBy){
    piiIncluded:false,
    intendedRoles:['ADMIN','EXECUTIVE','BILLING'],
    sourceTables:['bookings','trip_status_history','audit_log']
+    const mappedBooking=mapBooking(r.rows[0]);
+    if(intakeRow&&mappedBooking.brokerQuotedRate==null&&intakeRow.broker_quoted_rate!=null){
+     mappedBooking.brokerQuotedRate=Number(intakeRow.broker_quoted_rate);
+    }
+    return json(200,{booking:mappedBooking,intakeAudit});
   }
  };
 }
@@ -2578,7 +2583,7 @@ async function handler(event){
    const ref=decodeURIComponent(p[2]);
    const r=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref]);
    if(!r.rows[0])return json(404,{error:'Booking not found'});
-  const intake=await query(`SELECT id,submission_method,source_message_id,source_received_at,patient_name,referral_id,crm_reference,parse_source_method,parsed_payload,created_at,updated_at FROM broker_requests WHERE booking_reference=$1 ORDER BY created_at DESC LIMIT 1`,[ref]).catch(()=>({rows:[]}));
+  const intake=await query(`SELECT id,submission_method,source_message_id,source_received_at,patient_name,referral_id,crm_reference,parse_source_method,parsed_payload,broker_quoted_rate,created_at,updated_at FROM broker_requests WHERE booking_reference=$1 ORDER BY created_at DESC LIMIT 1`,[ref]).catch(()=>({rows:[]}));
    const sourceAttachmentCount=await query('SELECT COUNT(*)::int AS count FROM booking_attachments WHERE booking_reference=$1',[ref]).catch(()=>({rows:[{count:0}]}));
    const intakeRow=intake.rows?.[0]||null;
    const intakeAudit=intakeRow?{
@@ -2591,11 +2596,16 @@ async function handler(event){
       crmReference:intakeRow.crm_reference||null,
       parseSourceMethod:intakeRow.parse_source_method||null,
       parsedPayload:intakeRow.parsed_payload||null,
+      brokerQuotedRate:intakeRow.broker_quoted_rate!=null?Number(intakeRow.broker_quoted_rate):null,
     sourceAttachmentCount:Number(sourceAttachmentCount.rows?.[0]?.count||0),
     createdAt:intakeRow.created_at||null,
     updatedAt:intakeRow.updated_at||null
    }:null;
-   return json(200,{booking:mapBooking(r.rows[0]),intakeAudit});
+  const mappedBooking=mapBooking(r.rows[0]);
+  if(intakeRow&&mappedBooking.brokerQuotedRate==null&&intakeRow.broker_quoted_rate!=null){
+   mappedBooking.brokerQuotedRate=Number(intakeRow.broker_quoted_rate);
+  }
+  return json(200,{booking:mappedBooking,intakeAudit});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='DELETE'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);
@@ -2712,10 +2722,12 @@ async function handler(event){
   const hasSubmitterEntity=Object.prototype.hasOwnProperty.call(b,'submitterEntity')||Object.prototype.hasOwnProperty.call(b,'submitter_entity');
   const hasBrokerCompanyName=Object.prototype.hasOwnProperty.call(b,'brokerCompanyName')||Object.prototype.hasOwnProperty.call(b,'broker_company_name');
   const hasBrokerAcceptedRate=Object.prototype.hasOwnProperty.call(b,'brokerAcceptedRate')||Object.prototype.hasOwnProperty.call(b,'broker_accepted_rate');
+  const hasBrokerQuotedRate=Object.prototype.hasOwnProperty.call(b,'brokerQuotedRate')||Object.prototype.hasOwnProperty.call(b,'broker_quoted_rate');
   const bookingSourceInput=Object.prototype.hasOwnProperty.call(b,'bookingSource')?b.bookingSource:b.booking_source;
   const submitterEntityInput=Object.prototype.hasOwnProperty.call(b,'submitterEntity')?b.submitterEntity:b.submitter_entity;
   const brokerCompanyNameInput=Object.prototype.hasOwnProperty.call(b,'brokerCompanyName')?b.brokerCompanyName:b.broker_company_name;
   const brokerAcceptedRateInput=Object.prototype.hasOwnProperty.call(b,'brokerAcceptedRate')?b.brokerAcceptedRate:b.broker_accepted_rate;
+  const brokerQuotedRateInput=Object.prototype.hasOwnProperty.call(b,'brokerQuotedRate')?b.brokerQuotedRate:b.broker_quoted_rate;
   const bookingSourceValue=hasBookingSource?normalizeBookingSource(bookingSourceInput):null;
   let brokerAcceptedRateValue=null;
   if(hasBrokerAcceptedRate){
@@ -2725,6 +2737,16 @@ async function handler(event){
     const parsed=Number(brokerAcceptedRateInput);
     if(!Number.isFinite(parsed)||parsed<0)return json(400,{error:'brokerAcceptedRate must be a valid number >= 0'});
     brokerAcceptedRateValue=parsed;
+   }
+  }
+  let brokerQuotedRateValue=null;
+  if(hasBrokerQuotedRate){
+   const raw=clean(brokerQuotedRateInput);
+   if(raw==='')brokerQuotedRateValue=null;
+   else{
+    const parsed=Number(brokerQuotedRateInput);
+    if(!Number.isFinite(parsed)||parsed<0)return json(400,{error:'brokerQuotedRate must be a valid number >= 0'});
+    brokerQuotedRateValue=parsed;
    }
   }
 
@@ -2790,6 +2812,10 @@ async function handler(event){
 
    if(!r.rows[0])return json(404,{error:'Booking not found'});
 
+  if(hasBrokerQuotedRate){
+   await query(`UPDATE broker_requests SET broker_quoted_rate=$2,updated_at=now() WHERE id=(SELECT id FROM broker_requests WHERE booking_reference=$1 ORDER BY created_at DESC LIMIT 1)`,[ref,brokerQuotedRateValue]).catch(()=>{});
+  }
+
    const shouldResetReminders=hasDate||hasTime||hasPickup||hasDestination||hasDriverName||hasVehicleUnit;
    if(shouldResetReminders){
     await query(`
@@ -2838,7 +2864,7 @@ async function handler(event){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const next=STATUS_FLOW[current.rows[0].status]||current.rows[0].status;
     const submittedAppointment=getSubmittedAppointmentTime(current.rows[0]);
     if(!submittedAppointment)return json(409,{error:'Appointment time is required before advancing this trip. The submitter must provide appointment time first.',booking:mapBooking(current.rows[0])});
-   const availabilityCheck=await query(buildDriverAvailabilitySql(),[new Date((current.rows[0].trip_date||new Date().toISOString().slice(0,10))+'T12:00:00').getDay()||7,(current.rows[0].trip_time||'08:00')]);
+  const availabilityCheck=await query(buildDriverAvailabilitySql());
    const vehicleCheck=await query(`SELECT COUNT(*) as vehicle_count FROM vehicles WHERE active=true AND status='AVAILABLE'`,[]);
    const availability={available:Number(availabilityCheck.rows[0]?.driver_count||0)>0&&Number(vehicleCheck.rows[0]?.vehicle_count||0)>0,drivers:{available:Number(availabilityCheck.rows[0]?.driver_count||0)},vehicles:{available:Number(vehicleCheck.rows[0]?.vehicle_count||0)}};
    const approval=canAdvanceBookingForAvailability({currentStatus:current.rows[0].status,nextStatus:next,availability});
@@ -3338,6 +3364,7 @@ function mapBooking(b){
   bookingSource:b.booking_source||'CUSTOMER',
   submitterEntity:b.submitter_entity||null,
   brokerCompanyName:b.broker_company_name||null,
+  brokerQuotedRate:b.broker_quoted_rate!=null?Number(b.broker_quoted_rate):null,
   brokerAcceptedRate:b.broker_accepted_rate!=null?Number(b.broker_accepted_rate):null,
   depositAmount:b.deposit_amount?Number(b.deposit_amount):null,
   balanceDue:b.balance_due?Number(b.balance_due):null,
@@ -3350,6 +3377,11 @@ function mapBooking(b){
   lastUpdatedAt:b.last_updated_at,
   notes:b.notes||null,
  };
+  const mappedBooking=mapBooking(r.rows[0]);
+  if(intakeRow&&mappedBooking.brokerQuotedRate==null&&intakeRow.broker_quoted_rate!=null){
+   mappedBooking.brokerQuotedRate=Number(intakeRow.broker_quoted_rate);
+  }
+  return json(200,{booking:mappedBooking,intakeAudit});
 }
 
 function mapParseSourceLabel(method){
