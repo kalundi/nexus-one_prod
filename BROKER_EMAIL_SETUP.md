@@ -6,6 +6,31 @@ This guide explains how to configure incoming email routing for broker rate requ
 
 Brokers send rate quotes to **contact@nexusmt.com**. The system needs to forward these emails to your webhook endpoint, which parses them and creates broker requests automatically.
 
+## Long-Term Recommendation
+
+For a durable production setup, use **Microsoft Graph** instead of Power Automate for live email intake. The repo now includes a Graph sync job that polls the mailbox and passes each qualifying email into the same broker-processing pipeline, with dedupe by message id.
+
+### Required Microsoft Graph environment variables
+
+Set these in Netlify or your deployment environment:
+
+- `M365_TENANT_ID`
+- `M365_CLIENT_ID`
+- `M365_CLIENT_SECRET`
+- `M365_MAILBOX_ADDRESS`
+
+Optional tuning variables:
+
+- `GRAPH_MAIL_SYNC_SINCE` (defaults to `2026-07-31T00:00:00Z`)
+- `GRAPH_MAIL_SYNC_FOLDER` (defaults to `Inbox`)
+- `GRAPH_MAIL_SYNC_SENDER` (defaults to `xxxx@gotandt.com`)
+- `GRAPH_MAIL_SYNC_SUBJECT_CONTAINS` (defaults to `confirmation`)
+
+### Graph flow endpoints
+
+- `/.netlify/functions/graph-mail-sync` - scheduled polling/backfill job
+- `/.netlify/functions/graph-mail-webhook` - optional Graph change-notification endpoint
+
 Supported email services:
 - **SendGrid** (Recommended - most integration-friendly)
 - **AWS SES** + SNS

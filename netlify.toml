@@ -31,6 +31,10 @@
 [functions.cost-analyzer-report]
   schedule = "0 7 * * *"
 
+# Scheduled function: poll Microsoft Graph mailbox for broker confirmations and backfill safely
+[functions.graph-mail-sync]
+  schedule = "*/10 * * * *"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
