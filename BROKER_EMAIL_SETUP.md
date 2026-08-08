@@ -117,6 +117,132 @@ Use this checklist to validate end-to-end readiness before relying on production
   - check Netlify function logs for `graph-mail-sync` and `broker-email-webhook`,
   - confirm no auth/token failures and no parsing regressions.
 
+### Incident Response: Common Graph Failures
+
+Use this section during incidents to quickly identify root cause and recovery action.
+
+#### 1) Token or Authentication Failures
+
+Symptoms:
+
+- Function logs contain `Graph token request failed`.
+- HTTP 401 responses from Graph.
+
+Checks:
+
+- Confirm `M365_TENANT_ID`, `M365_CLIENT_ID`, `M365_CLIENT_SECRET` are present and current.
+- Verify the client secret has not expired.
+- Confirm the app registration still exists in the expected tenant.
+
+Actions:
+
+- Rotate the client secret and update Netlify env var.
+- Redeploy and re-run manual sync.
+
+#### 2) Permission or Consent Failures
+
+Symptoms:
+
+- Graph returns HTTP 403.
+- Errors indicate insufficient privileges.
+
+Checks:
+
+- App has `Mail.Read` as an application permission.
+- Admin consent was granted after permission changes.
+
+Actions:
+
+- Re-grant admin consent.
+- Wait a few minutes for propagation, then retry manual sync.
+
+#### 3) Mailbox Scope Policy Denials
+
+Symptoms:
+
+- Graph auth succeeds, but mailbox access is denied.
+- `Test-ApplicationAccessPolicy` does not return expected scope access.
+
+Checks:
+
+- Mailbox is a member of the policy scope group.
+- Policy AppId matches `M365_CLIENT_ID`.
+
+Actions:
+
+- Add mailbox to the scope group and retest.
+- Recreate policy if AppId or group was incorrect.
+
+#### 4) No Messages Processed
+
+Symptoms:
+
+- Sync succeeds but `processed` is `0` when messages are expected.
+
+Checks:
+
+- Sender and subject filters match actual inbound mail.
+- `M365_MAILBOX_ADDRESS` is correct.
+- Since timestamp is not too recent.
+
+Actions:
+
+- Run manual sync with explicit query params:
+  ```bash
+  curl "https://your-site.netlify.app/.netlify/functions/graph-mail-sync?since=2026-07-31T00:00:00Z&sender=xxxx@gotandt.com&subjectContains=confirmation"
+  ```
+- Relax filter values temporarily to confirm pipeline health.
+
+#### 5) Parsing or Booking Creation Failures
+
+Symptoms:
+
+- Messages are found, but broker request/booking is not created.
+- Logs show parse errors or missing required fields.
+
+Checks:
+
+- Confirmation email includes expected attachment content.
+- Subject still contains the expected keyword.
+- Attachment payload is text-extractable.
+
+Actions:
+
+- Capture one failed sample and test against webhook locally.
+- Add/update parser patterns in broker intake logic.
+
+#### 6) Duplicate Intake or Replay Concerns
+
+Symptoms:
+
+- Same message appears processed more than once.
+
+Checks:
+
+- Confirm `source_message_id` dedupe metadata exists and is populated.
+- Confirm replay runs are not using conflicting source IDs.
+
+Actions:
+
+- Keep replay windows bounded by `since`.
+- Validate dedupe metadata in the database for suspect messages.
+
+#### 7) Teams/Email Notification Gaps
+
+Symptoms:
+
+- Broker request exists, but admin notification did not post.
+
+Checks:
+
+- `TEAMS_WEBHOOK_URL` and email settings exist in environment.
+- No outbound webhook errors in function logs.
+
+Actions:
+
+- Re-test with a known sample payload.
+- Rotate webhook URL if Teams endpoint changed.
+
 Supported email services:
 - **SendGrid** (Recommended - most integration-friendly)
 - **AWS SES** + SNS
