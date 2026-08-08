@@ -10,9 +10,20 @@ Brokers send rate quotes to **contact@nexusmt.com**. The system needs to forward
 
 For a durable production setup, use **Microsoft Graph** instead of Power Automate for live email intake. The repo now includes a Graph sync job that polls the mailbox and passes each qualifying email into the same broker-processing pipeline, with dedupe by message id.
 
-### Required Microsoft Graph environment variables
+### Azure App Registration Setup
 
-Set these in Netlify or your deployment environment:
+1. In the Azure Portal, create or open an app registration for the mailbox ingester.
+2. Record the **Tenant ID** and **Application (client) ID** from the app overview.
+3. Create a **client secret** under **Certificates & secrets** and store the value securely.
+4. Add **Microsoft Graph application permissions**:
+  - `Mail.Read`
+  - `User.Read.All` if you want to look up mailbox metadata later
+5. Grant **admin consent** for the tenant.
+6. Make sure the mailbox you want to read is the one in `M365_MAILBOX_ADDRESS`.
+
+### Netlify Environment Variables
+
+Set these in Netlify so the scheduled sync and optional webhook can authenticate:
 
 - `M365_TENANT_ID`
 - `M365_CLIENT_ID`
@@ -21,15 +32,64 @@ Set these in Netlify or your deployment environment:
 
 Optional tuning variables:
 
-- `GRAPH_MAIL_SYNC_SINCE` (defaults to `2026-07-31T00:00:00Z`)
-- `GRAPH_MAIL_SYNC_FOLDER` (defaults to `Inbox`)
-- `GRAPH_MAIL_SYNC_SENDER` (defaults to `xxxx@gotandt.com`)
-- `GRAPH_MAIL_SYNC_SUBJECT_CONTAINS` (defaults to `confirmation`)
+- `GRAPH_MAIL_SYNC_SINCE` - defaults to `2026-07-31T00:00:00Z`
+- `GRAPH_MAIL_SYNC_FOLDER` - defaults to `Inbox`
+- `GRAPH_MAIL_SYNC_SENDER` - defaults to `xxxx@gotandt.com`
+- `GRAPH_MAIL_SYNC_SUBJECT_CONTAINS` - defaults to `confirmation`
+
 
 ### Graph flow endpoints
 
 - `/.netlify/functions/graph-mail-sync` - scheduled polling/backfill job
 - `/.netlify/functions/graph-mail-webhook` - optional Graph change-notification endpoint
+
+### Mailbox Scope Lockdown (Recommended)
+
+After granting `Mail.Read` application permission, lock the app to only approved mailboxes using an Exchange Application Access Policy.
+
+1. Install and import Exchange Online module:
+  ```powershell
+  Install-Module ExchangeOnlineManagement -Scope CurrentUser
+  Import-Module ExchangeOnlineManagement
+  ```
+2. Connect:
+  ```powershell
+  Connect-ExchangeOnline
+  ```
+3. Set values:
+  ```powershell
+  $appId = "YOUR_APP_CLIENT_ID"
+  $mailbox = "fletcher@nexusmt.com"
+  $groupName = "Nexus-Graph-MailboxScope"
+  $policyName = "Nexus-Graph-Restrict-MailRead"
+  ```
+4. Create a mail-enabled security group (skip if it already exists):
+  ```powershell
+  New-DistributionGroup -Name $groupName -Type Security
+  ```
+5. Add the mailbox to scope:
+  ```powershell
+  Add-DistributionGroupMember -Identity $groupName -Member $mailbox
+  ```
+6. Create the application access policy:
+  ```powershell
+  New-ApplicationAccessPolicy -AppId $appId -PolicyScopeGroupId $groupName -AccessRight RestrictAccess -Description $policyName
+  ```
+7. Verify policy and test access:
+  ```powershell
+  Get-ApplicationAccessPolicy | Format-Table AppId,PolicyScopeGroupId,AccessRight,Description
+  Test-ApplicationAccessPolicy -Identity $mailbox -AppId $appId
+  Test-ApplicationAccessPolicy -Identity "someotheruser@yourtenant.com" -AppId $appId
+  ```
+8. Disconnect:
+  ```powershell
+  Disconnect-ExchangeOnline -Confirm:$false
+  ```
+
+Expected result:
+
+- `Test-ApplicationAccessPolicy` returns `Access Granted` for the scoped mailbox.
+- `Test-ApplicationAccessPolicy` returns `Access Denied` for mailboxes outside the scope group.
 
 Supported email services:
 - **SendGrid** (Recommended - most integration-friendly)
