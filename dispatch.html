@@ -35,6 +35,10 @@
 .dispatchTripEditor .formField{align-content:start}
 .dispatchTripEditor .formField input,.dispatchTripEditor .formField select,.dispatchTripEditor .formField textarea{min-height:40px}
 .dispatchTripEditor .subtle{display:block;min-height:18px}
+.tripAttentionBadge{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border-radius:999px;border:1px solid #f4c27a;background:#fff7e6;color:#8a4b06;font-size:12px;font-weight:800;letter-spacing:.01em}
+.tripAttentionBadge .dot{width:8px;height:8px;border-radius:999px;background:#f79009;box-shadow:0 0 0 rgba(247,144,9,.7)}
+.tripAttentionBadge.attn .dot{animation:tripAttentionPulse 1.2s infinite}
+@keyframes tripAttentionPulse{0%{opacity:1;box-shadow:0 0 0 0 rgba(247,144,9,.8)}70%{opacity:.85;box-shadow:0 0 0 8px rgba(247,144,9,0)}100%{opacity:1;box-shadow:0 0 0 0 rgba(247,144,9,0)}}
 @media(max-width:760px){.transportation-picker{padding:var(--sp);border-radius:12px}.picker-header,.company-card-heading{align-items:flex-start;flex-direction:column}.filter-grid,.form-grid{grid-template-columns:1fr}.company-actions a{width:100%}}
   </style>
   <script src="/trustedsite.js" defer></script>
@@ -87,7 +91,8 @@
 </aside>
 </div></section><main id="main" class="shell moduleMain" tabindex="-1">
 <section class="card" style="margin-top:20px">
-  <div class="toolbar"><div><div class="eyebrow">Dispatch intake hub</div><h2>Broker, customer and facility request intake</h2><p style="margin:6px 0 0;color:var(--muted)">Modernized intake with service-aware rates, return-trip wait-time logic and shared dispatch standards.</p></div></div>
+  <div class="toolbar"><div><div class="eyebrow">Dispatch intake hub</div><h2>Broker, customer and facility request intake</h2><p style="margin:6px 0 0;color:var(--muted)">Modernized intake with service-aware rates, return-trip wait-time logic and shared dispatch standards.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="dispatchIntakeToggle" class="button secondary" type="button" aria-expanded="false" aria-controls="dispatchIntakeBody">Show Intake Hub</button></div></div>
+  <div id="dispatchIntakeBody" hidden>
   <div class="pillTabs" role="tablist" aria-label="Intake forms" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px">
     <button type="button" class="button secondary" data-intake-tab="broker" role="tab" aria-selected="true">Broker intake</button>
     <button type="button" class="button secondary" data-intake-tab="customer" role="tab" aria-selected="false">Customer intake</button>
@@ -298,12 +303,18 @@
       </div>
     </form>
   </div>
+  </div>
 </section>
 <section id="tripBoard" class="card" style="margin-top:20px">
   <div class="toolbar">
     <div><div class="eyebrow">Live Operations</div><h2>Trip management</h2></div>
-    <div style="display:flex;gap:10px"><button id="loadTrips" class="button primary">Refresh from API</button><button id="loadLocal" class="button" hidden>Load local</button></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span id="tripAttentionNotice" class="tripAttentionBadge"><span class="dot" aria-hidden="true"></span><span id="tripAttentionText">No trips need attention</span></span>
+      <button id="tripBoardToggle" class="button secondary" type="button" aria-expanded="false" aria-controls="tripBoardBody">Show Trip Management</button>
+      <button id="loadTrips" class="button primary">Refresh from API</button><button id="loadLocal" class="button" hidden>Load local</button>
+    </div>
   </div>
+  <div id="tripBoardBody" hidden>
   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;margin-bottom:12px">
     <label class="field" style="margin:0">View
       <select id="tripViewType" style="min-width:150px">
@@ -323,6 +334,13 @@
         <option value="REAL">Real bookings only</option>
       </select>
     </label>
+    <label class="field" style="margin:0">Parse source
+      <select id="tripParseSourceFilter" style="min-width:190px">
+        <option value="ALL">All parse sources</option>
+        <option value="SUBJECT_FALLBACK">Subject fallback only</option>
+        <option value="ATTACHMENT_PARSED">Attachment parsed only</option>
+      </select>
+    </label>
     <label class="field" style="margin:0">Timeframe
       <select id="tripTimeframeFilter" style="min-width:180px">
         <option value="ALL">All time</option>
@@ -337,6 +355,7 @@
   <p class="subtle" style="margin-top:0">All booking and trip actions are tracked in platform records and audit logs for operational review and follow-up.</p>
   <div class="tableWrap" id="tripTableWrap"><table class="table"><thead><tr><th>Reference</th><th>Patient</th><th>Service</th><th>Date / Time</th><th>Status</th><th>Estimate</th><th>Broker quoted</th><th>AI risk</th><th>Action</th></tr></thead><tbody id="tripRows"></tbody></table></div>
   <div id="tripCalendarView" hidden style="margin-top:10px"></div>
+  </div>
 </section>
 <section class="grid cols2" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Live staffing</p><h2>Drivers on duty</h2></div><span id="driversOnDutyCount" class="status blue">Loading</span></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Shift availability</p><h2>Fleet &amp; driver summary</h2></div><button id="refreshDrivers" class="button secondary" style="min-height:36px;font-size:13px"> Refresh</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading</p></div></article></section>
 <section id="aiSection" class="grid cols2" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
@@ -510,9 +529,39 @@ document.querySelectorAll('[data-intake-tab]').forEach(btn=>btn.addEventListener
 ['customerPickup','customerDestination','customerService','customerWaitMinutes','customerReturnTrip','facilityPickup','facilityDestination','facilityService','facilityWaitMinutes','facilityReturnTrip','brokerPickup','brokerDestination','brokerService','brokerWaitMinutes','brokerReturnTrip','brokerTripTime','brokerTripDate'].forEach(id=>{const el=document.getElementById(id); if(el){el.addEventListener('input',()=>{updateDispatchRateInputs();syncBrokerPickupTime();});el.addEventListener('change',()=>{updateDispatchRateInputs();syncBrokerPickupTime();});}});
 document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); ensureDispatchReference('broker'); ensureDispatchReference('customer'); ensureDispatchReference('facility'); updateDispatchRateInputs();});
 
+(function(){
+  const intakeToggle=document.getElementById('dispatchIntakeToggle');
+  const intakeBody=document.getElementById('dispatchIntakeBody');
+  if(!intakeToggle||!intakeBody) return;
+  const setOpen=(open)=>{
+    intakeBody.hidden=!open;
+    intakeToggle.textContent=open?'Hide Intake Hub':'Show Intake Hub';
+    intakeToggle.setAttribute('aria-expanded',open?'true':'false');
+  };
+  intakeToggle.addEventListener('click',()=>setOpen(intakeBody.hidden));
+  setOpen(false);
+})();
+
 function riskBadge(t){
   const r=NexusAI.riskScore(t);
   return `<div class="aiScore"><span class="status ${r.level==='High'?'red':r.level==='Medium'?'amber':'green'}">${r.level} ${r.score}%</span><span class="riskMeter" aria-label="${r.score} percent delay risk"><span style="width:${r.score}%"></span></span></div><small>${r.reasons.join(', ')}</small>`;
+}
+
+function parseSourceBadge(t){
+  const source=String(t.intakeParseSource||'').toUpperCase();
+  const method=String(t.intakeSubmissionMethod||'').toUpperCase();
+  const bookingSource=String(t.bookingSource||t.booking_source||'').toUpperCase();
+  if(!source && !method && bookingSource!=='BROKER') return '';
+  const attachmentCount=Number(t.sourceAttachmentCount||0);
+  if(source==='ATTACHMENT_PARSED' || method==='EMAIL_ATTACHMENT'){
+    const suffix=attachmentCount>0?` • ${attachmentCount} file${attachmentCount===1?'':'s'}`:'';
+    return `<div style="margin-top:4px"><span class="status green" style="font-size:10px">Attachment Parsed${suffix}</span></div>`;
+  }
+  if(source==='SUBJECT_FALLBACK' || method==='EMAIL_SUBJECT_FALLBACK'){
+    const suffix=attachmentCount>0?` • ${attachmentCount} file${attachmentCount===1?'':'s'}`:' • no file';
+    return `<div style="margin-top:4px"><span class="status amber" style="font-size:10px">Subject Fallback${suffix}</span></div>`;
+  }
+  return `<div style="margin-top:4px"><span class="status blue" style="font-size:10px">Broker Intake</span></div>`;
 }
 
 function renderAI(trips){
@@ -580,7 +629,7 @@ function renderTrips(trips){
       const shortDateTime=formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time);
       const brokerQuotedNumber=Number(t.brokerQuotedRate ?? t.broker_quoted_rate ?? t.quotedRate);
       const brokerQuoted=Number.isFinite(brokerQuotedNumber)?`$${brokerQuotedNumber.toFixed(2)}`:'--';
-      return `<tr><td>${ref||''}</td><td>${t.name||''}</td><td>${t.service||''}</td><td>${shortDateTime}</td><td><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}">${t.statusLabel||t.status||'Requested'}</span></td><td>${estimate}</td><td>${brokerQuoted}</td><td>${riskBadge(t)}</td><td><button class="button secondary" data-advance="${ref}" onclick="advanceTrip('${ref}')">Advance</button></td></tr>`;
+      return `<tr><td>${ref||''}</td><td>${t.name||''}${parseSourceBadge(t)}</td><td>${t.service||''}</td><td>${shortDateTime}</td><td><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}">${t.statusLabel||t.status||'Requested'}</span></td><td>${estimate}</td><td>${brokerQuoted}</td><td>${riskBadge(t)}</td><td style="display:flex;gap:6px;flex-wrap:wrap"><button class="button secondary" type="button" data-advance="${ref}" onclick="advanceTrip('${ref}')">Advance</button><button class="button ghost" type="button" onclick="showBookingDocuments('${ref}')">Docs</button></td></tr>`;
     }).join('');
   }
 
@@ -778,9 +827,14 @@ $('saveCustomCompany').addEventListener('click',()=>{
 <script>
 (function(){
   const viewTypeFilter = document.getElementById('tripViewType');
+  const boardToggleBtn = document.getElementById('tripBoardToggle');
+  const boardBody = document.getElementById('tripBoardBody');
+  const attentionNotice = document.getElementById('tripAttentionNotice');
+  const attentionText = document.getElementById('tripAttentionText');
   const calendarMonthWrap = document.getElementById('tripCalendarMonthWrap');
   const calendarMonthInput = document.getElementById('tripCalendarMonth');
   const sourceFilter = document.getElementById('tripSourceFilter');
+  const parseSourceFilter = document.getElementById('tripParseSourceFilter');
   const timeframeFilter = document.getElementById('tripTimeframeFilter');
   const refFilter = document.getElementById('tripReferenceFilter');
   const summaryEl = document.getElementById('tripFilterSummary');
@@ -789,7 +843,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const calendarView = document.getElementById('tripCalendarView');
   const loadApiBtn = document.getElementById('loadTrips');
   const loadLocalBtn = document.getElementById('loadLocal');
-  if(!viewTypeFilter || !calendarMonthWrap || !calendarMonthInput || !sourceFilter || !timeframeFilter || !refFilter || !rowsEl || !tableWrap || !calendarView || !loadApiBtn || !loadLocalBtn) return;
+  if(!viewTypeFilter || !boardToggleBtn || !boardBody || !attentionNotice || !attentionText || !calendarMonthWrap || !calendarMonthInput || !sourceFilter || !parseSourceFilter || !timeframeFilter || !refFilter || !rowsEl || !tableWrap || !calendarView || !loadApiBtn || !loadLocalBtn) return;
 
   const baseRenderTrips = typeof window.renderTrips === 'function' ? window.renderTrips.bind(window) : null;
   const state = { allTrips: [] };
@@ -875,7 +929,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       if(!(hasDriver&&hasVehicle)){
         return {label:'Assignment Conflict', disabled:true, reason:'No driver and vehicle are both assigned due to a scheduling conflict. Resolve assignment in Trip Editor.'};
       }
-      return {label:'Assigned', disabled:true, reason:'Driver and vehicle are assigned. Trip is ready to start.'};
+      return {label:'Advance to Assigned', disabled:false, reason:'Driver and vehicle are assigned. Advance this trip to Assigned.'};
     }
     if(status === 'ASSIGNED') return {label:'Start Trip', disabled:false, reason:'Advance to En Route.'};
     if(status === 'EN_ROUTE') return {label:'Mark Arrived', disabled:false, reason:'Advance to Arrived.'};
@@ -949,6 +1003,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function applyFilters(trips){
     const source = String(sourceFilter.value || 'ALL').toUpperCase();
+    const parseSource = String(parseSourceFilter.value || 'ALL').toUpperCase();
     const timeframe = String(timeframeFilter.value || 'ALL').toUpperCase();
     const refQuery = String(refFilter.value || '').trim().toUpperCase();
     return (Array.isArray(trips) ? trips : []).filter((trip) => {
@@ -956,6 +1011,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
       if(refQuery && !ref.includes(refQuery)) return false;
       const kind = classifyTrip(trip);
       if(source !== 'ALL' && kind !== source) return false;
+      const tripParseSource=String(trip?.intakeParseSource||'').toUpperCase();
+      if(parseSource==='SUBJECT_FALLBACK' && tripParseSource!=='SUBJECT_FALLBACK') return false;
+      if(parseSource==='ATTACHMENT_PARSED' && tripParseSource!=='ATTACHMENT_PARSED') return false;
       return inTimeframe(trip, timeframe);
     });
   }
@@ -993,9 +1051,44 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const total = state.allTrips.length;
     const realCount = state.allTrips.filter((trip) => classifyTrip(trip) === 'REAL').length;
     const demoCount = total - realCount;
+    const fallbackCount=state.allTrips.filter((trip)=>String(trip?.intakeParseSource||'').toUpperCase()==='SUBJECT_FALLBACK').length;
+    const parseMode=String(parseSourceFilter.value||'ALL').toUpperCase();
+    const parseFilterLabel=parseMode==='SUBJECT_FALLBACK'
+      ?'Subject fallback only'
+      :parseMode==='ATTACHMENT_PARSED'
+        ?'Attachment parsed only'
+        :'All parse sources';
     if(summaryEl){
-      summaryEl.textContent = `Showing ${filtered.length} of ${total} trips  Operational: ${realCount}  Demo excluded: ${demoCount}`;
+      summaryEl.textContent = `Showing ${filtered.length} of ${total} trips | Operational: ${realCount} | Demo excluded: ${demoCount} | Fallback total: ${fallbackCount} | Parse filter: ${parseFilterLabel}`;
     }
+  }
+
+  function countTripsNeedingAttention(){
+    return state.allTrips.filter((trip)=>{
+      if(classifyTrip(trip)!=='REAL') return false;
+      const parseSource=String(trip?.intakeParseSource||'').toUpperCase();
+      if(parseSource==='SUBJECT_FALLBACK') return true;
+      if(!getTripAppointmentTime(trip)) return true;
+      const actionState=nextAdvanceLabel(trip);
+      return actionState.label==='Assignment Conflict';
+    }).length;
+  }
+
+  function updateAttentionNotice(){
+    const count=countTripsNeedingAttention();
+    if(count>0){
+      attentionNotice.classList.add('attn');
+      attentionText.textContent = `${count} trip${count===1?'':'s'} need attention`;
+    }else{
+      attentionNotice.classList.remove('attn');
+      attentionText.textContent = 'No trips need attention';
+    }
+  }
+
+  function setBoardOpen(isOpen){
+    boardBody.hidden=!isOpen;
+    boardToggleBtn.textContent=isOpen?'Hide Trip Management':'Show Trip Management';
+    boardToggleBtn.setAttribute('aria-expanded',isOpen?'true':'false');
   }
 
   function renderFiltered(){
@@ -1012,6 +1105,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     }
     if(useCalendar) renderCalendar(filtered);
     updateSummary(filtered);
+    updateAttentionNotice();
   }
 
   function mergeTrips(realTrips, localTrips){
@@ -1129,10 +1223,14 @@ $('saveCustomCompany').addEventListener('click',()=>{
   });
 
   sourceFilter.addEventListener('change', renderFiltered);
+  parseSourceFilter.addEventListener('change', renderFiltered);
   timeframeFilter.addEventListener('change', renderFiltered);
   refFilter.addEventListener('input', renderFiltered);
   viewTypeFilter.addEventListener('change', renderFiltered);
   calendarMonthInput.addEventListener('change', renderFiltered);
+  boardToggleBtn.addEventListener('click',()=>{setBoardOpen(boardBody.hidden);});
+
+  setBoardOpen(false);
 
   loadApiBtn.onclick = async ()=>{
     try{ await refreshTripsFromApi(); }
@@ -1249,6 +1347,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const detailsEl=get('dispatchEditDetails');
   let lastCalculatedPickup='';
   let lastCalculatedCheckIn='';
+  let currentBookingAttachments=[];
+  let currentBookingIntakeAudit=null;
   let currentRef='';
   let applyingEditorValues=false;
   let editorBaselineSnapshot='';
@@ -1969,6 +2069,13 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function updateEditorDetails(b){
     if(!detailsEl) return;
+    const resolveIntakeMethodLabel=(method)=>{
+      const key=String(method||'').toUpperCase();
+      if(key==='EMAIL_ATTACHMENT') return 'Attachment Parsed';
+      if(key==='EMAIL_SUBJECT_FALLBACK') return 'Subject Fallback';
+      return method||'N/A';
+    };
+    const intakeAudit=currentBookingIntakeAudit||null;
     const displayValue=(value)=>{
       const text=String(value ?? '').trim();
       if(!text) return 'N/A';
@@ -1979,6 +2086,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
       ['Booking source', b.bookingSource || 'CUSTOMER'],
       ['Submitter login', b.submitterEntity || 'N/A'],
       ['Broker company', b.brokerCompanyName || 'N/A'],
+      ['Intake parse source', resolveIntakeMethodLabel(intakeAudit?.submissionMethod)],
+      ['Source attachment count', intakeAudit?.sourceAttachmentCount!=null?String(intakeAudit.sourceAttachmentCount):'N/A'],
+      ['Broker request ID', intakeAudit?.requestId || 'N/A'],
+      ['Source received at', intakeAudit?.sourceReceivedAt || 'N/A'],
       ['Broker quoted rate', b.brokerQuotedRate!=null?`$${Number(b.brokerQuotedRate).toFixed(2)}`:(b.broker_quoted_rate!=null?`$${Number(b.broker_quoted_rate).toFixed(2)}`:'N/A')],
       ['Broker accepted rate', b.brokerAcceptedRate!=null?`$${Number(b.brokerAcceptedRate).toFixed(2)}`:'N/A'],
       ['Submitter appointment', b.submittedAppointmentTime || 'MISSING'],
@@ -1999,8 +2110,57 @@ $('saveCustomCompany').addEventListener('click',()=>{
       ['Alternate phone', b.alternatePhone || 'N/A'],
       ['Alternate email', b.alternateEmail || 'N/A']
     ];
-    detailsEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${details.map(([k,v])=>`<div style="background:#fff;border:1px solid #d6e3ee;border-radius:10px;padding:8px"><div style="font-size:11px;color:#52677c">${k}</div><div style="font-weight:700;color:#0f172a;word-break:break-word">${displayValue(v)}</div></div>`).join('')}</div>`;
+    const attachmentCards=(Array.isArray(currentBookingAttachments)?currentBookingAttachments:[])
+      .map((att)=>`<button class="button ghost" type="button" onclick="openBookingAttachment(${Number(att.id)||0},'${String(att.fileName||'').replaceAll("'",'&#39;')}','${String(att.mimeType||'').replaceAll("'",'&#39;')}')" style="text-align:left;justify-content:flex-start">${att.fileName||'Attachment'} (${att.mimeType||'file'})</button>`)
+      .join('');
+    detailsEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${details.map(([k,v])=>`<div style="background:#fff;border:1px solid #d6e3ee;border-radius:10px;padding:8px"><div style="font-size:11px;color:#52677c">${k}</div><div style="font-weight:700;color:#0f172a;word-break:break-word">${displayValue(v)}</div></div>`).join('')}</div><div style="margin-top:10px;padding:10px;background:#fff;border:1px solid #d6e3ee;border-radius:10px"><div style="font-size:11px;color:#52677c;margin-bottom:6px">Source attachments</div>${attachmentCards||'<div style="font-size:13px;color:#667085">No imported attachments on this booking yet.</div>'}</div>`;
   }
+
+  async function loadBookingAttachments(reference){
+    if(!reference)return [];
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    const res=await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}/attachments`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok)return [];
+    return Array.isArray(data.attachments)?data.attachments:[];
+  }
+
+  async function openBookingAttachment(id,fileName,mimeType){
+    const ref=get('dispatchEditRef')?.value||currentRef;
+    if(!ref||!id)return;
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    const res=await fetch(`/api/admin/bookings/${encodeURIComponent(ref)}/attachments/${encodeURIComponent(String(id))}`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+    if(!res.ok){
+      const err=await res.json().catch(()=>({}));
+      setMsg(err.error||'Unable to open attachment.','err');
+      return;
+    }
+    const blob=await res.blob();
+    const objectUrl=URL.createObjectURL(blob);
+    window.open(objectUrl,'_blank','noopener,noreferrer');
+    setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
+  }
+
+  async function showBookingDocuments(reference){
+    if(!reference)return;
+    if(!confirmDiscardUnsavedChanges('open booking documents')) return;
+    panel.hidden=false;
+    try{
+      await loadTrip(reference);
+      const attachments=Array.isArray(currentBookingAttachments)?currentBookingAttachments:[];
+      const preferred=attachments.find((att)=>/pdf/i.test(String(att.mimeType||''))||/\.pdf$/i.test(String(att.fileName||'')))||attachments[0];
+      if(preferred){
+        await openBookingAttachment(preferred.id,preferred.fileName,preferred.mimeType);
+      }else{
+        setMsg('No imported attachments found for this booking.','err');
+      }
+    }catch(err){
+      setMsg(err.message||'Unable to open booking documents.','err');
+    }
+  }
+
+  window.openBookingAttachment=openBookingAttachment;
+  window.showBookingDocuments=showBookingDocuments;
 
   async function loadTrip(reference){
     if(!reference)return;
@@ -2017,6 +2177,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const b=data.booking||{};
     if(!data.booking) throw new Error('Trip details response was incomplete. Please refresh and retry.');
     currentRef=reference;
+    currentBookingAttachments=await loadBookingAttachments(reference).catch(()=>[]);
+    currentBookingIntakeAudit=data.intakeAudit||null;
     await applyEditorValues(b);
     get('dispatchEditNote').value='';
     setMsg(`Loaded ${reference}. Edit fields and save to notify stakeholders.`,'ok');
@@ -2038,6 +2200,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(!confirmDiscardUnsavedChanges('close the trip editor')) return;
     panel.hidden=true;
     currentRef='';
+    currentBookingIntakeAudit=null;
     editorHasUnsavedChanges=false;
     editorBaselineSnapshot='';
   });

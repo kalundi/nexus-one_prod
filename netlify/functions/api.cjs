@@ -1019,6 +1019,9 @@ async function sendTeamsAlert(text,title='Nexus Medical Transit'){
  // To add: Teams → Admin_NMT channel → ... → Connectors → Incoming Webhook → copy URL
  const webhookUrl=process.env.TEAMS_WEBHOOK_URL;
  if(!webhookUrl)return {status:'skipped'};
+ const normalizedWebhook=String(webhookUrl||'').trim();
+ const looksLikePlaceholder=/^https:\/\/(?:outlook|.*\.office)\.office\.com\/webhook\/?$/i.test(normalizedWebhook);
+ if(looksLikePlaceholder)return {status:'failed',error:'Invalid Teams webhook URL: placeholder endpoint configured'};
  const isPowerAutomateWebhook=/environment\.api\.powerplatform\.com|\/powerautomate\/automations\/direct\//i.test(webhookUrl);
  const body=isPowerAutomateWebhook
   ?{
@@ -1041,7 +1044,7 @@ async function sendTeamsAlert(text,title='Nexus Medical Transit'){
     themeColor:'#082f49',summary:title,title,text
    };
  try{
-  const r=await fetch(webhookUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const r=await fetch(normalizedWebhook,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
   return r.ok?{status:'sent'}:{status:'failed',code:r.status};
  }catch(e){return {status:'failed',error:e.message};}
 }
@@ -1071,6 +1074,20 @@ function buildBookingTeamsMessage(booking,label='New Trip Booked'){
 async function sendBookingTeamsAlert(booking,title='🚐 New Trip Booked — Admin_NMT',label='New Trip Booked'){
  const message=buildBookingTeamsMessage(booking,label);
  return sendTeamsAlert(message,title);
+}
+
+async function ensureBookingAttachmentsTable(){
+ await query(`CREATE TABLE IF NOT EXISTS booking_attachments (
+  id bigserial PRIMARY KEY,
+  booking_reference text NOT NULL REFERENCES bookings(reference) ON DELETE CASCADE,
+  broker_request_id bigint REFERENCES broker_requests(id) ON DELETE SET NULL,
+  file_name text NOT NULL,
+  mime_type text,
+  content_base64 text NOT NULL,
+  source text NOT NULL DEFAULT 'BROKER_EMAIL',
+  created_at timestamptz NOT NULL DEFAULT now()
+ )`).catch(()=>{});
+ await query(`CREATE INDEX IF NOT EXISTS idx_booking_attachments_booking ON booking_attachments(booking_reference,created_at DESC)`).catch(()=>{});
 }
 function setupLink(token){
   const base=String(process.env.SITE_URL||process.env.URL||process.env.DEPLOY_PRIME_URL||'https://nexusmt.com').replace(/\/$/,'');
@@ -2332,13 +2349,19 @@ async function handler(event){
      console.log('[TRIPS] Query:', sql, 'Params:', params, 'Role:', u.role);
      const r=await query(sql,params);
      console.log('[TRIPS] Found', r.rowCount, 'trips');
-     return json(200,{trips:r.rows.map(mapBooking)});
+     const trips=await mapBookingsWithIntakeAudit(r.rows);
+     return json(200,{trips});
    }catch(err){
      console.error('[TRIPS] Error:', err.message, err.stack);
      throw err;
    }
   }
-  if(p[0]==='admin'&&p[1]==='bookings'&&!p[2]&&method==='GET'){await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);const r=await query('SELECT * FROM bookings ORDER BY trip_date DESC,trip_time DESC LIMIT 500');return json(200,{bookings:r.rows.map(mapBooking)})}
+  if(p[0]==='admin'&&p[1]==='bookings'&&!p[2]&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);
+   const r=await query('SELECT * FROM bookings ORDER BY trip_date DESC,trip_time DESC LIMIT 500');
+   const bookings=await mapBookingsWithIntakeAudit(r.rows);
+   return json(200,{bookings});
+  }
     if(p[0]==='admin'&&p[1]==='bookings'&&p[2]==='purge-demo'&&method==='POST'){
     const u=await requireUser(bearer(event),['ADMIN']);
     const body=parseBody(event);
@@ -2405,7 +2428,63 @@ async function handler(event){
      await audit('BOOKING','PRUNE','RUN',{actor:u.email||u.display_name||'ADMIN',deleted:deletedRefs.length,kept:toKeep.length,keepNames:keepNamesRaw,keepReferences});
      return json(200,{dryRun:false,total:candidates.rowCount||0,deleted:deletedRefs.length,kept:toKeep.length,keepReferences:toKeep.slice(0,200),deleteReferences:deletedRefs.slice(0,200)});
     }
-  if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='GET'){await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);const ref=decodeURIComponent(p[2]);const r=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref]);if(!r.rows[0])return json(404,{error:'Booking not found'});return json(200,{booking:mapBooking(r.rows[0])})}
+  if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='attachments'&&!p[4]&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);
+   await ensureBookingAttachmentsTable();
+   const ref=decodeURIComponent(p[2]);
+   const rows=await query(`SELECT id,file_name,mime_type,octet_length(decode(content_base64,'base64')) AS size_bytes,created_at FROM booking_attachments WHERE booking_reference=$1 ORDER BY created_at DESC`,[ref]).catch(()=>({rows:[]}));
+   const attachments=(rows.rows||[]).map((row)=>({
+    id:row.id,
+    fileName:row.file_name,
+    mimeType:row.mime_type||'application/octet-stream',
+    sizeBytes:row.size_bytes!=null?Number(row.size_bytes):null,
+    createdAt:row.created_at,
+    downloadPath:`/api/admin/bookings/${encodeURIComponent(ref)}/attachments/${row.id}`
+   }));
+   return json(200,{reference:ref,attachments});
+  }
+  if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='attachments'&&p[4]&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);
+   await ensureBookingAttachmentsTable();
+   const ref=decodeURIComponent(p[2]);
+   const attachmentId=Number(p[4]);
+   if(!Number.isFinite(attachmentId)||attachmentId<=0)return json(400,{error:'Invalid attachment id'});
+   const result=await query(`SELECT file_name,mime_type,content_base64 FROM booking_attachments WHERE booking_reference=$1 AND id=$2 LIMIT 1`,[ref,attachmentId]);
+   const row=result.rows?.[0];
+   if(!row)return json(404,{error:'Attachment not found'});
+   const mimeType=clean(row.mime_type||'application/octet-stream',160);
+   const fileName=clean(row.file_name||`attachment-${attachmentId}`,180);
+   const binary=Buffer.from(String(row.content_base64||''),'base64');
+   return {
+    statusCode:200,
+    isBase64Encoded:true,
+    headers:{
+     'Content-Type':mimeType,
+     'Content-Disposition':`inline; filename="${fileName.replace(/"/g,'')}"`,
+     'Cache-Control':'no-store'
+    },
+    body:binary.toString('base64')
+   };
+  }
+  if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);
+   const ref=decodeURIComponent(p[2]);
+   const r=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref]);
+   if(!r.rows[0])return json(404,{error:'Booking not found'});
+   const intake=await query(`SELECT id,submission_method,source_message_id,source_received_at,created_at,updated_at FROM broker_requests WHERE booking_reference=$1 ORDER BY created_at DESC LIMIT 1`,[ref]).catch(()=>({rows:[]}));
+   const sourceAttachmentCount=await query('SELECT COUNT(*)::int AS count FROM booking_attachments WHERE booking_reference=$1',[ref]).catch(()=>({rows:[{count:0}]}));
+   const intakeRow=intake.rows?.[0]||null;
+   const intakeAudit=intakeRow?{
+    requestId:intakeRow.id,
+    submissionMethod:intakeRow.submission_method||null,
+    sourceMessageId:intakeRow.source_message_id||null,
+    sourceReceivedAt:intakeRow.source_received_at||null,
+    sourceAttachmentCount:Number(sourceAttachmentCount.rows?.[0]?.count||0),
+    createdAt:intakeRow.created_at||null,
+    updatedAt:intakeRow.updated_at||null
+   }:null;
+   return json(200,{booking:mapBooking(r.rows[0]),intakeAudit});
+  }
   if(p[0]==='admin'&&p[1]==='analytics'&&p[2]==='revenue'&&method==='GET'){
    const u=await requireUser(bearer(event),['ADMIN','EXECUTIVE','BILLING']);
    const {start,end,groupBy}=parseAnalyticsRange(event);
@@ -3140,6 +3219,56 @@ function mapBooking(b){
   notes:b.notes||null,
  };
 }
+
+function mapParseSourceLabel(method){
+ const key=String(method||'').toUpperCase();
+ if(key==='EMAIL_ATTACHMENT') return 'ATTACHMENT_PARSED';
+ if(key==='EMAIL_SUBJECT_FALLBACK') return 'SUBJECT_FALLBACK';
+ return null;
+}
+
+async function mapBookingsWithIntakeAudit(rows){
+ const mapped=(Array.isArray(rows)?rows:[]).map(mapBooking);
+ const references=[...new Set(mapped.map((b)=>clean(b.reference)).filter(Boolean))];
+ if(!references.length) return mapped;
+
+ const intakeRows=await query(
+  `SELECT DISTINCT ON (booking_reference)
+    booking_reference,
+    submission_method,
+    source_received_at,
+    source_message_id
+   FROM broker_requests
+   WHERE booking_reference = ANY($1::text[])
+   ORDER BY booking_reference, created_at DESC`,
+  [references]
+ ).catch(()=>({rows:[]}));
+
+ const attachmentCounts=await query(
+  `SELECT booking_reference, COUNT(*)::int AS count
+   FROM booking_attachments
+   WHERE booking_reference = ANY($1::text[])
+   GROUP BY booking_reference`,
+  [references]
+ ).catch(()=>({rows:[]}));
+
+ const intakeByRef=new Map((intakeRows.rows||[]).map((row)=>[String(row.booking_reference),row]));
+ const attachmentByRef=new Map((attachmentCounts.rows||[]).map((row)=>[String(row.booking_reference),Number(row.count||0)]));
+
+ return mapped.map((booking)=>{
+  const intake=intakeByRef.get(String(booking.reference||''))||null;
+  const method=intake?.submission_method||null;
+  return {
+   ...booking,
+   intakeSubmissionMethod:method,
+   intakeParseSource:mapParseSourceLabel(method),
+   sourceAttachmentCount:attachmentByRef.get(String(booking.reference||''))||0,
+   sourceReceivedAt:intake?.source_received_at||null,
+   sourceMessageId:intake?.source_message_id||null
+  };
+ });
+}
+
 exports.handler=handler;
 exports.sendBrokerRequestConfirmation=sendBrokerRequestConfirmation;
 exports.sendBrokerRequestDispatchNotifications=sendBrokerRequestDispatchNotifications;

@@ -77,7 +77,7 @@ async function graphFetchUrl(url,options={}){
 }
 
 function encodeGraphPathSegment(value){
- return encodeURIComponent(String(value||'').replace(/^\//,'')).replaceAll('%2F','/');
+ return encodeURIComponent(String(value||'').replace(/^\//,''));
 }
 
 async function listMessages({since,folder='Inbox',top=25,filter=''}){
@@ -94,15 +94,21 @@ async function listMessages({since,folder='Inbox',top=25,filter=''}){
 
 async function getMessage({messageId,folder='Inbox'}){
  const {mailbox}=requireGraphConfig();
- const path=`/users/${encodeGraphPathSegment(mailbox)}/mailFolders/${encodeGraphPathSegment(folder)}/messages/${encodeGraphPathSegment(messageId)}?$select=id,internetMessageId,subject,from,toRecipients,bodyPreview,body,receivedDateTime,hasAttachments,createdDateTime,lastModifiedDateTime`;
+ const path=`/users/${encodeGraphPathSegment(mailbox)}/messages/${encodeGraphPathSegment(messageId)}?$select=id,internetMessageId,subject,from,toRecipients,bodyPreview,body,receivedDateTime,hasAttachments,createdDateTime,lastModifiedDateTime`;
  return graphFetch(path);
 }
 
 async function getMessageAttachments({messageId,folder='Inbox'}){
  const {mailbox}=requireGraphConfig();
- const path=`/users/${encodeGraphPathSegment(mailbox)}/mailFolders/${encodeGraphPathSegment(folder)}/messages/${encodeGraphPathSegment(messageId)}/attachments?$select=id,name,contentType,contentBytes,contentId,@odata.type`;
+ const path=`/users/${encodeGraphPathSegment(mailbox)}/messages/${encodeGraphPathSegment(messageId)}/attachments?$select=id,name,contentType,contentBytes,contentId,@odata.type,size`;
  const data=await graphFetch(path);
  return Array.isArray(data.value)?data.value:[];
+}
+
+async function getMessageMime({messageId}){
+ const {mailbox}=requireGraphConfig();
+ const path=`/users/${encodeGraphPathSegment(mailbox)}/messages/${encodeGraphPathSegment(messageId)}/$value`;
+ return graphFetch(path,{headers:{accept:'message/rfc822'}});
 }
 
 function toBrokerAttachment(attachment){
@@ -128,6 +134,7 @@ module.exports={
  listMessages,
  getMessage,
  getMessageAttachments,
+ getMessageMime,
  toBrokerAttachment,
  isFileAttachment
 };

@@ -1,9 +1,11 @@
 const {Client}=require('pg');
 const crypto=require('crypto');
 const {buildEmailRecipients}=require('./_shared/notification-routing.cjs');
+const pdfParse=require('pdf-parse');
 
 const pool=new Client({connectionString:process.env.DATABASE_URL});
 let connected=false;
+let auditSchemaCache=null;
 
 const FORWARD_FROM='xxxx@gotandt.com';
 const FORWARD_TO_MATCH='fletcher@nexusmt.com';
@@ -22,12 +24,57 @@ async function query(sql,params){
  return pool.query(sql,params);
 }
 
+async function detectAuditSchema(){
+ if(auditSchemaCache)return auditSchemaCache;
+ const columns=await query("SELECT column_name FROM information_schema.columns WHERE table_name='audit_log'").catch(()=>({rows:[]}));
+ const set=new Set((columns.rows||[]).map((row)=>String(row.column_name||'')));
+ auditSchemaCache={
+  hasDetails:set.has('details'),
+  hasCreatedBy:set.has('created_by'),
+  hasChanges:set.has('changes'),
+  hasActorId:set.has('actor_id'),
+  hasActorRole:set.has('actor_role')
+ };
+ return auditSchemaCache;
+}
+
+async function writeAuditLog({entityType,entityId,action,payload,actor='BROKER_EMAIL_WEBHOOK',actorRole='SYSTEM'}){
+ const schema=await detectAuditSchema();
+ const payloadText=JSON.stringify(payload||{});
+ if(schema.hasDetails&&schema.hasCreatedBy){
+  return query('INSERT INTO audit_log(entity_type,entity_id,action,details,created_by) VALUES($1,$2,$3,$4,$5)',[
+   entityType,
+   String(entityId||''),
+   action,
+   payloadText,
+   actor
+  ]);
+ }
+ if(schema.hasChanges&&schema.hasActorId&&schema.hasActorRole){
+  return query('INSERT INTO audit_log(entity_type,entity_id,action,changes,actor_id,actor_role,created_at) VALUES($1,$2,$3,$4::jsonb,$5,$6,now())',[
+   entityType,
+   String(entityId||''),
+   action,
+   payloadText,
+   actor,
+   actorRole
+  ]);
+ }
+ return null;
+}
+
 function json(code,body){
  return {statusCode:code,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)};
 }
 
 function clean(value,max=500){
  return String(value||'').trim().slice(0,max);
+}
+
+function safeJsonParse(value){
+ if(value==null)return null;
+ if(typeof value==='object')return value;
+ try{return JSON.parse(String(value));}catch(_error){return null;}
 }
 
 function n(value,fallback=0){
@@ -135,6 +182,9 @@ async function sendEmail(to,subject,html,attachments=[]){
 async function sendTeamsAlert(text,title='Nexus Medical Transit'){
  const webhookUrl=process.env.TEAMS_WEBHOOK_URL;
  if(!webhookUrl)return {status:'skipped'};
+ const normalizedWebhook=String(webhookUrl||'').trim();
+ const looksLikePlaceholder=/^https:\/\/(?:outlook|.*\.office)\.office\.com\/webhook\/?$/i.test(normalizedWebhook);
+ if(looksLikePlaceholder)return {status:'failed',error:'Invalid Teams webhook URL: placeholder endpoint configured'};
  const isPowerAutomateWebhook=/environment\.api\.powerplatform\.com|\/powerautomate\/automations\/direct\//i.test(webhookUrl);
  const body=isPowerAutomateWebhook
   ?{
@@ -157,7 +207,7 @@ async function sendTeamsAlert(text,title='Nexus Medical Transit'){
     themeColor:'#082f49',summary:title,title,text
    };
  try{
-  const response=await fetch(webhookUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const response=await fetch(normalizedWebhook,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
   return response.ok?{status:'sent'}:{status:'failed',code:response.status};
  }catch(error){
   return {status:'failed',error:error.message};
@@ -196,9 +246,19 @@ function parsePotentialAttachmentInfo(payload){
  return attachments.filter((att)=>att.content);
 }
 
-function decodeAttachmentText(attachment){
+async function decodeAttachmentText(attachment){
  const filename=clean(attachment.filename||'',180).toLowerCase();
  const type=clean(attachment.type||'',160).toLowerCase();
+ const isPdf=type.includes('pdf')||filename.endsWith('.pdf');
+ if(isPdf){
+  try{
+   const buffer=Buffer.from(String(attachment.content||''),'base64');
+   const parsed=await pdfParse(buffer);
+   return clean(parsed?.text||'',50000);
+  }catch(_error){
+   return '';
+  }
+ }
  const isTextual=type.startsWith('text/')||type.includes('json')||type.includes('xml')||type.includes('csv')||filename.endsWith('.txt')||filename.endsWith('.csv')||filename.endsWith('.json')||filename.endsWith('.xml');
  if(!isTextual)return '';
  try{
@@ -227,6 +287,9 @@ function parseBrokerIntakeText(input){
   trip_time:'',
   service:'ambulatory',
   broker_name:'Unknown Broker',
+  patient_name:'',
+  referral_id:'',
+  crm_reference:'',
   broker_quoted_rate:0,
   distance_miles:0,
   notes:''
@@ -238,6 +301,9 @@ function parseBrokerIntakeText(input){
  const timeMatch=text.match(/(?:^|\r?\n)\s*(time)\s*[:|-]\s*([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM))?)/i);
  const serviceMatch=text.match(/(?:^|\r?\n)\s*(service|level of service)\s*[:|-]\s*(.+?)(?=(?:\r?\n|$))/i);
  const brokerNameMatch=text.match(/(?:^|\r?\n)\s*(broker|company)\s*[:|-]\s*(.+?)(?=(?:\r?\n|$))/i);
+ const patientMatch=text.match(/(?:^|\r?\n)\s*(patient|member|rider)\s*[:|-]\s*(.+?)(?=(?:\r?\n|$))/i);
+ const referralMatch=text.match(/(?:^|\r?\n)\s*(referral\s*id|reference|trip\s*id|trip\s*number|confirmation\s*number)\s*[:#|-]\s*([a-z0-9-]+)/i);
+ const crmMatch=text.match(/(?:^|\r?\n)\s*(crm)\s*[:#|-]\s*([a-z0-9-]+)/i);
  const rateMatch=text.match(/(?:^|\r?\n)\s*(rate|cost|price|quote)\s*[:|-]?\s*\$?([0-9]+(?:\.[0-9]{1,2})?)/i);
  const milesMatch=text.match(/(?:^|\r?\n)\s*(miles|distance)\s*[:|-]?\s*([0-9]+(?:\.[0-9]{1,2})?)/i);
 
@@ -247,6 +313,9 @@ function parseBrokerIntakeText(input){
  if(timeMatch)result.trip_time=clean(timeMatch[2],30);
  if(serviceMatch)result.service=clean(serviceMatch[2],120);
  if(brokerNameMatch)result.broker_name=clean(brokerNameMatch[2],160);
+ if(patientMatch)result.patient_name=clean(patientMatch[2],160);
+ if(referralMatch)result.referral_id=clean(referralMatch[2],120);
+ if(crmMatch)result.crm_reference=clean(crmMatch[2],120);
  if(rateMatch)result.broker_quoted_rate=n(rateMatch[2],0);
  if(milesMatch)result.distance_miles=n(milesMatch[2],0);
 
@@ -270,13 +339,125 @@ function parseBrokerIntakeText(input){
    const foundMiles=line.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
    if(foundMiles)result.distance_miles=n(foundMiles[1],0);
   }
+  if(!result.crm_reference&&/\bcrm\b/.test(lower)){
+   const foundCrm=line.match(/crm\s*[:#-]?\s*([a-z0-9-]+)/i);
+   if(foundCrm)result.crm_reference=clean(foundCrm[1],120);
+  }
  }
 
  result.trip_date=normalizeTripDate(result.trip_date);
  result.trip_time=normalizeTripTime(result.trip_time);
+
+ const looksLikeLayoutLabel=(value)=>{
+  const text=clean(value,260).toLowerCase();
+  if(!text)return true;
+  if(/pickup\s*timeappointment\s*timepickup\s*address/i.test(text))return true;
+  if(/pickup\s*addressdrop\s*off\s*addressspecial\s*instructions/i.test(text))return true;
+  if(/^(pickup\s*time|appointment\s*time|pickup\s*address|drop\s*off\s*address|special\s*instructions)$/i.test(text))return true;
+  return false;
+ };
+
+ if(looksLikeLayoutLabel(result.pickup))result.pickup='';
+ if(looksLikeLayoutLabel(result.destination))result.destination='';
+
  if(!result.trip_date||!result.trip_time||!result.pickup||!result.destination||result.broker_quoted_rate<=0)return null;
- result.notes=clean(`Parsed from broker confirmation attachment/email.`,400);
+ const noteParts=['Parsed from broker confirmation attachment/email.'];
+ if(result.referral_id)noteParts.push(`Referral ID: ${result.referral_id}`);
+ if(result.crm_reference)noteParts.push(`CRM: ${result.crm_reference}`);
+ result.notes=clean(noteParts.join(' | '),600);
  return result;
+}
+
+function parseSubjectHints(subject){
+ const hints={patient_name:'',referral_id:'',trip_date:''};
+ const text=clean(subject,400);
+ if(!text) return hints;
+ const patientRefMatch=text.match(/for\s+(.+?)\s+([a-z0-9-]{6,})\s+on\s+([0-9]{1,2}[\/-][0-9]{1,2}[\/-][0-9]{2,4})/i);
+ if(patientRefMatch){
+  hints.patient_name=clean(patientRefMatch[1],160);
+  hints.referral_id=clean(patientRefMatch[2],120);
+  hints.trip_date=normalizeTripDate(patientRefMatch[3]);
+ }
+ if(!hints.referral_id){
+  const refMatch=text.match(/\b([0-9]{3,}-[0-9-]{3,})\b/);
+  if(refMatch) hints.referral_id=clean(refMatch[1],120);
+ }
+ return hints;
+}
+
+function inferBrokerNameFromSender(senderEmail,senderName=''){
+ const email=clean(senderEmail,200).toLowerCase();
+ if(email.endsWith('@gotandt.com')) return 'Go Transportation & Translation';
+ return clean(senderName||'Unknown Broker',160);
+}
+
+function buildFallbackParsedFromSubject(subject,senderEmail,senderName=''){
+ const hints=parseSubjectHints(subject);
+ if(!hints.trip_date||!hints.referral_id)return null;
+ const crmMatch=clean(subject,400).match(/\bcrm\s*[:#-]?\s*([a-z0-9-]+)/i);
+ const crmReference=crmMatch?clean(crmMatch[1],120):'';
+ return {
+  pickup:'TBD - Awaiting GO T&T attachment details',
+  destination:'TBD - Awaiting GO T&T attachment details',
+  trip_date:hints.trip_date,
+  trip_time:'00:00:00',
+  service:'ambulatory',
+  broker_name:inferBrokerNameFromSender(senderEmail,senderName),
+  patient_name:hints.patient_name||'Unknown Patient',
+  referral_id:hints.referral_id,
+  crm_reference:crmReference,
+  broker_quoted_rate:0,
+  distance_miles:0,
+  notes:clean(`Fallback from confirmation subject (attachment/body details unavailable). Referral ID: ${hints.referral_id}${crmReference?` | CRM: ${crmReference}`:''}`,600),
+  subject_fallback:true
+ };
+}
+
+async function resolveBrokerIdentity(senderEmail,parsedBrokerName,senderName){
+ const byEmail=await query('SELECT id,name FROM brokers WHERE lower(trim(contact_email))=$1 LIMIT 1',[clean(senderEmail,200).toLowerCase()]).catch(()=>({rows:[]}));
+ if(byEmail.rows?.[0]){
+  return {brokerId:byEmail.rows[0].id,brokerName:clean(byEmail.rows[0].name,160)};
+ }
+ const parsedName=clean(parsedBrokerName,160);
+ if(parsedName&&parsedName.toLowerCase()!=='unknown broker'){
+  const byName=await query(`SELECT id,name FROM brokers WHERE regexp_replace(lower(name),'[^a-z0-9]+','','g')=regexp_replace(lower($1),'[^a-z0-9]+','','g') LIMIT 1`,[parsedName]).catch(()=>({rows:[]}));
+  if(byName.rows?.[0]){
+   return {brokerId:byName.rows[0].id,brokerName:clean(byName.rows[0].name,160)};
+  }
+ }
+ const inferred=parsedName||inferBrokerNameFromSender(senderEmail,senderName);
+ return {brokerId:null,brokerName:clean(inferred||'Unknown Broker',160)};
+}
+
+async function ensureBookingAttachmentTable(){
+ await query(`CREATE TABLE IF NOT EXISTS booking_attachments (
+  id bigserial PRIMARY KEY,
+  booking_reference text NOT NULL REFERENCES bookings(reference) ON DELETE CASCADE,
+  broker_request_id bigint REFERENCES broker_requests(id) ON DELETE SET NULL,
+  file_name text NOT NULL,
+  mime_type text,
+  content_base64 text NOT NULL,
+  source text NOT NULL DEFAULT 'BROKER_EMAIL',
+  created_at timestamptz NOT NULL DEFAULT now()
+ )`).catch(()=>{});
+ await query(`CREATE INDEX IF NOT EXISTS idx_booking_attachments_booking ON booking_attachments(booking_reference,created_at DESC)`).catch(()=>{});
+}
+
+async function saveBookingAttachments({bookingReference,brokerRequestId,attachments}){
+ if(!bookingReference||!Array.isArray(attachments)||!attachments.length)return 0;
+ await ensureBookingAttachmentTable();
+ let inserted=0;
+ for(const att of attachments){
+  const fileName=clean(att.filename||'attachment',180);
+  const mimeType=clean(att.type||'application/octet-stream',160);
+  const content=String(att.content||'');
+  if(!fileName||!content)continue;
+  const duplicate=await query(`SELECT id FROM booking_attachments WHERE booking_reference=$1 AND file_name=$2 AND left(content_base64,1024)=left($3,1024) LIMIT 1`,[bookingReference,fileName,content]).catch(()=>({rows:[]}));
+  if(duplicate.rows?.[0])continue;
+  await query(`INSERT INTO booking_attachments(booking_reference,broker_request_id,file_name,mime_type,content_base64,source,created_at) VALUES($1,$2,$3,$4,$5,'BROKER_EMAIL',now())`,[bookingReference,brokerRequestId||null,fileName,mimeType,content]).catch(()=>{});
+  inserted+=1;
+ }
+ return inserted;
 }
 
 async function readPlatformSettings(){
@@ -385,19 +566,27 @@ async function insertBrokerRequest({brokerId,brokerName,service,pickup,destinati
  return result.rows[0];
 }
 
-async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,platformRate,tripCostEstimate,tripDate,tripTime}){
- const bookingReference=reference();
- const notes=[
+function buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimate}){
+ return [
   'Broker confirmation intake created from inbound email attachment.',
   `Broker quoted (with 2h wait): $${Number(brokerRate||0).toFixed(2)}`,
   `Platform rate (with 2h wait): $${Number(platformRate||0).toFixed(2)}`,
   `Variance: $${Number((brokerRate-platformRate)||0).toFixed(2)}`,
-  `Estimated operating cost: $${Number(tripCostEstimate||0).toFixed(2)}`
- ].join(' | ');
+  `Estimated operating cost: $${Number(tripCostEstimate||0).toFixed(2)}`,
+  parsed.referral_id?`Referral ID: ${parsed.referral_id}`:'',
+  parsed.crm_reference?`CRM: ${parsed.crm_reference}`:'',
+  parsed.notes||'',
+  parsed.subject_fallback?'Dispatch action required: complete pickup, destination, appointment time, service, and quoted rate from source document.':''
+ ].filter(Boolean).join(' | ');
+}
+
+async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,platformRate,tripCostEstimate,tripDate,tripTime,brokerRequestId,attachments=[]}){
+ const bookingReference=reference();
+ const notes=buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimate});
  const result=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,null,null,null,null,$12,null,$13,$14,$15,$16,$17,now(),now()) RETURNING *`,[
   bookingReference,
-  brokerName||'Broker Request',
+  parsed.patient_name||brokerName||'Broker Request',
   null,
   null,
   parsed.service,
@@ -414,7 +603,68 @@ async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,plat
   clean(brokerName||'Unknown Broker',120),
   Number(brokerRate||0)
  ]);
+ await saveBookingAttachments({bookingReference,brokerRequestId,attachments});
  return result.rows[0];
+}
+
+async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,brokerName,brokerRate,platformRate,tripCostEstimate,tripDate,tripTime,distanceMiles,brokerRequestId,attachments=[]}){
+ if(!bookingReference)return null;
+ const notes=buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimate});
+ await query(`UPDATE bookings SET
+  name=$2,
+  service=$3,
+  pickup=$4,
+  destination=$5,
+  trip_date=$6,
+  trip_time=$7,
+  notes=$8,
+  distance_miles=$9,
+  estimated_fare=$10,
+  broker_company_name=$11,
+  broker_accepted_rate=$12,
+  updated_at=now()
+  WHERE reference=$1`,[
+  bookingReference,
+  parsed.patient_name||brokerName||'Broker Request',
+  parsed.service,
+  parsed.pickup,
+  parsed.destination,
+  tripDate,
+  tripTime,
+  notes,
+  Number(distanceMiles||0),
+  Number(platformRate||0),
+  clean(brokerName||'Unknown Broker',120),
+  Number(brokerRate||0)
+ ]).catch(()=>{});
+ await query(`UPDATE broker_requests SET
+  service=$2,
+  pickup=$3,
+  destination=$4,
+  trip_date=$5,
+  trip_time=$6,
+  broker_quoted_rate=$7,
+  platform_calculated_rate=$8,
+  rate_delta=$9,
+  variance=$9,
+  submission_method='EMAIL_ATTACHMENT',
+  dispatch_notes=$10,
+  updated_at=now()
+  WHERE id=$1`,[
+  brokerRequestId,
+  parsed.service,
+  parsed.pickup,
+  parsed.destination,
+  tripDate,
+  tripTime,
+  Number(brokerRate||0),
+  Number(platformRate||0),
+  Number((brokerRate-platformRate)||0),
+  `Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Includes 2h wait time in broker/platform rate calculations.`
+ ]).catch(()=>{});
+ await saveBookingAttachments({bookingReference,brokerRequestId,attachments});
+ const refreshed=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[bookingReference]).catch(()=>({rows:[]}));
+ return refreshed.rows?.[0]||null;
 }
 
 async function forwardBrokerEmailIfNeeded({from,to,subject,text,attachments}){
@@ -449,6 +699,33 @@ async function notifyTeamsForBrokerReview({request,booking,parsed,platformRate,b
  return sendTeamsAlert(text,title);
 }
 
+async function hasNotificationLog({requestId,messageId,channel}){
+ if(!requestId||!messageId||!channel)return false;
+ const logs=await query(`SELECT details FROM audit_log WHERE entity_type=$1 AND entity_id=$2 AND action=$3 ORDER BY created_at DESC LIMIT 50`,[
+  'BROKER_REQUEST',
+  String(requestId),
+  'NOTIFICATION_SENT'
+ ]).catch(()=>({rows:[]}));
+ for(const row of logs.rows||[]){
+  const details=safeJsonParse(row?.details);
+  if(!details)continue;
+  if(String(details.channel||'')===String(channel)&&String(details.messageId||'')===String(messageId))return true;
+ }
+ return false;
+}
+
+async function auditNotification({requestId,channel,messageId,status,error}){
+ if(!requestId||!channel)return;
+ await writeAuditLog({
+  entityType:'BROKER_REQUEST',
+  entityId:String(requestId),
+  action:'NOTIFICATION_SENT',
+  payload:{channel,messageId:messageId||null,status,error:error?clean(error,500):null},
+  actor:'BROKER_EMAIL_WEBHOOK',
+  actorRole:'SYSTEM'
+ }).catch(()=>{});
+}
+
 exports.handler=async(event)=>{
  try{
   if(event.httpMethod!=='POST')return json(405,{error:'Method not allowed'});
@@ -468,19 +745,28 @@ exports.handler=async(event)=>{
   await forwardBrokerEmailIfNeeded({from:senderEmail,to:recipient,subject,text:emailBody,attachments}).catch((error)=>console.error('[BROKER_FORWARD]',error.message));
 
   const hasConfirmationSubject=/confirmation/i.test(subject);
-  const attachmentText=(attachments||[]).map((attachment)=>decodeAttachmentText(attachment)).filter(Boolean).join('\n\n');
-  const parseSource=attachmentText||emailBody;
-  const parsed=parseBrokerIntakeText(parseSource);
+  const decodedAttachmentTexts=await Promise.all((attachments||[]).map((attachment)=>decodeAttachmentText(attachment)));
+  const attachmentText=decodedAttachmentTexts.filter(Boolean).join('\n\n');
+  const parseSource=[attachmentText,emailBody].filter(Boolean).join('\n\n');
+  let parsed=parseBrokerIntakeText(parseSource);
+  if(!parsed&&hasConfirmationSubject){
+   parsed=buildFallbackParsedFromSubject(subject,senderEmail,senderName);
+  }
   if(!parsed)return json(400,{error:'Could not parse pickup, destination, date, time, or quoted rate from email/attachment'});
 
-  const brokerInfo=await query('SELECT id,name FROM brokers WHERE lower(trim(contact_email))=$1 LIMIT 1',[senderEmail]).catch(()=>({rows:[]}));
-  const brokerId=brokerInfo.rows[0]?.id||null;
-  const brokerName=clean(brokerInfo.rows[0]?.name||parsed.broker_name||senderName,160);
+  const subjectHints=parseSubjectHints(subject);
+  if(!parsed.patient_name&&subjectHints.patient_name)parsed.patient_name=subjectHints.patient_name;
+  if(!parsed.referral_id&&subjectHints.referral_id)parsed.referral_id=subjectHints.referral_id;
+  if(!parsed.trip_date&&subjectHints.trip_date)parsed.trip_date=subjectHints.trip_date;
+
+  const resolvedBroker=await resolveBrokerIdentity(senderEmail,parsed.broker_name,senderName);
+  const brokerId=resolvedBroker.brokerId;
+  const brokerName=resolvedBroker.brokerName;
 
   const settings=await readPlatformSettings();
   const rateInfo=computePlatformRate(parsed,settings);
   const waitCost=rateInfo.twoHourWaitCost;
-  const brokerRateWithWait=Number((n(parsed.broker_quoted_rate,0)+waitCost).toFixed(2));
+  const brokerRateWithWait=parsed.subject_fallback?0:Number((n(parsed.broker_quoted_rate,0)+waitCost).toFixed(2));
   const platformRate=Number(rateInfo.platformRate.toFixed(2));
   const variance=Number((brokerRateWithWait-platformRate).toFixed(2));
   const costBreakdown=estimateTripOperatingCost({...parsed,distance_miles:rateInfo.distanceMiles},settings);
@@ -500,7 +786,7 @@ exports.handler=async(event)=>{
    brokerRate:brokerRateWithWait,
    platformRate,
    variance,
-   submissionMethod:'EMAIL_ATTACHMENT',
+  submissionMethod:parsed.subject_fallback?'EMAIL_SUBJECT_FALLBACK':'EMAIL_ATTACHMENT',
    submittedBy:senderEmail,
   distanceMiles:rateInfo.distanceMiles,
   sourceMessageId:messageId,
@@ -508,38 +794,83 @@ exports.handler=async(event)=>{
   });
 
   let booking=null;
-  if(hasConfirmationSubject&&attachments.length>0){
+  if(request?.booking_reference){
+   const existingBooking=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[request.booking_reference]).catch(()=>({rows:[]}));
+   booking=existingBooking.rows?.[0]||null;
+  }
+  if(booking&&attachments.length>0){
+   await saveBookingAttachments({
+    bookingReference:booking.reference,
+    brokerRequestId:request.id,
+    attachments
+   });
+  }
+  const isFallbackRequest=String(request?.submission_method||'').toUpperCase()==='EMAIL_SUBJECT_FALLBACK';
+  if(booking&&hasConfirmationSubject&&attachments.length>0&&!parsed.subject_fallback&&isFallbackRequest){
+   booking=await enrichExistingBookingFromBrokerRequest({
+    bookingReference:booking.reference,
+    parsed,
+    brokerName,
+    brokerRate:brokerRateWithWait,
+    platformRate,
+    tripCostEstimate:costBreakdown.tripCost,
+    tripDate,
+    tripTime,
+    distanceMiles:rateInfo.distanceMiles,
+    brokerRequestId:request.id,
+    attachments
+   })||booking;
+  }
+  if(!booking&&hasConfirmationSubject&&(attachments.length>0||parsed.subject_fallback)){
    booking=await createBookingFromBrokerRequest(parsed,{
     brokerName,
     brokerRate:brokerRateWithWait,
     platformRate,
     tripCostEstimate:costBreakdown.tripCost,
     tripDate,
-    tripTime
+    tripTime,
+    brokerRequestId:request.id,
+    attachments
    });
    await query('UPDATE broker_requests SET booking_reference=$2,updated_at=now() WHERE id=$1',[request.id,booking.reference]).catch(()=>{});
-   await notifyTeamsForBrokerReview({
-    request:{...request,booking_reference:booking.reference},
-    booking,
-    parsed:{...parsed,distance_miles:rateInfo.distanceMiles},
-    platformRate,
-    brokerRate:brokerRateWithWait,
-    variance,
-    tripCostEstimate:costBreakdown.tripCost,
-    costBreakdown
-   }).catch((error)=>console.error('[BROKER_TEAMS]',error.message));
   }
 
-  await query('INSERT INTO audit_log(entity_type,entity_id,action,details,created_by) VALUES($1,$2,$3,$4,$5)',[
-   'BROKER_REQUEST',
-   String(request.id),
-   'EMAIL_RECEIVED',
-   JSON.stringify({
+  let teamsNotification={status:'skipped'};
+  if(booking&&hasConfirmationSubject){
+   const alreadySent=await hasNotificationLog({requestId:request.id,messageId,channel:'TEAMS_REVIEW'});
+   if(!alreadySent){
+    teamsNotification=await notifyTeamsForBrokerReview({
+     request:{...request,booking_reference:booking.reference},
+     booking,
+     parsed:{...parsed,distance_miles:rateInfo.distanceMiles},
+     platformRate,
+     brokerRate:brokerRateWithWait,
+     variance,
+     tripCostEstimate:costBreakdown.tripCost,
+     costBreakdown
+    }).catch((error)=>({status:'failed',error:error.message}));
+    await auditNotification({
+     requestId:request.id,
+     channel:'TEAMS_REVIEW',
+     messageId,
+     status:teamsNotification.status||'failed',
+     error:teamsNotification.error||null
+    });
+   }else{
+    teamsNotification={status:'skipped',reason:'already_sent_for_message'};
+   }
+  }
+
+  await writeAuditLog({
+   entityType:'BROKER_REQUEST',
+   entityId:String(request.id),
+   action:'EMAIL_RECEIVED',
+   payload:{
     from:senderEmail,
     to:recipient,
     subject,
-      messageId,
-      receivedAt:normalizedReceivedAt,
+    messageId,
+    receivedAt:normalizedReceivedAt,
     hasConfirmationSubject,
     attachmentCount:attachments.length,
     bookingReference:booking?.reference||null,
@@ -548,12 +879,26 @@ exports.handler=async(event)=>{
     platformRate,
     variance,
     estimatedTripCost:costBreakdown.tripCost
-   }),
-   senderEmail
-  ]).catch(()=>{});
+   },
+   actor:senderEmail||'BROKER_EMAIL_WEBHOOK',
+   actorRole:'BROKER'
+  }).catch(()=>{});
 
   const confirmationHtml=`<h2>Broker confirmation intake received</h2><p>We received your request for <strong>${parsed.pickup}</strong> to <strong>${parsed.destination}</strong> on <strong>${tripDate}</strong> at <strong>${tripTime.slice(0,5)}</strong>.</p><p>Status: <strong>PENDING DISPATCH CONFIRMATION</strong></p><p>Broker quoted (incl. 2h wait): <strong>$${brokerRateWithWait.toFixed(2)}</strong></p><p>Platform rate (incl. 2h wait): <strong>$${platformRate.toFixed(2)}</strong></p><p>Variance: <strong>$${variance.toFixed(2)}</strong></p><p>Dispatch will review and confirm final acceptance.</p>`;
-  await sendEmail([senderEmail],`Nexus broker request received — ${brokerName}`,confirmationHtml).catch(()=>{});
+  let emailNotification={status:'skipped'};
+  const emailAlreadySent=await hasNotificationLog({requestId:request.id,messageId,channel:'BROKER_CONFIRMATION_EMAIL'});
+  if(!emailAlreadySent){
+   emailNotification=await sendEmail([senderEmail],`Nexus broker request received — ${brokerName}`,confirmationHtml).catch((error)=>({status:'failed',error:error.message}));
+   await auditNotification({
+    requestId:request.id,
+    channel:'BROKER_CONFIRMATION_EMAIL',
+    messageId,
+    status:emailNotification.status||'failed',
+    error:emailNotification.error||null
+   });
+  }else{
+    emailNotification={status:'skipped',reason:'already_sent_for_message'};
+  }
 
   return json(201,{
    success:true,
@@ -571,6 +916,8 @@ exports.handler=async(event)=>{
    platform_rate_including_wait:platformRate,
    variance,
    estimated_trip_cost:costBreakdown.tripCost,
+  teams_notification_status:teamsNotification.status||'unknown',
+  email_notification_status:emailNotification.status||'unknown',
    status:'PENDING_DISPATCH_CONFIRMATION',
    message:'Broker request processed and routed for dispatch/Admin_NMT review.'
   });

@@ -35,6 +35,8 @@
     "mobile:patient:ios:open": "npm --prefix mobile/patient-ios run ios:open"
   },
   "dependencies": {
+    "mailparser": "^3.7.2",
+    "pdf-parse": "^1.1.1",
     "pg": "8.16.3"
   },
   "devDependencies": {
