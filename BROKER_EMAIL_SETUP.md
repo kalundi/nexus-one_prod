@@ -91,6 +91,32 @@ Expected result:
 - `Test-ApplicationAccessPolicy` returns `Access Granted` for the scoped mailbox.
 - `Test-ApplicationAccessPolicy` returns `Access Denied` for mailboxes outside the scope group.
 
+### Graph Go-Live Checklist
+
+Use this checklist to validate end-to-end readiness before relying on production intake:
+
+1. Azure app registration exists and `Mail.Read` application permission is granted with admin consent.
+2. Netlify environment variables are set: `M365_TENANT_ID`, `M365_CLIENT_ID`, `M365_CLIENT_SECRET`, `M365_MAILBOX_ADDRESS`.
+3. Mailbox scope lockdown policy is applied and verified with `Test-ApplicationAccessPolicy`.
+4. Scheduled polling exists in `netlify.toml` for `graph-mail-sync`.
+5. Deploy completed successfully with no function build errors.
+6. Run a manual sync once:
+  ```bash
+  curl "https://your-site.netlify.app/.netlify/functions/graph-mail-sync?since=2026-07-31T00:00:00Z"
+  ```
+7. Confirm successful ingestion from response fields:
+  - `processed` is greater than 0 for known test data.
+  - no repeated duplicates for the same source email id.
+8. Verify operational outputs:
+  - broker request appears in admin broker queue,
+  - booking is created when confirmation + attachment conditions are met,
+  - Teams review notification is posted to `Admin_NMT`.
+9. Verify forwarding rule behavior:
+  - incoming mail to `fletcher@nexusmt.com` from `xxxx@gotandt.com` is forwarded to `jubilee@nexusmt.com`.
+10. Monitor first 24 hours:
+  - check Netlify function logs for `graph-mail-sync` and `broker-email-webhook`,
+  - confirm no auth/token failures and no parsing regressions.
+
 Supported email services:
 - **SendGrid** (Recommended - most integration-friendly)
 - **AWS SES** + SNS
