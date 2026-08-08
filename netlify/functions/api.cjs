@@ -1723,17 +1723,7 @@ async function handler(event){
   const opening=voiceOpeningScript(config);
    const nonPhiNotice=config.nonPhiMode?' For privacy, I can only collect general callback information until a Nexus representative joins the call.':'';
    if(!config.streamUrl){
-    const targets=getDispatchDialTargets(config,callerFrom);
-    const fallbackTwiml=targets.primary
-     ?dispatchDialTwiml({
-      message:`${opening} Please hold while I connect you with Nexus dispatch.`,
-      targetNumber:targets.primary,
-      callerId:config.callerId,
-      attempt:'primary',
-      region:targets.region
-     })
-    :voiceMenuTwiml(config,0,{intro:opening});
-    return xmlResponse(200,fallbackTwiml);
+    return xmlResponse(200,voiceMenuTwiml(config,0,{intro:opening}));
    }
   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(opening,config)}\n  <Pause length="1" />\n  ${nonPhiNotice?`${sayTag(nonPhiNotice,config)}\n  <Pause length="1" />\n  `:''}<Connect>\n    <Stream url="${xmlEscape(config.streamUrl)}" />\n  </Connect>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
    return xmlResponse(200,body);
