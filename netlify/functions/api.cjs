@@ -105,7 +105,11 @@ function upsertCheckInNote(notes,checkInTime){
  return `${base} | ${checkInLine}`;
 }
 function getSubmittedAppointmentTime(row){
- return normalizeOptionalTripTime(row?.appointment_time||row?.appointmentTime||extractAppointmentTimeFromNotes(row?.notes||''));
+ const explicitAppointment=normalizeOptionalTripTime(row?.appointment_time||row?.appointmentTime||extractAppointmentTimeFromNotes(row?.notes||''));
+ if(explicitAppointment) return explicitAppointment;
+ const bookingSource=clean(row?.booking_source||row?.bookingSource).toUpperCase();
+ if(bookingSource.includes('BROKER')) return normalizeOptionalTripTime(row?.trip_time||row?.time||'');
+ return '';
 }
 function getCheckInTime(row){
  return normalizeOptionalTripTime(row?.check_in_time||row?.checkInTime||extractCheckInTimeFromNotes(row?.notes||''));
@@ -1296,6 +1300,13 @@ function parseHmToMinutes(value,fallbackMinutes){
  if(!Number.isFinite(h)||!Number.isFinite(m)||h<0||h>23||m<0||m>59)return fallbackMinutes;
  return h*60+m;
 }
+function parseBoundedInt(value,fallback,min,max){
+ const n=Number(value);
+ if(!Number.isFinite(n))return fallback;
+ const rounded=Math.round(n);
+ if(rounded<min||rounded>max)return fallback;
+ return rounded;
+}
 function nowInTimeZone(tz){
  const parts=new Intl.DateTimeFormat('en-US',{
   timeZone:tz,
@@ -1328,24 +1339,58 @@ function getVoiceConfig(){
  const callerId=clean(process.env.DISPATCH_CALLER_ID)||'+18886395766';
  const primaryDispatch=clean(process.env.DISPATCH_PRIMARY_NUMBER||process.env.DISPATCH_PHONE||'');
  const secondaryDispatch=clean(process.env.DISPATCH_SECONDARY_NUMBER||'');
+ const dispatchMdPrimary=clean(process.env.DISPATCH_MD_NUMBER||process.env.DISPATCH_REGIONAL_MD_NUMBER||'');
+ const dispatchDcPrimary=clean(process.env.DISPATCH_DC_NUMBER||process.env.DISPATCH_REGIONAL_DC_NUMBER||'');
+ const dispatchMdSecondary=clean(process.env.DISPATCH_MD_SECONDARY_NUMBER||'');
+ const dispatchDcSecondary=clean(process.env.DISPATCH_DC_SECONDARY_NUMBER||'');
+ const dispatchMdAreaCodes=new Set((clean(process.env.DISPATCH_MD_AREA_CODES)||'227,240,301,410,443,667').split(',').map((code)=>code.trim()).filter((code)=>/^\d{3}$/.test(code)));
+ const dispatchDcAreaCodes=new Set((clean(process.env.DISPATCH_DC_AREA_CODES)||'202,771').split(',').map((code)=>code.trim()).filter((code)=>/^\d{3}$/.test(code)));
  const supportPhoneE164=clean(process.env.DISPATCH_PHONE||process.env.NEXUS_DISPATCH_PHONE||'+18887604990');
  const supportPhone=formatPhoneDisplay(supportPhoneE164);
  const afterHoursVoicemail=clean(process.env.AFTER_HOURS_VOICEMAIL_NUMBER||'');
  const streamUrl=clean(process.env.TWILIO_MEDIA_STREAM_URL||'');
  const voiceName=clean(process.env.TWILIO_VOICE_NAME||'Polly.Joanna-Neural');
  const voiceLanguage=clean(process.env.TWILIO_VOICE_LANGUAGE||'en-US');
+ const voiceMenuInitialPrompt=clean(process.env.VOICE_MENU_INITIAL_PROMPT||'Please tell me what you need, or press 1 for dispatch.');
+ const voiceMenuRetryPrompt=clean(process.env.VOICE_MENU_RETRY_PROMPT||'Sorry, I did not catch that. Please take your time and say your request after the tone.');
+ const voiceMenuHelpPromptInitial=clean(process.env.VOICE_MENU_HELP_PROMPT_INITIAL||'You can say dispatch, representative, or human at any time.');
+ const voiceMenuHelpPromptRetry=clean(process.env.VOICE_MENU_HELP_PROMPT_RETRY||'You can say dispatch, booking help, or service hours.');
+ const voiceMenuKeypadPromptInitial=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_INITIAL||'Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours.');
+ const voiceMenuKeypadPromptRetry=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_RETRY||'Press 1 for dispatch. Press 2 for booking help. Press 3 for service areas and business hours.');
+ const voiceMenuListenPrompt=clean(process.env.VOICE_MENU_LISTEN_PROMPT||'Take your time. I am listening.');
+ const voiceMenuGatherTimeout=parseBoundedInt(process.env.VOICE_MENU_GATHER_TIMEOUT,10,4,20);
+ const voiceMenuSpeechTimeout=parseBoundedInt(process.env.VOICE_MENU_SPEECH_TIMEOUT,5,2,12);
+ const voiceMenuPreGatherPause=parseBoundedInt(process.env.VOICE_MENU_PRE_GATHER_PAUSE,2,0,5);
+ const voiceMenuPostGatherPause=parseBoundedInt(process.env.VOICE_MENU_POST_GATHER_PAUSE,2,0,5);
  const nonPhiMode=String(process.env.NON_PHI_MODE||'true').toLowerCase()!=='false';
  const allowPhiIntake=String(process.env.ALLOW_PHI_INTAKE||'false').toLowerCase()==='true';
  return {
   callerId,
   primaryDispatch,
   secondaryDispatch,
+  dispatchMdPrimary,
+  dispatchDcPrimary,
+  dispatchMdSecondary,
+  dispatchDcSecondary,
+  dispatchMdAreaCodes,
+  dispatchDcAreaCodes,
   supportPhone,
   supportPhoneE164,
   afterHoursVoicemail,
   streamUrl,
   voiceName,
   voiceLanguage,
+  voiceMenuInitialPrompt,
+  voiceMenuRetryPrompt,
+  voiceMenuHelpPromptInitial,
+  voiceMenuHelpPromptRetry,
+  voiceMenuKeypadPromptInitial,
+  voiceMenuKeypadPromptRetry,
+  voiceMenuListenPrompt,
+  voiceMenuGatherTimeout,
+  voiceMenuSpeechTimeout,
+  voiceMenuPreGatherPause,
+  voiceMenuPostGatherPause,
   nonPhiMode,
   allowPhiIntake,
   businessHoursTz:tz,
@@ -1375,10 +1420,48 @@ function voiceRouteUrl(path,query=''){
  const base=`${siteBase()}/api/voice/${path}`;
  return query?`${base}?${query}`:base;
 }
-function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary'}){
- const actionUrl=xmlEscape(voiceRouteUrl('dispatch-fallback',`attempt=${encodeURIComponent(attempt)}`));
+function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary',region=''}){
+ const actionParams=new URLSearchParams({attempt:String(attempt||'primary')});
+ if(region)actionParams.set('region',String(region));
+ const actionUrl=xmlEscape(voiceRouteUrl('dispatch-fallback',actionParams.toString()));
  const dialNumber=xmlEscape(targetNumber);
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(message)}</Say>\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
+}
+function getCallerAreaCode(value){
+ const digits=String(value||'').replace(/\D/g,'');
+ const normalized=digits.length===11&&digits.startsWith('1')?digits.slice(1):digits;
+ if(normalized.length!==10)return '';
+ return normalized.slice(0,3);
+}
+function resolveDispatchRegionByCaller(value,config){
+ const areaCode=getCallerAreaCode(value);
+ if(!areaCode)return '';
+ if(config.dispatchDcAreaCodes?.has(areaCode))return 'DC';
+ if(config.dispatchMdAreaCodes?.has(areaCode))return 'MD';
+ return '';
+}
+function getDispatchDialTargets(config,fromNumber,preferredRegion=''){
+ const region=String(preferredRegion||resolveDispatchRegionByCaller(fromNumber,config)||'').toUpperCase();
+ const mdPrimary=clean(config.dispatchMdPrimary||'');
+ const dcPrimary=clean(config.dispatchDcPrimary||'');
+ const mdSecondary=clean(config.dispatchMdSecondary||'');
+ const dcSecondary=clean(config.dispatchDcSecondary||'');
+ const primaryFallback=clean(config.primaryDispatch||'');
+ const secondaryFallback=clean(config.secondaryDispatch||'');
+ let primary='';
+ let secondary='';
+ if(region==='DC'){
+  primary=dcPrimary||primaryFallback||mdPrimary;
+  secondary=dcSecondary||secondaryFallback||(primary!==mdPrimary?mdPrimary:'')||mdSecondary;
+ }else if(region==='MD'){
+  primary=mdPrimary||primaryFallback||dcPrimary;
+  secondary=mdSecondary||secondaryFallback||(primary!==dcPrimary?dcPrimary:'')||dcSecondary;
+ }else{
+  primary=primaryFallback||mdPrimary||dcPrimary;
+  secondary=secondaryFallback||(primary!==mdPrimary?mdPrimary:'')||(primary!==dcPrimary?dcPrimary:'')||mdSecondary||dcSecondary;
+ }
+ if(secondary&&secondary===primary)secondary='';
+ return {region,primary,secondary};
 }
 function voiceOpeningScript(config){
  return "Thank you for calling Nexus Medical Transit. You've reached the Nexus Virtual Receptionist. I'm here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?";
@@ -1529,12 +1612,23 @@ function voiceMenuTwiml(config,retryCount=0,opts={}){
  const gatherAction=xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount))}`));
  const introMessage=clean(opts.intro||'');
  const sayIntro=retryCount>0
-  ?'Sorry, I did not catch that.'
-  :'How may I assist you today?';
+  ?clean(config?.voiceMenuRetryPrompt||'')
+  :clean(config?.voiceMenuInitialPrompt||'');
+ const helpPrompt=retryCount>0
+  ?clean(config?.voiceMenuHelpPromptRetry||'')
+  :clean(config?.voiceMenuHelpPromptInitial||'');
+ const keypadPrompt=retryCount>0
+  ?clean(config?.voiceMenuKeypadPromptRetry||'')
+  :clean(config?.voiceMenuKeypadPromptInitial||'');
+ const listenPrompt=clean(config?.voiceMenuListenPrompt||'Take your time. I am listening.');
+ const prePause=Math.max(0,Number(config?.voiceMenuPreGatherPause||2));
+ const postPause=Math.max(0,Number(config?.voiceMenuPostGatherPause||2));
+ const gatherTimeout=Math.max(4,Number(config?.voiceMenuGatherTimeout||10));
+ const speechTimeout=Math.max(2,Number(config?.voiceMenuSpeechTimeout||5));
  const introBlock=(introMessage&&retryCount===0)
   ?`${sayTag(introMessage,config)}\n  <Pause length="1" />\n  `
   :'';
- return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${introBlock}${sayTag(sayIntro,config)}\n  <Pause length="1" />\n  <Gather input="speech dtmf" numDigits="1" timeout="7" speechTimeout="auto" action="${gatherAction}" method="POST">\n    ${sayTag('You can say dispatch, representative, or human at any time.',config)}\n    <Pause length="1" />\n    ${sayTag('Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours.',config)}\n  </Gather>\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`))}</Redirect>\n</Response>`;
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${introBlock}${sayTag(sayIntro,config)}\n  <Pause length="${prePause}" />\n  <Gather input="speech dtmf" numDigits="1" timeout="${gatherTimeout}" speechTimeout="${speechTimeout}" action="${gatherAction}" method="POST">\n    ${sayTag(helpPrompt,config)}\n    <Pause length="1" />\n    ${sayTag(keypadPrompt,config)}\n    <Pause length="1" />\n    ${sayTag(listenPrompt,config)}\n  </Gather>\n  <Pause length="${postPause}" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`))}</Redirect>\n</Response>`;
 }
 async function createStripeCheckoutSession(amountCents,metadata){
  if(!envEnabled('STRIPE_SECRET_KEY'))throw Object.assign(new Error('Stripe is not configured'),{statusCode:503});
@@ -1619,6 +1713,8 @@ async function handler(event){
   const p=routePath(event),method=event.httpMethod;
   if(p[0]==='voice'&&p[1]==='incoming-call'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();
+    const params=parseWebhookBody(event);
+    const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
    const openNow=isBusinessHoursOpen(config);
    if(!openNow&&config.afterHoursVoicemail){
     const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
@@ -1627,12 +1723,14 @@ async function handler(event){
   const opening=voiceOpeningScript(config);
    const nonPhiNotice=config.nonPhiMode?' For privacy, I can only collect general callback information until a Nexus representative joins the call.':'';
    if(!config.streamUrl){
-    const fallbackTwiml=config.primaryDispatch
+    const targets=getDispatchDialTargets(config,callerFrom);
+    const fallbackTwiml=targets.primary
      ?dispatchDialTwiml({
       message:`${opening} Please hold while I connect you with Nexus dispatch.`,
-      targetNumber:config.primaryDispatch,
+      targetNumber:targets.primary,
       callerId:config.callerId,
-      attempt:'primary'
+      attempt:'primary',
+      region:targets.region
      })
     :voiceMenuTwiml(config,0,{intro:opening});
     return xmlResponse(200,fallbackTwiml);
@@ -1668,14 +1766,17 @@ async function handler(event){
    const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
    const digits=clean(params.Digits||params.digits||'');
    const speech=clean(params.SpeechResult||params.speechResult||'');
+   const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
    const intentText=`${digits} ${speech}`.trim();
    if(digits==='1'||wantsHumanTransfer(intentText)){
-    if(config.primaryDispatch){
+    const targets=getDispatchDialTargets(config,callerFrom);
+    if(targets.primary){
      return xmlResponse(200,dispatchDialTwiml({
       message:'Please hold while I connect you with Nexus dispatch.',
-      targetNumber:config.primaryDispatch,
+      targetNumber:targets.primary,
       callerId:config.callerId,
-      attempt:'primary'
+      attempt:'primary',
+      region:targets.region
      }));
     }
     if(config.afterHoursVoicemail){
@@ -1705,12 +1806,14 @@ async function handler(event){
     return xmlResponse(200,body);
    }
    if(retry>=1){
-    if(config.primaryDispatch){
+    const targets=getDispatchDialTargets(config,callerFrom);
+    if(targets.primary){
      return xmlResponse(200,dispatchDialTwiml({
       message:'I will connect you with Nexus dispatch for further assistance.',
-      targetNumber:config.primaryDispatch,
+      targetNumber:targets.primary,
       callerId:config.callerId,
-      attempt:'primary'
+      attempt:'primary',
+      region:targets.region
      }));
     }
     if(config.afterHoursVoicemail){
@@ -1723,12 +1826,18 @@ async function handler(event){
   }
   if(p[0]==='voice'&&p[1]==='transfer-dispatch'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();
-   if(!config.primaryDispatch)return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Dispatch transfer is temporarily unavailable. Please call back shortly.</Say>\n</Response>');
+    const params=parseWebhookBody(event);
+    const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
+    const preferredRegion=clean(event.queryStringParameters?.region||params.region||'').toUpperCase();
+    const targets=getDispatchDialTargets(config,callerFrom,preferredRegion);
+    if(!targets.primary)return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Dispatch transfer is temporarily unavailable. Please call back shortly.</Say>\n</Response>');
+    const regionalLabel=targets.region==='DC'?'the Washington D C regional dispatch center':targets.region==='MD'?'the Maryland regional dispatch center':'Nexus dispatch';
    const body=dispatchDialTwiml({
-    message:'Please hold while I connect you with Nexus dispatch.',
-    targetNumber:config.primaryDispatch,
+     message:`Please hold while I connect you with ${regionalLabel}.`,
+     targetNumber:targets.primary,
     callerId:config.callerId,
-    attempt:'primary'
+     attempt:'primary',
+     region:targets.region
    });
    return xmlResponse(200,body);
   }
@@ -1736,16 +1845,20 @@ async function handler(event){
    const config=getVoiceConfig();
    const params=parseWebhookBody(event);
    const attempt=clean(event.queryStringParameters?.attempt||params.attempt||'primary').toLowerCase();
+    const regionHint=clean(event.queryStringParameters?.region||params.region||'').toUpperCase();
    const dialStatus=clean(params.DialCallStatus||params.dialCallStatus||'').toLowerCase();
+    const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
+    const targets=getDispatchDialTargets(config,callerFrom,regionHint);
    if(dialStatus==='completed'){
     return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Hangup />\n</Response>');
    }
-   if(attempt!=='secondary'&&config.secondaryDispatch){
+    if(attempt!=='secondary'&&targets.secondary){
     const body=dispatchDialTwiml({
      message:'The primary dispatch line is unavailable. Please hold while I try our secondary dispatch line.',
-     targetNumber:config.secondaryDispatch,
+      targetNumber:targets.secondary,
      callerId:config.callerId,
-     attempt:'secondary'
+      attempt:'secondary',
+      region:targets.region
     });
     return xmlResponse(200,body);
    }
@@ -1757,12 +1870,16 @@ async function handler(event){
   }
   if(p[0]==='voice'&&p[1]==='primary-webhook-failure'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();
-   if(config.primaryDispatch){
+    const params=parseWebhookBody(event);
+    const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
+    const targets=getDispatchDialTargets(config,callerFrom);
+    if(targets.primary){
     const body=dispatchDialTwiml({
      message:'Our automated system is unavailable. Please hold while I connect you with Nexus dispatch.',
-     targetNumber:config.primaryDispatch,
+      targetNumber:targets.primary,
      callerId:config.callerId,
-     attempt:'primary'
+      attempt:'primary',
+      region:targets.region
     });
     return xmlResponse(200,body);
    }

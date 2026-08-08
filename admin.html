@@ -54,6 +54,37 @@
 .msgBox.ok{background:#d9f4e8;color:#0b644a;border:1px solid #a7dfc5}
 .msgBox.err{background:#ffe5e8;color:var(--red);border:1px solid #f5b8bf}
 .sectionTab{scroll-margin-top:100px}
+.adminDashboardHome{position:relative;overflow:hidden;border:1px solid #d5e3ee;border-radius:22px;padding:24px;background:linear-gradient(140deg,#f4f9ff 0%,#eef6ff 54%,#f7fbff 100%);box-shadow:0 20px 35px rgba(7,31,55,.08);margin:6px 0 18px}
+.adminDashboardHome:before{content:"";position:absolute;right:-120px;top:-160px;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,rgba(13,148,136,.16),transparent 70%);pointer-events:none}
+.adminDashboardHead{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}
+.adminDashboardHead h2{margin:0;font-size:26px;line-height:1.1;font-family:Manrope,sans-serif}
+.adminDashboardHead p{margin:8px 0 0;color:#35506a}
+.adminDashboardMeta{display:flex;gap:8px;flex-wrap:wrap}
+.dashboardChip{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;background:#fff;border:1px solid #d4e2ef;color:#26435f;font-size:12px;font-weight:800;letter-spacing:.02em}
+.dashboardGrid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.dashboardTile{display:grid;gap:10px;padding:14px 14px 12px;border-radius:14px;border:1px solid #cbdced;background:rgba(255,255,255,.94);color:#0f2742;text-align:left;cursor:pointer;transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease}
+.dashboardTile:hover,.dashboardTile:focus-visible{transform:translateY(-2px);border-color:#7ab7df;box-shadow:0 12px 24px rgba(13,54,91,.12)}
+.dashboardTile.active{border-color:#0d76b5;box-shadow:0 10px 22px rgba(13,118,181,.2)}
+.dashboardTile h3{margin:0;font-family:Manrope,sans-serif;font-size:16px;line-height:1.15}
+.dashboardTile p{margin:0;color:#3c5871;font-size:13px;line-height:1.3}
+.dashSignal{display:inline-flex;align-items:center;justify-content:center;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;width:max-content}
+.dashSignal.normal{background:#dcfce7;color:#166534}
+.dashSignal.warn{background:#ffedd5;color:#9a3412}
+.dashSignal.alert{background:#fee2e2;color:#991b1b}
+.dashboardTile[disabled]{opacity:.5;cursor:not-allowed;transform:none}
+.dashboardTile[disabled]:hover{box-shadow:none;border-color:#cbdced}
+.adminFocusToolbar{display:none;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:10px;z-index:6;margin-bottom:14px;padding:10px 14px;border-radius:14px;background:rgba(8,35,62,.95);color:#fff;box-shadow:0 16px 30px rgba(6,24,44,.28);backdrop-filter:blur(5px)}
+.adminFocusToolbar strong{font-family:Manrope,sans-serif;font-size:15px;letter-spacing:.01em}
+.adminFocusToolbar .button{border-color:rgba(255,255,255,.3);color:#fff;background:rgba(255,255,255,.08)}
+.adminFocusToolbar .button:hover{background:rgba(255,255,255,.16)}
+body.adminDashboardMode .sectionTab{display:none}
+body.adminDashboardMode .adminDashboardHome{display:block}
+body.adminDashboardMode .adminFocusToolbar{display:none}
+body.adminFocusMode .adminFocusToolbar{display:flex}
+body.adminFocusMode .adminDashboardHome{display:none}
+body.adminFocusMode #main.shell{max-width:100%;padding-left:20px;padding-right:20px}
+body.adminFocusMode .sectionTab{display:none}
+body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh - 130px);padding:18px;border-radius:18px;background:#fff;border:1px solid #d8e6f2;box-shadow:0 24px 42px rgba(6,24,44,.12);margin:0}
 @media(max-width:900px){.adminHeroInner{grid-template-columns:1fr}.adminStatPanel{display:none}.formRow,.formRow.triple{grid-template-columns:1fr}.adminShortcuts{gap:8px}}
 </style>
   <link rel="stylesheet" href="./platform.css">
@@ -92,6 +123,66 @@
 </div></section>
 
 <main id="main" class="shell moduleMain" tabindex="-1">
+
+<section class="adminDashboardHome" id="adminDashboardHome" aria-label="Admin dashboard sections">
+  <div class="adminDashboardHead">
+    <div>
+      <h2>Admin Workflow Dashboard</h2>
+      <p>All cards are hidden by default. Select one to open a focused full-screen workspace.</p>
+    </div>
+    <div class="adminDashboardMeta">
+      <span class="dashboardChip">Single-focus mode</span>
+      <span class="dashboardChip" id="dashboardAnomalySummary">Monitoring anomalies...</span>
+    </div>
+  </div>
+  <div class="dashboardGrid" id="adminDashboardGrid">
+    <button class="dashboardTile" type="button" data-section-target="userSection">
+      <span class="dashSignal normal" data-signal-for="userSection">Normal</span>
+      <h3>User management</h3>
+      <p>Accounts, roles, and access controls.</p>
+    </button>
+    <button class="dashboardTile" type="button" data-section-target="pricingSection">
+      <span class="dashSignal normal" data-signal-for="pricingSection">Normal</span>
+      <h3>Pricing manager</h3>
+      <p>Service pricing and fare matrix governance.</p>
+    </button>
+    <button class="dashboardTile" type="button" data-section-target="manageTripSection">
+      <span class="dashSignal normal" data-signal-for="manageTripSection">Normal</span>
+      <h3>Manage trip</h3>
+      <p>Trip lookup and direct fare adjustment operations.</p>
+    </button>
+    <button class="dashboardTile" type="button" data-section-target="adminTripsSection">
+      <span class="dashSignal normal" data-signal-for="adminTripsSection">Normal</span>
+      <h3>Trips oversight</h3>
+      <p>Latest trips, filters, and status progression actions.</p>
+    </button>
+    <button class="dashboardTile" type="button" data-section-target="settingsSection">
+      <span class="dashSignal normal" data-signal-for="settingsSection">Normal</span>
+      <h3>Organization settings</h3>
+      <p>Platform-level config and operational policies.</p>
+    </button>
+    <button class="dashboardTile" type="button" data-section-target="costAnalyzerSection">
+      <span class="dashSignal normal" data-signal-for="costAnalyzerSection">Normal</span>
+      <h3>Cost analyzer</h3>
+      <p>Trip economics, profitability, and cost breakdowns.</p>
+    </button>
+    <button class="dashboardTile" type="button" data-section-target="socialSection">
+      <span class="dashSignal normal" data-signal-for="socialSection">Normal</span>
+      <h3>Social automation</h3>
+      <p>Channel queue previews and publish run history.</p>
+    </button>
+    <button class="dashboardTile" type="button" data-section-target="auditSection">
+      <span class="dashSignal normal" data-signal-for="auditSection">Normal</span>
+      <h3>Audit log</h3>
+      <p>Compliance activity, system actions, and traceability.</p>
+    </button>
+  </div>
+</section>
+
+<div class="adminFocusToolbar" id="adminFocusToolbar" aria-live="polite">
+  <button class="button" id="adminDashboardBack" type="button">Back to dashboard</button>
+  <strong id="adminFocusTitle">Focused workspace</strong>
+</div>
 
 <!-- User Management -->
 <section class="sectionTab" id="userSection">
@@ -155,10 +246,12 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="button" id="refreshAdminTrips" type="button">Refresh trips</button>
+      <button class="button" id="toggleAdminTripsVisibility" type="button">Show all trips</button>
     </div>
   </div>
   <div class="auditFilter" style="margin-bottom:12px">
     <input id="adminTripReferenceFilter" type="text" placeholder="Search reference e.g. NMT-20260805-5156" style="padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:inherit;min-width:240px">
+    <input id="adminTripDateFilter" type="date" style="padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:inherit" aria-label="Filter trips by date">
     <select id="adminTripSourceFilter" style="padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:inherit">
       <option value="ALL">All sources</option>
       <option value="REAL">Real bookings only</option>

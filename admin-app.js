@@ -8,6 +8,223 @@ const userRole=()=>{
 };
 const canEditSettings=()=>userRole()==='ADMIN';
 let currentSettings=null;
+const ADMIN_DASHBOARD_SECTIONS=['userSection','pricingSection','manageTripSection','adminTripsSection','settingsSection','costAnalyzerSection','socialSection','auditSection'];
+const ADMIN_DASHBOARD_LABELS={
+  userSection:'User management',
+  pricingSection:'Pricing manager',
+  manageTripSection:'Manage trip',
+  adminTripsSection:'Trips oversight',
+  settingsSection:'Organization settings',
+  costAnalyzerSection:'Cost analyzer',
+  socialSection:'Social automation',
+  auditSection:'Audit log'
+};
+let adminFocusSectionId='';
+const DASHBOARD_THRESHOLDS={
+  userActiveWarnRatio:0.75,
+  userActiveAlertRatio:0.6,
+  overdueWarnMinutes:30,
+  overdueAlertMinutes:90,
+  demoTripWarnCount:10,
+  profitWarnFloor:0,
+  profitAlertFloor:-250,
+  socialFailureWindowHours:24,
+  socialFailureAlertCount:3,
+  auditStaleWarnHours:24,
+  auditStaleAlertHours:72
+};
+
+function normalizeNumberText(value){
+  return Number(String(value||'').replace(/[^0-9.-]/g,''));
+}
+
+function hoursAgoIso(hours){
+  return Date.now()-(hours*60*60*1000);
+}
+
+function parseIsoTime(value){
+  const text=String(value||'').trim();
+  if(!text) return null;
+  const dt=new Date(text);
+  return Number.isNaN(dt.getTime())?null:dt;
+}
+
+function countRecentFailedPublishes(){
+  const cutoff=hoursAgoIso(DASHBOARD_THRESHOLDS.socialFailureWindowHours);
+  let count=0;
+  document.querySelectorAll('#socialHistoryRows tr[data-created-at]').forEach((row)=>{
+    const dt=parseIsoTime(row.getAttribute('data-created-at'));
+    if(!dt||dt.getTime()<cutoff) return;
+    const statusCell=row.querySelector('td:nth-child(4) .pill');
+    if(statusCell?.classList.contains('red')) count+=1;
+  });
+  return count;
+}
+
+function getLatestAuditAgeHours(){
+  let latestTs=0;
+  document.querySelectorAll('#auditList .auditRow[data-created-at]').forEach((row)=>{
+    const dt=parseIsoTime(row.getAttribute('data-created-at'));
+    if(!dt) return;
+    latestTs=Math.max(latestTs,dt.getTime());
+  });
+  if(!latestTs) return null;
+  return (Date.now()-latestTs)/(60*60*1000);
+}
+
+function setDashboardSignal(sectionId,tone,label){
+  const signal=document.querySelector(`[data-signal-for="${sectionId}"]`);
+  if(!signal) return;
+  signal.classList.remove('normal','warn','alert');
+  signal.classList.add(tone);
+  signal.textContent=label;
+}
+
+function updateDashboardAnomalySummary(){
+  const summary=document.getElementById('dashboardAnomalySummary');
+  if(!summary) return;
+  const alertCount=document.querySelectorAll('.dashSignal.alert').length;
+  const warnCount=document.querySelectorAll('.dashSignal.warn').length;
+  if(alertCount>0){
+    summary.textContent=`${alertCount} critical issue${alertCount===1?'':'s'}`;
+    summary.style.background='#fee2e2';
+    summary.style.borderColor='#fecaca';
+    summary.style.color='#991b1b';
+    return;
+  }
+  if(warnCount>0){
+    summary.textContent=`${warnCount} watch item${warnCount===1?'':'s'}`;
+    summary.style.background='#ffedd5';
+    summary.style.borderColor='#fed7aa';
+    summary.style.color='#9a3412';
+    return;
+  }
+  summary.textContent='All monitored areas normal';
+  summary.style.background='#dcfce7';
+  summary.style.borderColor='#bbf7d0';
+  summary.style.color='#166534';
+}
+
+function updateDashboardSignals(){
+  const totalUsers=normalizeNumberText(document.getElementById('statUsers')?.textContent);
+  const activeUsers=normalizeNumberText(document.getElementById('statActiveUsers')?.textContent);
+  if(Number.isFinite(totalUsers)&&totalUsers>0){
+    const activeRatio=activeUsers/totalUsers;
+    if(activeRatio<DASHBOARD_THRESHOLDS.userActiveAlertRatio) setDashboardSignal('userSection','alert',`${Math.round(activeRatio*100)}% active`);
+    else if(activeRatio<DASHBOARD_THRESHOLDS.userActiveWarnRatio) setDashboardSignal('userSection','warn',`${Math.round(activeRatio*100)}% active`);
+    else setDashboardSignal('userSection','normal','Healthy access');
+  }
+
+  const pricedServices=normalizeNumberText(document.getElementById('statPricing')?.textContent);
+  if(!Number.isFinite(pricedServices)||pricedServices<=0) setDashboardSignal('pricingSection','alert','Missing pricing');
+  else setDashboardSignal('pricingSection','normal',`${pricedServices} services priced`);
+
+  const overdueMetrics=adminTripsCache.reduce((acc,trip)=>{
+    const dt=adminTripDateTime(trip);
+    if(!dt) return acc;
+    const minutesLate=(Date.now()-dt.getTime())/(60*1000);
+    if(minutesLate<=0) return acc;
+    const status=String(trip?.status||trip?.statusLabel||'').toUpperCase();
+    if(['COMPLETED','CANCELLED','NO_SHOW','MISSED'].some((done)=>status.includes(done))) return acc;
+    acc.total+=1;
+    if(minutesLate>=DASHBOARD_THRESHOLDS.overdueAlertMinutes) acc.severe+=1;
+    return acc;
+  },{total:0,severe:0});
+  if(overdueMetrics.severe>0) setDashboardSignal('adminTripsSection','alert',`${overdueMetrics.severe} severe overdue`);
+  else if(overdueMetrics.total>0) setDashboardSignal('adminTripsSection','warn',`${overdueMetrics.total} overdue ${DASHBOARD_THRESHOLDS.overdueWarnMinutes}+m`);
+  else setDashboardSignal('adminTripsSection','normal','On schedule');
+
+  const tripTotal=adminTripsCache.length;
+  const demoTrips=adminTripsCache.filter((trip)=>isDemoTripRecord(trip)).length;
+  if(tripTotal>0&&demoTrips>=DASHBOARD_THRESHOLDS.demoTripWarnCount) setDashboardSignal('manageTripSection','warn',`${demoTrips} demo trips`);
+  else if(tripTotal>0&&demoTrips>0) setDashboardSignal('manageTripSection','normal',`${demoTrips} demo baseline`);
+  else setDashboardSignal('manageTripSection','normal','Operational set');
+
+  const profitValue=normalizeNumberText(document.getElementById('costProfit')?.textContent);
+  if(Number.isFinite(profitValue)&&profitValue<=DASHBOARD_THRESHOLDS.profitAlertFloor) setDashboardSignal('costAnalyzerSection','alert','Material loss');
+  else if(Number.isFinite(profitValue)&&profitValue<DASHBOARD_THRESHOLDS.profitWarnFloor) setDashboardSignal('costAnalyzerSection','warn','Slight loss');
+  else if(Number.isFinite(profitValue)) setDashboardSignal('costAnalyzerSection','normal','Profit positive');
+
+  const failedPublishes=countRecentFailedPublishes();
+  if(failedPublishes>=DASHBOARD_THRESHOLDS.socialFailureAlertCount) setDashboardSignal('socialSection','alert',`${failedPublishes} failed (24h)`);
+  else if(failedPublishes>0) setDashboardSignal('socialSection','warn',`${failedPublishes} failed (24h)`);
+  else setDashboardSignal('socialSection','normal','Channels stable');
+
+  const auditRows=document.querySelectorAll('#auditList .auditRow').length;
+  const latestAuditAgeHours=getLatestAuditAgeHours();
+  if(auditRows===0||latestAuditAgeHours==null) setDashboardSignal('auditSection','warn','No recent entries');
+  else if(latestAuditAgeHours>=DASHBOARD_THRESHOLDS.auditStaleAlertHours) setDashboardSignal('auditSection','alert',`Last audit ${Math.round(latestAuditAgeHours)}h ago`);
+  else if(latestAuditAgeHours>=DASHBOARD_THRESHOLDS.auditStaleWarnHours) setDashboardSignal('auditSection','warn',`Last audit ${Math.round(latestAuditAgeHours)}h ago`);
+  else setDashboardSignal('auditSection','normal',`${auditRows} recent actions`);
+
+  setDashboardSignal('settingsSection','normal',canEditSettings()?'Admin editable':'Dispatcher view');
+  updateDashboardAnomalySummary();
+}
+
+function syncDashboardTilesWithVisibility(){
+  document.querySelectorAll('[data-section-target]').forEach((tile)=>{
+    const sectionId=tile.getAttribute('data-section-target');
+    const section=document.getElementById(sectionId);
+    const available=Boolean(section&&section.style.display!=='none');
+    if(!available){
+      tile.setAttribute('disabled','disabled');
+      tile.setAttribute('aria-disabled','true');
+      tile.title='Not available for this role';
+    }else{
+      tile.removeAttribute('disabled');
+      tile.removeAttribute('aria-disabled');
+      tile.title='';
+    }
+  });
+}
+
+function setDashboardActiveTile(sectionId){
+  document.querySelectorAll('[data-section-target]').forEach((tile)=>{
+    tile.classList.toggle('active',tile.getAttribute('data-section-target')===sectionId);
+  });
+}
+
+function showDashboardHome(){
+  adminFocusSectionId='';
+  document.body.classList.remove('adminFocusMode');
+  document.body.classList.add('adminDashboardMode');
+  document.querySelectorAll('.sectionTab').forEach((section)=>section.classList.remove('focusVisible'));
+  setDashboardActiveTile('');
+  updateDashboardSignals();
+}
+
+function focusDashboardSection(sectionId){
+  const target=document.getElementById(sectionId);
+  if(!target||target.style.display==='none') return;
+  adminFocusSectionId=sectionId;
+  document.body.classList.remove('adminDashboardMode');
+  document.body.classList.add('adminFocusMode');
+  document.querySelectorAll('.sectionTab').forEach((section)=>section.classList.toggle('focusVisible',section.id===sectionId));
+  const focusTitle=document.getElementById('adminFocusTitle');
+  if(focusTitle) focusTitle.textContent=ADMIN_DASHBOARD_LABELS[sectionId]||'Focused workspace';
+  setDashboardActiveTile(sectionId);
+  target.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function initAdminDashboardWorkspace(){
+  document.getElementById('adminDashboardBack')?.addEventListener('click',showDashboardHome);
+  document.getElementById('adminDashboardGrid')?.addEventListener('click',(event)=>{
+    const tile=event.target?.closest?.('[data-section-target]');
+    if(!tile||tile.hasAttribute('disabled')) return;
+    focusDashboardSection(tile.getAttribute('data-section-target'));
+  });
+  document.querySelectorAll('.adminShortcut[href^="#"]').forEach((link)=>{
+    link.addEventListener('click',(event)=>{
+      const href=String(link.getAttribute('href')||'').trim();
+      if(!href.startsWith('#')) return;
+      const sectionId=href.slice(1);
+      if(!sectionId) return;
+      event.preventDefault();
+      focusDashboardSection(sectionId);
+    });
+  });
+  showDashboardHome();
+}
 
 // Users
 const ROLE_COLORS={ADMIN:'red',DISPATCHER:'blue',FACILITY:'blue',DRIVER:'green',BILLING:'amber',QA:'amber',EXECUTIVE:'blue',PATIENT:'muted'};
@@ -42,7 +259,9 @@ async function loadUsers(){
         }catch(e){btn.disabled=false;btn.textContent=active?'Deactivate':'Activate';alert(e.message)}
       });
     });
+    updateDashboardSignals();
   }catch(e){tbody.innerHTML=`<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--red)">${e.message}</td></tr>`;}
+  updateDashboardSignals();
 }
 
 document.getElementById('refreshUsers').addEventListener('click',loadUsers);
@@ -106,6 +325,7 @@ function renderPricing(){
       <td><input aria-label="${r.label} per mile" type="number" step="0.01" min="0" data-field="perMile" value="${r.perMile}" style="width:90px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
       <td><input aria-label="${r.label} wait fee" type="number" step="0.01" min="0" data-field="waitPer15" value="${r.waitPer15}" style="width:90px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
     </tr>`).join('');
+  updateDashboardSignals();
 }
 function getEditedPricing(){
   const p={...(currentSettings?.pricing||NexusCore.getPricing())};
@@ -240,9 +460,9 @@ async function loadAudit(){
     if(!r.ok){const e=await r.json();throw new Error(e.error||'Failed to load audit log');}
     const {entries}=await r.json();
     const filtered=type?entries.filter(e=>e.action===type):entries;
-    if(!filtered.length){container.innerHTML='<p style="color:var(--muted)">No audit records found.</p>';return;}
+    if(!filtered.length){container.innerHTML='<p style="color:var(--muted)">No audit records found.</p>';updateDashboardSignals();return;}
     container.innerHTML=filtered.map(e=>`
-      <div class="auditRow">
+      <div class="auditRow" data-created-at="${e.createdAt||''}">
         <div class="auditIcon">${ACTION_ICONS[e.action]||ACTION_ICONS.DEFAULT}</div>
         <div class="auditInfo">
           <strong>${e.action} - ${e.entityType}</strong>
@@ -250,7 +470,9 @@ async function loadAudit(){
         </div>
         <div class="auditTime">${e.createdAt?new Date(e.createdAt).toLocaleString():'--'}</div>
       </div>`).join('');
+    updateDashboardSignals();
   }catch(e){container.innerHTML=`<p style="color:var(--red)">${e.message}</p>`;}
+  updateDashboardSignals();
 }
 
 document.getElementById('refreshAudit').addEventListener('click',loadAudit);
@@ -403,6 +625,7 @@ async function loadPlatformSettings(){
   currentSettings=data.settings||null;
   renderPricing();
   applySettingsToForm(currentSettings);
+  updateDashboardSignals();
 }
 
 document.getElementById('saveSettings').addEventListener('click',async()=>{
@@ -465,6 +688,7 @@ function applyRoleRestrictions(){
   document.getElementById('resetPricing').disabled=true;
   document.getElementById('saveSettings').disabled=true;
   document.getElementById('refreshFuelIndexBtn').disabled=true;
+  syncDashboardTilesWithVisibility();
 }
 
 let lastCostQuery='';
@@ -562,6 +786,7 @@ async function runCostAnalyzer(){
     costMsg(error.message,'err');
   }finally{
     if(btn){btn.disabled=false;btn.textContent='Run analysis';}
+    updateDashboardSignals();
   }
 }
 
@@ -654,7 +879,7 @@ function renderSocialHistoryRows(rows=[]){
     const mode=row.dry_run?'Dry run':'Live';
     const error=String(row.error_message||'').replaceAll('<','&lt;').replaceAll('>','&gt;');
     const tone=status==='published'?'green':status==='failed'?'red':'blue';
-    return `<tr>
+    return `<tr data-created-at="${row.created_at||''}">
       <td>${createdAt}</td>
       <td>${channel}</td>
       <td>${postId}</td>
@@ -679,6 +904,7 @@ async function loadSocialHistory(){
     socialMsg(error.message,'err');
   }finally{
     if(btn){btn.disabled=false;btn.textContent='Refresh history';}
+    updateDashboardSignals();
   }
 }
 
@@ -732,9 +958,20 @@ async function runSocialPublish(){
 }
 
 let adminTripsCache=[];
+let adminTripsShowAll=false;
+const ADMIN_TRIPS_DEFAULT_LIMIT=5;
 
 function adminTripRef(trip){
   return String(trip?.reference || trip?.id || '').trim();
+}
+
+function normalizeAdminTripDate(value){
+  const raw=String(value || '').trim();
+  if(!raw) return '';
+  const isoMatch=raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if(isoMatch) return isoMatch[1];
+  const parsed=new Date(raw);
+  return Number.isNaN(parsed.getTime())?'':parsed.toISOString().slice(0,10);
 }
 
 function adminTripDateTime(trip){
@@ -770,16 +1007,54 @@ function applyAdminTripsFilters(){
   const sourceEl=document.getElementById('adminTripSourceFilter');
   const timeframeEl=document.getElementById('adminTripTimeframeFilter');
   const referenceEl=document.getElementById('adminTripReferenceFilter');
+  const dateEl=document.getElementById('adminTripDateFilter');
   const source=String(sourceEl?.value || 'ALL').toUpperCase();
   const timeframe=String(timeframeEl?.value || 'ALL').toUpperCase();
   const refQuery=String(referenceEl?.value || '').trim().toUpperCase();
+  const selectedDate=normalizeAdminTripDate(dateEl?.value || '');
   return adminTripsCache.filter((trip)=>{
     const ref=adminTripRef(trip).toUpperCase();
     if(refQuery && !ref.includes(refQuery)) return false;
+    if(selectedDate && normalizeAdminTripDate(trip?.date)!==selectedDate) return false;
     const kind=isDemoTripRecord(trip)?'DEMO':'REAL';
     if(source!=='ALL' && source!==kind) return false;
     return matchAdminTimeframe(trip,timeframe);
   });
+}
+
+function hasActiveAdminTripFilters(){
+  const source=String(document.getElementById('adminTripSourceFilter')?.value || 'ALL').toUpperCase();
+  const timeframe=String(document.getElementById('adminTripTimeframeFilter')?.value || 'ALL').toUpperCase();
+  const refQuery=String(document.getElementById('adminTripReferenceFilter')?.value || '').trim();
+  const selectedDate=normalizeAdminTripDate(document.getElementById('adminTripDateFilter')?.value || '');
+  return Boolean(refQuery || selectedDate || source!=='ALL' || timeframe!=='ALL');
+}
+
+function sortAdminTripsLatestFirst(trips=[]){
+  return [...trips].sort((a,b)=>{
+    const aTime=adminTripDateTime(a)?.getTime() || 0;
+    const bTime=adminTripDateTime(b)?.getTime() || 0;
+    if(aTime!==bTime) return bTime-aTime;
+    return adminTripRef(b).localeCompare(adminTripRef(a));
+  });
+}
+
+function updateAdminTripsVisibilityButton(totalFiltered,hiddenCount,hasFilters){
+  const button=document.getElementById('toggleAdminTripsVisibility');
+  if(!button) return;
+  if(hasFilters){
+    button.disabled=true;
+    button.textContent='Show all trips';
+    button.title='Default latest-5 mode applies when no filters are active';
+    return;
+  }
+  button.disabled=false;
+  button.title='';
+  if(adminTripsShowAll){
+    button.textContent='Show latest 5 trips';
+    return;
+  }
+  button.textContent=hiddenCount>0?`Show all trips (${totalFiltered})`:'Show all trips';
 }
 
 function renderAdminTripsRows(){
@@ -787,14 +1062,19 @@ function renderAdminTripsRows(){
   const summary=document.getElementById('adminTripsSummary');
   if(!body || !summary) return;
   const filtered=applyAdminTripsFilters();
+  const hasFilters=hasActiveAdminTripFilters();
+  const shouldLimit=!adminTripsShowAll && !hasFilters;
+  const visibleTrips=shouldLimit?filtered.slice(0,ADMIN_TRIPS_DEFAULT_LIMIT):filtered;
+  const hiddenCount=shouldLimit?Math.max(0,filtered.length-visibleTrips.length):0;
   const realCount=adminTripsCache.filter((trip)=>!isDemoTripRecord(trip)).length;
   const demoCount=adminTripsCache.length-realCount;
-  summary.textContent=`Showing ${filtered.length} of ${adminTripsCache.length} trips · Real: ${realCount} · Demo: ${demoCount}`;
-  if(!filtered.length){
+  summary.textContent=`Showing ${visibleTrips.length} of ${filtered.length} matching trips (total ${adminTripsCache.length}) · Real: ${realCount} · Demo: ${demoCount}${hiddenCount>0?` · ${hiddenCount} hidden`:''}`;
+  updateAdminTripsVisibilityButton(filtered.length,hiddenCount,hasFilters);
+  if(!visibleTrips.length){
     body.innerHTML='<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">No trips match the selected filters.</td></tr>';
     return;
   }
-  body.innerHTML=filtered.map((trip)=>{
+  body.innerHTML=visibleTrips.map((trip)=>{
     const ref=adminTripRef(trip) || '—';
     const isDemo=isDemoTripRecord(trip);
     const sourceLabel=isDemo?'DEMO':'REAL';
@@ -822,9 +1102,11 @@ async function loadAdminTrips(){
   const res=await fetch('/api/admin/bookings',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
   const data=await res.json().catch(()=>({}));
   if(!res.ok) throw new Error(data.error || 'Unable to load admin trips');
-  adminTripsCache=Array.isArray(data.bookings)?data.bookings:[];
+  adminTripsCache=sortAdminTripsLatestFirst(Array.isArray(data.bookings)?data.bookings:[]);
+  adminTripsShowAll=false;
   document.getElementById('statTrips').textContent=adminTripsCache.length;
   renderAdminTripsRows();
+  updateDashboardSignals();
 }
 
 async function advanceAdminTrip(reference){
@@ -855,6 +1137,11 @@ document.getElementById('refreshAdminTrips')?.addEventListener('click',()=>{load
 document.getElementById('adminTripSourceFilter')?.addEventListener('change',renderAdminTripsRows);
 document.getElementById('adminTripTimeframeFilter')?.addEventListener('change',renderAdminTripsRows);
 document.getElementById('adminTripReferenceFilter')?.addEventListener('input',renderAdminTripsRows);
+document.getElementById('adminTripDateFilter')?.addEventListener('change',renderAdminTripsRows);
+document.getElementById('toggleAdminTripsVisibility')?.addEventListener('click',()=>{
+  adminTripsShowAll=!adminTripsShowAll;
+  renderAdminTripsRows();
+});
 document.getElementById('adminTripRows')?.addEventListener('click',(event)=>{
   const button=event.target?.closest?.('[data-admin-advance]');
   if(!button) return;
@@ -869,9 +1156,12 @@ document.getElementById('costAnalyzerLoadBtn')?.addEventListener('click',()=>{ru
 document.getElementById('costAnalyzerExportBtn')?.addEventListener('click',()=>{exportCostAnalyzerCsv().catch((err)=>console.error(err));});
 document.getElementById('costAnalyzerSendBtn')?.addEventListener('click',()=>{sendCostAnalyzerReport().catch((err)=>console.error(err));});
 
+initAdminDashboardWorkspace();
+
 // Wait for auth-guard to authorize, then load data
 window.addEventListener('nexus:authorized',async()=>{
   applyRoleRestrictions();
+  syncDashboardTilesWithVisibility();
   if(userRole()==='ADMIN'){
     loadUsers();
     loadAudit();
@@ -885,6 +1175,7 @@ window.addEventListener('nexus:authorized',async()=>{
 // Fallback if event already fired
 if(window.NexusAuthorizedUser){
   applyRoleRestrictions();
+  syncDashboardTilesWithVisibility();
   if(userRole()==='ADMIN'){
     loadUsers();
     loadAudit();
