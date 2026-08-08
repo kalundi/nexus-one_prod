@@ -2471,7 +2471,7 @@ async function handler(event){
    const ref=decodeURIComponent(p[2]);
    const r=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref]);
    if(!r.rows[0])return json(404,{error:'Booking not found'});
-   const intake=await query(`SELECT id,submission_method,source_message_id,source_received_at,created_at,updated_at FROM broker_requests WHERE booking_reference=$1 ORDER BY created_at DESC LIMIT 1`,[ref]).catch(()=>({rows:[]}));
+  const intake=await query(`SELECT id,submission_method,source_message_id,source_received_at,patient_name,referral_id,crm_reference,parse_source_method,parsed_payload,created_at,updated_at FROM broker_requests WHERE booking_reference=$1 ORDER BY created_at DESC LIMIT 1`,[ref]).catch(()=>({rows:[]}));
    const sourceAttachmentCount=await query('SELECT COUNT(*)::int AS count FROM booking_attachments WHERE booking_reference=$1',[ref]).catch(()=>({rows:[{count:0}]}));
    const intakeRow=intake.rows?.[0]||null;
    const intakeAudit=intakeRow?{
@@ -2479,6 +2479,11 @@ async function handler(event){
     submissionMethod:intakeRow.submission_method||null,
     sourceMessageId:intakeRow.source_message_id||null,
     sourceReceivedAt:intakeRow.source_received_at||null,
+      patientName:intakeRow.patient_name||null,
+      referralId:intakeRow.referral_id||null,
+      crmReference:intakeRow.crm_reference||null,
+      parseSourceMethod:intakeRow.parse_source_method||null,
+      parsedPayload:intakeRow.parsed_payload||null,
     sourceAttachmentCount:Number(sourceAttachmentCount.rows?.[0]?.count||0),
     createdAt:intakeRow.created_at||null,
     updatedAt:intakeRow.updated_at||null
@@ -3237,7 +3242,9 @@ async function mapBookingsWithIntakeAudit(rows){
     booking_reference,
     submission_method,
     source_received_at,
-    source_message_id
+    source_message_id,
+    parse_source_method,
+    parsed_payload
    FROM broker_requests
    WHERE booking_reference = ANY($1::text[])
    ORDER BY booking_reference, created_at DESC`,
@@ -3258,13 +3265,19 @@ async function mapBookingsWithIntakeAudit(rows){
  return mapped.map((booking)=>{
   const intake=intakeByRef.get(String(booking.reference||''))||null;
   const method=intake?.submission_method||null;
+  const parsedPayload=intake?.parsed_payload&&typeof intake.parsed_payload==='object'?intake.parsed_payload:{};
+  const parseDiagnostics=parsedPayload?.parse_diagnostics&&typeof parsedPayload.parse_diagnostics==='object'?parsedPayload.parse_diagnostics:{};
   return {
    ...booking,
    intakeSubmissionMethod:method,
    intakeParseSource:mapParseSourceLabel(method),
+   intakeParseMethod:intake?.parse_source_method||null,
    sourceAttachmentCount:attachmentByRef.get(String(booking.reference||''))||0,
    sourceReceivedAt:intake?.source_received_at||null,
-   sourceMessageId:intake?.source_message_id||null
+   sourceMessageId:intake?.source_message_id||null,
+   intakeParseFailureReason:clean(parseDiagnostics.parse_failure_reason||'',240)||null,
+   intakeParseDiagnostics:parseDiagnostics,
+   intakeParseAttachmentSummary:parseDiagnostics?.attachment_summary||null
   };
  });
 }

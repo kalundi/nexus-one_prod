@@ -133,6 +133,126 @@ function normalizeTripTime(value){
  return '';
 }
 
+function parseCurrencyValue(value){
+ const raw=clean(value,120).replace(/,/g,'');
+ if(!raw)return 0;
+ const match=raw.match(/-?(?:\d+(?:\.\d{1,2})?|\.\d{1,2})/);
+ if(!match)return 0;
+ const parsed=Number(match[0]);
+ return Number.isFinite(parsed)?parsed:0;
+}
+
+function extractLabeledFields(text){
+ const fields={};
+ let lastKey='';
+ for(const rawLine of String(text||'').split(/\r?\n/)){
+  const line=clean(rawLine,500);
+  if(!line)continue;
+  const pair=line.match(/^([A-Za-z][A-Za-z0-9\s\/#&().'-]{1,70})\s*[:|-]\s*(.+)$/);
+  if(pair){
+   const key=clean(pair[1],80).toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+   const value=clean(pair[2],300);
+   if(!key||!value)continue;
+   if(!fields[key])fields[key]=value;
+   lastKey=key;
+   continue;
+  }
+  if(lastKey&&/special|instruction|note|comment/.test(lastKey)&&line.length>3){
+   fields[lastKey]=clean(`${fields[lastKey]} ${line}`,600);
+  }
+ }
+ return fields;
+}
+
+function firstField(fields,keys=[]){
+ for(const key of keys){
+  const value=clean(fields?.[key]||'',300);
+  if(value)return value;
+ }
+ return '';
+}
+
+function extractZipBoundedAddressChunks(input,maxChunks=3){
+ const compact=clean(String(input||'').replace(/\s+/g,' '),4000);
+ if(!compact)return [];
+ const states=[
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC',
+  'Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming','District of Columbia'
+ ];
+ const stateAlternation=states.map((value)=>value.replace(/\s+/g,'\\s+')).join('|');
+ const stateZipRegex=new RegExp(`\\b(?:${stateAlternation})\\s+\\d{5}(?:-\\d{4})?\\b`,'gi');
+ const stateZipMatches=[...compact.matchAll(stateZipRegex)];
+ if(!stateZipMatches.length)return [];
+ const chunks=[];
+ let cursor=0;
+ for(const zipMatch of stateZipMatches){
+  if(chunks.length>=maxChunks)break;
+  const matchStart=Number(zipMatch.index||0);
+  const matchEnd=matchStart+String(zipMatch[0]||'').length;
+  if(matchEnd<=cursor)continue;
+  const chunk=clean(compact.slice(cursor,matchEnd),380);
+  cursor=matchEnd;
+  if(chunk.length<20)continue;
+  chunks.push(chunk);
+ }
+ return chunks;
+}
+
+function cleanupParsedAddress(value){
+ let text=clean(value,380);
+ if(!text)return '';
+ if(/^[-•]/.test(text))text=text.replace(/^[-•]+\s*/,'');
+ text=text
+  .replace(/^(?:pickup\s*address|drop\s*off\s*address|destination\s*address)\s*:?\s*/i,'')
+  .replace(/^(?:for\s*drop\s*off|for\s*pickup)\s*:?\s*/i,'')
+  .replace(/^(?:wait\s*time)\s*/i,'')
+  .replace(/^(?:import\s*reminders?|billing\s*information)\s*:?\s*/i,'')
+  .replace(/^(?:pickup\s*times?\s*are\s*set\s*by\s*go\s*t&t\s*and\s*must\s*be\s*adhered\s*to.*)$/i,'')
+  .replace(/\b(?:for\s*drop\s*off|for\s*pickup)\s*:?[\s\S]*$/i,'')
+  .replace(/\s+/g,' ')
+  .trim();
+ return clean(text,320);
+}
+
+function parseGtTableAddresses(text){
+ const normalized=String(text||'');
+ const compact=normalized.replace(/\s+/g,' ');
+ const headerRegex=/pickup\s*time\s*appointment\s*time\s*pickup\s*address\s*drop\s*off\s*address\s*special\s*instructions/i;
+ const headerMatch=compact.match(headerRegex);
+ const headerIndex=headerMatch?Number(headerMatch.index||0):-1;
+ if(headerIndex<0)return {pickup:'',destination:''};
+ const sectionCompact=compact.slice(headerIndex,Math.min(compact.length,headerIndex+5000));
+
+ // Primary extraction: first two ZIP-bounded address chunks before the drop-off notes.
+ let beforeDropOff=sectionCompact.split(/for\s*drop\s*off\s*:/i)[0]||sectionCompact;
+ beforeDropOff=beforeDropOff
+  .replace(headerRegex,'')
+  .replace(/^\s*(?:\d{1,2}:\d{2}\s*(?:am|pm)?\s*){1,2}/i,'')
+  .trim();
+
+ let chunks=extractZipBoundedAddressChunks(beforeDropOff,3);
+ let pickup=chunks[0]||'';
+ let destination=chunks[1]||'';
+
+ // Secondary extraction: wait-time block often contains reverse route with pickup as second ZIP chunk.
+ if(!pickup||!destination){
+  const waitMatch=sectionCompact.match(/wait\s*time[\s\S]{0,1800}/i);
+  if(waitMatch&&waitMatch[0]){
+   const waitBlock=waitMatch[0].split(/for\s*pickup\s*:/i)[0]||waitMatch[0];
+   const waitChunks=extractZipBoundedAddressChunks(waitBlock,3);
+   if(waitChunks.length>=2){
+    if(!destination)destination=waitChunks[0];
+    if(!pickup)pickup=waitChunks[1];
+   }
+  }
+ }
+
+ return {
+  pickup:cleanupParsedAddress(pickup),
+  destination:cleanupParsedAddress(destination)
+ };
+}
+
 function resolveServiceKey(service){
  const raw=clean(service,120).toLowerCase();
  if(!raw)return 'ambulatory';
@@ -246,34 +366,209 @@ function parsePotentialAttachmentInfo(payload){
  return attachments.filter((att)=>att.content);
 }
 
+async function extractPdfTextViaOcrSpace({base64Content,filename=''}){
+ const apiKey=clean(process.env.OCR_SPACE_API_KEY||'',200);
+ if(!apiKey)return {text:'',status:'ocr_not_configured',error:'OCR_SPACE_API_KEY not set'};
+ const base64=String(base64Content||'').trim();
+ if(!base64)return {text:'',status:'ocr_empty_content',error:'No base64 attachment content provided'};
+ // OCR.space free/limited plans reject large payloads quickly; skip oversized files early.
+ if(base64.length>6_000_000)return {text:'',status:'ocr_skipped_too_large',error:'Attachment base64 payload exceeded OCR size threshold'};
+
+ try{
+  const form=new URLSearchParams();
+  form.set('base64Image',`data:application/pdf;base64,${base64}`);
+  form.set('language','eng');
+  form.set('isOverlayRequired','false');
+  form.set('isCreateSearchablePdf','false');
+  form.set('scale','true');
+  form.set('detectOrientation','true');
+  form.set('OCREngine','2');
+  form.set('filetype','PDF');
+  if(filename)form.set('file_name',clean(filename,180));
+
+  const response=await fetch('https://api.ocr.space/parse/image',{
+   method:'POST',
+   headers:{
+    apikey:apiKey,
+    'content-type':'application/x-www-form-urlencoded'
+   },
+   body:form.toString()
+  });
+
+  if(!response.ok){
+   return {text:'',status:'ocr_http_error',error:`OCR request failed (${response.status})`};
+  }
+
+  const data=await response.json().catch(()=>null);
+  const parseResults=Array.isArray(data?.ParsedResults)?data.ParsedResults:[];
+  const parsedText=clean(parseResults.map((item)=>clean(item?.ParsedText||'',20000)).filter(Boolean).join('\n\n'),50000);
+  const isErrored=Boolean(data?.IsErroredOnProcessing);
+  const errorMessageRaw=Array.isArray(data?.ErrorMessage)?data.ErrorMessage.join('; '):clean(data?.ErrorMessage||data?.ErrorDetails||'',300);
+
+  if(parsedText){
+   return {text:parsedText,status:'ocr_decoded',error:null};
+  }
+  if(isErrored||errorMessageRaw){
+   return {text:'',status:'ocr_processing_error',error:clean(errorMessageRaw||'OCR processing returned no parsed text',300)};
+  }
+  return {text:'',status:'ocr_empty_result',error:'OCR completed with no parsed text'};
+ }catch(error){
+  return {text:'',status:'ocr_exception',error:clean(error?.message||'OCR request exception',300)};
+ }
+}
+
 async function decodeAttachmentText(attachment){
  const filename=clean(attachment.filename||'',180).toLowerCase();
  const type=clean(attachment.type||'',160).toLowerCase();
+ const rawContent=String(attachment.content||'');
  const isPdf=type.includes('pdf')||filename.endsWith('.pdf');
+ const diagnostic={
+  filename:clean(attachment.filename||'attachment',180),
+  mime_type:type||'application/octet-stream',
+  content_base64_length:rawContent.length,
+  mode:'unsupported',
+  status:'not_decoded',
+  is_pdf:isPdf,
+  is_textual:false,
+  text_length:0,
+  error:null
+ };
  if(isPdf){
   try{
-   const buffer=Buffer.from(String(attachment.content||''),'base64');
+   const buffer=Buffer.from(rawContent,'base64');
    const parsed=await pdfParse(buffer);
-   return clean(parsed?.text||'',50000);
-  }catch(_error){
-   return '';
+   const parsedText=clean(parsed?.text||'',50000);
+   diagnostic.mode='pdf-parse';
+   if(parsedText){
+    diagnostic.status='decoded';
+    diagnostic.text_length=parsedText.length;
+    return {text:parsedText,diagnostic};
+   }
+
+   const ocrResult=await extractPdfTextViaOcrSpace({
+    base64Content:rawContent,
+    filename:attachment.filename
+   });
+   if(ocrResult.text){
+    diagnostic.mode='pdf-ocr-space';
+    diagnostic.status=ocrResult.status;
+    diagnostic.text_length=ocrResult.text.length;
+    diagnostic.error=null;
+    return {text:ocrResult.text,diagnostic};
+   }
+
+   diagnostic.mode='pdf-ocr-space';
+   diagnostic.status=ocrResult.status||'empty';
+   diagnostic.text_length=0;
+   diagnostic.error=clean(ocrResult.error||'No text extracted from PDF via OCR fallback',240);
+   return {text:'',diagnostic};
+  }catch(error){
+   const ocrResult=await extractPdfTextViaOcrSpace({
+    base64Content:rawContent,
+    filename:attachment.filename
+   });
+   if(ocrResult.text){
+    diagnostic.mode='pdf-ocr-space';
+    diagnostic.status=ocrResult.status;
+    diagnostic.text_length=ocrResult.text.length;
+    diagnostic.error=clean(error?.message||'pdf_parse_failed',240);
+    return {text:ocrResult.text,diagnostic};
+   }
+
+   diagnostic.mode='pdf-ocr-space';
+   diagnostic.status=ocrResult.status||'decode_failed';
+   diagnostic.error=clean(ocrResult.error||error?.message||'pdf_parse_failed',240);
+   return {text:'',diagnostic};
   }
  }
  const isTextual=type.startsWith('text/')||type.includes('json')||type.includes('xml')||type.includes('csv')||filename.endsWith('.txt')||filename.endsWith('.csv')||filename.endsWith('.json')||filename.endsWith('.xml');
- if(!isTextual)return '';
+ diagnostic.is_textual=isTextual;
+ if(!isTextual)return {text:'',diagnostic};
  try{
-  const decoded=Buffer.from(String(attachment.content||''),'base64').toString('utf8');
-  if(decoded&&decoded.trim())return decoded;
- }catch(_error){
+  const decoded=Buffer.from(rawContent,'base64').toString('utf8');
+  if(decoded&&decoded.trim()){
+   const normalized=clean(decoded,20000);
+   diagnostic.mode='base64-utf8';
+   diagnostic.status='decoded';
+   diagnostic.text_length=normalized.length;
+   return {text:normalized,diagnostic};
+  }
+ }catch(error){
   // Ignore base64 decode failures.
+  diagnostic.error=clean(error?.message||'base64_decode_failed',240);
  }
- return clean(attachment.content||'',20000);
+ const fallbackText=clean(rawContent,20000);
+ diagnostic.mode='raw-content';
+ diagnostic.status=fallbackText?'decoded_raw_fallback':'empty';
+ diagnostic.text_length=fallbackText.length;
+ return {text:fallbackText,diagnostic};
+}
+
+function summarizeParseSignals(input){
+ const text=clean(input,50000);
+ if(!text)return {
+  has_text:false,
+  has_pickup:false,
+  has_destination:false,
+  has_trip_date:false,
+  has_trip_time:false,
+  has_patient:false,
+  has_referral:false,
+  has_quote:false
+ };
+ return {
+  has_text:true,
+  has_pickup:/(?:pickup|origin|from|pickup\s*address)\s*[:|-]/i.test(text),
+  has_destination:/(?:destination|drop\s*off|dropoff|to|destination\s*address)\s*[:|-]/i.test(text),
+  has_trip_date:/(?:date|appointment\s*date)\s*[:|-]\s*(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[\/-][0-9]{1,2}[\/-][0-9]{2,4})/i.test(text),
+  has_trip_time:/(?:time|appointment\s*time)\s*[:|-]\s*[0-9]{1,2}:[0-9]{2}/i.test(text),
+  has_patient:/(?:patient|member|rider|client\/?iw)\s*[:|-]/i.test(text),
+  has_referral:/(?:referral\s*(?:id|#)?|reference|trip\s*(?:id|number)|confirmation\s*number)\s*[:#|-]/i.test(text),
+  has_quote:/(?:rate|cost|price|quote)\s*[:|-]?\s*\$?(?:[0-9]+(?:\.[0-9]{1,2})?|\.[0-9]{1,2})/i.test(text)
+ };
+}
+
+function buildParseFailureReason(signals){
+ if(!signals?.has_text)return 'No parsable email body or attachment text was available.';
+ const missing=[];
+ if(!signals.has_pickup)missing.push('pickup');
+ if(!signals.has_destination)missing.push('destination');
+ if(!signals.has_trip_date)missing.push('trip_date');
+ if(!signals.has_trip_time)missing.push('trip_time');
+ if(missing.length)return `Missing required fields: ${missing.join(', ')}.`;
+ return 'Content had partial trip details but could not be normalized into a complete booking.';
+}
+
+function buildParseDiagnostics({subject,emailBody,attachmentDiagnostics,attachmentText,parseSource,parseAttempt,usedSubjectFallback}){
+ const signals=summarizeParseSignals(parseSource);
+ const decodedAttachments=(attachmentDiagnostics||[]).filter((item)=>String(item?.status||'').startsWith('decoded')).length;
+ const failedAttachments=(attachmentDiagnostics||[]).filter((item)=>String(item?.status||'')==='decode_failed').length;
+ return {
+  parser_version:'broker-email-webhook:diagnostics-v1',
+  confirmation_subject_detected:/confirmation/i.test(clean(subject,240)),
+  used_subject_fallback:Boolean(usedSubjectFallback),
+  parse_succeeded:Boolean(parseAttempt),
+  parse_failure_reason:parseAttempt?null:buildParseFailureReason(signals),
+  signal_summary:signals,
+  source_lengths:{
+   email_body_length:clean(emailBody,20000).length,
+   attachment_text_length:clean(attachmentText,50000).length,
+   combined_parse_source_length:clean(parseSource,50000).length
+  },
+  attachment_summary:{
+   total:Number((attachmentDiagnostics||[]).length||0),
+   decoded:decodedAttachments,
+   decode_failed:failedAttachments
+  },
+  attachment_diagnostics:Array.isArray(attachmentDiagnostics)?attachmentDiagnostics:[]
+ };
 }
 
 function parseBrokerIntakeText(input){
  const text=clean(input,20000);
  if(!text)return null;
  const lines=text.split(/\r?\n/).map((line)=>clean(line,400)).filter(Boolean);
+ const labeledFields=extractLabeledFields(text);
  const valueAfterColon=(line)=>{
   const splitIndex=line.indexOf(':');
   if(splitIndex>=0)return clean(line.slice(splitIndex+1),300);
@@ -299,12 +594,12 @@ function parseBrokerIntakeText(input){
  const destinationMatch=text.match(/(?:^|\r?\n)\s*(destination|dropoff|drop off|to)\s*[:|-]\s*(.+?)(?=(?:\r?\n|$))/i);
  const dateMatch=text.match(/(?:^|\r?\n)\s*(date)\s*[:|-]\s*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[\/-][0-9]{1,2}[\/-][0-9]{2,4})/i);
  const timeMatch=text.match(/(?:^|\r?\n)\s*(time)\s*[:|-]\s*([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM))?)/i);
- const serviceMatch=text.match(/(?:^|\r?\n)\s*(service|level of service)\s*[:|-]\s*(.+?)(?=(?:\r?\n|$))/i);
+ const serviceMatch=text.match(/(?:^|\r?\n)\s*(service|level of service|transport\s*type)\s*[:|-]\s*(.+?)(?=(?:\r?\n|$))/i);
  const brokerNameMatch=text.match(/(?:^|\r?\n)\s*(broker|company)\s*[:|-]\s*(.+?)(?=(?:\r?\n|$))/i);
- const patientMatch=text.match(/(?:^|\r?\n)\s*(patient|member|rider)\s*[:|-]\s*(.+?)(?=(?:\r?\n|$))/i);
- const referralMatch=text.match(/(?:^|\r?\n)\s*(referral\s*id|reference|trip\s*id|trip\s*number|confirmation\s*number)\s*[:#|-]\s*([a-z0-9-]+)/i);
+ const patientMatch=text.match(/(?:^|\r?\n)\s*(patient|member|rider|client\/?iw)\s*[:|-]\s*(.+?)(?=(?:\r?\n|$))/i);
+ const referralMatch=text.match(/(?:^|\r?\n)\s*(referral\s*(?:id|#)?|reference|trip\s*id|trip\s*number|confirmation\s*number)\s*[:#|-]\s*([a-z0-9-]+)/i);
  const crmMatch=text.match(/(?:^|\r?\n)\s*(crm)\s*[:#|-]\s*([a-z0-9-]+)/i);
- const rateMatch=text.match(/(?:^|\r?\n)\s*(rate|cost|price|quote)\s*[:|-]?\s*\$?([0-9]+(?:\.[0-9]{1,2})?)/i);
+ const rateMatch=text.match(/(?:^|\r?\n)\s*(?:rate|cost|price|quote|rate\s*quote|quoted\s*rate|trip\s*rate)\s*[:|-]?\s*\$?(-?(?:[0-9]+(?:\.[0-9]{1,2})?|\.[0-9]{1,2}))/i);
  const milesMatch=text.match(/(?:^|\r?\n)\s*(miles|distance)\s*[:|-]?\s*([0-9]+(?:\.[0-9]{1,2})?)/i);
 
  if(pickupMatch)result.pickup=clean(pickupMatch[2],300);
@@ -316,13 +611,29 @@ function parseBrokerIntakeText(input){
  if(patientMatch)result.patient_name=clean(patientMatch[2],160);
  if(referralMatch)result.referral_id=clean(referralMatch[2],120);
  if(crmMatch)result.crm_reference=clean(crmMatch[2],120);
- if(rateMatch)result.broker_quoted_rate=n(rateMatch[2],0);
+ if(rateMatch)result.broker_quoted_rate=parseCurrencyValue(rateMatch[1]);
  if(milesMatch)result.distance_miles=n(milesMatch[2],0);
+
+ if(!result.pickup)result.pickup=firstField(labeledFields,['pickup','pickup_address','origin','origin_address','from','from_address']);
+ if(!result.destination)result.destination=firstField(labeledFields,['destination','destination_address','dropoff','drop_off','dropoff_address','drop_off_address','to','to_address']);
+ if(!result.trip_date)result.trip_date=firstField(labeledFields,['date','appointment_date','pickup_date','requested_date']);
+ if(!result.trip_time)result.trip_time=firstField(labeledFields,['time','appointment_time','pickup_time','requested_time']);
+ if(!result.patient_name)result.patient_name=firstField(labeledFields,['patient','patient_name','member','member_name','rider']);
+ if(!result.referral_id)result.referral_id=firstField(labeledFields,['referral_id','reference','trip_id','trip_number','confirmation_number']);
+ if(!result.crm_reference)result.crm_reference=firstField(labeledFields,['crm','crm_reference']);
+ if(result.broker_quoted_rate<=0){
+  const quoteValue=firstField(labeledFields,['rate_quote','quoted_rate','trip_rate','rate','cost','price','quote']);
+  if(quoteValue)result.broker_quoted_rate=parseCurrencyValue(quoteValue);
+ }
+ if(result.distance_miles<=0){
+  const milesValue=firstField(labeledFields,['distance_miles','distance','miles']);
+  if(milesValue)result.distance_miles=n(milesValue,0);
+ }
 
  for(const line of lines){
   const lower=line.toLowerCase();
-  if(!result.pickup&&/(pickup|origin|from)/.test(lower))result.pickup=valueAfterColon(line);
-  if(!result.destination&&/(destination|dropoff|drop off|to)/.test(lower))result.destination=valueAfterColon(line);
+  if(!result.pickup&&/\b(pickup|origin|from)\b/.test(lower)&&/[:|-]/.test(line))result.pickup=valueAfterColon(line);
+  if(!result.destination&&/\b(destination|dropoff|drop\s*off)\b/.test(lower)&&/[:|-]/.test(line))result.destination=valueAfterColon(line);
   if(!result.trip_date){
    const foundDate=line.match(/([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[\/-][0-9]{1,2}[\/-][0-9]{2,4})/);
    if(foundDate)result.trip_date=foundDate[1];
@@ -332,8 +643,8 @@ function parseBrokerIntakeText(input){
    if(foundTime)result.trip_time=foundTime[1];
   }
   if(result.broker_quoted_rate<=0&&/(rate|cost|price|quote)/.test(lower)){
-   const foundRate=line.match(/\$?([0-9]+(?:\.[0-9]{1,2})?)/);
-   if(foundRate)result.broker_quoted_rate=n(foundRate[1],0);
+   const foundRate=line.match(/\$?(-?(?:[0-9]+(?:\.[0-9]{1,2})?|\.[0-9]{1,2}))/);
+   if(foundRate)result.broker_quoted_rate=parseCurrencyValue(foundRate[1]);
   }
   if(result.distance_miles<=0&&/(mile|distance)/.test(lower)){
    const foundMiles=line.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
@@ -360,11 +671,49 @@ function parseBrokerIntakeText(input){
  if(looksLikeLayoutLabel(result.pickup))result.pickup='';
  if(looksLikeLayoutLabel(result.destination))result.destination='';
 
- if(!result.trip_date||!result.trip_time||!result.pickup||!result.destination||result.broker_quoted_rate<=0)return null;
+ // Fall back to common label variants frequently found in broker PDFs.
+ if(!result.pickup){
+  const pickupAlt=text.match(/(?:^|\r?\n)\s*(?:pickup\s*address|origin\s*address|from\s*address)\s*[:|-]\s*(.+?)(?=(?:\r?\n|$))/i);
+  if(pickupAlt)result.pickup=clean(pickupAlt[1],300);
+ }
+ if(!result.destination){
+  const destinationAlt=text.match(/(?:^|\r?\n)\s*(?:drop\s*off\s*address|dropoff\s*address|destination\s*address|to\s*address)\s*[:|-]\s*(.+?)(?=(?:\r?\n|$))/i);
+  if(destinationAlt)result.destination=clean(destinationAlt[1],300);
+ }
+ if(!result.trip_time){
+  const timeAlt=text.match(/(?:^|\r?\n)\s*(?:appointment\s*time|pickup\s*time|requested\s*time)\s*[:|-]\s*([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM))?)/i);
+  if(timeAlt)result.trip_time=normalizeTripTime(timeAlt[1]);
+ }
+ if(!result.trip_date){
+  const dateAlt=text.match(/(?:^|\r?\n)\s*(?:appointment\s*date|pickup\s*date|requested\s*date)\s*[:|-]\s*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[\/-][0-9]{1,2}[\/-][0-9]{2,4})/i);
+  if(dateAlt)result.trip_date=normalizeTripDate(dateAlt[1]);
+ }
+
+ if(!result.pickup||!result.destination){
+  const tableParsed=parseGtTableAddresses(text);
+  if(!result.pickup&&tableParsed.pickup)result.pickup=tableParsed.pickup;
+  if(!result.destination&&tableParsed.destination)result.destination=tableParsed.destination;
+ }
+
+ const extraFields={
+  member_id:firstField(labeledFields,['member_id','member_number','medicaid_id','id_number']),
+  member_dob:firstField(labeledFields,['date_of_birth','dob','birth_date']),
+  member_phone:firstField(labeledFields,['member_phone','patient_phone','phone','phone_number']),
+  pickup_phone:firstField(labeledFields,['pickup_phone','origin_phone']),
+  destination_phone:firstField(labeledFields,['destination_phone','dropoff_phone','drop_off_phone']),
+  appointment_type:firstField(labeledFields,['appointment_type','trip_type','reason_for_visit']),
+  special_instructions:firstField(labeledFields,['special_instructions','instructions','notes'])
+ };
+
+ const hasAnySignal=Boolean(result.pickup||result.destination||result.trip_date||result.trip_time||result.patient_name||result.referral_id||result.crm_reference||result.broker_quoted_rate>0);
+ if(!hasAnySignal)return null;
+ if(!result.trip_date||!result.trip_time||!result.pickup||!result.destination)return null;
  const noteParts=['Parsed from broker confirmation attachment/email.'];
  if(result.referral_id)noteParts.push(`Referral ID: ${result.referral_id}`);
  if(result.crm_reference)noteParts.push(`CRM: ${result.crm_reference}`);
  result.notes=clean(noteParts.join(' | '),600);
+ result.raw_fields=labeledFields;
+ result.extra_fields=Object.fromEntries(Object.entries(extraFields).filter(([,value])=>Boolean(clean(value,300))));
  return result;
 }
 
@@ -527,21 +876,76 @@ async function ensureBrokerEmailReplayColumns(){
  await query(`ALTER TABLE broker_requests ADD COLUMN IF NOT EXISTS variance numeric(10,2)`).catch(()=>{});
  await query(`ALTER TABLE broker_requests ADD COLUMN IF NOT EXISTS source_message_id text`).catch(()=>{});
  await query(`ALTER TABLE broker_requests ADD COLUMN IF NOT EXISTS source_received_at timestamptz`).catch(()=>{});
+ await query(`ALTER TABLE broker_requests ADD COLUMN IF NOT EXISTS patient_name text`).catch(()=>{});
+ await query(`ALTER TABLE broker_requests ADD COLUMN IF NOT EXISTS referral_id text`).catch(()=>{});
+ await query(`ALTER TABLE broker_requests ADD COLUMN IF NOT EXISTS crm_reference text`).catch(()=>{});
+ await query(`ALTER TABLE broker_requests ADD COLUMN IF NOT EXISTS parsed_payload jsonb`).catch(()=>{});
+ await query(`ALTER TABLE broker_requests ADD COLUMN IF NOT EXISTS parse_source_method text`).catch(()=>{});
  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_broker_requests_source_message_id ON broker_requests(source_message_id) WHERE source_message_id IS NOT NULL`).catch(()=>{});
 }
 
-async function insertBrokerRequest({brokerId,brokerName,service,pickup,destination,tripDate,tripTime,brokerRate,platformRate,variance,submissionMethod,submittedBy,distanceMiles,sourceMessageId,sourceReceivedAt}){
+async function insertBrokerRequest({brokerId,brokerName,service,pickup,destination,tripDate,tripTime,brokerRate,platformRate,variance,submissionMethod,submittedBy,distanceMiles,sourceMessageId,sourceReceivedAt,patientName,referralId,crmReference,parsedPayload,parseSourceMethod}){
  await ensureBrokerEmailReplayColumns();
  if(sourceMessageId){
   const existing=await query('SELECT * FROM broker_requests WHERE source_message_id=$1 LIMIT 1',[sourceMessageId]).catch(()=>({rows:[]}));
-  if(existing.rows?.[0])return existing.rows[0];
+  if(existing.rows?.[0]){
+   const dispatchNote=`Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Includes 2h wait time in broker/platform rate calculations.`;
+   const updated=await query(`UPDATE broker_requests SET
+    broker_id=$2,
+    broker_name=$3,
+    service=$4,
+    pickup=$5,
+    destination=$6,
+    trip_date=$7,
+    trip_time=$8,
+    broker_quoted_rate=$9,
+    platform_calculated_rate=$10,
+    rate_delta=$11,
+    variance=$12,
+    submission_method=$13,
+    submitted_by=$14,
+    dispatch_notes=$15,
+    source_received_at=COALESCE($16,source_received_at),
+    patient_name=$17,
+    referral_id=$18,
+    crm_reference=$19,
+    parsed_payload=$20::jsonb,
+    parse_source_method=$21,
+    updated_at=now()
+    WHERE id=$1
+    RETURNING *`,[
+    existing.rows[0].id,
+    brokerId,
+    brokerName,
+    service,
+    pickup,
+    destination,
+    tripDate,
+    tripTime,
+    brokerRate,
+    platformRate,
+    variance,
+    variance,
+    submissionMethod,
+    submittedBy,
+    dispatchNote,
+    sourceReceivedAt||null,
+    clean(patientName,160)||null,
+    clean(referralId,120)||null,
+    clean(crmReference,120)||null,
+    JSON.stringify(parsedPayload||{}),
+    clean(parseSourceMethod,80)||null
+   ]).catch(()=>({rows:[existing.rows[0]]}));
+   return updated.rows?.[0]||existing.rows[0];
+  }
  }
  const insertSql=`INSERT INTO broker_requests(
   broker_id,booking_reference,broker_name,service,pickup,destination,
   pickup_lat,pickup_lng,destination_lat,destination_lng,
   trip_date,trip_time,broker_quoted_rate,platform_calculated_rate,rate_delta,variance,
-  submission_method,submitted_by,request_status,dispatch_notes,source_message_id,source_received_at
- ) VALUES($1,null,$2,$3,$4,$5,null,null,null,null,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+  submission_method,submitted_by,request_status,dispatch_notes,source_message_id,source_received_at,
+  patient_name,referral_id,crm_reference,parsed_payload,parse_source_method
+ ) VALUES($1,null,$2,$3,$4,$5,null,null,null,null,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22)
  RETURNING *`;
  const dispatchNote=`Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Includes 2h wait time in broker/platform rate calculations.`;
  const result=await query(insertSql,[
@@ -561,7 +965,12 @@ async function insertBrokerRequest({brokerId,brokerName,service,pickup,destinati
   'PENDING_DISPATCH_CONFIRMATION',
   dispatchNote,
   sourceMessageId||null,
-  sourceReceivedAt||null
+  sourceReceivedAt||null,
+  clean(patientName,160)||null,
+  clean(referralId,120)||null,
+  clean(crmReference,120)||null,
+  JSON.stringify(parsedPayload||{}),
+  clean(parseSourceMethod,80)||null
  ]);
  return result.rows[0];
 }
@@ -607,9 +1016,10 @@ async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,plat
  return result.rows[0];
 }
 
-async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,brokerName,brokerRate,platformRate,tripCostEstimate,tripDate,tripTime,distanceMiles,brokerRequestId,attachments=[]}){
+async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,brokerName,brokerRate,platformRate,tripCostEstimate,tripDate,tripTime,distanceMiles,brokerRequestId,attachments=[],parseSourceMethod='EMAIL_ATTACHMENT'}){
  if(!bookingReference)return null;
  const notes=buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimate});
+ const normalizedBrokerQuote=Number(n(parsed.broker_quoted_rate,0).toFixed(2));
  await query(`UPDATE bookings SET
   name=$2,
   service=$3,
@@ -649,6 +1059,11 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
   variance=$9,
   submission_method='EMAIL_ATTACHMENT',
   dispatch_notes=$10,
+  patient_name=$11,
+  referral_id=$12,
+  crm_reference=$13,
+  parsed_payload=$14::jsonb,
+  parse_source_method=$15,
   updated_at=now()
   WHERE id=$1`,[
   brokerRequestId,
@@ -660,7 +1075,27 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
   Number(brokerRate||0),
   Number(platformRate||0),
   Number((brokerRate-platformRate)||0),
-  `Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Includes 2h wait time in broker/platform rate calculations.`
+  `Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Includes 2h wait time in broker/platform rate calculations.`,
+  clean(parsed.patient_name,160)||null,
+  clean(parsed.referral_id,120)||null,
+  clean(parsed.crm_reference,120)||null,
+  JSON.stringify({
+   pickup:parsed.pickup,
+   destination:parsed.destination,
+   trip_date:tripDate,
+   trip_time:tripTime,
+   service:parsed.service,
+   patient_name:parsed.patient_name||null,
+   referral_id:parsed.referral_id||null,
+   crm_reference:parsed.crm_reference||null,
+   broker_quoted_rate:normalizedBrokerQuote,
+   broker_quoted_rate_including_wait:Number(brokerRate||0),
+   distance_miles:Number(distanceMiles||0),
+   notes:parsed.notes||'',
+   extra_fields:parsed.extra_fields||{},
+   raw_fields:parsed.raw_fields||{}
+  }),
+  clean(parseSourceMethod,80)||'EMAIL_ATTACHMENT'
  ]).catch(()=>{});
  await saveBookingAttachments({bookingReference,brokerRequestId,attachments});
  const refreshed=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[bookingReference]).catch(()=>({rows:[]}));
@@ -745,14 +1180,26 @@ exports.handler=async(event)=>{
   await forwardBrokerEmailIfNeeded({from:senderEmail,to:recipient,subject,text:emailBody,attachments}).catch((error)=>console.error('[BROKER_FORWARD]',error.message));
 
   const hasConfirmationSubject=/confirmation/i.test(subject);
-  const decodedAttachmentTexts=await Promise.all((attachments||[]).map((attachment)=>decodeAttachmentText(attachment)));
-  const attachmentText=decodedAttachmentTexts.filter(Boolean).join('\n\n');
+  const decodedAttachmentResults=await Promise.all((attachments||[]).map((attachment)=>decodeAttachmentText(attachment)));
+  const decodedAttachmentTexts=decodedAttachmentResults.map((result)=>clean(result?.text||'',50000)).filter(Boolean);
+  const attachmentDiagnostics=decodedAttachmentResults.map((result)=>result?.diagnostic).filter(Boolean);
+  const attachmentText=decodedAttachmentTexts.join('\n\n');
   const parseSource=[attachmentText,emailBody].filter(Boolean).join('\n\n');
-  let parsed=parseBrokerIntakeText(parseSource);
+  const parseAttempt=parseBrokerIntakeText(parseSource);
+  let parsed=parseAttempt;
   if(!parsed&&hasConfirmationSubject){
    parsed=buildFallbackParsedFromSubject(subject,senderEmail,senderName);
   }
-  if(!parsed)return json(400,{error:'Could not parse pickup, destination, date, time, or quoted rate from email/attachment'});
+  const parseDiagnostics=buildParseDiagnostics({
+   subject,
+   emailBody,
+   attachmentDiagnostics,
+   attachmentText,
+   parseSource,
+   parseAttempt,
+   usedSubjectFallback:Boolean(parsed&&parsed.subject_fallback)
+  });
+  if(!parsed)return json(400,{error:'Could not parse pickup, destination, date, time, or quoted rate from email/attachment',parse_diagnostics:parseDiagnostics});
 
   const subjectHints=parseSubjectHints(subject);
   if(!parsed.patient_name&&subjectHints.patient_name)parsed.patient_name=subjectHints.patient_name;
@@ -766,7 +1213,10 @@ exports.handler=async(event)=>{
   const settings=await readPlatformSettings();
   const rateInfo=computePlatformRate(parsed,settings);
   const waitCost=rateInfo.twoHourWaitCost;
-  const brokerRateWithWait=parsed.subject_fallback?0:Number((n(parsed.broker_quoted_rate,0)+waitCost).toFixed(2));
+  const normalizedBrokerQuote=Number(n(parsed.broker_quoted_rate,0).toFixed(2));
+  const brokerRateWithWait=parsed.subject_fallback
+   ?0
+   :(normalizedBrokerQuote>0?Number((normalizedBrokerQuote+waitCost).toFixed(2)):0);
   const platformRate=Number(rateInfo.platformRate.toFixed(2));
   const variance=Number((brokerRateWithWait-platformRate).toFixed(2));
   const costBreakdown=estimateTripOperatingCost({...parsed,distance_miles:rateInfo.distanceMiles},settings);
@@ -774,6 +1224,25 @@ exports.handler=async(event)=>{
   const tripDate=normalizeTripDate(parsed.trip_date);
   const tripTime=normalizeTripTime(parsed.trip_time);
   if(!tripDate||!tripTime)return json(400,{error:'Invalid trip date or time in parsed broker intake'});
+  const parseSourceMethod=parsed.subject_fallback?'EMAIL_SUBJECT_FALLBACK':(attachmentText?'EMAIL_ATTACHMENT':'EMAIL_BODY');
+  const parsedPayload={
+   pickup:parsed.pickup,
+   destination:parsed.destination,
+   trip_date:tripDate,
+   trip_time:tripTime,
+   service:parsed.service,
+   patient_name:parsed.patient_name||null,
+   referral_id:parsed.referral_id||null,
+   crm_reference:parsed.crm_reference||null,
+  broker_quoted_rate:normalizedBrokerQuote,
+  broker_quoted_rate_including_wait:brokerRateWithWait,
+   distance_miles:Number(rateInfo.distanceMiles||0),
+   notes:parsed.notes||'',
+  extra_fields:parsed.extra_fields||{},
+  raw_fields:parsed.raw_fields||{},
+    parse_diagnostics:parseDiagnostics,
+   subject_fallback:Boolean(parsed.subject_fallback)
+  };
 
   const request=await insertBrokerRequest({
    brokerId,
@@ -790,7 +1259,12 @@ exports.handler=async(event)=>{
    submittedBy:senderEmail,
   distanceMiles:rateInfo.distanceMiles,
   sourceMessageId:messageId,
-  sourceReceivedAt:normalizedReceivedAt
+  sourceReceivedAt:normalizedReceivedAt,
+  patientName:parsed.patient_name,
+  referralId:parsed.referral_id,
+  crmReference:parsed.crm_reference,
+  parsedPayload,
+  parseSourceMethod
   });
 
   let booking=null;
@@ -805,8 +1279,7 @@ exports.handler=async(event)=>{
     attachments
    });
   }
-  const isFallbackRequest=String(request?.submission_method||'').toUpperCase()==='EMAIL_SUBJECT_FALLBACK';
-  if(booking&&hasConfirmationSubject&&attachments.length>0&&!parsed.subject_fallback&&isFallbackRequest){
+  if(booking&&hasConfirmationSubject&&attachments.length>0&&!parsed.subject_fallback){
    booking=await enrichExistingBookingFromBrokerRequest({
     bookingReference:booking.reference,
     parsed,
@@ -818,7 +1291,8 @@ exports.handler=async(event)=>{
     tripTime,
     distanceMiles:rateInfo.distanceMiles,
     brokerRequestId:request.id,
-    attachments
+    attachments,
+    parseSourceMethod
    })||booking;
   }
   if(!booking&&hasConfirmationSubject&&(attachments.length>0||parsed.subject_fallback)){
@@ -873,6 +1347,7 @@ exports.handler=async(event)=>{
     receivedAt:normalizedReceivedAt,
     hasConfirmationSubject,
     attachmentCount:attachments.length,
+    parseDiagnostics:parseDiagnostics,
     bookingReference:booking?.reference||null,
     parsed:{...parsed,trip_date:tripDate,trip_time:tripTime,distance_miles:rateInfo.distanceMiles},
     brokerQuotedWithWait:brokerRateWithWait,

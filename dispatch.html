@@ -352,6 +352,25 @@
     </label>
     <small id="tripFilterSummary" class="subtle" style="margin-left:auto">Showing all trips</small>
   </div>
+  <div style="margin:0 0 14px;padding:12px 14px;border:1px solid #d6e3ee;border-radius:14px;background:#f8fbfd">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <div>
+        <div class="eyebrow" style="margin-bottom:4px">Parse diagnostics</div>
+        <div style="font-size:13px;color:#667085">Compact scan of broker trips that used fallback parsing or still need review.</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+        <label class="field" style="margin:0">Diagnostics view
+          <select id="tripParseDiagnosticsFilter" style="min-width:190px">
+            <option value="ALL">All flagged</option>
+            <option value="SUBJECT_FALLBACK">Subject fallback only</option>
+            <option value="FAILURE_ONLY">Parse failure only</option>
+          </select>
+        </label>
+        <span id="tripParseDiagnosticsCount" class="status blue" style="align-self:center">0 flagged</span>
+      </div>
+    </div>
+    <div id="tripParseDiagnosticsList" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px"></div>
+  </div>
   <p class="subtle" style="margin-top:0">All booking and trip actions are tracked in platform records and audit logs for operational review and follow-up.</p>
   <div class="tableWrap" id="tripTableWrap"><table class="table"><thead><tr><th>Reference</th><th>Patient</th><th>Service</th><th>Date / Time</th><th>Status</th><th>Estimate</th><th>Broker quoted</th><th>AI risk</th><th>Action</th></tr></thead><tbody id="tripRows"></tbody></table></div>
   <div id="tripCalendarView" hidden style="margin-top:10px"></div>
@@ -620,6 +639,42 @@ function renderTrips(trips){
     heroTripList.innerHTML=list.slice(0,6).map(t=>`<div style="background:#fff;border:1px solid #d5e0e8;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="min-width:0"><strong style="font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name||''}</strong><small style="color:#52677c;font-size:11px">${t.service||''}  ${formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time)}</small></div><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}" style="font-size:10px;flex-shrink:0">${t.statusLabel||t.status||'Requested'}</span></div>`).join('')||'<div style="text-align:center;padding:16px;color:#52677c">No trips yet.</div>';
   }
 
+  function parseDiagnosticsTone(trip){
+    const source=String(trip?.intakeParseSource||'').toUpperCase();
+    const method=String(trip?.intakeParseMethod||'').toUpperCase();
+    const reason=String(trip?.intakeParseFailureReason||'').trim();
+    if(reason) return 'red';
+    if(source==='SUBJECT_FALLBACK' || method==='EMAIL_SUBJECT_FALLBACK') return 'amber';
+    return 'green';
+  }
+
+  function renderParseDiagnosticsList(trips){
+    const diagnosticsView=String(parseDiagnosticsFilter?.value || 'ALL').toUpperCase();
+    const candidates=(Array.isArray(trips)?trips:[])
+      .filter((trip)=>String(trip?.intakeParseFailureReason||'').trim() || String(trip?.intakeParseSource||'').toUpperCase()==='SUBJECT_FALLBACK' || String(trip?.intakeParseMethod||'').toUpperCase()==='EMAIL_SUBJECT_FALLBACK')
+      .filter((trip)=>{
+        if(diagnosticsView==='SUBJECT_FALLBACK') return String(trip?.intakeParseSource||'').toUpperCase()==='SUBJECT_FALLBACK' || String(trip?.intakeParseMethod||'').toUpperCase()==='EMAIL_SUBJECT_FALLBACK';
+        if(diagnosticsView==='FAILURE_ONLY') return Boolean(String(trip?.intakeParseFailureReason||'').trim());
+        return true;
+      })
+      .slice(0,12);
+    const wrap=document.getElementById('tripParseDiagnosticsList');
+    const countEl=document.getElementById('tripParseDiagnosticsCount');
+    if(countEl) countEl.textContent=`${candidates.length} flagged`;
+    if(!wrap) return;
+    if(!candidates.length){
+      wrap.innerHTML='<div style="font-size:13px;color:#667085">No current parse issues flagged.</div>';
+      return;
+    }
+    wrap.innerHTML=candidates.map((trip)=>{
+      const ref=trip?.reference||'';
+      const reason=trip?.intakeParseFailureReason||'Subject fallback used';
+      const source=trip?.intakeParseSource||trip?.intakeParseMethod||'UNKNOWN';
+      const att=Number(trip?.sourceAttachmentCount||0);
+      return `<button type="button" class="dispatch-parse-chip" data-parse-ref="${String(ref).replaceAll('"','&quot;')}" style="text-align:left;display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid #d6e3ee;border-radius:12px;background:#fff;cursor:pointer"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><strong style="font-size:13px">${ref}</strong><span class="status ${parseDiagnosticsTone(trip)}" style="font-size:10px">${source}</span></div><div style="font-size:12px;color:#334155;line-height:1.35">${reason}</div><div style="font-size:11px;color:#667085">Attachments: ${att}</div></button>`;
+    }).join('');
+  }
+
   const rowsEl=document.getElementById('tripRows');
   if(rowsEl){
     rowsEl.innerHTML=list.map(t=>{
@@ -835,6 +890,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const calendarMonthInput = document.getElementById('tripCalendarMonth');
   const sourceFilter = document.getElementById('tripSourceFilter');
   const parseSourceFilter = document.getElementById('tripParseSourceFilter');
+  const parseDiagnosticsFilter = document.getElementById('tripParseDiagnosticsFilter');
   const timeframeFilter = document.getElementById('tripTimeframeFilter');
   const refFilter = document.getElementById('tripReferenceFilter');
   const summaryEl = document.getElementById('tripFilterSummary');
@@ -843,7 +899,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const calendarView = document.getElementById('tripCalendarView');
   const loadApiBtn = document.getElementById('loadTrips');
   const loadLocalBtn = document.getElementById('loadLocal');
-  if(!viewTypeFilter || !boardToggleBtn || !boardBody || !attentionNotice || !attentionText || !calendarMonthWrap || !calendarMonthInput || !sourceFilter || !parseSourceFilter || !timeframeFilter || !refFilter || !rowsEl || !tableWrap || !calendarView || !loadApiBtn || !loadLocalBtn) return;
+  if(!viewTypeFilter || !boardToggleBtn || !boardBody || !attentionNotice || !attentionText || !calendarMonthWrap || !calendarMonthInput || !sourceFilter || !parseSourceFilter || !parseDiagnosticsFilter || !timeframeFilter || !refFilter || !rowsEl || !tableWrap || !calendarView || !loadApiBtn || !loadLocalBtn) return;
 
   const baseRenderTrips = typeof window.renderTrips === 'function' ? window.renderTrips.bind(window) : null;
   const state = { allTrips: [] };
@@ -1104,6 +1160,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       annotateRows(filtered);
     }
     if(useCalendar) renderCalendar(filtered);
+    renderParseDiagnosticsList(filtered);
     updateSummary(filtered);
     updateAttentionNotice();
   }
@@ -1222,8 +1279,17 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(typeof window.__dispatchBulkSelectionChanged === 'function') window.__dispatchBulkSelectionChanged();
   });
 
+  const parseDiagnosticsList=document.getElementById('tripParseDiagnosticsList');
+  parseDiagnosticsList?.addEventListener('click',(event)=>{
+    const button=event.target.closest('[data-parse-ref]');
+    if(!button) return;
+    const reference=String(button.dataset.parseRef||'').trim();
+    if(reference) window.openTripEditor?.(reference);
+  });
+
   sourceFilter.addEventListener('change', renderFiltered);
   parseSourceFilter.addEventListener('change', renderFiltered);
+  parseDiagnosticsFilter.addEventListener('change', renderFiltered);
   timeframeFilter.addEventListener('change', renderFiltered);
   refFilter.addEventListener('input', renderFiltered);
   viewTypeFilter.addEventListener('change', renderFiltered);
@@ -2069,6 +2135,36 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function updateEditorDetails(b){
     if(!detailsEl) return;
+    const escapeHtml=(value)=>String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    const titleCaseKey=(value)=>String(value||'').replace(/_/g,' ').replace(/\b\w/g,(c)=>c.toUpperCase());
+    const renderFieldRows=(rows)=>{
+      if(!Array.isArray(rows)||!rows.length){
+        return '<div style="font-size:13px;color:#667085">No mapped fields for this section.</div>';
+      }
+      return `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${rows.map((row)=>`<div style="background:#fff;border:1px solid #d6e3ee;border-radius:10px;padding:8px"><div style="font-size:11px;color:#52677c">${escapeHtml(row.label)}</div><div style="font-weight:700;color:#0f172a;word-break:break-word">${escapeHtml(row.value)}</div></div>`).join('')}</div>`;
+    };
+    const renderParseDiagnostics=(diagnostics)=>{
+      if(!diagnostics||typeof diagnostics!=='object'){
+        return '<div style="font-size:13px;color:#667085">No parse diagnostics recorded for this intake.</div>';
+      }
+      const signalSummary=diagnostics.signal_summary&&typeof diagnostics.signal_summary==='object'?diagnostics.signal_summary:{};
+      const signalRows=Object.entries(signalSummary)
+        .map(([key,value])=>({label:key.replace(/_/g,' ').replace(/\b\w/g,(c)=>c.toUpperCase()),value:value?'Yes':'No'}));
+      const attachmentRows=Array.isArray(diagnostics.attachment_diagnostics)?diagnostics.attachment_diagnostics:[];
+      const attachmentCards=attachmentRows.length
+        ?`<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${attachmentRows.map((item,idx)=>`<div style="background:#fff;border:1px solid #d6e3ee;border-radius:10px;padding:8px"><div style="font-size:11px;color:#52677c">Attachment ${idx+1}: ${escapeHtml(item.filename||'attachment')}</div><div style="font-weight:700;color:#0f172a">${escapeHtml(item.status||'unknown')}</div><div style="font-size:12px;color:#334155;margin-top:4px">Mode: ${escapeHtml(item.mode||'n/a')} | Text: ${escapeHtml(String(item.text_length??0))}</div>${item.error?`<div style="font-size:12px;color:#b42318;margin-top:4px">Error: ${escapeHtml(item.error)}</div>`:''}</div>`).join('')}</div>`
+        :'<div style="font-size:13px;color:#667085">No attachment decode diagnostics available.</div>';
+      const summaryRows=[
+        {label:'Parser version',value:String(diagnostics.parser_version||'N/A')},
+        {label:'Parse succeeded',value:diagnostics.parse_succeeded?'Yes':'No'},
+        {label:'Used subject fallback',value:diagnostics.used_subject_fallback?'Yes':'No'},
+        {label:'Failure reason',value:String(diagnostics.parse_failure_reason||'N/A')},
+        {label:'Attachment total',value:String(diagnostics.attachment_summary?.total??0)},
+        {label:'Attachments decoded',value:String(diagnostics.attachment_summary?.decoded??0)},
+        {label:'Attachment decode failed',value:String(diagnostics.attachment_summary?.decode_failed??0)}
+      ];
+      return `${renderFieldRows(summaryRows)}<div style="margin-top:8px"><div style="font-size:11px;color:#52677c;margin-bottom:6px">Signal summary</div>${renderFieldRows(signalRows)}</div><div style="margin-top:8px"><div style="font-size:11px;color:#52677c;margin-bottom:6px">Attachment decode diagnostics</div>${attachmentCards}</div>`;
+    };
     const resolveIntakeMethodLabel=(method)=>{
       const key=String(method||'').toUpperCase();
       if(key==='EMAIL_ATTACHMENT') return 'Attachment Parsed';
@@ -2110,10 +2206,66 @@ $('saveCustomCompany').addEventListener('click',()=>{
       ['Alternate phone', b.alternatePhone || 'N/A'],
       ['Alternate email', b.alternateEmail || 'N/A']
     ];
+
+    const parsedPayload=(intakeAudit&&typeof intakeAudit.parsedPayload==='object'&&intakeAudit.parsedPayload)?intakeAudit.parsedPayload:{};
+    const rawFields=(parsedPayload&&typeof parsedPayload.raw_fields==='object'&&parsedPayload.raw_fields)?parsedPayload.raw_fields:{};
+    const extraFields=(parsedPayload&&typeof parsedPayload.extra_fields==='object'&&parsedPayload.extra_fields)?parsedPayload.extra_fields:{};
+    const parseDiagnostics=(parsedPayload&&typeof parsedPayload.parse_diagnostics==='object'&&parsedPayload.parse_diagnostics)?parsedPayload.parse_diagnostics:null;
+    const brokerName=String(b.brokerCompanyName||'Unknown Broker').trim();
+    const brokerKey=brokerName.toLowerCase().includes('go transportation')||brokerName.toLowerCase().includes('go t&t')?'gotandt':'generic';
+
+    const mergerRows=[
+      {label:'Patient name',value:parsedPayload.patient_name||intakeAudit?.patientName||b.name||'N/A'},
+      {label:'Referral ID',value:parsedPayload.referral_id||intakeAudit?.referralId||'N/A'},
+      {label:'CRM reference',value:parsedPayload.crm_reference||intakeAudit?.crmReference||'N/A'},
+      {label:'Service',value:parsedPayload.service||b.service||'N/A'},
+      {label:'Trip date',value:parsedPayload.trip_date||b.date||'N/A'},
+      {label:'Trip time',value:parsedPayload.trip_time||b.time||'N/A'},
+      {label:'Pickup',value:parsedPayload.pickup||b.pickup||'N/A'},
+      {label:'Destination',value:parsedPayload.destination||b.destination||'N/A'},
+      {label:'Broker quoted rate',value:parsedPayload.broker_quoted_rate!=null?`$${Number(parsedPayload.broker_quoted_rate).toFixed(2)}`:'N/A'},
+      {label:'Broker quote incl wait',value:parsedPayload.broker_quoted_rate_including_wait!=null?`$${Number(parsedPayload.broker_quoted_rate_including_wait).toFixed(2)}`:'N/A'},
+      {label:'Distance miles',value:parsedPayload.distance_miles!=null?String(parsedPayload.distance_miles):'N/A'},
+      {label:'Parse method',value:resolveIntakeMethodLabel(parsedPayload.subject_fallback?'EMAIL_SUBJECT_FALLBACK':intakeAudit?.parseSourceMethod)}
+    ];
+
+    const goTtRows=brokerKey==='gotandt' ? [
+      {label:'Referral #',value:rawFields.referral || rawFields.referral_id || parsedPayload.referral_id || 'N/A'},
+      {label:'Client/IW',value:rawFields.client_iw || rawFields.patient || parsedPayload.patient_name || 'N/A'},
+      {label:'Phone Number',value:rawFields.phone_number || extraFields.member_phone || 'N/A'},
+      {label:'Facility Name',value:rawFields.facility_name || 'N/A'},
+      {label:'Facility Phone Number',value:rawFields.facility_phone_number || 'N/A'},
+      {label:'Appointment Date',value:rawFields.appointment_date || parsedPayload.trip_date || 'N/A'},
+      {label:'Appointment Time',value:rawFields.appointment_time || parsedPayload.trip_time || 'N/A'},
+      {label:'Transport Type',value:rawFields.transport_type || parsedPayload.service || 'N/A'},
+      {label:'Height/Weight',value:rawFields.height_weight || 'N/A'},
+      {label:'Per Mile',value:rawFields.per_mile || 'N/A'},
+      {label:'Wait Time',value:rawFields.wait_time || 'N/A'},
+      {label:'No Show Fee',value:rawFields.no_show_fee || 'N/A'},
+      {label:'Load Fee',value:rawFields.load_fee || 'N/A'},
+      {label:'Total Miles',value:rawFields.total_miles || parsedPayload.distance_miles || 'N/A'}
+    ] : [];
+
+    const genericRawRows=Object.entries({...rawFields,...extraFields})
+      .map(([key,value])=>({label:titleCaseKey(key),value:String(value??'').trim()||'N/A'}))
+      .filter((row)=>row.value!=='N/A');
+
+    const brokerTabLabel=brokerName&&brokerName!=='Unknown Broker'?`${brokerName} Fields`:'Broker Fields';
+    const brokerTabRows=goTtRows.length?goTtRows:genericRawRows;
+
     const attachmentCards=(Array.isArray(currentBookingAttachments)?currentBookingAttachments:[])
       .map((att)=>`<button class="button ghost" type="button" onclick="openBookingAttachment(${Number(att.id)||0},'${String(att.fileName||'').replaceAll("'",'&#39;')}','${String(att.mimeType||'').replaceAll("'",'&#39;')}')" style="text-align:left;justify-content:flex-start">${att.fileName||'Attachment'} (${att.mimeType||'file'})</button>`)
       .join('');
-    detailsEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${details.map(([k,v])=>`<div style="background:#fff;border:1px solid #d6e3ee;border-radius:10px;padding:8px"><div style="font-size:11px;color:#52677c">${k}</div><div style="font-weight:700;color:#0f172a;word-break:break-word">${displayValue(v)}</div></div>`).join('')}</div><div style="margin-top:10px;padding:10px;background:#fff;border:1px solid #d6e3ee;border-radius:10px"><div style="font-size:11px;color:#52677c;margin-bottom:6px">Source attachments</div>${attachmentCards||'<div style="font-size:13px;color:#667085">No imported attachments on this booking yet.</div>'}</div>`;
+    detailsEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${details.map(([k,v])=>`<div style="background:#fff;border:1px solid #d6e3ee;border-radius:10px;padding:8px"><div style="font-size:11px;color:#52677c">${k}</div><div style="font-weight:700;color:#0f172a;word-break:break-word">${displayValue(v)}</div></div>`).join('')}</div><div style="margin-top:10px;padding:10px;background:#fff;border:1px solid #d6e3ee;border-radius:10px"><div style="font-size:11px;color:#52677c;margin-bottom:8px">Broker Field Capture</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button type="button" class="button secondary" data-broker-field-tab-btn="merger">Merger Tab</button><button type="button" class="button secondary" data-broker-field-tab-btn="broker">${escapeHtml(brokerTabLabel)}</button><button type="button" class="button secondary" data-broker-field-tab-btn="raw">Raw Parsed Fields</button></div><div data-broker-field-tab="merger">${renderFieldRows(mergerRows)}</div><div data-broker-field-tab="broker" hidden>${renderFieldRows(brokerTabRows)}</div><div data-broker-field-tab="raw" hidden>${renderFieldRows(genericRawRows)}</div></div><div style="margin-top:10px;padding:10px;background:#fff;border:1px solid #d6e3ee;border-radius:10px"><div style="font-size:11px;color:#52677c;margin-bottom:6px">Parse diagnostics</div>${renderParseDiagnostics(parseDiagnostics)}</div><div style="margin-top:10px;padding:10px;background:#fff;border:1px solid #d6e3ee;border-radius:10px"><div style="font-size:11px;color:#52677c;margin-bottom:6px">Source attachments</div>${attachmentCards||'<div style="font-size:13px;color:#667085">No imported attachments on this booking yet.</div>'}</div>`;
+
+    const tabButtons=detailsEl.querySelectorAll('[data-broker-field-tab-btn]');
+    const tabPanels=detailsEl.querySelectorAll('[data-broker-field-tab]');
+    const activateBrokerTab=(tab)=>{
+      tabButtons.forEach((btn)=>btn.classList.toggle('active',btn.getAttribute('data-broker-field-tab-btn')===tab));
+      tabPanels.forEach((panel)=>{ panel.hidden=panel.getAttribute('data-broker-field-tab')!==tab; });
+    };
+    tabButtons.forEach((btn)=>btn.addEventListener('click',()=>activateBrokerTab(btn.getAttribute('data-broker-field-tab-btn')||'merger')));
+    activateBrokerTab('merger');
   }
 
   async function loadBookingAttachments(reference){
@@ -2184,6 +2336,16 @@ $('saveCustomCompany').addEventListener('click',()=>{
     setMsg(`Loaded ${reference}. Edit fields and save to notify stakeholders.`,'ok');
   }
 
+  window.openTripEditor = async function(reference){
+    const ref = String(reference || '').trim();
+    if(!ref) return;
+    if(!confirmDiscardUnsavedChanges('open another trip')) return;
+    boardBody.hidden = false;
+    panel.hidden = false;
+    try{ await loadTrip(ref); }
+    catch(err){ setMsg(err.message||'Unable to load selected trip','err'); }
+  };
+
   rows.addEventListener('click',async(event)=>{
     const clickedAction=event.target.closest('button,a,input,select');
     if(clickedAction) return;
@@ -2191,9 +2353,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(!row) return;
     const ref=rowReference(row);
     if(!ref) return;
-    if(!confirmDiscardUnsavedChanges('open another trip')) return;
-    panel.hidden=false;
-    try{await loadTrip(ref);}catch(err){setMsg(err.message||'Unable to load selected trip','err');}
+    await window.openTripEditor?.(ref);
   });
 
   get('dispatchEditClose').addEventListener('click',()=>{
