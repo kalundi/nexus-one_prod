@@ -39,6 +39,36 @@
 .tripAttentionBadge .dot{width:8px;height:8px;border-radius:999px;background:#f79009;box-shadow:0 0 0 rgba(247,144,9,.7)}
 .tripAttentionBadge.attn .dot{animation:tripAttentionPulse 1.2s infinite}
 @keyframes tripAttentionPulse{0%{opacity:1;box-shadow:0 0 0 0 rgba(247,144,9,.8)}70%{opacity:.85;box-shadow:0 0 0 8px rgba(247,144,9,0)}100%{opacity:1;box-shadow:0 0 0 0 rgba(247,144,9,0)}}
+.dispatchDashboardHome{position:relative;overflow:hidden;border:1px solid #d5e3ee;border-radius:22px;padding:24px;background:linear-gradient(140deg,#f4f9ff 0%,#eef6ff 54%,#f7fbff 100%);box-shadow:0 20px 35px rgba(7,31,55,.08);margin:8px 0 18px}
+.dispatchDashboardHome:before{content:"";position:absolute;right:-120px;top:-160px;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,rgba(14,116,144,.17),transparent 70%);pointer-events:none}
+.dispatchDashboardIntro{position:relative;z-index:1;max-width:720px}
+.dispatchDashboardIntro h2{margin:6px 0 8px;color:#0b2239}
+.dispatchDashboardIntro p{margin:0;color:#415a71}
+.dispatchDashboardSummary{position:relative;z-index:1;margin:14px 0 12px;display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.dispatchDashboardGrid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.dispatchDashboardTile{position:relative;text-align:left;padding:14px;border:1px solid #cfe0ee;border-radius:14px;background:#fff;display:grid;gap:6px;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+.dispatchDashboardTile:hover{transform:translateY(-1px);border-color:#9ec3e4;box-shadow:0 10px 18px rgba(12,46,78,.1)}
+.dispatchDashboardTile.active{border-color:#0b5d91;box-shadow:0 0 0 2px rgba(11,93,145,.18)}
+.dispatchDashboardTile .tileLabel{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#1d4e72}
+.dispatchDashboardTile strong{font-size:16px;color:#0f2f4f}
+.dispatchDashboardTile small{font-size:12px;color:#5f7388;line-height:1.35}
+.dashSignal{justify-self:flex-start;border-radius:999px;border:1px solid #d0d5dd;padding:4px 9px;font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase}
+.dashSignal.normal{background:#ecfdf3;border-color:#abefc6;color:#067647}
+.dashSignal.warn{background:#fffaeb;border-color:#fedf89;color:#b54708}
+.dashSignal.alert{background:#fef3f2;border-color:#fecdca;color:#b42318}
+.dispatchFocusToolbar{display:none;align-items:center;gap:12px;padding:12px 14px;border:1px solid #d7e3f0;border-radius:14px;background:#f8fbff;margin:8px 0 14px}
+.dispatchFocusToolbar strong{font-size:15px;color:#123550}
+body.dispatchDashboardMode .dispatchSection{display:none}
+body.dispatchDashboardMode .dispatchScopedTripBoard{display:none !important}
+body.dispatchDashboardMode .dispatchDashboardHome{display:block}
+body.dispatchDashboardMode .dispatchFocusToolbar{display:none}
+body.dispatchFocusMode .dispatchDashboardHome{display:none}
+body.dispatchFocusMode .dispatchFocusToolbar{display:flex}
+body.dispatchFocusMode #main.shell{max-width:100%;padding-left:20px;padding-right:20px}
+body.dispatchFocusMode .dispatchSection{display:none}
+body.dispatchFocusMode .dispatchScopedTripBoard{display:none !important}
+body.dispatchFocusMode .dispatchSection.focusVisible{display:block;min-height:calc(100vh - 130px);padding:18px;border-radius:18px;background:#fff;border:1px solid #d8e6f2;box-shadow:0 24px 42px rgba(6,24,44,.12);margin:0}
+body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !important}
 @media(max-width:760px){.transportation-picker{padding:var(--sp);border-radius:12px}.picker-header,.company-card-heading{align-items:flex-start;flex-direction:column}.filter-grid,.form-grid{grid-template-columns:1fr}.company-actions a{width:100%}}
   </style>
   <script src="/trustedsite.js" defer></script>
@@ -90,7 +120,48 @@
   </div>
 </aside>
 </div></section><main id="main" class="shell moduleMain" tabindex="-1">
-<section class="card" style="margin-top:20px">
+<section class="dispatchDashboardHome" id="dispatchDashboardHome" aria-label="Dispatch dashboard sections">
+  <div class="dispatchDashboardIntro">
+    <p class="eyebrow">Dispatch workspace</p>
+    <h2>Focus by operation area</h2>
+    <p>Cards stay hidden by default. Select one area to open it in full focus mode and keep the team on the current task.</p>
+  </div>
+  <div class="dispatchDashboardSummary" id="dispatchDashboardSummary">Realtime status loading</div>
+  <div class="dispatchDashboardGrid" id="dispatchDashboardGrid">
+    <button type="button" class="dispatchDashboardTile" data-section-target="dispatchIntakeSection">
+      <span class="tileLabel">Intake hub</span>
+      <strong>Broker, customer, facility</strong>
+      <small>Capture requests with standardized details.</small>
+      <span class="dashSignal normal" data-signal-for="dispatchIntakeSection">Ready</span>
+    </button>
+    <button type="button" class="dispatchDashboardTile" data-section-target="tripBoard">
+      <span class="tileLabel">Trip management</span>
+      <strong>Live trip board</strong>
+      <small>Advance, edit, and monitor operational risk.</small>
+      <span class="dashSignal normal" data-signal-for="tripBoard">Monitoring</span>
+    </button>
+    <button type="button" class="dispatchDashboardTile" data-section-target="driverStatusSection">
+      <span class="tileLabel">Staffing</span>
+      <strong>Driver + fleet status</strong>
+      <small>Track coverage, availability, and attention alerts.</small>
+      <span class="dashSignal normal" data-signal-for="driverStatusSection">Loading</span>
+    </button>
+    <button type="button" class="dispatchDashboardTile" data-section-target="aiSection">
+      <span class="tileLabel">AI support</span>
+      <strong>Recommendations + forecast</strong>
+      <small>Prioritize likely delays and demand spikes.</small>
+      <span class="dashSignal normal" data-signal-for="aiSection">Insights</span>
+    </button>
+  </div>
+</section>
+<div class="dispatchFocusToolbar" id="dispatchFocusToolbar" aria-live="polite">
+  <button id="dispatchDashboardBack" class="button secondary" type="button">Back to Dashboard</button>
+  <div>
+    <p class="eyebrow">Focused workspace</p>
+    <strong id="dispatchFocusTitle">Dispatch</strong>
+  </div>
+</div>
+<section id="dispatchIntakeSection" class="card dispatchSection" style="margin-top:20px">
   <div class="toolbar"><div><div class="eyebrow">Dispatch intake hub</div><h2>Broker, customer and facility request intake</h2><p style="margin:6px 0 0;color:var(--muted)">Modernized intake with service-aware rates, return-trip wait-time logic and shared dispatch standards.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="dispatchIntakeToggle" class="button secondary" type="button" aria-expanded="false" aria-controls="dispatchIntakeBody">Show Intake Hub</button></div></div>
   <div id="dispatchIntakeBody" hidden>
   <div class="pillTabs" role="tablist" aria-label="Intake forms" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px">
@@ -305,7 +376,7 @@
   </div>
   </div>
 </section>
-<section id="tripBoard" class="card" style="margin-top:20px">
+<section id="tripBoard" class="card dispatchSection" style="margin-top:20px">
   <div class="toolbar">
     <div><div class="eyebrow">Live Operations</div><h2>Trip management</h2></div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -376,8 +447,8 @@
   <div id="tripCalendarView" hidden style="margin-top:10px"></div>
   </div>
 </section>
-<section class="grid cols2" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Live staffing</p><h2>Drivers on duty</h2></div><span id="driversOnDutyCount" class="status blue">Loading</span></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Shift availability</p><h2>Fleet &amp; driver summary</h2></div><button id="refreshDrivers" class="button secondary" style="min-height:36px;font-size:13px"> Refresh</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading</p></div></article></section>
-<section id="aiSection" class="grid cols2" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
+<section class="grid cols2 dispatchSection" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Live staffing</p><h2>Drivers on duty</h2></div><span id="driversOnDutyCount" class="status blue">Loading</span></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Shift availability</p><h2>Fleet &amp; driver summary</h2></div><button id="refreshDrivers" class="button secondary" style="min-height:36px;font-size:13px"> Refresh</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading</p></div></article></section>
+<section id="aiSection" class="grid cols2 dispatchSection" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
 </main><footer class="footer"><div class="shell footerGrid" data-unified-footer-applied="1" data-compact-redesign-applied="1"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Patients</strong><a href="/booking-app.html">Book Transportation</a><a href="/livecare.html">Track a Ride</a></div><div><strong>Authorized portals</strong><a href="/facility.html">Facility</a><a href="/dispatch.html">Dispatch</a><a href="/driver-app.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18886395766">Main line: (888) 639-5766</a><a href="tel:+18887604990">Customer service: (888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true"></span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js?v=30"></script><script>
 async function loadDriverRoster(){
   try{
@@ -559,6 +630,126 @@ document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); e
   };
   intakeToggle.addEventListener('click',()=>setOpen(intakeBody.hidden));
   setOpen(false);
+})();
+
+(function(){
+  const sectionLabels={
+    dispatchIntakeSection:'Dispatch Intake Hub',
+    tripBoard:'Trip Management',
+    driverStatusSection:'Driver and Fleet Status',
+    aiSection:'AI Dispatch Support'
+  };
+  let focusedSectionId='';
+
+  const parseMetric=(id)=>{
+    const value=String(document.getElementById(id)?.textContent||'').replace(/[^0-9.-]/g,'');
+    const parsed=Number(value);
+    return Number.isFinite(parsed)?parsed:0;
+  };
+
+  const setSignal=(sectionId,tone,label)=>{
+    const signal=document.querySelector(`[data-signal-for="${sectionId}"]`);
+    if(!signal) return;
+    signal.classList.remove('normal','warn','alert');
+    signal.classList.add(tone);
+    signal.textContent=label;
+  };
+
+  const updateDispatchDashboardSignals=()=>{
+    const total=parseMetric('totalTrips');
+    const pending=parseMetric('pendingTrips');
+    const active=parseMetric('activeTrips');
+    const completed=parseMetric('completedTrips');
+    const driversOnDuty=parseMetric('driversOnDutyCount');
+    const flaggedCount=document.querySelectorAll('#tripParseDiagnosticsList [data-parse-ref]').length;
+
+    if(total===0) setSignal('dispatchIntakeSection','warn','No active requests');
+    else setSignal('dispatchIntakeSection','normal',`${total} requests`);
+
+    if(flaggedCount>0||pending>=10) setSignal('tripBoard','alert',`${Math.max(flaggedCount,pending)} need review`);
+    else if(pending>0) setSignal('tripBoard','warn',`${pending} pending`);
+    else setSignal('tripBoard','normal','Board clear');
+
+    if(driversOnDuty<=0) setSignal('driverStatusSection','alert','No drivers on duty');
+    else if(driversOnDuty<3) setSignal('driverStatusSection','warn',`${driversOnDuty} on duty`);
+    else setSignal('driverStatusSection','normal',`${driversOnDuty} on duty`);
+
+    if(active>0||completed>0) setSignal('aiSection','normal','Insights active');
+    else setSignal('aiSection','warn','Awaiting trip data');
+
+    const summary=document.getElementById('dispatchDashboardSummary');
+    if(summary){
+      if(pending>0||flaggedCount>0){
+        summary.textContent=`Watch: ${pending} pending, ${flaggedCount} flagged`;
+        summary.style.background='#fff7e6';
+        summary.style.borderColor='#f8d7a5';
+        summary.style.color='#92400e';
+      }else{
+        summary.textContent='Operations stable';
+        summary.style.background='#ecfdf3';
+        summary.style.borderColor='#abefc6';
+        summary.style.color='#067647';
+      }
+    }
+  };
+
+  const setActiveTile=(sectionId)=>{
+    document.querySelectorAll('.dispatchDashboardTile').forEach((tile)=>{
+      tile.classList.toggle('active',tile.getAttribute('data-section-target')===sectionId);
+    });
+  };
+
+  const ensureExpanded=(toggleId)=>{
+    const button=document.getElementById(toggleId);
+    if(!button) return;
+    if(button.getAttribute('aria-expanded')!=='true') button.click();
+  };
+
+  const showDashboardHome=()=>{
+    focusedSectionId='';
+    document.body.classList.remove('dispatchFocusMode');
+    document.body.classList.add('dispatchDashboardMode');
+    document.querySelectorAll('.dispatchSection').forEach((section)=>section.classList.remove('focusVisible'));
+    document.querySelectorAll('.dispatchScopedTripBoard').forEach((section)=>section.classList.remove('focusVisible'));
+    setActiveTile('');
+    updateDispatchDashboardSignals();
+  };
+
+  const focusDashboardSection=(sectionId)=>{
+    const target=document.getElementById(sectionId);
+    if(!target) return;
+    focusedSectionId=sectionId;
+    document.body.classList.remove('dispatchDashboardMode');
+    document.body.classList.add('dispatchFocusMode');
+    document.querySelectorAll('.dispatchSection').forEach((section)=>section.classList.toggle('focusVisible',section.id===sectionId));
+    document.querySelectorAll('.dispatchScopedTripBoard').forEach((section)=>section.classList.toggle('focusVisible',sectionId==='tripBoard'));
+    document.getElementById('dispatchFocusTitle').textContent=sectionLabels[sectionId]||'Dispatch Workspace';
+    setActiveTile(sectionId);
+    if(sectionId==='dispatchIntakeSection') ensureExpanded('dispatchIntakeToggle');
+    if(sectionId==='tripBoard') ensureExpanded('tripBoardToggle');
+    target.scrollIntoView({behavior:'smooth',block:'start'});
+  };
+
+  const initDispatchDashboardWorkspace=()=>{
+    document.getElementById('dispatchDashboardBack')?.addEventListener('click',showDashboardHome);
+    document.getElementById('dispatchDashboardGrid')?.addEventListener('click',(event)=>{
+      const tile=event.target?.closest?.('[data-section-target]');
+      if(!tile) return;
+      focusDashboardSection(tile.getAttribute('data-section-target'));
+    });
+    const observerTarget=document.getElementById('tripRows');
+    if(observerTarget){
+      new MutationObserver(()=>updateDispatchDashboardSignals()).observe(observerTarget,{childList:true,subtree:true});
+    }
+    ['loadTrips','refreshDrivers','heroRefreshFleet'].forEach((id)=>{
+      document.getElementById(id)?.addEventListener('click',()=>setTimeout(updateDispatchDashboardSignals,450));
+    });
+    showDashboardHome();
+    setTimeout(updateDispatchDashboardSignals,600);
+  };
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initDispatchDashboardWorkspace,{once:true});
+  else initDispatchDashboardWorkspace();
 })();
 
 function riskBadge(t){
@@ -1309,7 +1500,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
   let importedBulkRows=[];
 
   const bulkLauncher=document.createElement('section');
-  bulkLauncher.className='card';
+  bulkLauncher.className='card dispatchScopedTripBoard';
+  bulkLauncher.id='dispatchBulkLauncherSection';
   bulkLauncher.style.marginTop='14px';
   bulkLauncher.innerHTML=`
     <div class="sectionHead" style="margin-bottom:0"><div><p class="eyebrow">Dispatch Actions</p><h2 style="margin:0">Bulk template import</h2></div><div style="display:flex;align-items:center;gap:10px"><small class="subtle">Hidden by default. Open only when needed.</small><button id="dispatchBulkOpen" class="button ghost" type="button">Open bulk import</button></div></div>
@@ -1317,7 +1509,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
   board.insertAdjacentElement('afterend',bulkLauncher);
 
   const bulkPanel=document.createElement('section');
-  bulkPanel.className='card';
+  bulkPanel.className='card dispatchScopedTripBoard';
+  bulkPanel.id='dispatchBulkPanelSection';
   bulkPanel.style.marginTop='14px';
   bulkPanel.hidden=true;
   bulkPanel.innerHTML=`
@@ -1343,7 +1536,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   board.insertAdjacentElement('afterend',editorHomeAnchor);
 
   const panel=document.createElement('section');
-  panel.className='card dispatchTripEditor';
+  panel.className='card dispatchTripEditor dispatchScopedTripBoard';
   panel.id='dispatchTripEditorPanel';
   panel.style.marginTop='14px';
   panel.hidden=true;
