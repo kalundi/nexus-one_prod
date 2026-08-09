@@ -3404,6 +3404,26 @@ async function handler(event){
       warning=`${warning?`${warning} `:''}Credential email failed to send. Share the temporary password securely with the user.`.trim();
      }
 
+       if(emailDeliveryStatus!=='sent'){
+        try{
+         const adminRecipients=buildEmailRecipients([process.env.COMPANY_EMAIL||'',process.env.NEXUS_ADMIN_EMAIL||'']);
+         if(adminRecipients.length){
+          const statusLabel=String(emailDeliveryStatus||'unknown').toUpperCase();
+          const alertHtml=`
+            <h2>Nexus credential delivery alert</h2>
+            <p>Resent credentials could not be auto-delivered.</p>
+            <p><strong>User:</strong> ${clean(target.display_name||target.email)}</p>
+            <p><strong>Email:</strong> ${clean(target.email)}</p>
+            <p><strong>Status:</strong> ${statusLabel}</p>
+            <p><strong>Issued by:</strong> ${clean(me.email)}</p>
+            <p><strong>Expires at:</strong> ${new Date(tempPasswordExpiresAt).toLocaleString('en-US',{timeZone:'America/New_York'})} ET</p>
+            <p>Please deliver credentials to the user through a secure fallback channel.</p>
+          `;
+          await sendEmail(adminRecipients,'ALERT: Credential resend email not delivered',alertHtml);
+         }
+        }catch(alertErr){}
+       }
+
      await audit('USER',userId,'CREDENTIALS_REISSUED',{by:me.email,email:target.email,role:target.role,emailDeliveryStatus,policyEnforced});
      return json(200,{ok:true,user:{id:String(target.id),email:target.email,name:target.display_name,role:target.role,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,emailDeliveryStatus,warning});
     }

@@ -254,6 +254,7 @@ function initAdminDashboardWorkspace(){
 
 // Users
 const ROLE_COLORS={ADMIN:'red',DISPATCHER:'blue',FACILITY:'blue',DRIVER:'green',BILLING:'amber',QA:'amber',EXECUTIVE:'blue',PATIENT:'muted'};
+let latestAuditEntries=[];
 
 async function loadUsers(){
   const tbody=document.getElementById('userTableBody');
@@ -277,6 +278,7 @@ async function loadUsers(){
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="button compact" data-toggle-user="${u.id}" data-active="${u.active}" style="min-width:90px">${u.active?'Deactivate':'Activate'}</button>
             <button class="button compact" data-resend-user="${u.id}" style="min-width:120px">Resend login</button>
+            <button class="button compact" data-view-resend-history="${u.id}" data-user-email="${u.email}" style="min-width:160px">View resend history</button>
           </div>
         </td>
       </tr>`).join('');
@@ -313,6 +315,18 @@ async function loadUsers(){
           btn.disabled=false;
           btn.textContent=prev;
         }
+      });
+    });
+    document.querySelectorAll('[data-view-resend-history]').forEach(btn=>{
+      btn.addEventListener('click',async()=>{
+        const email=(btn.dataset.userEmail||'').trim();
+        const userId=(btn.dataset.viewResendHistory||'').trim();
+        document.getElementById('auditType').value='CREDENTIALS_REISSUED';
+        document.getElementById('auditSearch').value=email||userId;
+        const auditDetails=document.getElementById('auditDetails');
+        if(auditDetails) auditDetails.open=true;
+        focusDashboardSection('auditSection');
+        await loadAudit();
       });
     });
     updateDashboardSignals();
@@ -627,6 +641,7 @@ async function loadAudit(){
     if(!r.ok){const e=await r.json();throw new Error(e.error||'Failed to load audit log');}
     const {entries}=await r.json();
     const filtered=Array.isArray(entries)?entries:[];
+    latestAuditEntries=filtered;
     if(!filtered.length){container.innerHTML='<p style="color:var(--muted)">No audit records found.</p>';updateDashboardSignals();return;}
     container.innerHTML=filtered.map(e=>`
       <div class="auditRow" data-created-at="${e.createdAt||''}">
@@ -642,11 +657,47 @@ async function loadAudit(){
   updateDashboardSignals();
 }
 
+function csvEscape(value){
+  const raw=String(value??'');
+  return /[",\n]/.test(raw)?`"${raw.replace(/"/g,'""')}"`:raw;
+}
+
+async function exportAuditCsv(){
+  if(!Array.isArray(latestAuditEntries)||latestAuditEntries.length===0){
+    await loadAudit();
+  }
+  if(!Array.isArray(latestAuditEntries)||latestAuditEntries.length===0){
+    alert('No audit records to export for the current filters.');
+    return;
+  }
+  const header=['createdAt','action','entityType','entityId','changes'];
+  const rows=[header.join(',')];
+  for(const entry of latestAuditEntries){
+    rows.push([
+      csvEscape(entry.createdAt||''),
+      csvEscape(entry.action||''),
+      csvEscape(entry.entityType||''),
+      csvEscape(entry.entityId||''),
+      csvEscape(JSON.stringify(entry.changes||{}))
+    ].join(','));
+  }
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`audit-log-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 document.getElementById('refreshAudit').addEventListener('click',loadAudit);
 document.getElementById('applyAuditFilter').addEventListener('click',loadAudit);
 document.getElementById('auditSearch')?.addEventListener('keydown',(event)=>{
   if(event.key==='Enter') loadAudit();
 });
+document.getElementById('exportAuditCsv')?.addEventListener('click',()=>{exportAuditCsv().catch((err)=>alert(err.message||'Failed to export audit CSV'));});
 
 // Settings
 const SERVICE_POLICY_ORDER=['wheelchair','ambulatory','facility_transfer','facility_transfer_critical','broda','stretcher','bariatric','bls','als1','als2'];
