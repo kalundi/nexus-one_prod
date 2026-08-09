@@ -1969,7 +1969,7 @@ async function handler(event){
   }
   if(p[0]==='health'){
    const r=await query('SELECT now() AS now, current_database() AS database');
-    return json(200,{status:'ok',database:'connected',environment:process.env.CONTEXT||process.env.APP_ENV||'unknown',checkedAt:r.rows[0].now,build:'042',apiRevision:'admin-create-fallback-id-fix-2026-08-09-v2'});
+    return json(200,{status:'ok',database:'connected',environment:process.env.CONTEXT||process.env.APP_ENV||'unknown',checkedAt:r.rows[0].now,build:'042',apiRevision:'admin-resend-credentials-2026-08-09-v1'});
   }
   if(p[0]==='debug'&&p[1]==='admin'&&method==='GET'){
    const r=await query(`SELECT id, email, display_name, role, active, password_hash, organization_id, created_at FROM users WHERE lower(email)=lower('admin@nexusmt.com') LIMIT 1`);
