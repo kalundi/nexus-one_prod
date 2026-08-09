@@ -191,6 +191,10 @@ function showDashboardHome(){
   document.querySelectorAll('.sectionTab').forEach((section)=>section.classList.remove('focusVisible'));
   setDashboardActiveTile('');
   updateDashboardSignals();
+  const currentHash=String(window.location.hash||'').replace('#','');
+  if(currentHash&&ADMIN_DASHBOARD_SECTIONS.includes(currentHash)){
+    history.replaceState(null,'',window.location.pathname+window.location.search);
+  }
 }
 
 function focusDashboardSection(sectionId){
@@ -203,15 +207,27 @@ function focusDashboardSection(sectionId){
   const focusTitle=document.getElementById('adminFocusTitle');
   if(focusTitle) focusTitle.textContent=ADMIN_DASHBOARD_LABELS[sectionId]||'Focused workspace';
   setDashboardActiveTile(sectionId);
+  if(window.location.hash!==`#${sectionId}`){
+    history.replaceState(null,'',`#${sectionId}`);
+  }
   target.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function initAdminDashboardWorkspace(){
+  const navigateFromTile=(tile,event)=>{
+    if(event) event.preventDefault();
+    if(!tile||tile.hasAttribute('disabled')) return;
+    const sectionId=tile.getAttribute('data-section-target');
+    if(!sectionId) return;
+    focusDashboardSection(sectionId);
+  };
   document.getElementById('adminDashboardBack')?.addEventListener('click',showDashboardHome);
   document.getElementById('adminDashboardGrid')?.addEventListener('click',(event)=>{
     const tile=event.target?.closest?.('[data-section-target]');
-    if(!tile||tile.hasAttribute('disabled')) return;
-    focusDashboardSection(tile.getAttribute('data-section-target'));
+    navigateFromTile(tile,event);
+  });
+  document.querySelectorAll('#adminDashboardGrid [data-section-target]').forEach((tile)=>{
+    tile.addEventListener('click',(event)=>navigateFromTile(tile,event));
   });
   document.querySelectorAll('.adminShortcut[href^="#"]').forEach((link)=>{
     link.addEventListener('click',(event)=>{
@@ -223,7 +239,17 @@ function initAdminDashboardWorkspace(){
       focusDashboardSection(sectionId);
     });
   });
-  showDashboardHome();
+  window.addEventListener('hashchange',()=>{
+    const sectionId=String(window.location.hash||'').replace('#','').trim();
+    if(sectionId&&ADMIN_DASHBOARD_SECTIONS.includes(sectionId)){
+      focusDashboardSection(sectionId);
+      return;
+    }
+    showDashboardHome();
+  });
+  const initialSection=String(window.location.hash||'').replace('#','').trim();
+  if(initialSection&&ADMIN_DASHBOARD_SECTIONS.includes(initialSection)) focusDashboardSection(initialSection);
+  else showDashboardHome();
 }
 
 // Users
