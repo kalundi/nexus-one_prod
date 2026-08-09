@@ -1627,7 +1627,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     </div>
     <input id="dispatchBulkUpload" type="file" accept=".csv,text/csv" hidden>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px">
-      <small class="subtle">Editable CSV columns: appointmentTime, checkInTime, status, service, date, time, driverName, vehicleUnit, bookingSource, submitterEntity, brokerCompanyName, brokerAcceptedRate, dispatchNote</small>
+      <small class="subtle">Editable CSV columns: appointmentTime, checkInTime, status, service, date, time, driverName, vehicleUnit, bookingSource, submitterEntity, brokerCompanyName, driverConfirmedRate, dispatchNote</small>
       <div style="display:flex;gap:10px"><button id="dispatchBulkClear" class="button ghost" type="button">Clear selection</button><button id="dispatchBulkDownload" class="button ghost" type="button">Download CSV template</button><button id="dispatchBulkUploadBtn" class="button ghost" type="button">Upload CSV</button><button id="dispatchBulkSubmit" class="button primary" type="button">Submit imported updates</button></div>
     </div>
   `;
@@ -1672,7 +1672,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       <div class="formField"><label>Broker company</label><select id="dispatchEditBrokerCompany"><option value="">Select company</option></select><small id="dispatchEditCurrentBrokerCompany" class="subtle">Current broker company: --</small></div>
       <div class="formField"><label>Our estimate</label><input id="dispatchEditOurEstimate" type="text" readonly></div>
       <div class="formField"><label>Broker quoted rate</label><input id="dispatchEditBrokerQuotedRate" type="number" min="0" step="0.01" placeholder="0.00" readonly style="background:var(--soft,#f8fafc)"></div>
-      <div class="formField"><label>Broker accepted rate</label><input id="dispatchEditBrokerAcceptedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="formField"><label>Driver confirmed rate</label><input id="dispatchEditBrokerAcceptedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
     </div>
     <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">
       <div class="formField"><label>Patient name</label><input id="dispatchEditName" type="text"></div>
@@ -2619,7 +2619,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       ['Broker request ID', intakeAudit?.requestId || 'N/A'],
       ['Source received at', intakeAudit?.sourceReceivedAt || 'N/A'],
       ['Broker quoted rate', b.brokerQuotedRate!=null?`$${Number(b.brokerQuotedRate).toFixed(2)}`:(b.broker_quoted_rate!=null?`$${Number(b.broker_quoted_rate).toFixed(2)}`:'N/A')],
-      ['Broker accepted rate', b.brokerAcceptedRate!=null?`$${Number(b.brokerAcceptedRate).toFixed(2)}`:'N/A'],
+      ['Driver confirmed rate', b.brokerAcceptedRate!=null?`$${Number(b.brokerAcceptedRate).toFixed(2)}`:'N/A'],
       ['Submitter appointment', b.submittedAppointmentTime || 'MISSING'],
       ['Route minutes used', String(getDynamicRouteMinutes() || 'N/A')],
       ['Company yard', companyYardAddress || 'N/A'],
@@ -2934,7 +2934,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(!selectedRefs.size){setBulkMsg('Select at least one trip before downloading template.','err');return;}
     const selectedTrips=(window.__dispatchTripsCache||[]).filter((trip)=>selectedRefs.has(String(trip.reference||trip.id||'')));
     if(!selectedTrips.length){setBulkMsg('Selected trips are not available in current filtered view. Refresh and retry.','err');return;}
-    const headers=['reference','appointmentTime','checkInTime','status','service','date','time','driverName','vehicleUnit','bookingSource','submitterEntity','brokerCompanyName','brokerAcceptedRate','dispatchNote'];
+    const headers=['reference','appointmentTime','checkInTime','status','service','date','time','driverName','vehicleUnit','bookingSource','submitterEntity','brokerCompanyName','driverConfirmedRate','dispatchNote'];
     const rows=[headers.join(',')];
     selectedTrips.forEach((trip)=>{
       const values=[
@@ -3016,7 +3016,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         const bookingSource=String(row.bookingSource||row.BookingSource||'').trim();
         const submitterEntity=String(row.submitterEntity||row.SubmitterEntity||'').trim();
         const brokerCompanyName=String(row.brokerCompanyName||row.BrokerCompanyName||'').trim();
-        const brokerAcceptedRate=String(row.brokerAcceptedRate||row.BrokerAcceptedRate||'').trim();
+        const brokerAcceptedRate=String(row.driverConfirmedRate||row.DriverConfirmedRate||row.brokerAcceptedRate||row.BrokerAcceptedRate||'').trim();
         const dispatchNote=String(row.dispatchNote||row.DispatchNote||'').trim();
         if(appointmentTime) payload.appointmentTime=appointmentTime;
         if(checkInTime) payload.checkInTime=checkInTime;

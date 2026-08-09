@@ -143,7 +143,7 @@ function collectBookingFieldHistoryEntries(beforeRow,afterRow){
   {label:'Booking source',before:clean(before.bookingSource).toUpperCase(),after:clean(after.bookingSource).toUpperCase()},
   {label:'Submitter login',before:clean(before.submitterEntity),after:clean(after.submitterEntity)},
   {label:'Broker company',before:clean(before.brokerCompanyName),after:clean(after.brokerCompanyName)},
-  {label:'Broker accepted rate',before:normalizeMoney(before.brokerAcceptedRate),after:normalizeMoney(after.brokerAcceptedRate)},
+  {label:'Driver confirmed rate',before:normalizeMoney(before.brokerAcceptedRate),after:normalizeMoney(after.brokerAcceptedRate)},
   {label:'Patient name',before:clean(before.name),after:clean(after.name)},
   {label:'Patient phone',before:clean(before.phone),after:clean(after.phone)},
   {label:'Patient email',before:clean(before.email),after:clean(after.email)},
@@ -1007,13 +1007,15 @@ async function notifyAssignedDriver(booking,options={}){
  const checkInTime=clean(booking?.check_in_time||booking?.checkInTime||'');
  const pickup=clean(booking?.pickup||'');
  const destination=clean(booking?.destination||'');
+ const driverConfirmedRate=Number(booking?.broker_accepted_rate??booking?.brokerAcceptedRate);
+ const driverConfirmedRateText=Number.isFinite(driverConfirmedRate)&&driverConfirmedRate>0?` Driver confirmed rate: $${driverConfirmedRate.toFixed(2)}.`:'';
  const reference=clean(booking?.reference||'');
  const resolved=await resolveDriverContacts({driverName,driverScopeId,driverEmail,driverPhone});
  driverEmail=resolved.driverEmail;
  driverPhone=resolved.driverPhone;
  if(!driverName||(!driverEmail&&!driverPhone))return {sms:{status:'skipped'},email:{status:'skipped'}};
- const smsBody=`Nexus Medical Transit: You have been assigned to trip ${reference}${tripDate?` on ${tripDate}`:''}${tripTime?` at ${tripTime}`:''}. Pickup: ${pickup || 'See dispatch'}. Pickup/appointment time: ${pickupTime || 'See dispatch'}. Check-in time: ${checkInTime || 'See dispatch'}. Destination: ${destination || 'See dispatch'}. Vehicle: ${vehicleUnit || 'TBD'}.`;
- const html=`<h2 style="color:#082f49">Trip assigned — ${reference}</h2><p><strong>Driver:</strong> ${driverName}</p><p><strong>Date:</strong> ${tripDate || '—'}</p><p><strong>Time:</strong> ${tripTime || '—'}</p><p><strong>Pickup:</strong> ${pickup || '—'}</p><p><strong>Pickup/appointment time:</strong> ${pickupTime || '—'}</p><p><strong>Check-in time:</strong> ${checkInTime || '—'}</p><p><strong>Destination:</strong> ${destination || '—'}</p><p><strong>Vehicle:</strong> ${vehicleUnit || 'TBD'}</p><p>Please confirm your availability with dispatch.</p>`;
+ const smsBody=`Nexus Medical Transit: You have been assigned to trip ${reference}${tripDate?` on ${tripDate}`:''}${tripTime?` at ${tripTime}`:''}. Pickup: ${pickup || 'See dispatch'}. Pickup/appointment time: ${pickupTime || 'See dispatch'}. Check-in time: ${checkInTime || 'See dispatch'}. Destination: ${destination || 'See dispatch'}. Vehicle: ${vehicleUnit || 'TBD'}.${driverConfirmedRateText}`;
+ const html=`<h2 style="color:#082f49">Trip assigned — ${reference}</h2><p><strong>Driver:</strong> ${driverName}</p><p><strong>Date:</strong> ${tripDate || '—'}</p><p><strong>Time:</strong> ${tripTime || '—'}</p><p><strong>Pickup:</strong> ${pickup || '—'}</p><p><strong>Pickup/appointment time:</strong> ${pickupTime || '—'}</p><p><strong>Check-in time:</strong> ${checkInTime || '—'}</p><p><strong>Destination:</strong> ${destination || '—'}</p><p><strong>Vehicle:</strong> ${vehicleUnit || 'TBD'}</p>${driverConfirmedRateText?`<p><strong>Driver confirmed rate:</strong> $${driverConfirmedRate.toFixed(2)}</p>`:''}<p>Please confirm your availability with dispatch.</p>`;
  const results=await Promise.allSettled([
   driverPhone?sendSms(driverPhone,smsBody):Promise.resolve({status:'skipped-no-driver-phone'}),
   driverEmail?sendEmail(driverEmail,`Trip assigned — ${reference}`,html):Promise.resolve({status:'skipped-no-driver-email'})
@@ -1161,7 +1163,12 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
   if(clean(before.name)!==clean(after.name)||clean(before.phone)!==clean(after.phone)||clean(before.email)!==clean(after.email))changeParts.push('Patient contact updated');
   if(clean(before.notes)!==clean(after.notes))changeParts.push('Trip notes updated');
   if(clean(before.submitterEntity)!==clean(after.submitterEntity)||clean(before.bookingSource)!==clean(after.bookingSource))changeParts.push('Submitter/payment owner updated');
-  if(clean(before.brokerCompanyName)!==clean(after.brokerCompanyName)||String(before.brokerAcceptedRate??'')!==String(after.brokerAcceptedRate??''))changeParts.push('Broker terms updated');
+  const beforeDriverConfirmedRate=Number(before.brokerAcceptedRate);
+  const afterDriverConfirmedRate=Number(after.brokerAcceptedRate);
+  const hasDriverConfirmedRate=Number.isFinite(afterDriverConfirmedRate)&&afterDriverConfirmedRate>0;
+  if(clean(before.brokerCompanyName)!==clean(after.brokerCompanyName)||String(before.brokerAcceptedRate??'')!==String(after.brokerAcceptedRate??''))changeParts.push('Driver confirmed rate or broker terms updated');
+  const isNowScheduled=clean(before.status)!==clean(after.status)&&String(after.status||'').toUpperCase()==='SCHEDULED';
+  if(isNowScheduled&&hasDriverConfirmedRate)changeParts.push(`Driver confirmed rate: $${afterDriverConfirmedRate.toFixed(2)}`);
   if(!changeParts.length&&editNote)changeParts.push('Trip details updated');
   if(!changeParts.length)return {status:'skipped-no-diff'};
 
@@ -1201,7 +1208,7 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
   const pickupTime=clean(after.pickupTime||after.submittedAppointmentTime||after.appointmentTime||after.time||'');
   const checkInTime=clean(after.checkInTime||'');
   const smsText=`Nexus update for trip ${reference}: ${summary}. Updated by ${actorLabel}.${note?` Note: ${note}`:''}`;
-  const html=`<h2>Trip updated — ${reference}</h2><p><strong>Updated by:</strong> ${actorLabel}</p><p><strong>Summary:</strong> ${summary}</p>${note?`<p><strong>Note:</strong> ${note}</p>`:''}<p><strong>Patient:</strong> ${after.name||'—'} (${after.phone||'—'})</p><p><strong>Schedule:</strong> ${after.date||'—'} at ${after.time||'—'}</p><p><strong>Pickup/appointment time:</strong> ${pickupTime||'—'}</p><p><strong>Check-in time:</strong> ${checkInTime||'—'}</p><p><strong>Route:</strong> ${after.pickup||'—'} → ${after.destination||'—'}</p><p><strong>Driver:</strong> ${after.driverName||'Unassigned'} | <strong>Vehicle:</strong> ${after.vehicleUnit||'Unassigned'}</p><p><strong>Status:</strong> ${after.statusLabel||after.status||'—'}</p>`;
+  const html=`<h2>Trip updated — ${reference}</h2><p><strong>Updated by:</strong> ${actorLabel}</p><p><strong>Summary:</strong> ${summary}</p>${note?`<p><strong>Note:</strong> ${note}</p>`:''}<p><strong>Patient:</strong> ${after.name||'—'} (${after.phone||'—'})</p><p><strong>Schedule:</strong> ${after.date||'—'} at ${after.time||'—'}</p><p><strong>Pickup/appointment time:</strong> ${pickupTime||'—'}</p><p><strong>Check-in time:</strong> ${checkInTime||'—'}</p><p><strong>Route:</strong> ${after.pickup||'—'} → ${after.destination||'—'}</p><p><strong>Driver:</strong> ${after.driverName||'Unassigned'} | <strong>Vehicle:</strong> ${after.vehicleUnit||'Unassigned'}</p>${hasDriverConfirmedRate?`<p><strong>Driver confirmed rate:</strong> $${afterDriverConfirmedRate.toFixed(2)}</p>`:''}<p><strong>Status:</strong> ${after.statusLabel||after.status||'—'}</p>`;
 
   const smsList=Array.from(smsTargets);
   const emailList=Array.from(emailTargets);
