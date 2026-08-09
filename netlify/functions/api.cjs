@@ -3326,8 +3326,31 @@ async function handler(event){
       }
     }
    }
-   await audit('USER',userId,'CREATED',{role:b.role,by:me.email});
-    return json(201,{user:{id:userId,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,warning});
+   let emailDeliveryStatus='skipped';
+   try{
+    const appBase=(process.env.APP_BASE_URL||'https://nexusmt.com').replace(/\/$/,'');
+    const loginUrl=`${appBase}/livecare.html`;
+    const expiresLabel=new Date(tempPasswordExpiresAt).toLocaleString('en-US',{timeZone:'America/New_York'});
+    const loginRole=String(normalizedRole||'').toUpperCase();
+    const html=`
+      <h2>Welcome to Nexus Medical Transit</h2>
+      <p>Your account has been created for <strong>${clean(normalizedEmail)}</strong>.</p>
+      <p><strong>Temporary password:</strong> <code style="font-size:16px">${tempPassword}</code></p>
+      <p>This temporary password expires in <strong>2 hours</strong> (${expiresLabel} ET).</p>
+      <p>Sign in at <a href="${loginUrl}">${loginUrl}</a> using role <strong>${loginRole}</strong>, then change your password immediately when prompted.</p>
+      <p>If you did not expect this account, contact Nexus support right away.</p>
+    `;
+    const emailResult=await sendEmail([normalizedEmail],'Your Nexus login credentials',html);
+    emailDeliveryStatus=emailResult?.status||'skipped';
+    if(emailDeliveryStatus!=='sent'){
+      warning=`${warning?`${warning} `:''}Credential email was not sent automatically. Share the temporary password securely with the user.`.trim();
+    }
+   }catch(emailErr){
+    emailDeliveryStatus='failed';
+    warning=`${warning?`${warning} `:''}Credential email failed to send. Share the temporary password securely with the user.`.trim();
+   }
+   await audit('USER',userId,'CREATED',{role:b.role,by:me.email,emailDeliveryStatus});
+    return json(201,{user:{id:userId,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,warning,emailDeliveryStatus});
    }catch(err){
     const message=clean(err?.message||'Failed to create user');
     return json(err?.statusCode||500,{error:err?.statusCode?message:`Create user failed: ${message}`});

@@ -331,8 +331,11 @@ document.getElementById('createUserBtn').addEventListener('click',async()=>{
     const data=await r.json();
     if(!r.ok)throw new Error(data.error||'Failed to create user');
     const expiresText=data.tempPasswordExpiresAt?new Date(data.tempPasswordExpiresAt).toLocaleString():'2 hours';
+    const emailText=data.emailDeliveryStatus==='sent'
+      ? ' Credential email sent to the user.'
+      : ' Credential email was not sent automatically.';
     const policyText=data.warning?` ${data.warning}`:' User must change it on first sign-in.';
-    showMsg(msgEl,`User ${data.user.email} created. Temporary password: ${data.tempPassword}. Expires: ${expiresText}.${policyText}`,'ok');
+    showMsg(msgEl,`User ${data.user.email} created. Temporary password: ${data.tempPassword}. Expires: ${expiresText}.${emailText}${policyText}`,'ok');
     document.getElementById('newEmail').value='';
     document.getElementById('newPhone').value='';
     document.getElementById('newName').value='';
