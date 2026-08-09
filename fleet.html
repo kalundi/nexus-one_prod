@@ -1,5 +1,5 @@
 ﻿<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#082f49"><meta name="description" content="NEXUS ONE fleet readiness, inspections, maintenance and live operational status."><meta name="robots" content="noindex,nofollow"><title>Fleet Management | NEXUS ONE</title><style>html{visibility:hidden}body{visibility:hidden}</style>
-  <link rel="stylesheet" href="./platform.css">  <script src="/trustedsite.js" defer></script>
+  <link rel="stylesheet" href="./platform.css?v=32">  <script src="/trustedsite.js" defer></script>
   <script src="/i18n.js" defer></script>
 <script src="./auth-guard.js"></script><script src="./nexus-data.js"></script>
 <script src="./universal-booking.js" defer></script></head><body><a class="skip" href="#main">Skip to main content</a><header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="fleetNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a href="/dispatch.html">Dispatch</a><a aria-current="page" href="/fleet.html">Fleet</a><a href="/driver-app.html">Driver</a></nav><div class="globalActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18886395766"><small>Call Nexus</small><strong>(888) 639-5766</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true">â†’</span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="fleetNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header>
@@ -57,6 +57,7 @@
  $('#fleetVehicle').addEventListener('change',loadSelected);$('#fleetForm').addEventListener('submit',e=>{e.preventDefault();fleet=fleet.map(v=>v.id===$('#fleetVehicle').value?{...v,status:$('#fleetStatus').value,fuel:Number($('#fleetFuel').value),inspection:$('#fleetInspection').checked,lastUpdate:NexusOps.nowIso()}:v);NexusOps.saveFleet(fleet);render();$('#fleetNotice').textContent='Vehicle readiness updated for Dispatch and Driver.';});
  $('#refreshLocations').addEventListener('click',()=>{fleet=fleet.map(v=>({...v,lat:v.lat+(Math.random()-.5)*.012,lng:v.lng+(Math.random()-.5)*.012,lastUpdate:NexusOps.nowIso()}));NexusOps.saveFleet(fleet);render();});
  $('#resetFleet').addEventListener('click',()=>{localStorage.removeItem('nexusFleet');fleet=NexusOps.loadFleet();render();$('#fleetNotice').textContent='Fleet data reset.';});render();})();</script></body></html>
+
 
 
 
