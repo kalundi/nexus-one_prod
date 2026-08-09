@@ -3073,8 +3073,18 @@ async function handler(event){
     const tempPasswordExpiresAt=new Date(Date.now()+2*60*60*1000).toISOString();
    const userId=crypto.randomUUID();
   // Resolve organization_id for the new user. Some environments enforce NOT NULL.
-  const adminRow=await query('SELECT organization_id FROM users WHERE id=$1',[me.id]);
-  let orgId=adminRow.rows[0]?.organization_id||null;
+  let orgId=null;
+  const meId=String(me?.id||'').trim();
+  const meEmail=clean(me?.email).toLowerCase();
+  const isUuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(meId);
+  if(isUuid){
+   const adminRow=await query('SELECT organization_id FROM users WHERE id=$1',[meId]).catch(()=>({rows:[]}));
+   orgId=adminRow.rows[0]?.organization_id||null;
+  }
+  if(!orgId&&meEmail){
+   const adminByEmail=await query('SELECT organization_id FROM users WHERE lower(email)=lower($1) LIMIT 1',[meEmail]).catch(()=>({rows:[]}));
+   orgId=adminByEmail.rows[0]?.organization_id||null;
+  }
   if(!orgId){
    const orgRow=await query('SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1').catch(()=>({rows:[]}));
    orgId=orgRow.rows[0]?.id||null;
