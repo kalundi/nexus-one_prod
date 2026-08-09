@@ -2535,10 +2535,16 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const vehicleToDrivers=new Map();
     const token=sessionStorage.getItem('nexusAccessToken')||'';
     const headers=token?{authorization:`Bearer ${token}`}:{ };
+    const now=new Date();
+    const statusDateInput=document.getElementById('driverStatusDate');
+    const statusTimeInput=document.getElementById('driverStatusTime');
+    const targetDate=String(statusDateInput?.value||now.toISOString().slice(0,10)).trim();
+    const targetTime=String(statusTimeInput?.value||now.toTimeString().slice(0,5)).trim();
+    const driverParams=new URLSearchParams({includeAll:'true',date:targetDate,time:targetTime});
 
     try{
       const [driversRes,fleetRes]=await Promise.all([
-        fetch('/api/dispatch/drivers',{headers,cache:'no-store'}),
+        fetch(`/api/dispatch/drivers?${driverParams.toString()}`,{headers,cache:'no-store'}),
         fetch('/api/fleet/live',{headers,cache:'no-store'})
       ]);
       const driversJson=await driversRes.json().catch(()=>({drivers:[]}));
@@ -2546,6 +2552,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
       if(driversRes.ok&&Array.isArray(driversJson?.drivers)){
         driversJson.drivers.forEach((driver)=>{
+          if(driver?.active===false) return;
           const driverName=String(driver?.name||'').trim();
           const vehicleUnit=String(driver?.vehicleUnit||'').trim();
           if(driverName) driverNames.push(driverName);
