@@ -35,6 +35,26 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 
   window.NexusTripPopup={show:showTripPopup};
 })();
+function ensureGlobalAccessWidget(){
+	if(typeof document==='undefined' || !document.body) return;
+	if(document.getElementById('accessToggle') && document.getElementById('accessPanel')) return;
+	const root=document.createElement('div');
+	root.className='access';
+	root.innerHTML=''
+		+ '<button id="accessToggle" class="section508Button" type="button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options">'
+		+ '<span aria-hidden="true">&#9855;</span><span aria-hidden="true">508</span>'
+		+ '</button>'
+		+ '<div id="accessPanel" class="accessPanel" hidden>'
+		+ '<strong>Accessibility</strong>'
+		+ '<button id="large" type="button">Larger text</button>'
+		+ '<button id="contrast" type="button">High contrast</button>'
+		+ '<button id="motion" type="button">Reduce motion</button>'
+		+ '</div>';
+	document.body.appendChild(root);
+}
+
+ensureGlobalAccessWidget();
+
 const access=$('#accessToggle'),panel=$('#accessPanel');
 if(access && panel){
 	const accessIcon=access.querySelector('span[aria-hidden="true"]');

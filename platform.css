@@ -52,9 +52,10 @@
 .section508Button{min-width:64px!important;height:52px!important;border-radius:999px!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:5px!important;font-weight:800!important;letter-spacing:.02em!important}
 .section508Button span:first-child{font-size:1.25rem;line-height:1}
 .section508Button span:last-child{font-size:.76rem;line-height:1}
-.accessPanel{position:absolute;right:74px;top:50%;transform:translateY(-50%);min-width:190px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 38px rgba(8,47,73,.2);padding:12px;display:grid;gap:8px}
-.accessPanel strong{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-family:Manrope,sans-serif}
-.accessPanel button{border:1px solid var(--line);background:#f7fbff;color:var(--navy);border-radius:10px;padding:8px 10px;text-align:left;font:700 14px/1.2 "Source Sans 3","Segoe UI",sans-serif;cursor:pointer}
+.accessPanel[hidden]{display:none!important}
+.accessPanel{position:absolute;right:74px;top:50%;transform:translateY(-50%);min-width:220px;background:linear-gradient(165deg,#ffffff 0%,#f1f8ff 100%);border:1px solid #b8d3e5;border-radius:16px;box-shadow:0 18px 42px rgba(8,47,73,.22);padding:12px;gap:8px}
+.accessPanel strong{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#1a4f75;font-family:Manrope,sans-serif;font-weight:800}
+.accessPanel button{border:1px solid #c8dced;background:#fff;color:#0d3353;border-radius:11px;padding:10px 12px;text-align:left;font:800 13px/1.2 Manrope,"Source Sans 3","Segoe UI",sans-serif!important;cursor:pointer;letter-spacing:.02em;text-transform:uppercase}
 .accessPanel button:hover,.accessPanel button:focus-visible{border-color:var(--blue);background:#ecf6ff;outline:0}
 @media(max-width:640px){.nexusLanguageControl{right:10px!important;bottom:78px!important}.access{right:10px;top:auto;bottom:22%;transform:none}.accessPanel{right:0;top:auto;bottom:64px;transform:none}}
 
