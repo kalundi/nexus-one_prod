@@ -37,6 +37,8 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 })();
 const access=$('#accessToggle'),panel=$('#accessPanel');
 if(access && panel){
+	const accessIcon=access.querySelector('span[aria-hidden="true"]');
+	if(accessIcon&&String(accessIcon.textContent||'').includes('â™¿')) accessIcon.textContent='♿';
 	const accessRoot=access.closest('.access') || access.parentElement;
 	const setAccessOpen=(open)=>{
 		panel.classList.toggle('open',open);
