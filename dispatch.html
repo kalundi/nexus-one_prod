@@ -1957,14 +1957,28 @@ $('saveCustomCompany').addEventListener('click',()=>{
   }
 
   function splitLocationTypeAndAddress(value){
-    const text=String(value||'').trim();
+    let text=String(value||'').trim();
     if(!text) return {location:'',address:''};
-    const match=text.match(/^(.*?)(\s+\d{2,}\b[\s\S]*)$/s);
+    text=text
+      .replace(/^[-•]+\s*/,'')
+      .replace(/^(?:pickup|pickup\s*address|destination|destination\s*address|drop\s*off|dropoff|from|to)\s*[:\-\s]*/i,'')
+      .trim();
+    if(!text) return {location:'',address:''};
+
+    const prefixed=text.match(/^(home|facility|hospital|clinic|residence|other|nursing\s+home|senior\s+living|assisted\s+living|care\s+center|dialysis\s+center|office|work|school)\b[\s,:-]+(\d{1,6}\b[\s\S]*)$/i);
+    if(prefixed){
+      return {
+        location:String(prefixed[1]||'').trim(),
+        address:String(prefixed[2]||'').trim()
+      };
+    }
+
+    const match=text.match(/^(.*?)(?:\s*[-,:]\s*|\s+)(\d{1,6}\b[\s\S]*)$/s);
     if(!match) return {location:'',address:text};
-    return {
-      location:String(match[1]||'').trim(),
-      address:String(match[2]||'').trim()
-    };
+    const location=String(match[1]||'').replace(/\s+/g,' ').trim();
+    const address=String(match[2]||'').trim();
+    if(!address) return {location:'',address:text};
+    return {location,address};
   }
 
   function parseRouteContextFromBooking(booking){

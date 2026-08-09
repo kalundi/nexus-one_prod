@@ -2819,6 +2819,7 @@ async function handler(event){
 
   if(hasBrokerQuotedRate){
    await query(`UPDATE broker_requests SET broker_quoted_rate=$2,updated_at=now() WHERE id=(SELECT id FROM broker_requests WHERE booking_reference=$1 ORDER BY created_at DESC LIMIT 1)`,[ref,brokerQuotedRateValue]).catch(()=>{});
+    await query('UPDATE bookings SET broker_quoted_rate=$2,updated_at=now() WHERE reference=$1',[ref,brokerQuotedRateValue]).catch(()=>{});
   }
 
    const shouldResetReminders=hasDate||hasTime||hasPickup||hasDestination||hasDriverName||hasVehicleUnit;
@@ -3410,6 +3411,7 @@ async function mapBookingsWithIntakeAudit(rows){
     source_received_at,
     source_message_id,
     parse_source_method,
+    broker_quoted_rate,
     parsed_payload
    FROM broker_requests
    WHERE booking_reference = ANY($1::text[])
@@ -3433,8 +3435,10 @@ async function mapBookingsWithIntakeAudit(rows){
   const method=intake?.submission_method||null;
   const parsedPayload=intake?.parsed_payload&&typeof intake.parsed_payload==='object'?intake.parsed_payload:{};
   const parseDiagnostics=parsedPayload?.parse_diagnostics&&typeof parsedPayload.parse_diagnostics==='object'?parsedPayload.parse_diagnostics:{};
+  const intakeBrokerQuotedRate=intake?.broker_quoted_rate!=null?Number(intake.broker_quoted_rate):null;
   return {
    ...booking,
+   brokerQuotedRate:booking.brokerQuotedRate==null&&intakeBrokerQuotedRate!=null?intakeBrokerQuotedRate:booking.brokerQuotedRate,
    intakeSubmissionMethod:method,
    intakeParseSource:mapParseSourceLabel(method),
    intakeParseMethod:intake?.parse_source_method||null,

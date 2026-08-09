@@ -75,12 +75,19 @@ function splitLocationTypeAndAddress(value){
  let text=clean(value,500);
  if(!text)return {location:'',address:''};
  text=text.replace(/^(?:pickup|pickup\s*address|destination|destination\s*address|drop\s*off|dropoff|from|to)\s*[:\-\s]*/i,'').trim();
+ text=text.replace(/^[-•]+\s*/,'').trim();
+ if(!text)return {location:'',address:''};
+ const prefixed=text.match(/^(home|facility|hospital|clinic|residence|other|nursing\s+home|senior\s+living|assisted\s+living|care\s+center|dialysis\s+center|office|work|school)\b[\s,:-]+(\d{1,6}\b[\s\S]*)$/i);
+ if(prefixed){
+  const address=clean(prefixed[2],300);
+  if(address)return {location:clean(prefixed[1],160),address};
+ }
  const prefixMatch=text.match(/^(home|facility|hospital|clinic|residence|other|nursing\s+home|senior\s+living|assisted\s+living|care\s+center|dialysis\s+center|office|work|school)\b[\s,:-]+(.+)$/i);
  if(prefixMatch){
   const address=clean(prefixMatch[2],300);
   if(address) return {location:clean(prefixMatch[1],160),address};
  }
- const addressMatch=text.match(/(\d{1,6}\s+.+)$/);
+ const addressMatch=text.match(/(\d{1,6}\b[\s\S]*)$/);
  if(addressMatch){
   const address=clean(addressMatch[1],300);
   const location=clean(text.slice(0,text.length-address.length).replace(/[\s,;:-]+$/,'').trim(),160);
@@ -198,14 +205,22 @@ function parseLineItemNumber(value){
 }
 
 function computeBrokerQuotedRateFromSection(labeledFields, fallbackRate=0){
- const flatRate=parseLineItemNumber(firstField(labeledFields,['flat_rate','flatrate']));
- const perMile=parseLineItemNumber(firstField(labeledFields,['per_mile','permile','mile_rate']));
- const waitTime=parseLineItemNumber(firstField(labeledFields,['wait_time','wait']));
- const totalMiles=parseLineItemNumber(firstField(labeledFields,['total_miles','miles','distance']));
- const noShowFee=parseLineItemNumber(firstField(labeledFields,['no_show_fee','noshow_fee','no_show']));
+ const compact=clean(Object.values(labeledFields||{}).join(' '),4000);
+ const fallbackText=clean(String(arguments[2]||''),20000).replace(/\s+/g,' ');
+ const sourceText=`${compact} ${fallbackText}`;
+ const fromPattern=(pattern)=>{
+  const match=sourceText.match(pattern);
+  return match?parseLineItemNumber(match[1]):0;
+ };
+ const flatRate=parseLineItemNumber(firstField(labeledFields,['flat_rate','flatrate']))||fromPattern(/flat\s*rate\s*\$?\s*(-?\d+(?:\.\d{1,2})?)/i);
+ const perMile=parseLineItemNumber(firstField(labeledFields,['per_mile','permile','mile_rate']))||fromPattern(/per\s*mile\s*\$?\s*(-?\d+(?:\.\d{1,2})?)/i);
+ const waitTime=parseLineItemNumber(firstField(labeledFields,['wait_time','wait']))||fromPattern(/wait\s*time\s*\$?\s*(-?\d+(?:\.\d{1,2})?)/i);
+ const totalMiles=parseLineItemNumber(firstField(labeledFields,['total_miles','miles','distance']))||fromPattern(/total\s*miles\s*\$?\s*(-?\d+(?:\.\d{1,2})?)/i);
+ const noShowFee=parseLineItemNumber(firstField(labeledFields,['no_show_fee','noshow_fee','no_show']))||fromPattern(/no\s*show\s*fee\s*\$?\s*(-?\d+(?:\.\d{1,2})?)/i);
+ const safeFallback=Math.max(0,Number(fallbackRate||0));
  if(flatRate>0){
   return {
-   brokerQuotedRate:Number((flatRate+(waitTime*2)).toFixed(2)),
+   brokerQuotedRate:Number(Math.max(0,flatRate+(waitTime*2)).toFixed(2)),
    quoteBasis:'flat_rate',
    flatRate:Number(flatRate.toFixed(2)),
    perMile:0,
@@ -216,7 +231,7 @@ function computeBrokerQuotedRateFromSection(labeledFields, fallbackRate=0){
  }
  if(perMile>0&&totalMiles>0){
   return {
-   brokerQuotedRate:Number(((perMile*totalMiles)+(waitTime*2)).toFixed(2)),
+   brokerQuotedRate:Number(Math.max(0,(perMile*totalMiles)+(waitTime*2)).toFixed(2)),
    quoteBasis:'per_mile',
    flatRate:0,
    perMile:Number(perMile.toFixed(2)),
@@ -226,7 +241,7 @@ function computeBrokerQuotedRateFromSection(labeledFields, fallbackRate=0){
   };
  }
  return {
-  brokerQuotedRate:Number(fallbackRate||0),
+  brokerQuotedRate:Number(safeFallback.toFixed(2)),
   quoteBasis:'fallback',
   flatRate:0,
   perMile:0,
@@ -278,7 +293,9 @@ function cleanupParsedAddress(value){
  text=text.replace(/\s+,/g,',').replace(/,{2,}/g,',').replace(/,\s*,/g,',').trim();
 
  const stateCodes='AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC';
- const embeddedAddress=text.match(new RegExp(`(\\d{1,6}[A-Za-z0-9# .'/\\-]{2,140}?\\s+[A-Za-z][A-Za-z .'-]{1,80}\\s+(${stateCodes})\\s+\\d{5}(?:-\\d{4})?)`,'i'));
+ const stateNames='Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New\\s+Hampshire|New\\s+Jersey|New\\s+Mexico|New\\s+York|North\\s+Carolina|North\\s+Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\\s+Island|South\\s+Carolina|South\\s+Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West\\s+Virginia|Wisconsin|Wyoming|District\\s+of\\s+Columbia';
+ const stateAny=`(?:${stateCodes}|${stateNames})`;
+ const embeddedAddress=text.match(new RegExp(`(\\d{1,6}[A-Za-z0-9# .'/\\-]{2,170}?\\s+${stateAny}\\s+\\d{5}(?:-\\d{4})?)`,'i'));
  if(embeddedAddress&&embeddedAddress[1])text=clean(embeddedAddress[1],320);
  const streetCityStateZip=text.match(new RegExp(`^(.+?)\\s+([A-Za-z][A-Za-z .'-]{1,80})\\s+(${stateCodes})\\s+(\\d{5}(?:-\\d{4})?)$`,'i'));
  if(streetCityStateZip&&streetCityStateZip[1]&&!streetCityStateZip[1].includes(',')){
@@ -286,7 +303,7 @@ function cleanupParsedAddress(value){
  }
 
  text=text.replace(new RegExp(`,\\s*([A-Za-z][A-Za-z .'-]{1,80})\\s+(${stateCodes})\\s+(\\d{5}(?:-\\d{4})?)$`,'i'),(_all,city,state,zip)=>`, ${String(city).trim()}, ${String(state).toUpperCase()} ${String(zip).trim()}`);
- const stateZipRegex=new RegExp(`\\b(?:${stateCodes})\\s+\\d{5}(?:-\\d{4})?\\b`,'i');
+ const stateZipRegex=new RegExp(`\\b${stateAny}\\s+\\d{5}(?:-\\d{4})?\\b`,'i');
  const hasStreetSignal=/\b(?:\d{1,6}|st\b|street\b|ave\b|avenue\b|rd\b|road\b|blvd\b|boulevard\b|dr\b|drive\b|ln\b|lane\b|ct\b|court\b|pl\b|place\b|pkwy\b|parkway\b|hwy\b|highway\b|way\b|cir\b|circle\b)\b/i.test(text);
  if(!stateZipRegex.test(text)||!hasStreetSignal)return '';
  return clean(text,320);
@@ -308,7 +325,7 @@ function parseGtTableAddresses(text){
   .replace(/^\s*(?:\d{1,2}:\d{2}\s*(?:am|pm)?\s*){1,2}/i,'')
   .trim();
 
- let chunks=extractZipBoundedAddressChunks(beforeDropOff,3).map(cleanupParsedAddress).filter(Boolean);
+ let chunks=extractZipBoundedAddressChunks(beforeDropOff,3).map((value)=>clean(value,380)).filter(Boolean);
  let pickup=chunks[0]||'';
  let destination=chunks[1]||'';
 
@@ -317,7 +334,7 @@ function parseGtTableAddresses(text){
   const waitMatch=sectionCompact.match(/wait\s*time[\s\S]{0,1800}/i);
   if(waitMatch&&waitMatch[0]){
    const waitBlock=waitMatch[0].split(/for\s*pickup\s*:/i)[0]||waitMatch[0];
-  const waitChunks=extractZipBoundedAddressChunks(waitBlock,3).map(cleanupParsedAddress).filter(Boolean);
+  const waitChunks=extractZipBoundedAddressChunks(waitBlock,3).map((value)=>clean(value,380)).filter(Boolean);
    if(waitChunks.length>=2){
     if(!destination)destination=waitChunks[0];
     if(!pickup)pickup=waitChunks[1];
@@ -326,8 +343,8 @@ function parseGtTableAddresses(text){
  }
 
  return {
-  pickup:cleanupParsedAddress(pickup),
-  destination:cleanupParsedAddress(destination)
+  pickup:clean(pickup,380),
+  destination:clean(destination,380)
  };
 }
 
@@ -782,7 +799,7 @@ function parseBrokerIntakeText(input){
   if(phoneAlt) result.patient_phone=clean(phoneAlt[1],60);
  }
 
- const quoteSection=computeBrokerQuotedRateFromSection(labeledFields, result.broker_quoted_rate);
+ const quoteSection=computeBrokerQuotedRateFromSection(labeledFields, result.broker_quoted_rate, text);
  if(quoteSection.quoteBasis!=='fallback'){
   result.broker_quoted_rate=quoteSection.brokerQuotedRate;
  }else if(result.broker_quoted_rate<=0){
