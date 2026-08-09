@@ -342,6 +342,56 @@ document.getElementById('createUserBtn').addEventListener('click',async()=>{
   finally{btn.disabled=false;btn.textContent='Create user';}
 });
 
+function selectedDriverScheduleWeekdays(){
+  return Array.from(document.querySelectorAll('#scheduleWeekdayGroup input[type="checkbox"]:checked'))
+    .map((input)=>Number(input.value))
+    .filter((value)=>Number.isInteger(value)&&value>=1&&value<=7)
+    .sort((a,b)=>a-b);
+}
+
+document.getElementById('saveDriverScheduleBtn')?.addEventListener('click',async()=>{
+  const driverEmail=String(document.getElementById('scheduleDriverEmail')?.value||'').trim().toLowerCase();
+  const startTime=String(document.getElementById('scheduleStartTime')?.value||'').trim();
+  const endTime=String(document.getElementById('scheduleEndTime')?.value||'').trim();
+  const effectiveStartDate=String(document.getElementById('scheduleEffectiveDate')?.value||'').trim();
+  const weekdays=selectedDriverScheduleWeekdays();
+  const msgEl=document.getElementById('saveDriverScheduleMsg');
+  if(!msgEl) return;
+  msgEl.hidden=true;
+
+  if(!driverEmail||!startTime||!endTime||!weekdays.length){
+    showMsg(msgEl,'Driver email, shift times, and at least one weekday are required.','err');
+    return;
+  }
+
+  const btn=document.getElementById('saveDriverScheduleBtn');
+  btn.disabled=true;
+  btn.textContent='Saving...';
+  try{
+    const payload={driverEmail,startTime,endTime,weekdays};
+    if(effectiveStartDate) payload.effectiveStartDate=effectiveStartDate;
+    const r=await fetch('/api/admin/driver-schedule',{
+      method:'POST',
+      headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){
+      if(r.status===404){
+        throw new Error('Driver schedule API is not available in this deploy yet. Trigger latest production deploy and try again.');
+      }
+      throw new Error(data.error||'Failed to save driver schedule');
+    }
+    showMsg(msgEl,`Schedule saved for ${data?.driver?.email||driverEmail}: ${startTime}-${endTime}, weekdays ${weekdays.join(', ')}.`,'ok');
+    if(userRole()==='ADMIN') loadUsers();
+  }catch(e){
+    showMsg(msgEl,e.message||'Failed to save driver schedule','err');
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Save driver schedule';
+  }
+});
+
 // Pricing
 function renderPricing(){
   const p=currentSettings?.pricing||NexusCore.getPricing();

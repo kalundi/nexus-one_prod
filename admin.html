@@ -202,6 +202,32 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
     </div>
     <div id="createUserMsg" hidden></div>
   </div>
+  <div class="createUserForm" id="driverSchedulePanel">
+    <h3>Driver schedules</h3>
+    <p style="margin:0 0 12px;color:var(--muted)">Assign recurring weekly shifts for driver accounts.</p>
+    <div class="formRow" style="grid-template-columns:1.4fr 1fr 1fr 1fr">
+      <div class="formField"><label for="scheduleDriverEmail">Driver email *</label><input id="scheduleDriverEmail" type="email" placeholder="driver@example.com" autocomplete="off"></div>
+      <div class="formField"><label for="scheduleStartTime">Start time *</label><input id="scheduleStartTime" type="time" value="06:00"></div>
+      <div class="formField"><label for="scheduleEndTime">End time *</label><input id="scheduleEndTime" type="time" value="15:00"></div>
+      <div class="formField"><label for="scheduleEffectiveDate">Effective date</label><input id="scheduleEffectiveDate" type="date"></div>
+    </div>
+    <div class="formField" style="margin-top:12px">
+      <label>Weekdays *</label>
+      <div id="scheduleWeekdayGroup" style="display:flex;gap:8px;flex-wrap:wrap">
+        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="1" checked style="margin-right:6px">Mon</label>
+        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="2" checked style="margin-right:6px">Tue</label>
+        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="3" checked style="margin-right:6px">Wed</label>
+        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="4" checked style="margin-right:6px">Thu</label>
+        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="5" checked style="margin-right:6px">Fri</label>
+        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="6" style="margin-right:6px">Sat</label>
+        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="7" style="margin-right:6px">Sun</label>
+      </div>
+    </div>
+    <div class="formRow" style="margin-top:14px">
+      <div class="formField wide" style="align-self:end"><button class="button primary" id="saveDriverScheduleBtn" style="width:100%">Save driver schedule</button></div>
+    </div>
+    <div id="saveDriverScheduleMsg" hidden></div>
+  </div>
   <div class="tableWrap"><table class="userTable" aria-label="User list">
     <thead><tr><th>Email</th><th>Phone Number</th><th>Name</th><th>Role</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
     <tbody id="userTableBody"><tr><td colspan="7" style="padding:24px;text-align:center;color:var(--muted)">Loading users...</td></tr></tbody>
