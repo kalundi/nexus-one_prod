@@ -2964,7 +2964,13 @@ async function handler(event){
   return json(200,{booking:mapBooking(r.rows[0]),approval,notifications:advanceNotifications});
   }
   if(p[0]==='fleet'&&p[1]==='live'&&method==='GET'){
-   let u=null;try{if(bearer(event))u=await requireUser(bearer(event))}catch{}const r=await query(`SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at FROM vehicles WHERE last_seen_at IS NULL OR last_seen_at>now()-interval '24 hours' ORDER BY unit_number`);return json(200,{generatedAt:new Date().toISOString(),role:u?.role||'PUBLIC',vehicles:r.rows.map(v=>({id:v.unit_number,unit:v.unit_number,type:v.vehicle_type,status:v.status,lat:Number(v.latitude),lng:Number(v.longitude),heading:Number(v.heading||0),speed:Number(v.speed_mph||0),lastSeen:v.last_seen_at}))});
+    let u=null;try{if(bearer(event))u=await requireUser(bearer(event))}catch{}
+    const includeAll=String(event.queryStringParameters?.includeAll||'').toLowerCase()==='true';
+    const sql=includeAll
+     ? `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id,active,metadata FROM vehicles ORDER BY unit_number`
+     : `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id,active,metadata FROM vehicles WHERE last_seen_at IS NULL OR last_seen_at>now()-interval '24 hours' ORDER BY unit_number`;
+    const r=await query(sql);
+    return json(200,{generatedAt:new Date().toISOString(),role:u?.role||'PUBLIC',includeAll,vehicles:r.rows.map(v=>({id:v.unit_number,unit:v.unit_number,type:v.vehicle_type,status:v.status,lat:Number(v.latitude),lng:Number(v.longitude),heading:Number(v.heading||0),speed:Number(v.speed_mph||0),lastSeen:v.last_seen_at,driverScopeId:v.driver_scope_id||null,active:v.active!==false,metadata:v.metadata||{}}))});
   }
   // Auto-assign: find best available driver + vehicle for a booking
   if(p[0]==='dispatch'&&p[1]==='auto-assign'&&method==='POST'){
@@ -2979,47 +2985,98 @@ async function handler(event){
   }
   if(p[0]==='dispatch'&&p[1]==='drivers'&&method==='GET'){
    let user=null;try{if(bearer(event))user=await requireUser(bearer(event),['DISPATCHER','ADMIN']);}catch{};
-   const now=new Date();
-   const todayIso=now.toISOString().slice(0,10);
-   const nowTime=now.toTimeString().slice(0,5); // HH:MM
-   const weekday=now.getDay()||7; // ISO weekday: Mon=1 … Sun=7
-   // Drivers on shift right now (shift covers current time on today's weekday)
-   const onShift=await query(`
-    SELECT e.id, e.display_name AS name, e.email, u.scope_id, e.active,
-           es.start_time::text AS shift_start, es.end_time::text AS shift_end,
-           v.unit_number AS vehicle_unit, v.vehicle_type, v.status AS vehicle_status
-    FROM employees e
-    INNER JOIN employee_shifts es ON e.id=es.employee_id
-    LEFT JOIN users u ON e.user_id=u.id
-    LEFT JOIN vehicles v ON v.driver_scope_id=u.scope_id
-    WHERE e.role='DRIVER' AND e.active=true AND es.active=true
-      AND es.weekday_iso=$1
-      AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
-      AND es.effective_start_date<=$3::date
-      AND (es.effective_end_date IS NULL OR es.effective_end_date>=$3)
-    ORDER BY e.display_name
-    `,[weekday,nowTime,todayIso]);
-   // Trip counts today per driver scope_id
+     const now=new Date();
+     const todayIso=now.toISOString().slice(0,10);
+     const nowTime=now.toTimeString().slice(0,5); // HH:MM
+     const includeAll=String(event.queryStringParameters?.includeAll||'').toLowerCase()==='true';
+     const requestedDateRaw=clean(event.queryStringParameters?.date||todayIso);
+     const requestedTimeRaw=clean(event.queryStringParameters?.time||nowTime);
+     const requestedDate=/^\d{4}-\d{2}-\d{2}$/.test(requestedDateRaw)?requestedDateRaw:todayIso;
+     const requestedTime=/^\d{2}:\d{2}/.test(requestedTimeRaw)?requestedTimeRaw.slice(0,5):nowTime;
+     const weekday=new Date(`${requestedDate}T12:00:00`).getDay()||7; // ISO weekday: Mon=1 … Sun=7
+     const driverRows=await query(`
+      SELECT e.id, e.display_name AS name, e.email, e.phone, e.active,
+        u.scope_id,
+        v.unit_number AS vehicle_unit, v.vehicle_type, v.status AS vehicle_status
+      FROM employees e
+      LEFT JOIN users u ON e.user_id=u.id
+      LEFT JOIN vehicles v ON v.driver_scope_id=u.scope_id
+      WHERE e.role='DRIVER'
+      ORDER BY e.active DESC, e.display_name
+     `);
+     const activeShiftRows=await query(`
+      SELECT employee_id, weekday_iso, start_time::text AS start_time, end_time::text AS end_time,
+        effective_start_date, effective_end_date
+      FROM employee_shifts
+      WHERE assignment_role='DRIVER' AND active=true
+        AND weekday_iso=$1
+        AND start_time::time<=$2::time AND end_time::time>$2::time
+        AND effective_start_date<=$3::date
+        AND (effective_end_date IS NULL OR effective_end_date>=$3::date)
+     `,[weekday,requestedTime,requestedDate]);
+     const scheduleRows=await query(`
+      SELECT employee_id, weekday_iso, start_time::text AS start_time, end_time::text AS end_time,
+        effective_start_date, effective_end_date, active
+      FROM employee_shifts
+      WHERE assignment_role='DRIVER' AND active=true
+        AND effective_start_date<=$1::date + interval '31 day'
+        AND (effective_end_date IS NULL OR effective_end_date>=$1::date)
+      ORDER BY weekday_iso, start_time
+     `,[requestedDate]);
+     // Trip counts for requested day
    const tripCounts=await query(`
     SELECT driver_name, COUNT(*) as total,
            COUNT(*) FILTER (WHERE status IN ('assigned','en-route','arrived','in-transit')) as active
     FROM bookings
     WHERE trip_date=$1 AND driver_name IS NOT NULL
     GROUP BY driver_name
-   `,[todayIso]);
+     `,[requestedDate]);
    const countMap=Object.fromEntries(tripCounts.rows.map(r=>[r.driver_name,{total:Number(r.total),active:Number(r.active)}]));
-   const drivers=onShift.rows.map(d=>({
-    id:d.id, name:d.name, email:d.email||null, scopeId:d.scope_id,
-    shiftStart:d.shift_start?.slice(0,5)||null,
-    shiftEnd:d.shift_end?.slice(0,5)||null,
-    vehicleUnit:d.vehicle_unit||null,
-    vehicleType:d.vehicle_type||null,
-    vehicleStatus:d.vehicle_status||null,
-    tripsToday:countMap[d.name]?.total||0,
-    activeTrips:countMap[d.name]?.active||0,
-    status:countMap[d.name]?.active>0?'ON_TRIP':'ON_DUTY'
-   }));
-   return json(200,{generatedAt:now.toISOString(),onDuty:drivers.length,drivers});
+     const onShiftMap=new Map((activeShiftRows.rows||[]).map((row)=>[String(row.employee_id),row]));
+     const scheduleMap=new Map();
+     for(const row of scheduleRows.rows||[]){
+      const key=String(row.employee_id);
+      if(!scheduleMap.has(key)) scheduleMap.set(key,[]);
+      scheduleMap.get(key).push({
+        weekdayIso:Number(row.weekday_iso),
+        startTime:String(row.start_time||'').slice(0,5),
+        endTime:String(row.end_time||'').slice(0,5),
+        effectiveStartDate:row.effective_start_date,
+        effectiveEndDate:row.effective_end_date,
+        active:row.active!==false
+      });
+     }
+     const allDrivers=(driverRows.rows||[]).map((d)=>{
+      const key=String(d.id);
+      const shift=onShiftMap.get(key)||null;
+      const tripsTotal=countMap[d.name]?.total||0;
+      const activeTrips=countMap[d.name]?.active||0;
+      const onDuty=Boolean(shift);
+      const status=activeTrips>0?'ON_TRIP':(onDuty?'ON_DUTY':'OFF_DUTY');
+      return {
+        id:d.id,
+        name:d.name,
+        email:d.email||null,
+        phone:d.phone||null,
+        scopeId:d.scope_id,
+        active:d.active===true,
+        shiftStart:shift?String(shift.start_time||'').slice(0,5):null,
+        shiftEnd:shift?String(shift.end_time||'').slice(0,5):null,
+        vehicleUnit:d.vehicle_unit||null,
+        vehicleType:d.vehicle_type||null,
+        vehicleStatus:d.vehicle_status||null,
+        tripsOnDate:tripsTotal,
+        activeTrips,
+        onDuty,
+        status,
+        schedule:scheduleMap.get(key)||[]
+      };
+     });
+     const drivers=includeAll?allDrivers:allDrivers.filter((d)=>d.onDuty||d.activeTrips>0);
+     const onDutyCount=allDrivers.filter((d)=>d.onDuty).length;
+     const onTripCount=allDrivers.filter((d)=>d.activeTrips>0).length;
+     const offDutyCount=allDrivers.filter((d)=>!d.onDuty).length;
+     return json(200,{generatedAt:now.toISOString(),targetDate:requestedDate,targetTime:requestedTime,includeAll,onDuty:onDutyCount,onTrip:onTripCount,offDuty:offDutyCount,totalDrivers:allDrivers.length,drivers});
   }
     if(p[0]==='admin'&&p[1]==='driver-schedule'&&method==='GET'){
      await requireUser(bearer(event),['ADMIN','DISPATCHER']);

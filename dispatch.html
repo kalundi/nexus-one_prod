@@ -449,7 +449,7 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
   <div id="tripCalendarView" hidden style="margin-top:10px"></div>
   </div>
 </section>
-<section class="grid cols2 dispatchSection" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Live staffing</p><h2>Drivers on duty</h2></div><span id="driversOnDutyCount" class="status blue">Loading</span></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Shift availability</p><h2>Fleet &amp; driver summary</h2></div><button id="refreshDrivers" class="button secondary" style="min-height:36px;font-size:13px"> Refresh</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading</p></div></article></section>
+<section class="grid cols2 dispatchSection" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Driver coverage</p><h2>Driver roster (on-duty + off-duty)</h2></div><span id="driversOnDutyCount" class="status blue">Loading</span></div><div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-top:10px"><label class="field" style="margin:0">Plan date<input id="driverStatusDate" type="date"></label><label class="field" style="margin:0">Plan time<input id="driverStatusTime" type="time"></label><button id="refreshDrivers" class="button secondary" style="min-height:40px;font-size:13px;align-self:end">Apply</button></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Fleet visibility</p><h2>Fleet + staffing details</h2></div><button id="resetDriverStatusNow" class="button secondary" style="min-height:36px;font-size:13px">Now</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading</p></div></article></section>
 <section id="aiSection" class="grid cols2 dispatchSection" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
 </main><footer class="footer"><div class="shell footerGrid" data-unified-footer-applied="1" data-compact-redesign-applied="1"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Patients</strong><a href="/booking-app.html">Book Transportation</a><a href="/livecare.html">Track a Ride</a></div><div><strong>Authorized portals</strong><a href="/facility.html">Facility</a><a href="/dispatch.html">Dispatch</a><a href="/driver-app.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18886395766">Main line: (888) 639-5766</a><a href="tel:+18887604990">Customer service: (888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true"></span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js?v=32"></script><script>
 let dispatchHeroMap=null;
@@ -540,9 +540,17 @@ async function loadDriverRoster(){
   try{
     const token=sessionStorage.getItem('nexusAccessToken');
     const headers=token?{authorization:`Bearer ${token}`}:{};
+    const dateInput=document.getElementById('driverStatusDate');
+    const timeInput=document.getElementById('driverStatusTime');
+    const now=new Date();
+    if(dateInput&&!dateInput.value) dateInput.value=now.toISOString().slice(0,10);
+    if(timeInput&&!timeInput.value) timeInput.value=now.toTimeString().slice(0,5);
+    const targetDate=(dateInput?.value||now.toISOString().slice(0,10)).trim();
+    const targetTime=(timeInput?.value||now.toTimeString().slice(0,5)).trim();
+    const params=new URLSearchParams({includeAll:'true',date:targetDate,time:targetTime});
     const [driverRes,fleetRes]=await Promise.all([
-      fetch('/api/dispatch/drivers',{headers,cache:'no-store'}),
-      fetch('/api/fleet/live',{headers,cache:'no-store'})
+      fetch(`/api/dispatch/drivers?${params.toString()}`,{headers,cache:'no-store'}),
+      fetch('/api/fleet/live?includeAll=true',{headers,cache:'no-store'})
     ]);
     const roster=document.getElementById('driverRoster');
     const summary=document.getElementById('availabilitySummary');
@@ -570,31 +578,42 @@ async function loadDriverRoster(){
       return;
     }
 
-    const j=await driverRes.json().catch(()=>({drivers:[],onDuty:0}));
+    const j=await driverRes.json().catch(()=>({drivers:[],onDuty:0,offDuty:0,totalDrivers:0,onTrip:0,targetDate:targetDate,targetTime:targetTime}));
     const fleetData=await fleetRes.json().catch(()=>({vehicles:[]}));
     const drivers=Array.isArray(j.drivers)?j.drivers:[];
     const fleetVehicles=Array.isArray(fleetData.vehicles)?fleetData.vehicles:[];
+    const esc=(value)=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+    const scheduleText=(driver)=>{
+      const shifts=Array.isArray(driver?.schedule)?driver.schedule:[];
+      if(!shifts.length) return 'No active schedule';
+      return shifts.map((s)=>{
+        const day=['','Mon','Tue','Wed','Thu','Fri','Sat','Sun'][Number(s.weekdayIso)||0]||`D${s.weekdayIso||''}`;
+        return `${day} ${String(s.startTime||'').slice(0,5)}-${String(s.endTime||'').slice(0,5)}`;
+      }).join(' | ');
+    };
 
     if(countEl){
-      countEl.textContent=`${j.onDuty||0} on duty`;
-      countEl.className='status '+(j.onDuty>0?'green':'amber');
+      const onDutyCount=Number(j.onDuty||0);
+      const offDutyCount=Number(j.offDuty||0);
+      const totalDrivers=Number(j.totalDrivers||drivers.length||0);
+      countEl.textContent=`${onDutyCount} on duty / ${offDutyCount} off duty (${totalDrivers} total)`;
+      countEl.className='status '+(onDutyCount>0?'green':'amber');
     }
 
     if(roster) roster.innerHTML=drivers.length?`<div style="display:grid;gap:10px">${drivers.map(d=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)">
         <div>
-          <strong>${d.name||'Unnamed driver'}</strong>
-          <div style="font-size:13px;color:var(--muted);margin-top:2px">
-            ${(d.vehicleUnit||d.vehicleType)?`${d.vehicleUnit||d.vehicleType}  `:'No vehicle  '}
-            Shift ${d.shiftStart||'?'}${d.shiftEnd||'?'}
-            ${d.tripsToday?`  ${d.tripsToday} trips today`:''}
-          </div>
+          <strong>${esc(d.name||'Unnamed driver')}</strong>
+          <div style="font-size:13px;color:var(--muted);margin-top:2px">${d.email?`${esc(d.email)} | `:''}${d.phone?`${esc(d.phone)} | `:''}${(d.vehicleUnit||d.vehicleType)?`${esc(d.vehicleUnit||d.vehicleType)} | `:'No vehicle | '}Shift now ${esc(d.shiftStart||'--:--')}-${esc(d.shiftEnd||'--:--')}</div>
+          <div style="font-size:12px;color:#475467;margin-top:4px;line-height:1.35">${esc(scheduleText(d))}</div>
+          <div style="font-size:12px;color:#475467;margin-top:4px">Trips on ${esc(j.targetDate||targetDate)}: ${Number(d.tripsOnDate||0)} | Active trips: ${Number(d.activeTrips||0)}</div>
         </div>
-        <span class="status ${d.status==='ON_TRIP'?'amber':'green'}" style="font-size:11px">${d.status==='ON_TRIP'?'On trip':'Available'}</span>
-      </div>`).join('')}</div>`:'<p style="color:var(--muted)">No drivers on shift right now.</p>';
+        <span class="status ${d.status==='ON_TRIP'?'amber':(d.status==='ON_DUTY'?'green':'blue')}" style="font-size:11px">${d.status==='ON_TRIP'?'On trip':(d.status==='ON_DUTY'?'On duty':'Off duty')}</span>
+      </div>`).join('')}</div>`:'<p style="color:var(--muted)">No drivers found.</p>';
 
-    const available=drivers.filter(d=>d.status==='ON_DUTY').length;
-    const onTrip=drivers.filter(d=>d.status==='ON_TRIP').length;
+    const available=Number(j.onDuty||drivers.filter(d=>d.status==='ON_DUTY').length);
+    const onTrip=Number(j.onTrip||drivers.filter(d=>d.status==='ON_TRIP').length);
+    const offDuty=Number(j.offDuty||drivers.filter(d=>d.status==='OFF_DUTY').length);
     const moving=fleetVehicles.filter(v=>['EN_ROUTE','ARRIVED','PATIENT_ON_BOARD','DRIVER_ASSIGNED'].includes(String(v.status||'').toUpperCase())).length;
     const onboard=fleetVehicles.filter(v=>String(v.status||'').toUpperCase()==='PATIENT_ON_BOARD').length;
     const availableFleet=fleetVehicles.filter(v=>String(v.status||'').toUpperCase()==='AVAILABLE').length;
@@ -620,7 +639,7 @@ async function loadDriverRoster(){
     }
     if(heroList){
       heroList.innerHTML=fleetVehicles.length
-        ?fleetVehicles.slice(0,16).map((v)=>{
+        ?fleetVehicles.map((v)=>{
           const unit=String(v.unit||v.vehicleUnit||v.id||'Vehicle').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
           const status=String(v.statusLabel||v.status||'UNKNOWN').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
           const service=String(v.service||'Medical transportation').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -633,13 +652,26 @@ async function loadDriverRoster(){
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">
         <div style="text-align:center;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><strong style="font-size:22px;display:block;color:var(--green,#067647)">${available}</strong><small style="color:var(--muted)">Driver available</small></div>
         <div style="text-align:center;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><strong style="font-size:22px;display:block;color:#b54708">${onTrip}</strong><small style="color:var(--muted)">Driver on trip</small></div>
+        <div style="text-align:center;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><strong style="font-size:22px;display:block">${offDuty}</strong><small style="color:var(--muted)">Driver off duty</small></div>
         <div style="text-align:center;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><strong style="font-size:22px;display:block">${availableFleet}</strong><small style="color:var(--muted)">Fleet available</small></div>
-        <div style="text-align:center;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><strong style="font-size:22px;display:block">${moving}</strong><small style="color:var(--muted)">Fleet moving</small></div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
         <span class="status green">${j.onDuty||0} drivers on duty</span>
+        <span class="status blue">${j.offDuty||0} drivers off duty</span>
+        <span class="status blue">${j.totalDrivers||drivers.length} total drivers</span>
+        <span class="status blue">Planning for ${esc(j.targetDate||targetDate)} ${esc(j.targetTime||targetTime)}</span>
+        <span class="status blue">${fleetVehicles.length} fleet units visible</span>
+        <span class="status blue">${moving} fleet moving</span>
         <span class="status blue">${onboard} with patient</span>
         <span class="status amber">${attention} need attention</span>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:330px;margin-bottom:12px">
+        <table class="table" style="margin:0;width:100%">
+          <thead><tr><th>Unit</th><th>Type</th><th>Status</th><th>Driver Scope</th><th>Last Seen</th><th>Speed</th></tr></thead>
+          <tbody>
+            ${fleetVehicles.length?fleetVehicles.map((v)=>`<tr><td>${esc(v.unit||v.vehicleUnit||v.id||'Vehicle')}</td><td>${esc(v.type||'--')}</td><td>${esc(v.status||'UNKNOWN')}</td><td>${esc(v.driverScopeId||'--')}</td><td>${v.lastSeen?esc(new Date(v.lastSeen).toLocaleString()):'--'}</td><td>${Number(v.speed||0)} mph</td></tr>`).join(''):'<tr><td colspan="6" style="padding:12px;color:var(--muted)">No fleet records found.</td></tr>'}
+          </tbody>
+        </table>
       </div>
       <a href="/driver-app.html" class="button secondary" style="font-size:13px;display:inline-flex" target="_blank">Open driver app </a>`;
   }catch(e){
@@ -656,6 +688,14 @@ async function loadDriverRoster(){
 }
 document.getElementById('refreshDrivers')?.addEventListener('click',loadDriverRoster);
 document.getElementById('heroRefreshFleet')?.addEventListener('click',loadDriverRoster);
+document.getElementById('resetDriverStatusNow')?.addEventListener('click',()=>{
+  const dateInput=document.getElementById('driverStatusDate');
+  const timeInput=document.getElementById('driverStatusTime');
+  const now=new Date();
+  if(dateInput) dateInput.value=now.toISOString().slice(0,10);
+  if(timeInput) timeInput.value=now.toTimeString().slice(0,5);
+  loadDriverRoster();
+});
 loadDriverRoster();
 
 function setBrokerIntakeMessage(text,type){const el=document.getElementById('brokerIntakeMessage');if(!el)return;el.hidden=false;el.className=`msgBox ${type==='err'?'err':'ok'}`;el.textContent=text;}
