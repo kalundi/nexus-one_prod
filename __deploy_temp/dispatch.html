@@ -352,10 +352,24 @@ async function loadDriverRoster(){
     const roster=document.getElementById('driverRoster');
     const summary=document.getElementById('availabilitySummary');
     const countEl=document.getElementById('driversOnDutyCount');
+    const heroStatus=document.getElementById('heroFleetStatus');
+    const heroUpdated=document.getElementById('heroFleetUpdated');
+    const heroList=document.getElementById('heroVehicleList');
+    const heroMoving=document.getElementById('heroFleetMoving');
+    const heroOnboard=document.getElementById('heroFleetOnboard');
+    const heroAvail=document.getElementById('heroFleetAvail');
+    const heroAttn=document.getElementById('heroFleetAttn');
 
     if(!driverRes.ok || !fleetRes.ok){
       if(roster) roster.innerHTML='<p style="color:var(--muted)">Unable to load the live driver roster right now.</p>';
       if(summary) summary.innerHTML='<p style="color:var(--muted)">Live availability is temporarily unavailable.</p>';
+      if(heroStatus) heroStatus.textContent='Unavailable';
+      if(heroUpdated) heroUpdated.textContent='Fleet telemetry temporarily unavailable';
+      if(heroList) heroList.innerHTML='<div style="text-align:center;padding:20px;color:#9fc2d8">Live fleet telemetry temporarily unavailable</div>';
+      if(heroMoving) heroMoving.textContent='--';
+      if(heroOnboard) heroOnboard.textContent='--';
+      if(heroAvail) heroAvail.textContent='--';
+      if(heroAttn) heroAttn.textContent='--';
       return;
     }
 
@@ -389,6 +403,23 @@ async function loadDriverRoster(){
     const availableFleet=fleetVehicles.filter(v=>String(v.status||'').toUpperCase()==='AVAILABLE').length;
     const attention=fleetVehicles.filter(v=>String(v.status||'').toUpperCase()==='ATTENTION' || !!v.attention).length;
 
+    if(heroStatus) heroStatus.textContent=fleetVehicles.length?'Live':'No telemetry';
+    if(heroUpdated) heroUpdated.textContent=`Updated ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'})}`;
+    if(heroMoving) heroMoving.textContent=String(moving);
+    if(heroOnboard) heroOnboard.textContent=String(onboard);
+    if(heroAvail) heroAvail.textContent=String(availableFleet);
+    if(heroAttn) heroAttn.textContent=String(attention);
+    if(heroList){
+      heroList.innerHTML=fleetVehicles.length
+        ?fleetVehicles.slice(0,16).map((v)=>{
+          const unit=String(v.unit||v.vehicleUnit||v.id||'Vehicle').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          const status=String(v.statusLabel||v.status||'UNKNOWN').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          const service=String(v.service||'Medical transportation').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:rgba(255,255,255,.03)"><div><strong style="display:block;color:#e7f4ff;font-size:12px">${unit}</strong><small style="color:#9fc2d8;font-size:11px">${service}</small></div><span class="status blue" style="font-size:10px">${status}</span></div>`;
+        }).join('')
+        :'<div style="text-align:center;padding:20px;color:#9fc2d8">No live fleet telemetry was returned</div>';
+    }
+
     if(summary) summary.innerHTML=`
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">
         <div style="text-align:center;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)"><strong style="font-size:22px;display:block;color:var(--green,#067647)">${available}</strong><small style="color:var(--muted)">Driver available</small></div>
@@ -402,9 +433,18 @@ async function loadDriverRoster(){
         <span class="status amber">${attention} need attention</span>
       </div>
       <a href="/driver-app.html" class="button secondary" style="font-size:13px;display:inline-flex" target="_blank">Open driver app </a>`;
-  }catch(e){console.error('[DISPATCH] loadDriverRoster:',e)}
+  }catch(e){
+    console.error('[DISPATCH] loadDriverRoster:',e);
+    const heroStatus=document.getElementById('heroFleetStatus');
+    const heroUpdated=document.getElementById('heroFleetUpdated');
+    const heroList=document.getElementById('heroVehicleList');
+    if(heroStatus) heroStatus.textContent='Unavailable';
+    if(heroUpdated) heroUpdated.textContent='Fleet telemetry failed to load';
+    if(heroList) heroList.innerHTML='<div style="text-align:center;padding:20px;color:#9fc2d8">Fleet telemetry failed to load</div>';
+  }
 }
 document.getElementById('refreshDrivers')?.addEventListener('click',loadDriverRoster);
+document.getElementById('heroRefreshFleet')?.addEventListener('click',loadDriverRoster);
 loadDriverRoster();
 
 function setBrokerIntakeMessage(text,type){const el=document.getElementById('brokerIntakeMessage');if(!el)return;el.hidden=false;el.className=`msgBox ${type==='err'?'err':'ok'}`;el.textContent=text;}
