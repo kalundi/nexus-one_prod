@@ -873,7 +873,8 @@ function parseSubjectHints(subject){
 }
 
 function inferBrokerNameFromSender(senderEmail,senderName=''){
- const email=clean(senderEmail,200).toLowerCase();
+ const emailRaw=clean(senderEmail,200).toLowerCase();
+ const email=((emailRaw.match(/<([^>]+)>/)||[])[1]||emailRaw).trim();
  if(email.endsWith('@gotandt.com')) return 'Go Transportation & Translation';
  return clean(senderName||'Unknown Broker',160);
 }
@@ -901,9 +902,18 @@ function buildFallbackParsedFromSubject(subject,senderEmail,senderName=''){
 }
 
 async function resolveBrokerIdentity(senderEmail,parsedBrokerName,senderName){
- const byEmail=await query('SELECT id,name FROM brokers WHERE lower(trim(contact_email))=$1 LIMIT 1',[clean(senderEmail,200).toLowerCase()]).catch(()=>({rows:[]}));
+ const senderRaw=clean(senderEmail,200).toLowerCase();
+ const normalizedSender=((senderRaw.match(/<([^>]+)>/)||[])[1]||senderRaw).trim();
+ const senderInferred=inferBrokerNameFromSender(normalizedSender,senderName);
+ const byEmail=await query('SELECT id,name FROM brokers WHERE lower(trim(contact_email))=$1 LIMIT 1',[normalizedSender]).catch(()=>({rows:[]}));
  if(byEmail.rows?.[0]){
   return {brokerId:byEmail.rows[0].id,brokerName:clean(byEmail.rows[0].name,160)};
+ }
+ if(senderInferred&&senderInferred.toLowerCase()!=='unknown broker'){
+  const inferredMatch=await query(`SELECT id,name FROM brokers WHERE regexp_replace(lower(name),'[^a-z0-9]+','','g')=regexp_replace(lower($1),'[^a-z0-9]+','','g') LIMIT 1`,[senderInferred]).catch(()=>({rows:[]}));
+  if(inferredMatch.rows?.[0]){
+   return {brokerId:inferredMatch.rows[0].id,brokerName:clean(inferredMatch.rows[0].name,160)};
+  }
  }
  const parsedName=clean(parsedBrokerName,160);
  if(parsedName&&parsedName.toLowerCase()!=='unknown broker'){
@@ -912,7 +922,7 @@ async function resolveBrokerIdentity(senderEmail,parsedBrokerName,senderName){
    return {brokerId:byName.rows[0].id,brokerName:clean(byName.rows[0].name,160)};
   }
  }
- const inferred=parsedName||inferBrokerNameFromSender(senderEmail,senderName);
+ const inferred=senderInferred||parsedName||inferBrokerNameFromSender(normalizedSender,senderName);
  return {brokerId:null,brokerName:clean(inferred||'Unknown Broker',160)};
 }
 
