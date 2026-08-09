@@ -1,5 +1,5 @@
 ﻿<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#082f49"><meta name="description" content="NEXUS ONE revenue cycle management for transportation invoices, claims, payments and reconciliation."><meta name="robots" content="noindex,nofollow"><title>Revenue Cycle & Billing | NEXUS ONE</title><style>html{visibility:hidden}body{visibility:hidden}</style>
-  <link rel="stylesheet" href="./platform.css?v=32">  <script src="/trustedsite.js" defer></script>
+  <link rel="stylesheet" href="./platform.css?v=32">  <script src="/trustedsite.js?v=2" defer></script>
   <script src="/i18n.js" defer></script>
 <script src="./auth-guard.js"></script><script src="./nexus-data.js"></script>
 <script src="./universal-booking.js" defer></script></head><body><a class="skip" href="#main">Skip to main content</a>
@@ -29,6 +29,7 @@ document.getElementById('syncClaims').onclick=()=>{render();document.getElementB
 document.getElementById('exportClaims').onclick=()=>downloadCsv('nexus-claims.csv',['Record','Trip','Patient','Payer','Type','Amount','Paid','Balance','Status'],claims.map(c=>[c.id,c.tripId,c.patient,c.payer,c.type,c.amount,c.paid,c.balance,c.status]));document.getElementById('exportPayments').onclick=()=>downloadCsv('nexus-payments.csv',['Payment','Record','Trip','Posted','Method','Reference','Amount'],NexusRevenue.getPayments().map(p=>[p.id,p.claimId,p.tripId,p.postedAt,p.method,p.reference,p.amount]));
 document.getElementById('paymentForm').onsubmit=e=>{e.preventDefault();try{NexusRevenue.recordPayment({claimId:paymentClaim.value,amount:paymentAmount.value,method:paymentMethod.value,reference:paymentReference.value});paymentStatus.textContent='Payment posted and balance recalculated.';e.target.reset();render()}catch(err){paymentStatus.textContent=err.message}};render();
 </script></body></html>
+
 
 
 
