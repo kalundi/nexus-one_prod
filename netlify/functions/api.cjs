@@ -2602,6 +2602,11 @@ async function handler(event){
   if(intakeRow&&mappedBooking.brokerQuotedRate==null&&intakeRow.broker_quoted_rate!=null){
    mappedBooking.brokerQuotedRate=Number(intakeRow.broker_quoted_rate);
   }
+  if(intakeRow&&!mappedBooking.pickupTime){
+   const parsedPayload=intakeRow.parsed_payload&&typeof intakeRow.parsed_payload==='object'?intakeRow.parsed_payload:{};
+   const intakePickupTime=normalizeOptionalTripTime(parsedPayload.pickup_time||'');
+   if(intakePickupTime)mappedBooking.pickupTime=intakePickupTime;
+  }
   return json(200,{booking:mappedBooking,intakeAudit});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='DELETE'){
@@ -2830,7 +2835,18 @@ async function handler(event){
   if(!r.rows[0])return json(404,{error:'Booking not found'});
 
   if(hasPickupTime){
-    await query('UPDATE bookings SET pickup_time=$2::time,updated_at=now() WHERE reference=$1',[ref,pickupTimeValue]);
+    await query('UPDATE bookings SET pickup_time=$2::time,updated_at=now() WHERE reference=$1',[ref,pickupTimeValue]).catch(()=>{});
+    if(pickupTimeValue){
+      await query(`UPDATE broker_requests SET
+        parsed_payload=jsonb_set(COALESCE(parsed_payload,'{}'::jsonb),'{pickup_time}',to_jsonb($2::text),true),
+        updated_at=now()
+        WHERE id=(SELECT id FROM broker_requests WHERE booking_reference=$1 ORDER BY created_at DESC LIMIT 1)`,[ref,pickupTimeValue]).catch(()=>{});
+    }else{
+      await query(`UPDATE broker_requests SET
+        parsed_payload=COALESCE(parsed_payload,'{}'::jsonb)-'pickup_time',
+        updated_at=now()
+        WHERE id=(SELECT id FROM broker_requests WHERE booking_reference=$1 ORDER BY created_at DESC LIMIT 1)`,[ref]).catch(()=>{});
+    }
   }
   const afterRow=hasPickupTime?(await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref])).rows?.[0]||r.rows[0]:r.rows[0];
 
@@ -3452,10 +3468,12 @@ async function mapBookingsWithIntakeAudit(rows){
   const intake=intakeByRef.get(String(booking.reference||''))||null;
   const method=intake?.submission_method||null;
   const parsedPayload=intake?.parsed_payload&&typeof intake.parsed_payload==='object'?intake.parsed_payload:{};
+    const intakePickupTime=normalizeOptionalTripTime(parsedPayload?.pickup_time||'')||null;
   const parseDiagnostics=parsedPayload?.parse_diagnostics&&typeof parsedPayload.parse_diagnostics==='object'?parsedPayload.parse_diagnostics:{};
   const intakeBrokerQuotedRate=intake?.broker_quoted_rate!=null?Number(intake.broker_quoted_rate):null;
   return {
    ...booking,
+     pickupTime:booking.pickupTime||intakePickupTime,
    brokerQuotedRate:booking.brokerQuotedRate==null&&intakeBrokerQuotedRate!=null?intakeBrokerQuotedRate:booking.brokerQuotedRate,
    intakeSubmissionMethod:method,
    intakeParseSource:mapParseSourceLabel(method),
