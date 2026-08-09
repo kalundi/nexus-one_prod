@@ -327,6 +327,8 @@ async function loadUsers(){
         if(auditDetails) auditDetails.open=true;
         focusDashboardSection('auditSection');
         await loadAudit();
+        const matches=Array.isArray(latestAuditEntries)?latestAuditEntries.length:0;
+        showToast(`Audit filter applied: credential reissues for ${email||userId}. ${matches} record${matches===1?'':'s'} found.`,'ok');
       });
     });
     updateDashboardSignals();
@@ -1380,6 +1382,21 @@ async function advanceAdminTrip(reference){
 
 // Helpers
 function showMsg(el,text,type){el.textContent=text;el.className='msgBox '+(type||'ok');el.hidden=false;if(type==='ok')setTimeout(()=>{el.hidden=true},5000);}
+
+let toastTimer=null;
+function showToast(text,type='ok'){
+  const el=document.getElementById('adminToast');
+  if(!el) return;
+  if(toastTimer){clearTimeout(toastTimer);toastTimer=null;}
+  el.textContent=text;
+  el.className=`adminToast ${type==='err'?'err':''}`.trim();
+  el.hidden=false;
+  requestAnimationFrame(()=>el.classList.add('show'));
+  toastTimer=setTimeout(()=>{
+    el.classList.remove('show');
+    setTimeout(()=>{el.hidden=true;},220);
+  },2600);
+}
 
 document.getElementById('refreshAdminTrips')?.addEventListener('click',()=>{loadAdminTrips().catch((err)=>console.error(err));});
 document.getElementById('adminTripSourceFilter')?.addEventListener('change',renderAdminTripsRows);
