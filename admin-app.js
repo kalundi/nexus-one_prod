@@ -986,6 +986,16 @@ async function runSocialPublish(){
 let adminTripsCache=[];
 let adminTripsShowAll=false;
 const ADMIN_TRIPS_DEFAULT_LIMIT=5;
+const ADMIN_TRIP_STATUS_FLOW={
+  SUBMITTED:'SCHEDULED',
+  REQUESTED:'SCHEDULED',
+  PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',
+  SCHEDULED:'ASSIGNED',
+  ASSIGNED:'EN_ROUTE',
+  EN_ROUTE:'ARRIVED',
+  ARRIVED:'IN_TRANSIT',
+  IN_TRANSIT:'COMPLETED'
+};
 
 function adminTripRef(trip){
   return String(trip?.reference || trip?.id || '').trim();
@@ -1140,11 +1150,28 @@ async function advanceAdminTrip(reference){
   if(!ref) return;
   const button=document.querySelector(`[data-admin-advance="${ref}"]`);
   if(button){button.disabled=true;button.textContent='Advancing...';}
+  const currentTrip=adminTripsCache.find((trip)=>adminTripRef(trip)===ref) || null;
+  const currentStatus=String(currentTrip?.status || '').toUpperCase();
+  const fallbackNextStatus=ADMIN_TRIP_STATUS_FLOW[currentStatus] || '';
   try{
     const res=await fetch(`/api/admin/bookings/${encodeURIComponent(ref)}/advance`,{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'}});
     const data=await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(data.error || 'Unable to advance trip');
-    const booking=data.booking;
+    let booking=res.ok?data.booking:null;
+    if(!res.ok){
+      // Fallback path: update status directly through PATCH when advance endpoint fails.
+      if(res.status>=500&&fallbackNextStatus){
+        const patchRes=await fetch(`/api/admin/bookings/${encodeURIComponent(ref)}`,{
+          method:'PATCH',
+          headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},
+          body:JSON.stringify({status:fallbackNextStatus})
+        });
+        const patchData=await patchRes.json().catch(()=>({}));
+        if(!patchRes.ok) throw new Error(patchData.error || data.error || 'Unable to advance trip');
+        booking=patchData.booking;
+      }else{
+        throw new Error(data.error || 'Unable to advance trip');
+      }
+    }
     if(booking){
       adminTripsCache=adminTripsCache.map((trip)=>adminTripRef(trip)===ref?booking:trip);
       renderAdminTripsRows();
