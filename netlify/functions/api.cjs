@@ -19,6 +19,12 @@ const clean=v=>String(v??'').trim();
 const DEMO_SOURCES=new Set(['DEMO','LOCAL','MOCK','TEST']);
 const required=(body,fields)=>{for(const f of fields)if(!clean(body[f]))throw Object.assign(new Error(`${f} is required`),{statusCode:400})};
 const reference=()=>`NMT-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${crypto.randomInt(1000,9999)}`;
+const TEMP_PASSWORD_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+function generateTempPassword(length=14){
+ let out='';
+ for(let i=0;i<length;i++)out+=TEMP_PASSWORD_ALPHABET[crypto.randomInt(0,TEMP_PASSWORD_ALPHABET.length)];
+ return out;
+}
 function isDemoReference(value){
  const ref=clean(value).toUpperCase();
  return /^NMT(?:-DRV)?-DEMO-/.test(ref) || ref.includes('-DEMO-');
@@ -2375,6 +2381,12 @@ async function handler(event){
        
        if(!verifyPassword(String(b.password||''), String(u.password_hash))){console.log('[LOGIN] Password mismatch'); return json(401,{error:'Invalid credentials'});}
        console.log('[LOGIN] Password verified');
+      if(u.must_change_password&&u.password_reset_expires){
+        const expiryTs=new Date(u.password_reset_expires).getTime();
+        if(Number.isFinite(expiryTs)&&Date.now()>expiryTs){
+          return json(403,{error:'Temporary password expired. Contact admin for a new temporary password.',code:'TEMP_PASSWORD_EXPIRED'});
+        }
+      }
        
        const token=crypto.randomBytes(32).toString('base64url');
        await query(`INSERT INTO sessions(token_digest,user_id,expires_at,ip_address,user_agent) VALUES($1,$2,now()+interval '8 hours',$3,$4)`,[digest(token),u.id,event.headers['x-forwarded-for']||null,event.headers['user-agent']||null]);
@@ -2449,7 +2461,7 @@ async function handler(event){
      return json(401,{error:'Current password is incorrect'});
    }
    const newHash=crypto.createHash('sha256').update(newPass).digest('hex');
-   await query('UPDATE users SET password_hash=$1,must_change_password=false,updated_at=now() WHERE id=$2',[newHash,u.id]);
+  await query('UPDATE users SET password_hash=$1,must_change_password=false,password_reset_expires=null,updated_at=now() WHERE id=$2',[newHash,u.id]);
    await audit('USER',u.id,'PASSWORD_CHANGED',{forced:!!u.must_change_password});
    return json(200,{message:'Password updated successfully.'});
   }
@@ -3042,15 +3054,18 @@ async function handler(event){
   if(p[0]==='admin'&&p[1]==='users'&&method==='POST'){
    const me=await requireUser(bearer(event),['ADMIN']);
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone text').catch(()=>{});
-   const b=parseBody(event);required(b,['email','phone','name','role','password']);
+    await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
+    await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz').catch(()=>{});
+    const b=parseBody(event);required(b,['email','phone','name','role']);
    const validRoles=['ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT'];
    if(!validRoles.includes(String(b.role).toUpperCase()))return json(400,{error:'Invalid role'});
-   if(String(b.password).length<8)return json(400,{error:'Password must be at least 8 characters'});
    const phoneDigits=String(b.phone||'').replace(/\D/g,'');
    if(phoneDigits.length!==10)return json(400,{error:'Phone number must be 10 digits'});
    const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1)',[b.email]);
    if(existing.rows[0])return json(409,{error:'A user with that email already exists'});
-   const passwordHash=crypto.createHash('sha256').update(String(b.password)).digest('hex');
+    const tempPassword=generateTempPassword(14);
+    const passwordHash=hashPassword(tempPassword);
+    const tempPasswordExpiresAt=new Date(Date.now()+2*60*60*1000).toISOString();
    const userId=crypto.randomUUID();
   // Resolve organization_id for the new user. Some environments enforce NOT NULL.
   const adminRow=await query('SELECT organization_id FROM users WHERE id=$1',[me.id]);
@@ -3063,17 +3078,17 @@ async function handler(event){
    return json(500,{error:'Organization setup is incomplete. Run reset standard accounts, then try creating the user again.'});
   }
    try{
-    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,$8,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,orgId,crypto.randomUUID()]);
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,must_change_password,password_reset_expires,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,true,$8,$9,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,tempPasswordExpiresAt,orgId,crypto.randomUUID()]);
    }catch(err){
     const message=String(err?.message||'').toLowerCase();
     if(message.includes('organization')||message.includes('organization_id')){
       return json(500,{error:'Organization setup is incomplete. Run reset standard accounts, then try again.'});
     }
     if(!message.includes('phone'))throw err;
-    await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,orgId,crypto.randomUUID()]);
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,must_change_password,password_reset_expires,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,true,$7,$8,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,tempPasswordExpiresAt,orgId,crypto.randomUUID()]);
    }
    await audit('USER',userId,'CREATED',{role:b.role,by:me.email});
-     return json(201,{user:{id:userId,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true}});
+    return json(201,{user:{id:userId,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true,mustChangePassword:true},tempPassword,tempPasswordExpiresAt});
   }
   if(p[0]==='driver'&&p[1]==='assignments'&&method==='GET'){
    const token=bearer(event);

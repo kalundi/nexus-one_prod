@@ -197,8 +197,8 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a role...</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option></select></div>
     </div>
     <div class="formRow" style="margin-top:14px">
-      <div class="formField"><label for="newPassword">Password (min 8 chars) *</label><input id="newPassword" type="password" placeholder="Temporary password" autocomplete="new-password"></div>
-      <div class="formField" style="align-self:end"><button class="button primary" id="createUserBtn" style="width:100%">Create user</button></div>
+      <div class="formField wide"><label>Temporary password policy</label><input type="text" value="System-generated temp password. User must change it within 2 hours." readonly></div>
+      <div class="formField wide" style="align-self:end"><button class="button primary" id="createUserBtn" style="width:100%">Create user</button></div>
     </div>
     <div id="createUserMsg" hidden></div>
   </div>

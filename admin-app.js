@@ -321,22 +321,21 @@ document.getElementById('createUserBtn').addEventListener('click',async()=>{
   const phone=document.getElementById('newPhone').value.trim();
   const name=document.getElementById('newName').value.trim();
   const role=document.getElementById('newRole').value;
-  const password=document.getElementById('newPassword').value;
   const msgEl=document.getElementById('createUserMsg');
   msgEl.hidden=true;
-  if(!email||!phone||!name||!role||!password){showMsg(msgEl,'All fields are required.','err');return;}
+  if(!email||!phone||!name||!role){showMsg(msgEl,'All fields are required.','err');return;}
   const btn=document.getElementById('createUserBtn');
   btn.disabled=true;btn.textContent='Creating...';
   try{
-    const r=await fetch('/api/admin/users',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({email,phone,name,role,password})});
+    const r=await fetch('/api/admin/users',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({email,phone,name,role})});
     const data=await r.json();
     if(!r.ok)throw new Error(data.error||'Failed to create user');
-    showMsg(msgEl,`User ${data.user.email} created successfully.`,'ok');
+    const expiresText=data.tempPasswordExpiresAt?new Date(data.tempPasswordExpiresAt).toLocaleString():'2 hours';
+    showMsg(msgEl,`User ${data.user.email} created. Temporary password: ${data.tempPassword}. Expires: ${expiresText}. User must change it on first sign-in.`,'ok');
     document.getElementById('newEmail').value='';
     document.getElementById('newPhone').value='';
     document.getElementById('newName').value='';
     document.getElementById('newRole').value='';
-    document.getElementById('newPassword').value='';
     loadUsers();
   }catch(e){showMsg(msgEl,e.message,'err');}
   finally{btn.disabled=false;btn.textContent='Create user';}
