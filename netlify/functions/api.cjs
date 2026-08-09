@@ -3057,6 +3057,7 @@ async function handler(event){
   // Admin: create user
   if(p[0]==='admin'&&p[1]==='users'&&method==='POST'){
    const me=await requireUser(bearer(event),['ADMIN']);
+    try{
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone text').catch(()=>{});
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz').catch(()=>{});
@@ -3120,6 +3121,10 @@ async function handler(event){
    }
    await audit('USER',userId,'CREATED',{role:b.role,by:me.email});
     return json(201,{user:{id:userId,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,warning});
+   }catch(err){
+    const message=clean(err?.message||'Failed to create user');
+    return json(err?.statusCode||500,{error:err?.statusCode?message:`Create user failed: ${message}`});
+   }
   }
   if(p[0]==='driver'&&p[1]==='assignments'&&method==='GET'){
    const token=bearer(event);
