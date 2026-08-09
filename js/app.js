@@ -26,6 +26,19 @@
  $('#endPatientSession').addEventListener('click',()=>{verified={reference:'',phone:''};sessionStorage.removeItem('nexusPatientRide');$('#liveCommand').hidden=true;$('#patientAccess').hidden=false;$('#phone').value='';focusedVehicleUnit=null;personalizeLivecare('PUBLIC');$('#patientAccess').scrollIntoView({behavior:'smooth'})});
 
  let fleetAnimationFrame=0, fleetVehicles=[], allFleetVehicles=[], fleetMap=null, fleetMarkers=[], activeStatusFilter=null, activeServiceFilter="ALL";
+ let fleetAnimationFrame=0, fleetVehicles=[], allFleetVehicles=[], fleetMap=null, fleetMarkers=[], activeStatusFilter=null, activeServiceFilter="ALL";
+ let forceShowAccessGateway=false;
+ function openAccessGatewayForSwitch(){
+  const gateway=$('#accessTitle')?.closest('.accessGateway');
+  forceShowAccessGateway=true;
+  if(gateway)gateway.hidden=false;
+  document.querySelectorAll('.securePanel').forEach((panel)=>{panel.hidden=true;});
+  const accessLabel=$('#currentAccessLabel');
+  if(accessLabel)accessLabel.textContent='Choose your user type';
+  gateway?.scrollIntoView({behavior:'smooth',block:'start'});
+ }
+ $('#switchLivecareUser')?.addEventListener('click',openAccessGatewayForSwitch);
+ $('#heroSwitchUser')?.addEventListener('click',openAccessGatewayForSwitch);
  let livecareRole='PUBLIC', focusedVehicleUnit=null, pinnedVehicleUnit=null;
  const routeLibrary=[
   [[39.1732,-77.2717],[39.1528,-77.2336],[39.1192,-77.1989],[39.0840,-77.1528],[39.0468,-77.1195]],
@@ -119,6 +132,9 @@
   if(copy){audience.textContent=copy[0];headline.textContent=copy[1];intro.textContent=copy[2]} document.querySelector('.livecareExperience')?.setAttribute('data-role',role);
   livecareRole=role;
   if(gateway)gateway.hidden=role!=='PUBLIC';
+   if(gateway)gateway.hidden=!forceShowAccessGateway&&role!=='PUBLIC';
+   $('#patientVerify').addEventListener('submit',async e=>{e.preventDefault();$('#patientError').textContent='';verified={reference:$('#reference').value.trim().toUpperCase(),phone:$('#phone').value.trim()};try{await load();forceShowAccessGateway=false;sessionStorage.setItem('nexusPatientRide',JSON.stringify(verified))}catch(err){$('#patientError').textContent=err.message}});
+   $('#endPatientSession').addEventListener('click',()=>{verified={reference:'',phone:''};sessionStorage.removeItem('nexusPatientRide');$('#liveCommand').hidden=true;$('#patientAccess').hidden=false;$('#phone').value='';focusedVehicleUnit=null;forceShowAccessGateway=true;personalizeLivecare('PUBLIC');$('#patientAccess').scrollIntoView({behavior:'smooth'})});
   const accessLabel=$('#currentAccessLabel'),logout=$('#livecareLogout');
   if(accessLabel)accessLabel.textContent=role==='PUBLIC'?'Choose your user type':`${copy?.[0]||role} active`;
   if(logout)logout.hidden=role==='PUBLIC';
@@ -259,6 +275,7 @@ function renderFleet(data,role,mode){
   togglePassword.addEventListener('click',e=>{e.preventDefault();const input=$('#password'),toggle=$('#togglePassword'),isPassword=input&&input.type==='password';if(!input||!toggle)return;input.type=isPassword?'text':'password';toggle.textContent=isPassword?'🙈':'👁';toggle.setAttribute('aria-label',isPassword?'Hide password':'Show password');input.focus()});
  }
  $('#staffLogin').addEventListener('submit',async e=>{e.preventDefault();const error=$('#staffError'),submit=$('#staffSubmit'),label=submit.querySelector('span');error.textContent='';submit.disabled=true;label.textContent='Signing in…';try{const expected=$('#expectedRole').value;const j=await request('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:$('#identifier').value.trim(),password:$('#password').value})});if(expected&&j.user.role!==expected&&j.user.role!=='ADMIN'){await fetch('/api/auth/logout',{method:'POST',headers:{authorization:`Bearer ${j.token}`}});throw Error('This account does not have permission for the selected portal.')}sessionStorage.setItem('nexusAccessToken',j.token);sessionStorage.setItem('nexusUser',JSON.stringify(j.user));location.assign('/livecare.html')}catch(err){error.textContent=err.message}finally{submit.disabled=false;label.textContent='Sign in securely'}}); 
+ $('#staffLogin').addEventListener('submit',async e=>{e.preventDefault();const error=$('#staffError'),submit=$('#staffSubmit'),label=submit.querySelector('span');error.textContent='';submit.disabled=true;label.textContent='Signing in…';try{const expected=$('#expectedRole').value;const j=await request('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:$('#identifier').value.trim(),password:$('#password').value})});if(expected&&j.user.role!==expected&&j.user.role!=='ADMIN'){await fetch('/api/auth/logout',{method:'POST',headers:{authorization:`Bearer ${j.token}`}});throw Error('This account does not have permission for the selected portal.')}forceShowAccessGateway=false;sessionStorage.setItem('nexusAccessToken',j.token);sessionStorage.setItem('nexusUser',JSON.stringify(j.user));location.assign('/livecare.html')}catch(err){error.textContent=err.message}finally{submit.disabled=false;label.textContent='Sign in securely'}}); 
  const saved=sessionStorage.getItem('nexusPatientRide');if(saved){try{verified=JSON.parse(saved);load().catch(()=>sessionStorage.removeItem('nexusPatientRide'))}catch{}}
  loadPreview();
 })();
