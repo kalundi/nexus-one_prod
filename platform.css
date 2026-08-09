@@ -48,11 +48,15 @@
 
 /* Multilingual + Section 508 controls remain visible without overlap */
 .nexusLanguageControl{right:18px!important;bottom:82px!important;z-index:151!important}
-.access{position:fixed;right:18px;bottom:18px;z-index:152}
+.access{position:fixed;right:18px;top:50%;bottom:auto;transform:translateY(-50%);z-index:152;display:flex;align-items:center;gap:10px}
 .section508Button{min-width:64px!important;height:52px!important;border-radius:999px!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:5px!important;font-weight:800!important;letter-spacing:.02em!important}
 .section508Button span:first-child{font-size:1.25rem;line-height:1}
 .section508Button span:last-child{font-size:.76rem;line-height:1}
-@media(max-width:640px){.nexusLanguageControl{right:10px!important;bottom:78px!important}.access{right:10px;bottom:10px}}
+.accessPanel{position:absolute;right:74px;top:50%;transform:translateY(-50%);min-width:190px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 38px rgba(8,47,73,.2);padding:12px;display:grid;gap:8px}
+.accessPanel strong{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-family:Manrope,sans-serif}
+.accessPanel button{border:1px solid var(--line);background:#f7fbff;color:var(--navy);border-radius:10px;padding:8px 10px;text-align:left;font:700 14px/1.2 "Source Sans 3","Segoe UI",sans-serif;cursor:pointer}
+.accessPanel button:hover,.accessPanel button:focus-visible{border-color:var(--blue);background:#ecf6ff;outline:0}
+@media(max-width:640px){.nexusLanguageControl{right:10px!important;bottom:78px!important}.access{right:10px;top:auto;bottom:22%;transform:none}.accessPanel{right:0;top:auto;bottom:64px;transform:none}}
 
 
 /* Build 010 global navigation language control */

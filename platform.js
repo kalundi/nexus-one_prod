@@ -36,7 +36,31 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
   window.NexusTripPopup={show:showTripPopup};
 })();
 const access=$('#accessToggle'),panel=$('#accessPanel');
-if(access && panel){access.addEventListener('click',()=>{const open=!panel.classList.contains('open');panel.classList.toggle('open',open);panel.hidden=!open;access.setAttribute('aria-expanded',String(open));});}
+if(access && panel){
+	const accessRoot=access.closest('.access') || access.parentElement;
+	const setAccessOpen=(open)=>{
+		panel.classList.toggle('open',open);
+		panel.hidden=!open;
+		access.setAttribute('aria-expanded',String(open));
+	};
+
+	access.addEventListener('click',(event)=>{
+		event.preventDefault();
+		setAccessOpen(!panel.classList.contains('open'));
+	});
+	access.addEventListener('mouseenter',()=>setAccessOpen(true));
+	access.addEventListener('focus',()=>setAccessOpen(true));
+	panel.addEventListener('mouseenter',()=>setAccessOpen(true));
+
+	document.addEventListener('click',(event)=>{
+		if(!panel.classList.contains('open')) return;
+		if(accessRoot && accessRoot.contains(event.target)) return;
+		setAccessOpen(false);
+	});
+	document.addEventListener('keydown',(event)=>{
+		if(event.key==='Escape') setAccessOpen(false);
+	});
+}
 $('#large')?.addEventListener('click',()=>document.body.classList.toggle('large'));
 $('#contrast')?.addEventListener('click',()=>document.body.classList.toggle('contrast'));
 $('#motion')?.addEventListener('click',()=>document.body.classList.toggle('reduce'));
