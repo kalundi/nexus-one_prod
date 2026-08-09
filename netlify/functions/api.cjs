@@ -3252,7 +3252,7 @@ async function handler(event){
    return json(200,{users:r.rows.map(u=>({id:String(u.id),email:u.email,name:u.display_name,phone:u.phone||'',role:u.role,active:u.active,createdAt:u.created_at}))});
   }
   // Admin: create user
-  if(p[0]==='admin'&&p[1]==='users'&&method==='POST'){
+  if(p[0]==='admin'&&p[1]==='users'&&!p[2]&&method==='POST'){
     try{
     const me=await requireUser(bearer(event),['ADMIN']);
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone text').catch(()=>{});
