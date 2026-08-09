@@ -2830,7 +2830,7 @@ async function handler(event){
   if(!r.rows[0])return json(404,{error:'Booking not found'});
 
   if(hasPickupTime){
-  await query('UPDATE bookings SET pickup_time=$2,updated_at=now() WHERE reference=$1',[ref,pickupTimeValue]).catch(()=>{});
+    await query('UPDATE bookings SET pickup_time=$2::time,updated_at=now() WHERE reference=$1',[ref,pickupTimeValue]);
   }
   const afterRow=hasPickupTime?(await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref])).rows?.[0]||r.rows[0]:r.rows[0];
 
