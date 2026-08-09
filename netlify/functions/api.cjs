@@ -3006,6 +3006,7 @@ async function handler(event){
   // Admin: list users
   if(p[0]==='admin'&&p[1]==='users'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
+    await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone text').catch(()=>{});
    const phoneByEmail={
     'patient@example.com':'8886395766',
     'executive@nexusmt.com':'8886395766',
@@ -3018,7 +3019,15 @@ async function handler(event){
     'fletcher@nexusmt.com':'2022702174',
     'keames@adventisthealthcare.com':'2406201940'
    };
-   const r=await query(`SELECT id,email,display_name,role,phone,active,created_at,organization_id FROM users ORDER BY created_at DESC LIMIT 200`);
+   let r;
+   try{
+    r=await query(`SELECT id,email,display_name,role,phone,active,created_at,organization_id FROM users ORDER BY created_at DESC LIMIT 200`);
+   }catch(err){
+    const message=String(err?.message||'');
+    if(message.toLowerCase().includes('phone')){
+      r=await query(`SELECT id,email,display_name,role,null::text as phone,active,created_at,organization_id FROM users ORDER BY created_at DESC LIMIT 200`);
+    }else throw err;
+   }
    for(const u of r.rows||[]){
     const email=clean(u.email).toLowerCase();
     const fallbackPhone=phoneByEmail[email]||'';
@@ -3032,6 +3041,7 @@ async function handler(event){
   // Admin: create user
   if(p[0]==='admin'&&p[1]==='users'&&method==='POST'){
    const me=await requireUser(bearer(event),['ADMIN']);
+    await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone text').catch(()=>{});
    const b=parseBody(event);required(b,['email','phone','name','role','password']);
    const validRoles=['ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT'];
    if(!validRoles.includes(String(b.role).toUpperCase()))return json(400,{error:'Invalid role'});
@@ -3045,10 +3055,20 @@ async function handler(event){
    // Get organization_id from the authenticated admin (required NOT NULL column)
    const adminRow=await query('SELECT organization_id FROM users WHERE id=$1',[me.id]);
    const orgId=adminRow.rows[0]?.organization_id||null;
-   if(orgId){
-    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,$8,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,orgId,crypto.randomUUID()]);
-   }else{
-    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,crypto.randomUUID()]);
+   try{
+    if(orgId){
+      await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,$8,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,orgId,crypto.randomUUID()]);
+    }else{
+      await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,crypto.randomUUID()]);
+    }
+   }catch(err){
+    const message=String(err?.message||'').toLowerCase();
+    if(!message.includes('phone'))throw err;
+    if(orgId){
+      await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,orgId,crypto.randomUUID()]);
+    }else{
+      await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,crypto.randomUUID()]);
+    }
    }
    await audit('USER',userId,'CREATED',{role:b.role,by:me.email});
      return json(201,{user:{id:userId,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true}});

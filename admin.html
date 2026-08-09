@@ -93,7 +93,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <script src="./auth-guard.js"></script><script src="./nexus-data.js"></script>
 </head><body>
 <a class="skip" href="#main">Skip to main content</a>
-<header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="adminNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a href="/dispatch.html">Dispatch</a><a aria-current="page" href="/admin.html">Admin</a></nav><div class="globalActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18886395766"><small>Call Nexus</small><strong>(888) 639-5766</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true">â†’</span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="adminNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header>
+<header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="adminNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a href="/dispatch.html">Dispatch</a><a aria-current="page" href="/admin.html">Admin</a></nav><div class="globalActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18886395766"><small>Call Nexus</small><strong>(888) 639-5766</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true">-></span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="adminNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header>
 
 <section class="adminHero"><div class="shell adminHeroInner"><div class="adminStoryPanel">
   <div><div class="eyebrow"><span class="liveDot" aria-hidden="true"></span>NEXUS Administration</div>
@@ -112,10 +112,10 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <aside class="adminStatPanel" aria-label="Platform statistics">
   <h2>Platform overview</h2>
   <div class="adminStatGrid">
-    <div class="adminStat"><strong id="statUsers">â€”</strong><small>Total users</small></div>
-    <div class="adminStat"><strong id="statActiveUsers">â€”</strong><small>Active users</small></div>
-    <div class="adminStat"><strong id="statTrips">â€”</strong><small>Total trips</small></div>
-    <div class="adminStat"><strong id="statPricing">â€”</strong><small>Services priced</small></div>
+    <div class="adminStat"><strong id="statUsers">--</strong><small>Total users</small></div>
+    <div class="adminStat"><strong id="statActiveUsers">--</strong><small>Active users</small></div>
+    <div class="adminStat"><strong id="statTrips">--</strong><small>Total trips</small></div>
+    <div class="adminStat"><strong id="statPricing">--</strong><small>Services priced</small></div>
   </div>
   <div class="adminStatusRow"><i></i>API connected</div>
   <div class="adminStatusRow"><i></i>Database ready</div>
@@ -186,7 +186,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 
 <!-- User Management -->
 <section class="sectionTab" id="userSection">
-  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">User Administration</div><h2>User management</h2><p>Create accounts, manage roles, and activate or deactivate access across the platform.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="button danger" id="resetCredentialsBtn" title="Resets standard non-production accounts">âŸ³ Reset standard accounts</button><button class="button" id="refreshUsers">Refresh list</button></div></div>
+  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">User Administration</div><h2>User management</h2><p>Create accounts, manage roles, and activate or deactivate access across the platform.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="button danger" id="resetCredentialsBtn" title="Resets standard non-production accounts">Reset standard accounts</button><button class="button" id="refreshUsers">Refresh list</button></div></div>
   <div id="resetCredentialsMsg" hidden style="margin-bottom:14px;padding:12px 16px;border-radius:10px;font-size:14px"></div>
   <div class="createUserForm">
     <h3>Create new user</h3>
@@ -194,7 +194,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       <div class="formField"><label for="newEmail">Email address *</label><input id="newEmail" type="email" placeholder="user@example.com" autocomplete="off"></div>
       <div class="formField"><label for="newPhone">Phone number *</label><input id="newPhone" type="tel" placeholder="8886395766" autocomplete="off"></div>
       <div class="formField"><label for="newName">Full name *</label><input id="newName" type="text" placeholder="Full name"></div>
-      <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a roleâ€¦</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option></select></div>
+      <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a role...</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option></select></div>
     </div>
     <div class="formRow" style="margin-top:14px">
       <div class="formField"><label for="newPassword">Password (min 8 chars) *</label><input id="newPassword" type="password" placeholder="Temporary password" autocomplete="new-password"></div>
@@ -204,7 +204,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
   </div>
   <div class="tableWrap"><table class="userTable" aria-label="User list">
     <thead><tr><th>Email</th><th>Phone Number</th><th>Name</th><th>Role</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
-    <tbody id="userTableBody"><tr><td colspan="7" style="padding:24px;text-align:center;color:var(--muted)">Loading usersâ€¦</td></tr></tbody>
+    <tbody id="userTableBody"><tr><td colspan="7" style="padding:24px;text-align:center;color:var(--muted)">Loading users...</td></tr></tbody>
   </table></div>
 </section>
 
@@ -265,14 +265,14 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       <option value="NEXT_7D">Next 7 days</option>
       <option value="PAST">Past trips</option>
     </select>
-    <small id="adminTripsSummary" style="color:var(--muted)">Loading tripsâ€¦</small>
+    <small id="adminTripsSummary" style="color:var(--muted)">Loading trips...</small>
   </div>
   <div class="tableWrap">
     <table class="table" aria-label="Admin trip list">
       <thead>
         <tr><th>Reference</th><th>Patient</th><th>Date / Time</th><th>Service</th><th>Status</th><th>Source</th><th>Action</th></tr>
       </thead>
-      <tbody id="adminTripRows"><tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Loading tripsâ€¦</td></tr></tbody>
+      <tbody id="adminTripRows"><tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Loading trips...</td></tr></tbody>
     </table>
   </div>
 </section>
@@ -482,7 +482,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
         <select id="auditType" style="padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:inherit"><option value="">All actions</option><option value="LOGIN">Logins</option><option value="CREATED">Created</option><option value="UPDATED">Updated</option><option value="ACTIVATED">Activated</option><option value="DEACTIVATED">Deactivated</option><option value="DRIVER_REFERRAL_INCENTIVE">Driver referral incentives</option></select>
         <button class="button" id="applyAuditFilter">Filter</button>
       </div>
-      <div id="auditList" style="display:grid;gap:10px"><p style="color:var(--muted)">Loading audit recordsâ€¦</p></div>
+      <div id="auditList" style="display:grid;gap:10px"><p style="color:var(--muted)">Loading audit records...</p></div>
     </div>
   </details>
 </section>
