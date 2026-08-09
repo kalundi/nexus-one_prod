@@ -30,19 +30,6 @@
       document.head.appendChild(style);
     }
 
-    var panel = document.getElementById('accessibility-options') || document.getElementById('accessPanel');
-    var toggle = document.querySelector('.accessButton, #accessToggle, [aria-controls="accessibility-options"], [aria-controls="accessPanel"]');
-    if (panel && toggle && !toggle.dataset.nexusAccessNormalized) {
-      toggle.dataset.nexusAccessNormalized = '1';
-      panel.hidden = true;
-      toggle.setAttribute('aria-expanded', 'false');
-      document.addEventListener('click', function (event) {
-        if (!panel || panel.hidden) return;
-        if (panel.contains(event.target) || toggle.contains(event.target)) return;
-        panel.hidden = true;
-        toggle.setAttribute('aria-expanded', 'false');
-      });
-    }
   }
 
   if (document.readyState === 'loading') {
