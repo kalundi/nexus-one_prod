@@ -257,17 +257,18 @@ const ROLE_COLORS={ADMIN:'red',DISPATCHER:'blue',FACILITY:'blue',DRIVER:'green',
 
 async function loadUsers(){
   const tbody=document.getElementById('userTableBody');
-  tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Loading...</td></tr>';
+  tbody.innerHTML='<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Loading...</td></tr>';
   try{
     const r=await fetch('/api/admin/users',{headers:{authorization:`Bearer ${token()}`}});
     if(!r.ok){const e=await r.json();throw new Error(e.error||'Failed to load users');}
     const {users}=await r.json();
     document.getElementById('statUsers').textContent=users.length;
     document.getElementById('statActiveUsers').textContent=users.filter(u=>u.active).length;
-    if(!users.length){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">No users found.</td></tr>';return;}
+    if(!users.length){tbody.innerHTML='<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">No users found.</td></tr>';return;}
     tbody.innerHTML=users.map(u=>`
       <tr data-user-id="${u.id}">
         <td>${u.email}</td>
+        <td>${u.phone||'--'}</td>
         <td>${u.name||'--'}</td>
         <td><span class="pill ${ROLE_COLORS[u.role]||'muted'}">${u.role}</span></td>
         <td><span class="pill ${u.active?'green':'muted'}">${u.active?'Active':'Inactive'}</span></td>
@@ -286,7 +287,7 @@ async function loadUsers(){
       });
     });
     updateDashboardSignals();
-  }catch(e){tbody.innerHTML=`<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--red)">${e.message}</td></tr>`;}
+  }catch(e){tbody.innerHTML=`<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--red)">${e.message}</td></tr>`;}
   updateDashboardSignals();
 }
 
@@ -317,20 +318,22 @@ document.getElementById('resetCredentialsBtn')?.addEventListener('click',async()
 
 document.getElementById('createUserBtn').addEventListener('click',async()=>{
   const email=document.getElementById('newEmail').value.trim();
+  const phone=document.getElementById('newPhone').value.trim();
   const name=document.getElementById('newName').value.trim();
   const role=document.getElementById('newRole').value;
   const password=document.getElementById('newPassword').value;
   const msgEl=document.getElementById('createUserMsg');
   msgEl.hidden=true;
-  if(!email||!name||!role||!password){showMsg(msgEl,'All fields are required.','err');return;}
+  if(!email||!phone||!name||!role||!password){showMsg(msgEl,'All fields are required.','err');return;}
   const btn=document.getElementById('createUserBtn');
   btn.disabled=true;btn.textContent='Creating...';
   try{
-    const r=await fetch('/api/admin/users',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({email,name,role,password})});
+    const r=await fetch('/api/admin/users',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({email,phone,name,role,password})});
     const data=await r.json();
     if(!r.ok)throw new Error(data.error||'Failed to create user');
     showMsg(msgEl,`User ${data.user.email} created successfully.`,'ok');
     document.getElementById('newEmail').value='';
+    document.getElementById('newPhone').value='';
     document.getElementById('newName').value='';
     document.getElementById('newRole').value='';
     document.getElementById('newPassword').value='';

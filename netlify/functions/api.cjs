@@ -3006,16 +3006,38 @@ async function handler(event){
   // Admin: list users
   if(p[0]==='admin'&&p[1]==='users'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
-   const r=await query(`SELECT id,email,display_name,role,active,created_at,organization_id FROM users ORDER BY created_at DESC LIMIT 200`);
-   return json(200,{users:r.rows.map(u=>({id:String(u.id),email:u.email,name:u.display_name,role:u.role,active:u.active,createdAt:u.created_at}))});
+   const phoneByEmail={
+    'patient@example.com':'8886395766',
+    'executive@nexusmt.com':'8886395766',
+    'qa@nexusmt.com':'8886395766',
+    'billing@nexusmt.com':'8886395766',
+    'facility@nexusmt.com':'8886395766',
+    'dispatcher@nexusmt.com':'8886395766',
+    'driver@nexusmt.com':'8886395766',
+    'admin@nexusmt.com':'8886395766',
+    'fletcher@nexusmt.com':'2022702174',
+    'keames@adventisthealthcare.com':'2406201940'
+   };
+   const r=await query(`SELECT id,email,display_name,role,phone,active,created_at,organization_id FROM users ORDER BY created_at DESC LIMIT 200`);
+   for(const u of r.rows||[]){
+    const email=clean(u.email).toLowerCase();
+    const fallbackPhone=phoneByEmail[email]||'';
+    if(!clean(u.phone)&&fallbackPhone){
+      await query('UPDATE users SET phone=$2,updated_at=now() WHERE id=$1',[u.id,fallbackPhone]);
+      u.phone=fallbackPhone;
+    }
+   }
+   return json(200,{users:r.rows.map(u=>({id:String(u.id),email:u.email,name:u.display_name,phone:u.phone||'',role:u.role,active:u.active,createdAt:u.created_at}))});
   }
   // Admin: create user
   if(p[0]==='admin'&&p[1]==='users'&&method==='POST'){
    const me=await requireUser(bearer(event),['ADMIN']);
-   const b=parseBody(event);required(b,['email','name','role','password']);
+   const b=parseBody(event);required(b,['email','phone','name','role','password']);
    const validRoles=['ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT'];
    if(!validRoles.includes(String(b.role).toUpperCase()))return json(400,{error:'Invalid role'});
    if(String(b.password).length<8)return json(400,{error:'Password must be at least 8 characters'});
+   const phoneDigits=String(b.phone||'').replace(/\D/g,'');
+   if(phoneDigits.length!==10)return json(400,{error:'Phone number must be 10 digits'});
    const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1)',[b.email]);
    if(existing.rows[0])return json(409,{error:'A user with that email already exists'});
    const passwordHash=crypto.createHash('sha256').update(String(b.password)).digest('hex');
@@ -3024,12 +3046,12 @@ async function handler(event){
    const adminRow=await query('SELECT organization_id FROM users WHERE id=$1',[me.id]);
    const orgId=adminRow.rows[0]?.organization_id||null;
    if(orgId){
-    await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,orgId,crypto.randomUUID()]);
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,$8,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,orgId,crypto.randomUUID()]);
    }else{
-    await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,crypto.randomUUID()]);
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,crypto.randomUUID()]);
    }
    await audit('USER',userId,'CREATED',{role:b.role,by:me.email});
-   return json(201,{user:{id:userId,email:b.email,name:b.name,role:b.role,active:true}});
+     return json(201,{user:{id:userId,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true}});
   }
   if(p[0]==='driver'&&p[1]==='assignments'&&method==='GET'){
    const token=bearer(event);
@@ -3292,13 +3314,13 @@ async function handler(event){
    const setupKey=process.env.SETUP_KEY||'nexus-setup-2026';
    if(clean(b.key)!==setupKey)return json(403,{error:'Invalid setup key'});
    const TEST_USERS=[
-    {email:'admin@nexusmt.com',name:'Test Administrator',role:'ADMIN',password:'NexusAdmin042!'},
-    {email:'dispatcher@nexusmt.com',name:'Test Dispatcher',role:'DISPATCHER',password:'Dispatch2026!'},
-    {email:'driver@nexusmt.com',name:'Test Driver',role:'DRIVER',password:'Driver2026!'},
-    {email:'facility@nexusmt.com',name:'Test Facility',role:'FACILITY',password:'Facility2026!'},
-    {email:'billing@nexusmt.com',name:'Test Billing',role:'BILLING',password:'Billing2026!'},
-    {email:'qa@nexusmt.com',name:'Test QA',role:'QA',password:'Quality2026!'},
-    {email:'executive@nexusmt.com',name:'Test Executive',role:'EXECUTIVE',password:'Exec2026!'},
+    {email:'admin@nexusmt.com',name:'Test Administrator',role:'ADMIN',password:'NexusAdmin042!',phone:'8886395766'},
+    {email:'dispatcher@nexusmt.com',name:'Test Dispatcher',role:'DISPATCHER',password:'Dispatch2026!',phone:'8886395766'},
+    {email:'driver@nexusmt.com',name:'Test Driver',role:'DRIVER',password:'Driver2026!',phone:'8886395766'},
+    {email:'facility@nexusmt.com',name:'Test Facility',role:'FACILITY',password:'Facility2026!',phone:'8886395766'},
+    {email:'billing@nexusmt.com',name:'Test Billing',role:'BILLING',password:'Billing2026!',phone:'8886395766'},
+    {email:'qa@nexusmt.com',name:'Test QA',role:'QA',password:'Quality2026!',phone:'8886395766'},
+    {email:'executive@nexusmt.com',name:'Test Executive',role:'EXECUTIVE',password:'Exec2026!',phone:'8886395766'},
    ];
    const results=[];
    // organization_id is NOT NULL — get it from the existing admin
@@ -3308,13 +3330,13 @@ async function handler(event){
     const hash=crypto.createHash('sha256').update(u.password).digest('hex');
     const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1)',[u.email]);
     if(existing.rows[0]){
-     await query('UPDATE users SET display_name=$2,role=$3,password_hash=$4,active=true,updated_at=now() WHERE id=$1',[existing.rows[0].id,u.name,u.role,hash]);
+    await query('UPDATE users SET display_name=$2,role=$3,password_hash=$4,phone=$5,active=true,updated_at=now() WHERE id=$1',[existing.rows[0].id,u.name,u.role,hash,u.phone||null]);
      results.push({email:u.email,role:u.role,action:'updated'});
     }else if(orgId){
-     await query('INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash,orgId,crypto.randomUUID()]);
+    await query('INSERT INTO users(id,email,display_name,role,password_hash,phone,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,$8,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash,u.phone||null,orgId,crypto.randomUUID()]);
      results.push({email:u.email,role:u.role,action:'created'});
     }else{
-     await query('INSERT INTO users(id,email,display_name,role,password_hash,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash,crypto.randomUUID()]);
+    await query('INSERT INTO users(id,email,display_name,role,password_hash,phone,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,now(),now())',[crypto.randomUUID(),u.email.toLowerCase(),u.name,u.role,hash,u.phone||null,crypto.randomUUID()]);
      results.push({email:u.email,role:u.role,action:'created'});
     }
    }

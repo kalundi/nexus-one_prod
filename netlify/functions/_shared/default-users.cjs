@@ -2,14 +2,14 @@ const crypto = require('crypto');
 const {hashPassword} = require('./password.cjs');
 
 const DEFAULT_TEST_USERS = [
-  { email: 'admin@nexusmt.com', name: 'Test Administrator', role: 'ADMIN', password: 'NexusAdmin042!' },
-  { email: 'dispatcher@nexusmt.com', name: 'Test Dispatcher', role: 'DISPATCHER', password: 'Dispatch2026!' },
-  { email: 'driver@nexusmt.com', name: 'Test Driver', role: 'DRIVER', password: 'Driver2026!' },
-  { email: 'facility@nexusmt.com', name: 'Test Facility', role: 'FACILITY', password: 'Facility2026!' },
-  { email: 'billing@nexusmt.com', name: 'Test Billing', role: 'BILLING', password: 'Billing2026!' },
-  { email: 'qa@nexusmt.com', name: 'Test QA', role: 'QA', password: 'Quality2026!' },
-  { email: 'executive@nexusmt.com', name: 'Test Executive', role: 'EXECUTIVE', password: 'Exec2026!' },
-  { email: 'patient@example.com', name: 'Demo Patient', role: 'PATIENT', password: 'Patient123!' }
+  { email: 'admin@nexusmt.com', name: 'Test Administrator', role: 'ADMIN', password: 'NexusAdmin042!', phone: '8886395766' },
+  { email: 'dispatcher@nexusmt.com', name: 'Test Dispatcher', role: 'DISPATCHER', password: 'Dispatch2026!', phone: '8886395766' },
+  { email: 'driver@nexusmt.com', name: 'Test Driver', role: 'DRIVER', password: 'Driver2026!', phone: '8886395766' },
+  { email: 'facility@nexusmt.com', name: 'Test Facility', role: 'FACILITY', password: 'Facility2026!', phone: '8886395766' },
+  { email: 'billing@nexusmt.com', name: 'Test Billing', role: 'BILLING', password: 'Billing2026!', phone: '8886395766' },
+  { email: 'qa@nexusmt.com', name: 'Test QA', role: 'QA', password: 'Quality2026!', phone: '8886395766' },
+  { email: 'executive@nexusmt.com', name: 'Test Executive', role: 'EXECUTIVE', password: 'Exec2026!', phone: '8886395766' },
+  { email: 'patient@example.com', name: 'Demo Patient', role: 'PATIENT', password: 'Patient123!', phone: '8886395766' }
 ];
 
 async function ensureDefaultUserForEmail(query, email, {organizationId = null} = {}) {
@@ -31,21 +31,21 @@ async function ensureDefaultUserForEmail(query, email, {organizationId = null} =
   const existing = await query('SELECT id FROM users WHERE lower(email)=lower($1)', [match.email]);
   if (existing.rows[0]) {
     await query(
-      'UPDATE users SET display_name=$2, role=$3, password_hash=$4, active=true, updated_at=now() WHERE id=$1',
-      [existing.rows[0].id, match.name, match.role, passwordHash]
+      'UPDATE users SET display_name=$2, role=$3, password_hash=$4, phone=$5, active=true, updated_at=now() WHERE id=$1',
+      [existing.rows[0].id, match.name, match.role, passwordHash, match.phone || null]
     );
     return { email: match.email, created: false, updated: true };
   }
 
   if (resolvedOrganizationId) {
     await query(
-      'INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())',
-      [crypto.randomUUID(), match.email, match.name, match.role, passwordHash, resolvedOrganizationId, crypto.randomUUID()]
+      'INSERT INTO users(id,email,display_name,role,password_hash,phone,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,$8,now(),now())',
+      [crypto.randomUUID(), match.email, match.name, match.role, passwordHash, match.phone || null, resolvedOrganizationId, crypto.randomUUID()]
     );
   } else {
     await query(
-      'INSERT INTO users(id,email,display_name,role,password_hash,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())',
-      [crypto.randomUUID(), match.email, match.name, match.role, passwordHash, crypto.randomUUID()]
+      'INSERT INTO users(id,email,display_name,role,password_hash,phone,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,now(),now())',
+      [crypto.randomUUID(), match.email, match.name, match.role, passwordHash, match.phone || null, crypto.randomUUID()]
     );
   }
 

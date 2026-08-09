@@ -190,8 +190,9 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
   <div id="resetCredentialsMsg" hidden style="margin-bottom:14px;padding:12px 16px;border-radius:10px;font-size:14px"></div>
   <div class="createUserForm">
     <h3>Create new user</h3>
-    <div class="formRow triple">
+    <div class="formRow triple" style="grid-template-columns:1fr 1fr 1fr 1fr">
       <div class="formField"><label for="newEmail">Email address *</label><input id="newEmail" type="email" placeholder="user@example.com" autocomplete="off"></div>
+      <div class="formField"><label for="newPhone">Phone number *</label><input id="newPhone" type="tel" placeholder="8886395766" autocomplete="off"></div>
       <div class="formField"><label for="newName">Full name *</label><input id="newName" type="text" placeholder="Full name"></div>
       <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a roleâ€¦</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option></select></div>
     </div>
@@ -202,8 +203,8 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
     <div id="createUserMsg" hidden></div>
   </div>
   <div class="tableWrap"><table class="userTable" aria-label="User list">
-    <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
-    <tbody id="userTableBody"><tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted)">Loading usersâ€¦</td></tr></tbody>
+    <thead><tr><th>Email</th><th>Phone Number</th><th>Name</th><th>Role</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+    <tbody id="userTableBody"><tr><td colspan="7" style="padding:24px;text-align:center;color:var(--muted)">Loading usersâ€¦</td></tr></tbody>
   </table></div>
 </section>
 
