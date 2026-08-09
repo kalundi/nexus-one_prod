@@ -393,10 +393,14 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
       <select id="tripViewType" style="min-width:150px">
         <option value="TABLE">Table</option>
         <option value="CALENDAR">Calendar</option>
+        <option value="SCHEDULER">Scheduler</option>
       </select>
     </label>
     <label class="field" style="margin:0" id="tripCalendarMonthWrap" hidden>Calendar month
       <input id="tripCalendarMonth" type="month" style="min-width:170px">
+    </label>
+    <label class="field" style="margin:0" id="tripSchedulerDateWrap" hidden>Scheduler date
+      <input id="tripSchedulerDate" type="date" style="min-width:170px">
     </label>
     <label class="field" style="margin:0">Trip reference
       <input id="tripReferenceFilter" type="text" placeholder="Search e.g. NMT-20260805-5156" style="min-width:230px">
@@ -447,6 +451,7 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
   <p class="subtle" style="margin-top:0">All booking and trip actions are tracked in platform records and audit logs for operational review and follow-up.</p>
   <div class="tableWrap" id="tripTableWrap"><table class="table"><thead><tr><th>Reference</th><th>Patient</th><th>Service</th><th>Date / Time</th><th>Status</th><th>Estimate</th><th>Broker quoted</th><th>AI risk</th><th>Action</th></tr></thead><tbody id="tripRows"></tbody></table></div>
   <div id="tripCalendarView" hidden style="margin-top:10px"></div>
+  <div id="tripSchedulerView" hidden style="margin-top:10px"></div>
   </div>
 </section>
 <section class="grid cols2 dispatchSection" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Driver coverage</p><h2>Driver roster (on-duty + off-duty)</h2></div><span id="driversOnDutyCount" class="status blue">Loading</span></div><div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-top:10px"><label class="field" style="margin:0">Plan date<input id="driverStatusDate" type="date"></label><label class="field" style="margin:0">Plan time<input id="driverStatusTime" type="time"></label><button id="refreshDrivers" class="button secondary" style="min-height:40px;font-size:13px;align-self:end">Apply</button></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Fleet visibility</p><h2>Fleet + staffing details</h2></div><button id="resetDriverStatusNow" class="button secondary" style="min-height:36px;font-size:13px">Now</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading</p></div></article></section>
@@ -1277,6 +1282,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const attentionText = document.getElementById('tripAttentionText');
   const calendarMonthWrap = document.getElementById('tripCalendarMonthWrap');
   const calendarMonthInput = document.getElementById('tripCalendarMonth');
+  const schedulerDateWrap = document.getElementById('tripSchedulerDateWrap');
+  const schedulerDateInput = document.getElementById('tripSchedulerDate');
   const sourceFilter = document.getElementById('tripSourceFilter');
   const parseSourceFilter = document.getElementById('tripParseSourceFilter');
   const parseDiagnosticsFilter = document.getElementById('tripParseDiagnosticsFilter');
@@ -1286,9 +1293,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
   const rowsEl = document.getElementById('tripRows');
   const tableWrap = document.getElementById('tripTableWrap');
   const calendarView = document.getElementById('tripCalendarView');
+  const schedulerView = document.getElementById('tripSchedulerView');
   const loadApiBtn = document.getElementById('loadTrips');
   const loadLocalBtn = document.getElementById('loadLocal');
-  if(!viewTypeFilter || !boardToggleBtn || !boardBody || !attentionNotice || !attentionText || !calendarMonthWrap || !calendarMonthInput || !sourceFilter || !parseSourceFilter || !parseDiagnosticsFilter || !timeframeFilter || !refFilter || !rowsEl || !tableWrap || !calendarView || !loadApiBtn || !loadLocalBtn) return;
+  if(!viewTypeFilter || !boardToggleBtn || !boardBody || !attentionNotice || !attentionText || !calendarMonthWrap || !calendarMonthInput || !schedulerDateWrap || !schedulerDateInput || !sourceFilter || !parseSourceFilter || !parseDiagnosticsFilter || !timeframeFilter || !refFilter || !rowsEl || !tableWrap || !calendarView || !schedulerView || !loadApiBtn || !loadLocalBtn) return;
 
   const baseRenderTrips = typeof window.renderTrips === 'function' ? window.renderTrips.bind(window) : null;
   const state = { allTrips: [] };
@@ -1296,7 +1304,13 @@ $('saveCustomCompany').addEventListener('click',()=>{
   window.__dispatchSelectedRefs = selectedRefs;
   const now = new Date();
   calendarMonthInput.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  schedulerDateInput.value = now.toISOString().slice(0,10);
   if(loadLocalBtn) loadLocalBtn.hidden = true;
+  const schedulerDriverCache = new Map();
+
+  function schedulerCacheKey(dateValue, timeValue){
+    return `${String(dateValue||'').trim()}|${String(timeValue||'').trim()}`;
+  }
 
   function refOf(trip){ return String(trip?.reference || trip?.id || '').trim(); }
 
@@ -1432,6 +1446,219 @@ $('saveCustomCompany').addEventListener('click',()=>{
     calendarView.innerHTML = html;
   }
 
+  function toMinutes(value){
+    const raw=String(value||'').trim();
+    const m=raw.match(/^(\d{1,2}):(\d{2})/);
+    if(!m) return null;
+    const hh=Number(m[1]);
+    const mm=Number(m[2]);
+    if(!Number.isFinite(hh)||!Number.isFinite(mm)||hh<0||hh>23||mm<0||mm>59) return null;
+    return hh*60+mm;
+  }
+
+  function prettyMinutes(total){
+    const safe=Math.max(0,Math.min(24*60,Number(total)||0));
+    const hh=Math.floor(safe/60);
+    const mm=safe%60;
+    const dt=new Date();
+    dt.setHours(hh,mm,0,0);
+    return dt.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+  }
+
+  function serviceDurationMinutes(trip){
+    const service=String(trip?.service||'').toLowerCase();
+    const map={
+      ambulatory:60,
+      wheelchair:75,
+      stretcher:95,
+      broda:85,
+      facility_transfer:110,
+      facility_transfer_critical:130,
+      bariatric:120,
+      bls:115,
+      als1:130,
+      als2:150
+    };
+    const stated=Number(trip?.estimatedDurationMinutes||trip?.durationMinutes||trip?.serviceMinutes||0);
+    if(Number.isFinite(stated)&&stated>0) return Math.max(30,Math.min(300,Math.round(stated)));
+    return map[service]||90;
+  }
+
+  function slotForTrip(trip){
+    const timeCandidate=String(trip?.checkInTime||trip?.time||getTripAppointmentTime(trip)||'').trim();
+    const start=toMinutes(timeCandidate);
+    if(start===null) return null;
+    const duration=serviceDurationMinutes(trip);
+    return {start,end:Math.min(24*60,start+duration),duration};
+  }
+
+  function schedulerStatusTone(trip){
+    const status=normalizedStatus(trip);
+    if(['COMPLETED','DELIVERED'].includes(status)) return '#d1fae5';
+    if(['CANCELLED','NO_SHOW','MISSED'].includes(status)) return '#fee2e2';
+    if(['ARRIVED','IN_TRANSIT','EN_ROUTE'].includes(status)) return '#fde68a';
+    if(status==='ASSIGNED') return '#bfdbfe';
+    return '#e2e8f0';
+  }
+
+  function isTripOpenForDispatch(trip){
+    const status=normalizedStatus(trip);
+    return !['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(status);
+  }
+
+  async function fetchSchedulerDrivers(dateKey){
+    const date=String(dateKey||schedulerDateInput.value||new Date().toISOString().slice(0,10)).trim();
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    const time=String(document.getElementById('driverStatusTime')?.value||'09:00').trim();
+    const cacheKey=schedulerCacheKey(date,time);
+    if(schedulerDriverCache.has(cacheKey)) return schedulerDriverCache.get(cacheKey);
+    const params=new URLSearchParams({includeAll:'true',date,time});
+    try{
+      const res=await fetch(`/api/dispatch/drivers?${params.toString()}`,{headers:token?{authorization:`Bearer ${token}`}:{},cache:'no-store'});
+      const json=await res.json().catch(()=>({drivers:[]}));
+      const drivers=Array.isArray(json?.drivers)?json.drivers:[];
+      schedulerDriverCache.set(cacheKey,drivers);
+      return drivers;
+    }catch{
+      return [];
+    }
+  }
+
+  function onDutyAt(driver, dateKey, minuteOfDay){
+    const schedule=Array.isArray(driver?.schedule)?driver.schedule:[];
+    const d=new Date(`${dateKey}T12:00:00`);
+    const weekdayIso=d.getDay()===0?7:d.getDay();
+    return schedule.some((shift)=>{
+      if(Number(shift?.weekdayIso)!==weekdayIso) return false;
+      const from=toMinutes(shift?.startTime);
+      const to=toMinutes(shift?.endTime);
+      if(from===null||to===null) return false;
+      return minuteOfDay>=from&&minuteOfDay<to;
+    });
+  }
+
+  function renderScheduler(trips, drivers){
+    const dateKey=String(schedulerDateInput.value||new Date().toISOString().slice(0,10)).trim();
+    const dayTrips=(Array.isArray(trips)?trips:[]).filter((trip)=>tripDateKey(trip)===dateKey&&isTripOpenForDispatch(trip));
+    const scheduled=dayTrips.map((trip)=>{
+      const slot=slotForTrip(trip);
+      if(!slot) return null;
+      const reference=refOf(trip);
+      return {
+        trip,
+        reference,
+        start:slot.start,
+        end:slot.end,
+        duration:slot.duration,
+        driver:String(trip?.driverName||trip?.driver||'').trim(),
+        vehicle:String(trip?.vehicleUnit||trip?.vehicle||'').trim(),
+        service:String(trip?.service||'').trim(),
+        status:String(trip?.statusLabel||trip?.status||'Requested').trim()
+      };
+    }).filter(Boolean).sort((a,b)=>a.start-b.start);
+
+    const byDriver=new Map();
+    scheduled.forEach((item)=>{
+      const key=item.driver||'Unassigned';
+      if(!byDriver.has(key)) byDriver.set(key,[]);
+      byDriver.get(key).push(item);
+    });
+
+    const overlapConflicts=[];
+    byDriver.forEach((items,driver)=>{
+      if(driver==='Unassigned') return;
+      const sorted=[...items].sort((a,b)=>a.start-b.start);
+      for(let i=1;i<sorted.length;i+=1){
+        if(sorted[i].start<sorted[i-1].end){
+          overlapConflicts.push({
+            driver,
+            left:sorted[i-1],
+            right:sorted[i]
+          });
+        }
+      }
+    });
+
+    const roster=[...(Array.isArray(drivers)?drivers:[])]
+      .filter((d)=>d?.active!==false&&String(d?.name||'').trim())
+      .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+    const rosterNames=new Set(roster.map((d)=>String(d.name||'').trim()));
+    const laneNames=[...new Set([
+      ...roster.map((d)=>String(d.name||'').trim()),
+      ...Array.from(byDriver.keys()).filter((name)=>name&&name!=='Unassigned')
+    ])].sort((a,b)=>a.localeCompare(b));
+
+    const minMinute=Math.min(6*60,...scheduled.map((s)=>s.start));
+    const maxMinute=Math.max(22*60,...scheduled.map((s)=>s.end));
+    const timelineStart=Math.floor(minMinute/30)*30;
+    const timelineEnd=Math.min(24*60,Math.ceil(maxMinute/30)*30);
+    const span=Math.max(60,timelineEnd-timelineStart);
+
+    const laneHtml=laneNames.map((driverName)=>{
+      const entries=(byDriver.get(driverName)||[]).sort((a,b)=>a.start-b.start);
+      const driverMeta=roster.find((d)=>String(d.name||'').trim()===driverName)||null;
+      const shiftText=driverMeta?.shiftStart&&driverMeta?.shiftEnd?`${driverMeta.shiftStart}-${driverMeta.shiftEnd}`:'No active shift';
+      const activeTrips=Number(driverMeta?.activeTrips||0);
+      const onDutyNow=Boolean(driverMeta?.onDuty);
+      const tripBlocks=entries.map((item)=>{
+        const left=((item.start-timelineStart)/span)*100;
+        const width=Math.max(4,((item.end-item.start)/span)*100);
+        const tone=schedulerStatusTone(item.trip);
+        return `<button type="button" data-scheduler-ref="${escapeHtml(item.reference)}" title="${escapeHtml(item.reference)} | ${escapeHtml(item.status)} | ${prettyMinutes(item.start)}-${prettyMinutes(item.end)}" style="position:absolute;left:${left}%;width:${width}%;top:10px;height:34px;border:1px solid #93a8bd;background:${tone};border-radius:8px;padding:0 8px;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;font-size:11px;font-weight:700;color:#0f172a">${escapeHtml(item.reference)} · ${escapeHtml(prettyMinutes(item.start))}</button>`;
+      }).join('');
+      return `<div style="border:1px solid #d6e3ee;border-radius:12px;background:#fff;padding:10px 10px 8px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div><strong style="font-size:13px">${escapeHtml(driverName)}</strong><div style="font-size:11px;color:#667085">${escapeHtml(shiftText)} | Active trips: ${activeTrips}</div></div><span class="status ${onDutyNow?'green':'blue'}" style="font-size:10px">${onDutyNow?'On duty':'Off duty'}</span></div><div style="position:relative;margin-top:8px;height:54px;border:1px dashed #cbd5e1;border-radius:10px;background:linear-gradient(to right,#f8fafc 0,#f8fafc 50%,#f1f5f9 50%,#f1f5f9 100%);background-size:40px 100%">${tripBlocks||'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px">No assigned trips</div>'}</div></div>`;
+    }).join('');
+
+    const unassigned=scheduled.filter((s)=>!s.driver);
+    const recommendations=unassigned.slice(0,20).map((item)=>{
+      const candidates=roster.filter((driver)=>{
+        const name=String(driver?.name||'').trim();
+        if(!name) return false;
+        if(!onDutyAt(driver,dateKey,item.start)) return false;
+        const assigned=byDriver.get(name)||[];
+        return !assigned.some((other)=>item.start<other.end&&other.start<item.end);
+      }).slice(0,4);
+      const list=candidates.length?candidates.map((d)=>escapeHtml(String(d.name||''))).join(', '):'No conflict-free on-duty drivers';
+      return `<div style="padding:10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff"><strong style="font-size:12px">${escapeHtml(item.reference)}</strong><div style="font-size:11px;color:#475467;margin-top:2px">${escapeHtml(prettyMinutes(item.start))}-${escapeHtml(prettyMinutes(item.end))} | ${escapeHtml(item.service||'Service')}</div><div style="font-size:11px;color:#0f172a;margin-top:4px"><span class="status amber" style="font-size:10px">Suggested</span> ${list}</div></div>`;
+    }).join('');
+
+    const overlapHtml=overlapConflicts.length
+      ? `<div style="display:grid;gap:8px">${overlapConflicts.slice(0,24).map((c)=>`<div style="padding:9px 10px;border:1px solid #fecaca;border-radius:10px;background:#fff1f2;font-size:12px;color:#7f1d1d"><strong>${escapeHtml(c.driver)}</strong> overlap: ${escapeHtml(c.left.reference)} (${escapeHtml(prettyMinutes(c.left.start))}-${escapeHtml(prettyMinutes(c.left.end))}) and ${escapeHtml(c.right.reference)} (${escapeHtml(prettyMinutes(c.right.start))}-${escapeHtml(prettyMinutes(c.right.end))})</div>`).join('')}</div>`
+      : '<div style="padding:10px;border:1px solid #bbf7d0;border-radius:10px;background:#f0fdf4;font-size:12px;color:#166534">No driver overlap conflicts detected for this date.</div>';
+
+    const unlistedAssigned=[...byDriver.keys()].filter((name)=>name&&name!=='Unassigned'&&!rosterNames.has(name));
+    const visibilityNote=unlistedAssigned.length
+      ? `<div style="margin-top:8px;font-size:11px;color:#7c2d12">Assigned drivers not found in roster directory: ${escapeHtml(unlistedAssigned.join(', '))}</div>`
+      : '';
+
+    const hourTicks=[];
+    for(let m=timelineStart;m<=timelineEnd;m+=60){
+      const left=((m-timelineStart)/span)*100;
+      hourTicks.push(`<div style="position:absolute;left:${left}%;top:0;bottom:0;border-left:1px solid rgba(100,116,139,.25)"></div><div style="position:absolute;left:${left}%;top:-16px;transform:translateX(-50%);font-size:10px;color:#64748b">${escapeHtml(prettyMinutes(m))}</div>`);
+    }
+
+    schedulerView.innerHTML=`
+      <div style="border:1px solid #d6e3ee;border-radius:14px;background:#f8fbfd;padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+          <div>
+            <div class="eyebrow" style="margin-bottom:4px">Dispatch Scheduler</div>
+            <div style="font-size:13px;color:#52677c">Visual lane scheduler using trip status, service duration, assigned driver, shift windows, and overlap checks.</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <span class="status blue">${scheduled.length} scheduled</span>
+            <span class="status amber">${unassigned.length} unassigned</span>
+            <span class="status ${overlapConflicts.length?'red':'green'}">${overlapConflicts.length} overlaps</span>
+          </div>
+        </div>
+        <div style="margin-top:14px;position:relative;height:16px">${hourTicks.join('')}</div>
+        <div style="margin-top:12px">${laneHtml||'<div style="padding:12px;border:1px dashed #cbd5e1;border-radius:10px;background:#fff;color:#64748b">No driver lanes for selected date.</div>'}</div>
+        <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:12px;margin-top:12px">
+          <div style="border:1px solid #d6e3ee;border-radius:12px;background:#fff;padding:10px"><strong style="font-size:12px">Conflict monitor</strong><div style="margin-top:8px">${overlapHtml}</div>${visibilityNote}</div>
+          <div style="border:1px solid #d6e3ee;border-radius:12px;background:#fff;padding:10px"><strong style="font-size:12px">Unassigned trip recommendations</strong><div style="display:grid;gap:8px;margin-top:8px">${recommendations||'<div style="padding:10px;border:1px dashed #d1d5db;border-radius:10px;color:#64748b;font-size:12px">No unassigned trips in this schedule window.</div>'}</div></div>
+        </div>
+      </div>`;
+  }
+
   function inTimeframe(trip, timeframe){
     if(timeframe === 'ALL') return true;
     const dt = parseTripDateTime(trip);
@@ -1535,14 +1762,20 @@ $('saveCustomCompany').addEventListener('click',()=>{
     window.__dispatchTripsCache = filtered;
     const viewType = String(viewTypeFilter.value || 'TABLE').toUpperCase();
     const useCalendar = viewType === 'CALENDAR';
-    tableWrap.hidden = useCalendar;
+    const useScheduler = viewType === 'SCHEDULER';
+    tableWrap.hidden = useCalendar || useScheduler;
     calendarView.hidden = !useCalendar;
+    schedulerView.hidden = !useScheduler;
     calendarMonthWrap.hidden = !useCalendar;
+    schedulerDateWrap.hidden = !useScheduler;
     if(baseRenderTrips){
       baseRenderTrips(filtered);
       annotateRows(filtered);
     }
     if(useCalendar) renderCalendar(filtered);
+    if(useScheduler){
+      fetchSchedulerDrivers(schedulerDateInput.value).then((drivers)=>renderScheduler(filtered,drivers));
+    }
     renderParseDiagnosticsList(filtered);
     updateSummary(filtered);
     updateAttentionNotice();
@@ -1737,6 +1970,13 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(reference) window.openTripEditor?.(reference);
   });
 
+  schedulerView.addEventListener('click',(event)=>{
+    const button=event.target.closest('[data-scheduler-ref]');
+    if(!button) return;
+    const reference=String(button.dataset.schedulerRef||'').trim();
+    if(reference) window.openTripEditor?.(reference);
+  });
+
   sourceFilter.addEventListener('change', renderFiltered);
   parseSourceFilter.addEventListener('change', renderFiltered);
   parseDiagnosticsFilter.addEventListener('change', renderFiltered);
@@ -1744,6 +1984,18 @@ $('saveCustomCompany').addEventListener('click',()=>{
   refFilter.addEventListener('input', renderFiltered);
   viewTypeFilter.addEventListener('change', renderFiltered);
   calendarMonthInput.addEventListener('change', renderFiltered);
+  schedulerDateInput.addEventListener('change', ()=>{
+    schedulerDriverCache.clear();
+    renderFiltered();
+  });
+  document.getElementById('driverStatusDate')?.addEventListener('change', ()=>{
+    schedulerDriverCache.clear();
+    if(String(viewTypeFilter.value||'').toUpperCase()==='SCHEDULER') renderFiltered();
+  });
+  document.getElementById('driverStatusTime')?.addEventListener('change', ()=>{
+    schedulerDriverCache.clear();
+    if(String(viewTypeFilter.value||'').toUpperCase()==='SCHEDULER') renderFiltered();
+  });
   boardToggleBtn.addEventListener('click',()=>{setBoardOpen(boardBody.hidden);});
 
   setBoardOpen(true);
