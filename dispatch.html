@@ -564,7 +564,7 @@ async function loadDriverRoster(){
     const heroAttn=document.getElementById('heroFleetAttn');
     const heroMap=ensureDispatchHeroMap();
 
-    if(!driverRes.ok || !fleetRes.ok){
+    if(!driverRes.ok && !fleetRes.ok){
       if(roster) roster.innerHTML='<p style="color:var(--muted)">Unable to load the live driver roster right now.</p>';
       if(summary) summary.innerHTML='<p style="color:var(--muted)">Live availability is temporarily unavailable.</p>';
       if(heroStatus) heroStatus.textContent='Unavailable';
@@ -578,8 +578,12 @@ async function loadDriverRoster(){
       return;
     }
 
-    const j=await driverRes.json().catch(()=>({drivers:[],onDuty:0,offDuty:0,totalDrivers:0,onTrip:0,targetDate:targetDate,targetTime:targetTime}));
-    const fleetData=await fleetRes.json().catch(()=>({vehicles:[]}));
+    const j=driverRes.ok
+      ? await driverRes.json().catch(()=>({drivers:[],onDuty:0,offDuty:0,totalDrivers:0,onTrip:0,targetDate:targetDate,targetTime:targetTime}))
+      : {drivers:[],onDuty:0,offDuty:0,totalDrivers:0,onTrip:0,targetDate:targetDate,targetTime:targetTime};
+    const fleetData=fleetRes.ok
+      ? await fleetRes.json().catch(()=>({vehicles:[]}))
+      : {vehicles:[]};
     const drivers=Array.isArray(j.drivers)?j.drivers:[];
     const fleetVehicles=Array.isArray(fleetData.vehicles)?fleetData.vehicles:[];
     const esc=(value)=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
