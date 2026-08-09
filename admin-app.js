@@ -252,6 +252,56 @@ function initAdminDashboardWorkspace(){
   else showDashboardHome();
 }
 
+function initUserSectionDashboard(){
+  const section=document.getElementById('userSection');
+  if(!section) return;
+  const modules=Array.from(section.querySelectorAll('[data-user-module]')).filter((el)=>el.id);
+  const chips=Array.from(section.querySelectorAll('[data-user-module-open]'));
+  if(!modules.length||!chips.length) return;
+  const validIds=new Set(modules.map((m)=>m.id));
+  const storageKey='nexusAdmin.userSection.activeModule';
+
+  const setActiveChip=(moduleId)=>{
+    chips.forEach((chip)=>chip.classList.toggle('active',chip.getAttribute('data-user-module-open')===moduleId));
+  };
+
+  const openModule=(moduleId,{persist=true,scroll=false}={})=>{
+    if(!validIds.has(moduleId)) return;
+    modules.forEach((module)=>{module.open=module.id===moduleId;});
+    setActiveChip(moduleId);
+    if(persist){
+      try{localStorage.setItem(storageKey,moduleId);}catch{}
+    }
+    if(scroll){
+      const target=document.getElementById(moduleId);
+      target?.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+  };
+
+  chips.forEach((chip)=>{
+    chip.addEventListener('click',()=>{
+      const moduleId=chip.getAttribute('data-user-module-open');
+      if(moduleId) openModule(moduleId,{persist:true,scroll:true});
+    });
+  });
+
+  modules.forEach((module)=>{
+    const summary=module.querySelector('summary');
+    if(!summary) return;
+    summary.addEventListener('click',(event)=>{
+      event.preventDefault();
+      openModule(module.id,{persist:true,scroll:false});
+    });
+  });
+
+  let preferred='';
+  try{preferred=localStorage.getItem(storageKey)||'';}catch{}
+  if(!validIds.has(preferred)){
+    preferred=modules.find((module)=>module.hasAttribute('open'))?.id||modules[0]?.id||'';
+  }
+  if(preferred) openModule(preferred,{persist:false,scroll:false});
+}
+
 // Users
 const ROLE_COLORS={ADMIN:'red',DISPATCHER:'blue',FACILITY:'blue',DRIVER:'green',BILLING:'amber',QA:'amber',EXECUTIVE:'blue',PATIENT:'muted'};
 let latestAuditEntries=[];
@@ -1422,6 +1472,7 @@ document.getElementById('costAnalyzerExportBtn')?.addEventListener('click',()=>{
 document.getElementById('costAnalyzerSendBtn')?.addEventListener('click',()=>{sendCostAnalyzerReport().catch((err)=>console.error(err));});
 
 initAdminDashboardWorkspace();
+initUserSectionDashboard();
 
 // Wait for auth-guard to authorize, then load data
 window.addEventListener('nexus:authorized',async()=>{

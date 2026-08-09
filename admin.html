@@ -43,6 +43,22 @@
 .formField.wide{grid-column:1/-1}
 .createUserForm{background:#f8fbfd;border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:24px}
 .createUserForm h3{margin:0 0 16px;font-family:Manrope,sans-serif;font-size:16px}
+.userModuleDashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:6px 0 18px}
+.userModuleChip{display:grid;gap:6px;padding:12px 14px;border:1px solid #cfdeea;border-radius:12px;background:#fff;color:#0f2742;text-align:left;cursor:pointer;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.userModuleChip:hover,.userModuleChip:focus-visible{border-color:#7ab7df;box-shadow:0 10px 20px rgba(13,54,91,.12);transform:translateY(-1px)}
+.userModuleChip.active{border-color:#0d76b5;background:#f3f9ff;box-shadow:0 12px 24px rgba(13,118,181,.16)}
+.userModuleChip strong{font-family:Manrope,sans-serif;font-size:14px}
+.userModuleChip small{color:#4f667d;font-size:12px}
+.userModuleStack{display:grid;gap:12px}
+.userModuleCard{border:1px solid #d8e4ee;border-radius:14px;background:#fff;overflow:hidden}
+.userModuleCard summary{list-style:none;cursor:pointer;padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;background:linear-gradient(180deg,#fbfdff 0%,#f2f8fd 100%);border-bottom:1px solid #e3edf5}
+.userModuleCard summary::-webkit-details-marker{display:none}
+.userModuleTitle{display:grid;gap:4px}
+.userModuleTitle strong{font-family:Manrope,sans-serif;color:#0f2742;font-size:15px}
+.userModuleTitle small{color:#4f667d;font-size:12px}
+.userModuleCaret{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#e8f1f9;color:#23557d;font-size:14px;font-weight:900;transform:rotate(0deg);transition:transform .2s ease}
+.userModuleCard[open] .userModuleCaret{transform:rotate(90deg)}
+.userModuleBody{padding:16px 16px 14px}
 .auditRow{padding:13px 16px;border:1px solid var(--line);border-radius:10px;background:#fff;display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start}
 .auditRow .auditIcon{width:34px;height:34px;border-radius:9px;background:#eef5f9;display:grid;place-items:center;font-size:16px;flex-shrink:0}
 .auditRow .auditInfo strong{display:block;font-size:14px;font-family:Manrope,sans-serif}
@@ -191,57 +207,90 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <section class="sectionTab" id="userSection">
   <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">User Administration</div><h2>User management</h2><p>Create accounts, manage roles, and activate or deactivate access across the platform.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="button danger" id="resetCredentialsBtn" title="Resets standard non-production accounts">Reset standard accounts</button><button class="button" id="refreshUsers">Refresh list</button></div></div>
   <div id="resetCredentialsMsg" hidden style="margin-bottom:14px;padding:12px 16px;border-radius:10px;font-size:14px"></div>
-  <div class="createUserForm">
-    <h3>Create new user</h3>
-    <div class="formRow triple" style="grid-template-columns:1fr 1fr 1fr 1fr">
-      <div class="formField"><label for="newEmail">Email address *</label><input id="newEmail" type="email" placeholder="user@example.com" autocomplete="off"></div>
-      <div class="formField"><label for="newPhone">Phone number *</label><input id="newPhone" type="tel" placeholder="8886395766" autocomplete="off"></div>
-      <div class="formField"><label for="newName">Full name *</label><input id="newName" type="text" placeholder="Full name"></div>
-      <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a role...</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option></select></div>
-    </div>
-    <div class="formRow" style="margin-top:14px">
-      <div class="formField wide"><label>Temporary password policy</label><input type="text" value="System-generated temp password. User must change it within 2 hours." readonly></div>
-      <div class="formField wide" style="align-self:end"><button class="button primary" id="createUserBtn" style="width:100%">Create user</button></div>
-    </div>
-    <div id="createUserMsg" hidden></div>
+  <div class="userModuleDashboard" id="userModuleDashboard" aria-label="User operations workspace">
+    <button class="userModuleChip" type="button" data-user-module-open="createUserModule"><strong>User management</strong><small>Create credentials and onboard secure access.</small></button>
+    <button class="userModuleChip" type="button" data-user-module-open="driverSchedulePanel"><strong>Driver schedules</strong><small>Configure recurring shifts and load schedules.</small></button>
+    <button class="userModuleChip" type="button" data-user-module-open="userDirectoryModule"><strong>User details</strong><small>Review active users, status, and access actions.</small></button>
   </div>
-  <div class="createUserForm" id="driverSchedulePanel">
-    <h3>Driver schedules</h3>
-    <p style="margin:0 0 12px;color:var(--muted)">Assign recurring weekly shifts for driver accounts.</p>
-    <div class="formRow" style="grid-template-columns:1.4fr 1fr 1fr 1fr">
-      <div class="formField"><label for="scheduleDriverEmail">Driver email *</label><input id="scheduleDriverEmail" type="email" placeholder="driver@example.com" autocomplete="off"></div>
-      <div class="formField"><label for="scheduleStartTime">Start time *</label><input id="scheduleStartTime" type="time" value="06:00"></div>
-      <div class="formField"><label for="scheduleEndTime">End time *</label><input id="scheduleEndTime" type="time" value="15:00"></div>
-      <div class="formField"><label for="scheduleEffectiveDate">Effective date</label><input id="scheduleEffectiveDate" type="date"></div>
-    </div>
-    <div class="formField" style="margin-top:12px">
-      <label>Weekdays *</label>
-      <div id="scheduleWeekdayGroup" style="display:flex;gap:8px;flex-wrap:wrap">
-        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="1" checked style="margin-right:6px">Mon</label>
-        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="2" checked style="margin-right:6px">Tue</label>
-        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="3" checked style="margin-right:6px">Wed</label>
-        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="4" checked style="margin-right:6px">Thu</label>
-        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="5" checked style="margin-right:6px">Fri</label>
-        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="6" style="margin-right:6px">Sat</label>
-        <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="7" style="margin-right:6px">Sun</label>
+  <div class="userModuleStack">
+    <details class="userModuleCard" id="createUserModule" data-user-module open>
+      <summary>
+        <div class="userModuleTitle"><strong>User management</strong><small>Create new platform users and enforce 2-hour temporary-password policy.</small></div>
+        <span class="userModuleCaret" aria-hidden="true">&gt;</span>
+      </summary>
+      <div class="userModuleBody">
+        <div class="createUserForm" style="margin:0">
+          <h3>Create new user</h3>
+          <div class="formRow triple" style="grid-template-columns:1fr 1fr 1fr 1fr">
+            <div class="formField"><label for="newEmail">Email address *</label><input id="newEmail" type="email" placeholder="user@example.com" autocomplete="off"></div>
+            <div class="formField"><label for="newPhone">Phone number *</label><input id="newPhone" type="tel" placeholder="8886395766" autocomplete="off"></div>
+            <div class="formField"><label for="newName">Full name *</label><input id="newName" type="text" placeholder="Full name"></div>
+            <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a role...</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option></select></div>
+          </div>
+          <div class="formRow" style="margin-top:14px">
+            <div class="formField wide"><label>Temporary password policy</label><input type="text" value="System-generated temp password. User must change it within 2 hours." readonly></div>
+            <div class="formField wide" style="align-self:end"><button class="button primary" id="createUserBtn" style="width:100%">Create user</button></div>
+          </div>
+          <div id="createUserMsg" hidden></div>
+        </div>
       </div>
-    </div>
-    <div class="formRow" style="margin-top:14px">
-      <div class="formField"><button class="button primary" id="saveDriverScheduleBtn" style="width:100%">Save driver schedule</button></div>
-      <div class="formField"><button class="button" id="loadDriverScheduleBtn" style="width:100%">Load driver schedule</button></div>
-    </div>
-    <div id="saveDriverScheduleMsg" hidden></div>
-    <div class="tableWrap" style="margin-top:12px">
-      <table class="userTable" aria-label="Driver schedule results">
-        <thead><tr><th>Driver</th><th>Weekday</th><th>Start</th><th>End</th><th>Effective</th><th>Status</th></tr></thead>
-        <tbody id="driverScheduleRows"><tr><td colspan="6" style="padding:12px;color:var(--muted)">No schedule loaded.</td></tr></tbody>
-      </table>
-    </div>
+    </details>
+
+    <details class="userModuleCard" id="driverSchedulePanel" data-user-module>
+      <summary>
+        <div class="userModuleTitle"><strong>Driver schedules</strong><small>Assign recurring weekdays and maintain duty windows by driver account.</small></div>
+        <span class="userModuleCaret" aria-hidden="true">&gt;</span>
+      </summary>
+      <div class="userModuleBody">
+        <div class="createUserForm" style="margin:0">
+          <h3>Driver schedules</h3>
+          <p style="margin:0 0 12px;color:var(--muted)">Assign recurring weekly shifts for driver accounts.</p>
+          <div class="formRow" style="grid-template-columns:1.4fr 1fr 1fr 1fr">
+            <div class="formField"><label for="scheduleDriverEmail">Driver email *</label><input id="scheduleDriverEmail" type="email" placeholder="driver@example.com" autocomplete="off"></div>
+            <div class="formField"><label for="scheduleStartTime">Start time *</label><input id="scheduleStartTime" type="time" value="06:00"></div>
+            <div class="formField"><label for="scheduleEndTime">End time *</label><input id="scheduleEndTime" type="time" value="15:00"></div>
+            <div class="formField"><label for="scheduleEffectiveDate">Effective date</label><input id="scheduleEffectiveDate" type="date"></div>
+          </div>
+          <div class="formField" style="margin-top:12px">
+            <label>Weekdays *</label>
+            <div id="scheduleWeekdayGroup" style="display:flex;gap:8px;flex-wrap:wrap">
+              <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="1" checked style="margin-right:6px">Mon</label>
+              <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="2" checked style="margin-right:6px">Tue</label>
+              <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="3" checked style="margin-right:6px">Wed</label>
+              <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="4" checked style="margin-right:6px">Thu</label>
+              <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="5" checked style="margin-right:6px">Fri</label>
+              <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="6" style="margin-right:6px">Sat</label>
+              <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="7" style="margin-right:6px">Sun</label>
+            </div>
+          </div>
+          <div class="formRow" style="margin-top:14px">
+            <div class="formField"><button class="button primary" id="saveDriverScheduleBtn" style="width:100%">Save driver schedule</button></div>
+            <div class="formField"><button class="button" id="loadDriverScheduleBtn" style="width:100%">Load driver schedule</button></div>
+          </div>
+          <div id="saveDriverScheduleMsg" hidden></div>
+          <div class="tableWrap" style="margin-top:12px">
+            <table class="userTable" aria-label="Driver schedule results">
+              <thead><tr><th>Driver</th><th>Weekday</th><th>Start</th><th>End</th><th>Effective</th><th>Status</th></tr></thead>
+              <tbody id="driverScheduleRows"><tr><td colspan="6" style="padding:12px;color:var(--muted)">No schedule loaded.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <details class="userModuleCard" id="userDirectoryModule" data-user-module>
+      <summary>
+        <div class="userModuleTitle"><strong>User details</strong><small>Monitor role assignments, active status, and account-level actions.</small></div>
+        <span class="userModuleCaret" aria-hidden="true">&gt;</span>
+      </summary>
+      <div class="userModuleBody">
+        <div class="tableWrap"><table class="userTable" aria-label="User list">
+          <thead><tr><th>Email</th><th>Phone Number</th><th>Name</th><th>Role</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+          <tbody id="userTableBody"><tr><td colspan="7" style="padding:24px;text-align:center;color:var(--muted)">Loading users...</td></tr></tbody>
+        </table></div>
+      </div>
+    </details>
   </div>
-  <div class="tableWrap"><table class="userTable" aria-label="User list">
-    <thead><tr><th>Email</th><th>Phone Number</th><th>Name</th><th>Role</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
-    <tbody id="userTableBody"><tr><td colspan="7" style="padding:24px;text-align:center;color:var(--muted)">Loading users...</td></tr></tbody>
-  </table></div>
 </section>
 
 <!-- Pricing Manager -->
