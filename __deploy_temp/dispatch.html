@@ -62,6 +62,7 @@
   <div class="mapTopBar"><div><span class="mapLiveBadge" id="heroFleetStatus">Connecting</span><small id="heroFleetUpdated">Loading fleet telemetry</small></div><button id="heroRefreshFleet" type="button" class="mapRefresh">Refresh</button></div>
   <div class="liveFleetMapShell mapOnlyShell" style="background:#061f35">
     <div style="padding:16px 18px;height:100%;display:flex;flex-direction:column;gap:10px;overflow:auto">
+      <div id="heroFleetMap" class="liveFleetMap" style="height:300px;min-height:300px;border-radius:14px;border:1px solid rgba(255,255,255,.16);overflow:hidden;background:#cfd8e3"></div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
         <div style="background:rgba(22,163,106,.15);border:1px solid rgba(22,163,106,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#4ade80" id="heroFleetMoving"></strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Moving</small></div>
         <div style="background:rgba(129,70,214,.15);border:1px solid rgba(129,70,214,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#c4b5fd" id="heroFleetOnboard"></strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">On-board</small></div>
@@ -341,6 +342,90 @@
 <section class="grid cols2" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Live staffing</p><h2>Drivers on duty</h2></div><span id="driversOnDutyCount" class="status blue">Loading</span></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Shift availability</p><h2>Fleet &amp; driver summary</h2></div><button id="refreshDrivers" class="button secondary" style="min-height:36px;font-size:13px"> Refresh</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading</p></div></article></section>
 <section id="aiSection" class="grid cols2" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
 </main><footer class="footer"><div class="shell footerGrid" data-unified-footer-applied="1" data-compact-redesign-applied="1"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Patients</strong><a href="/booking-app.html">Book Transportation</a><a href="/livecare.html">Track a Ride</a></div><div><strong>Authorized portals</strong><a href="/facility.html">Facility</a><a href="/dispatch.html">Dispatch</a><a href="/driver-app.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18886395766">Main line: (888) 639-5766</a><a href="tel:+18887604990">Customer service: (888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true"></span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js?v=30"></script><script>
+let dispatchHeroMap=null;
+
+function createDispatchHeroMap(el){
+  const map={el,zoom:9,center:[39.02,-77.03],tiles:null,markers:null,fleet:[]};
+  el.innerHTML='<div class="nativeMapTiles"></div><div class="nativeMapMarkers"></div><div class="nativeMapAttribution">&copy; OpenStreetMap contributors</div>';
+  map.tiles=el.querySelector('.nativeMapTiles');
+  map.markers=el.querySelector('.nativeMapMarkers');
+
+  const world=(lat,lng,z)=>{
+    const n=256*Math.pow(2,z);
+    const x=(lng+180)/360*n;
+    const s=Math.sin(lat*Math.PI/180);
+    const y=(0.5-Math.log((1+s)/(1-s))/(4*Math.PI))*n;
+    return [x,y];
+  };
+
+  map.project=(lat,lng)=>{
+    const c=world(map.center[0],map.center[1],map.zoom);
+    const p=world(lat,lng,map.zoom);
+    const r=el.getBoundingClientRect();
+    return [p[0]-c[0]+r.width/2,p[1]-c[1]+r.height/2];
+  };
+
+  map.renderTiles=()=>{
+    const r=el.getBoundingClientRect();
+    const c=world(map.center[0],map.center[1],map.zoom);
+    const minX=Math.floor((c[0]-r.width/2)/256),maxX=Math.floor((c[0]+r.width/2)/256);
+    const minY=Math.floor((c[1]-r.height/2)/256),maxY=Math.floor((c[1]+r.height/2)/256);
+    const count=Math.pow(2,map.zoom);
+    map.tiles.innerHTML='';
+    for(let x=minX;x<=maxX;x+=1)for(let y=minY;y<=maxY;y+=1){
+      if(y<0||y>=count)continue;
+      const img=document.createElement('img');
+      img.alt='';img.draggable=false;img.loading='eager';
+      img.src=`https://tile.openstreetmap.org/${map.zoom}/${((x%count)+count)%count}/${y}.png`;
+      img.style.left=`${x*256-(c[0]-r.width/2)}px`;
+      img.style.top=`${y*256-(c[1]-r.height/2)}px`;
+      img.addEventListener('error',()=>img.remove());
+      map.tiles.appendChild(img);
+    }
+  };
+
+  map.renderMarkers=()=>{
+    const r=el.getBoundingClientRect();
+    map.markers.innerHTML='';
+    map.fleet.forEach((v)=>{
+      const p=map.project(v.lat,v.lng);
+      if(p[0]<-60||p[1]<-60||p[0]>r.width+60||p[1]>r.height+60)return;
+      const b=document.createElement('button');
+      const status=String(v.status||'').toUpperCase();
+      const tone=status==='PATIENT_ON_BOARD'?'onboard':status==='AVAILABLE'?'available':(status==='ATTENTION'||v.attention)?'attention':'moving';
+      b.type='button';
+      b.className=`nativeVehicleMarker ${tone}`;
+      b.style.transform=`translate(${p[0]}px,${p[1]}px) translate(-50%,-50%)`;
+      b.innerHTML=`<span>N</span><b>${String(v.unit||'N').replace('NEX-','')}</b>`;
+      b.title=`${v.unit||'Vehicle'} ${v.statusLabel||v.status||''}`.trim();
+      map.markers.appendChild(b);
+    });
+  };
+
+  map.render=()=>{map.renderTiles();map.renderMarkers();};
+  map.setFleet=(fleet)=>{map.fleet=fleet;map.render();};
+  map.fit=(fleet)=>{
+    const pts=(fleet||[]).filter((v)=>Number.isFinite(v.lat)&&Number.isFinite(v.lng));
+    if(!pts.length){map.center=[39.02,-77.03];map.zoom=9;map.render();return;}
+    const lats=pts.map((v)=>v.lat),lngs=pts.map((v)=>v.lng);
+    map.center=[(Math.min(...lats)+Math.max(...lats))/2,(Math.min(...lngs)+Math.max(...lngs))/2];
+    const span=Math.max(Math.max(...lats)-Math.min(...lats),Math.max(...lngs)-Math.min(...lngs));
+    map.zoom=span<0.18?11:span<0.4?10:9;
+    map.render();
+  };
+
+  window.addEventListener('resize',()=>map.render());
+  map.render();
+  return map;
+}
+
+function ensureDispatchHeroMap(){
+  const el=document.getElementById('heroFleetMap');
+  if(!el)return null;
+  if(!dispatchHeroMap)dispatchHeroMap=createDispatchHeroMap(el);
+  return dispatchHeroMap;
+}
+
 async function loadDriverRoster(){
   try{
     const token=sessionStorage.getItem('nexusAccessToken');
@@ -359,6 +444,7 @@ async function loadDriverRoster(){
     const heroOnboard=document.getElementById('heroFleetOnboard');
     const heroAvail=document.getElementById('heroFleetAvail');
     const heroAttn=document.getElementById('heroFleetAttn');
+    const heroMap=ensureDispatchHeroMap();
 
     if(!driverRes.ok || !fleetRes.ok){
       if(roster) roster.innerHTML='<p style="color:var(--muted)">Unable to load the live driver roster right now.</p>';
@@ -370,6 +456,7 @@ async function loadDriverRoster(){
       if(heroOnboard) heroOnboard.textContent='--';
       if(heroAvail) heroAvail.textContent='--';
       if(heroAttn) heroAttn.textContent='--';
+      if(heroMap) heroMap.setFleet([]);
       return;
     }
 
@@ -409,6 +496,18 @@ async function loadDriverRoster(){
     if(heroOnboard) heroOnboard.textContent=String(onboard);
     if(heroAvail) heroAvail.textContent=String(availableFleet);
     if(heroAttn) heroAttn.textContent=String(attention);
+    if(heroMap){
+      const mFleet=fleetVehicles.map((v)=>({
+        unit:v.unit||v.vehicleUnit||v.id||'Vehicle',
+        status:v.status||'',
+        statusLabel:v.statusLabel||v.status||'',
+        attention:Boolean(v.attention),
+        lat:Number(v.lat),
+        lng:Number(v.lng)
+      })).filter((v)=>Number.isFinite(v.lat)&&Number.isFinite(v.lng));
+      heroMap.fit(mFleet);
+      heroMap.setFleet(mFleet);
+    }
     if(heroList){
       heroList.innerHTML=fleetVehicles.length
         ?fleetVehicles.slice(0,16).map((v)=>{
@@ -441,6 +540,8 @@ async function loadDriverRoster(){
     if(heroStatus) heroStatus.textContent='Unavailable';
     if(heroUpdated) heroUpdated.textContent='Fleet telemetry failed to load';
     if(heroList) heroList.innerHTML='<div style="text-align:center;padding:20px;color:#9fc2d8">Fleet telemetry failed to load</div>';
+    const heroMap=ensureDispatchHeroMap();
+    if(heroMap) heroMap.setFleet([]);
   }
 }
 document.getElementById('refreshDrivers')?.addEventListener('click',loadDriverRoster);
