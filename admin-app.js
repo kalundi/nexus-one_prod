@@ -349,6 +349,50 @@ function selectedDriverScheduleWeekdays(){
     .sort((a,b)=>a-b);
 }
 
+const WEEKDAY_LABELS={1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat',7:'Sun'};
+
+function renderDriverScheduleRows(rows=[]){
+  const body=document.getElementById('driverScheduleRows');
+  if(!body) return;
+  if(!Array.isArray(rows)||!rows.length){
+    body.innerHTML='<tr><td colspan="6" style="padding:12px;color:var(--muted)">No matching schedules found.</td></tr>';
+    return;
+  }
+  body.innerHTML=rows.map((row)=>{
+    const weekday=WEEKDAY_LABELS[Number(row.weekday_iso)]||String(row.weekday_iso||'--');
+    const effectiveStart=row.effective_start_date?String(row.effective_start_date).slice(0,10):'--';
+    const status=row.active?'Active':'Inactive';
+    return `<tr>
+      <td>${row.display_name||row.email||'--'}</td>
+      <td>${weekday}</td>
+      <td>${String(row.start_time||'').slice(0,5)||'--'}</td>
+      <td>${String(row.end_time||'').slice(0,5)||'--'}</td>
+      <td>${effectiveStart}</td>
+      <td><span class="pill ${row.active?'green':'muted'}">${status}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadDriverSchedule(){
+  const email=String(document.getElementById('scheduleDriverEmail')?.value||'').trim();
+  const msgEl=document.getElementById('saveDriverScheduleMsg');
+  const body=document.getElementById('driverScheduleRows');
+  if(body) body.innerHTML='<tr><td colspan="6" style="padding:12px;color:var(--muted)">Loading schedule...</td></tr>';
+  try{
+    const qs=new URLSearchParams();
+    if(email) qs.set('driverEmail',email);
+    qs.set('activeOnly','true');
+    const r=await fetch(`/api/admin/driver-schedule?${qs.toString()}`,{headers:{authorization:`Bearer ${token()}`}});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(data.error||'Failed to load schedule');
+    renderDriverScheduleRows(Array.isArray(data.schedules)?data.schedules:[]);
+    if(msgEl) showMsg(msgEl,'Driver schedule loaded.','ok');
+  }catch(e){
+    renderDriverScheduleRows([]);
+    if(msgEl) showMsg(msgEl,e.message||'Failed to load schedule','err');
+  }
+}
+
 document.getElementById('saveDriverScheduleBtn')?.addEventListener('click',async()=>{
   const driverEmail=String(document.getElementById('scheduleDriverEmail')?.value||'').trim().toLowerCase();
   const startTime=String(document.getElementById('scheduleStartTime')?.value||'').trim();
@@ -383,6 +427,7 @@ document.getElementById('saveDriverScheduleBtn')?.addEventListener('click',async
       throw new Error(data.error||'Failed to save driver schedule');
     }
     showMsg(msgEl,`Schedule saved for ${data?.driver?.email||driverEmail}: ${startTime}-${endTime}, weekdays ${weekdays.join(', ')}.`,'ok');
+    loadDriverSchedule().catch(()=>{});
     if(userRole()==='ADMIN') loadUsers();
   }catch(e){
     showMsg(msgEl,e.message||'Failed to save driver schedule','err');
@@ -391,6 +436,8 @@ document.getElementById('saveDriverScheduleBtn')?.addEventListener('click',async
     btn.textContent='Save driver schedule';
   }
 });
+
+document.getElementById('loadDriverScheduleBtn')?.addEventListener('click',()=>{loadDriverSchedule().catch(()=>{});});
 
 // Pricing
 function renderPricing(){
@@ -1271,6 +1318,7 @@ window.addEventListener('nexus:authorized',async()=>{
   if(userRole()==='ADMIN'){
     loadUsers();
     loadAudit();
+    loadDriverSchedule().catch((err)=>console.error(err));
     loadAdminTrips().catch((err)=>console.error(err));
     runCostAnalyzer().catch((err)=>console.error(err));
     loadSocialPreview().catch((err)=>console.error(err));
@@ -1285,6 +1333,7 @@ if(window.NexusAuthorizedUser){
   if(userRole()==='ADMIN'){
     loadUsers();
     loadAudit();
+    loadDriverSchedule().catch((err)=>console.error(err));
     loadAdminTrips().catch((err)=>console.error(err));
     runCostAnalyzer().catch((err)=>console.error(err));
     loadSocialPreview().catch((err)=>console.error(err));

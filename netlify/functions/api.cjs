@@ -226,9 +226,11 @@ async function autoAssign(booking){
    ${driverLookup.join}
    WHERE e.role='DRIVER' AND e.active=true AND es.active=true
      AND es.weekday_iso=$1
-     AND es.start_time::time<=$2::time AND es.end_time::time>=$2::time
+     AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
+     AND es.effective_start_date<=$3::date
+     AND (es.effective_end_date IS NULL OR es.effective_end_date>=$3::date)
    ORDER BY e.display_name LIMIT 5
-  `,[weekday,tripTime]);
+  `,[weekday,tripTime,tripDate]);
   // Pick driver not already on an active trip at the same time
   let driverName=null;let driverScopeId=null;let driverEmail=null;let driverPhone=null;
   for(const d of dRows.rows){
@@ -2934,8 +2936,16 @@ async function handler(event){
       FROM employees e
       INNER JOIN employee_shifts es ON e.id=es.employee_id
       LEFT JOIN users u ON e.user_id=u.id
-      WHERE e.role='DRIVER' AND e.active=true AND es.active=true AND u.scope_id IS NOT NULL`;
-  const availabilityCheck=await query(driverAvailabilitySql);
+      WHERE e.role='DRIVER' AND e.active=true AND es.active=true
+        AND es.weekday_iso=$1
+        AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
+        AND es.effective_start_date<=$3::date
+        AND (es.effective_end_date IS NULL OR es.effective_end_date>=$3::date)`;
+   const bookingDate=clean(current.rows[0].trip_date)||new Date().toISOString().slice(0,10);
+   const bookingTimeRaw=clean(current.rows[0].trip_time||current.rows[0].time||'08:00');
+   const bookingTime=/^\d{2}:\d{2}/.test(bookingTimeRaw)?bookingTimeRaw.slice(0,5):'08:00';
+   const bookingWeekday=new Date(`${bookingDate}T12:00:00`).getDay()||7;
+  const availabilityCheck=await query(driverAvailabilitySql,[bookingWeekday,bookingTime,bookingDate]);
    const vehicleCheck=await query(`SELECT COUNT(*) as vehicle_count FROM vehicles WHERE active=true AND status='AVAILABLE'`,[]);
    const driversAvailable=Number(availabilityCheck.rows[0]?.driver_count ?? availabilityCheck.rows[0]?.available ?? 0);
    const vehiclesAvailable=Number(vehicleCheck.rows[0]?.vehicle_count||0);
@@ -2975,7 +2985,7 @@ async function handler(event){
    const weekday=now.getDay()||7; // ISO weekday: Mon=1 … Sun=7
    // Drivers on shift right now (shift covers current time on today's weekday)
    const onShift=await query(`
-    SELECT e.id, e.display_name AS name, u.scope_id, e.active,
+    SELECT e.id, e.display_name AS name, e.email, u.scope_id, e.active,
            es.start_time::text AS shift_start, es.end_time::text AS shift_end,
            v.unit_number AS vehicle_unit, v.vehicle_type, v.status AS vehicle_status
     FROM employees e
@@ -2985,9 +2995,10 @@ async function handler(event){
     WHERE e.role='DRIVER' AND e.active=true AND es.active=true
       AND es.weekday_iso=$1
       AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
+      AND es.effective_start_date<=$3::date
       AND (es.effective_end_date IS NULL OR es.effective_end_date>=$3)
     ORDER BY e.display_name
-   `,[weekday,nowTime,todayIso]);
+    `,[weekday,nowTime,todayIso]);
    // Trip counts today per driver scope_id
    const tripCounts=await query(`
     SELECT driver_name, COUNT(*) as total,
@@ -2998,7 +3009,7 @@ async function handler(event){
    `,[todayIso]);
    const countMap=Object.fromEntries(tripCounts.rows.map(r=>[r.driver_name,{total:Number(r.total),active:Number(r.active)}]));
    const drivers=onShift.rows.map(d=>({
-    id:d.id, name:d.name, scopeId:d.scope_id,
+    id:d.id, name:d.name, email:d.email||null, scopeId:d.scope_id,
     shiftStart:d.shift_start?.slice(0,5)||null,
     shiftEnd:d.shift_end?.slice(0,5)||null,
     vehicleUnit:d.vehicle_unit||null,
@@ -3010,6 +3021,47 @@ async function handler(event){
    }));
    return json(200,{generatedAt:now.toISOString(),onDuty:drivers.length,drivers});
   }
+    if(p[0]==='admin'&&p[1]==='driver-schedule'&&method==='GET'){
+     await requireUser(bearer(event),['ADMIN','DISPATCHER']);
+     const driverEmail=clean(event.queryStringParameters?.driverEmail||'').toLowerCase();
+     const activeOnly=String(event.queryStringParameters?.activeOnly||'true').toLowerCase()!=='false';
+     const limit=Math.min(Math.max(Number(event.queryStringParameters?.limit)||100,1),500);
+     const params=[];
+     const where=[];
+     if(driverEmail){
+      params.push(driverEmail);
+      where.push(`lower(e.email)=lower($${params.length})`);
+     }
+     if(activeOnly){
+      where.push(`es.active=true`);
+      where.push(`(es.effective_end_date IS NULL OR es.effective_end_date>=CURRENT_DATE)`);
+     }
+     const sql=`
+      SELECT
+        e.id AS employee_id,
+        e.employee_code,
+        e.display_name,
+        e.email,
+        e.role,
+        es.id AS shift_id,
+        es.assignment_role,
+        es.weekday_iso,
+        es.start_time::text AS start_time,
+        es.end_time::text AS end_time,
+        es.effective_start_date,
+        es.effective_end_date,
+        es.active,
+        es.notes,
+        es.updated_at
+      FROM employees e
+      INNER JOIN employee_shifts es ON es.employee_id=e.id
+      ${where.length?`WHERE ${where.join(' AND ')}`:''}
+      ORDER BY e.display_name, es.weekday_iso, es.start_time
+      LIMIT ${limit}
+     `;
+     const r=await query(sql,params);
+     return json(200,{schedules:r.rows});
+    }
   if(p[0]==='admin'&&p[1]==='driver-schedule'&&method==='POST'){
    await requireUser(bearer(event),['ADMIN']);
    const b=parseBody(event);
@@ -3506,18 +3558,23 @@ async function handler(event){
   if(p.join('/')==='availability/check'&&method==='POST'){
    const b=parseBody(event);required(b,['tripDate','tripTime','service']);
    const tripDate=clean(b.tripDate);
-   const tripTime=clean(b.tripTime);
+    const tripTimeRaw=clean(b.tripTime);
+    const tripTime=/^\d{2}:\d{2}/.test(tripTimeRaw)?tripTimeRaw.slice(0,5):'08:00';
    const service=clean(b.service);
+    const weekday=new Date(`${tripDate}T12:00:00`).getDay()||7;
    // Check driver availability for this date/time
-   const drivers=await query(`
-    SELECT COUNT(DISTINCT e.id) as available
-    FROM employees e
-    INNER JOIN employee_shifts es ON e.id=es.employee_id
-    WHERE e.employee_type='DRIVER' AND e.active=true
-    AND es.shift_day::text ILIKE SUBSTRING($1,1,10)
-    AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
-   `,[tripDate,tripTime]);
-   const driverCount=Number(drivers.rows[0]?.available||0);
+    const driverAvailabilitySql=typeof buildDriverAvailabilitySql==='function'
+     ? buildDriverAvailabilitySql()
+     : `SELECT COUNT(DISTINCT e.id) AS driver_count
+       FROM employees e
+       INNER JOIN employee_shifts es ON e.id=es.employee_id
+       WHERE e.role='DRIVER' AND e.active=true AND es.active=true
+        AND es.weekday_iso=$1
+        AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
+        AND es.effective_start_date<=$3::date
+        AND (es.effective_end_date IS NULL OR es.effective_end_date>=$3::date)`;
+    const drivers=await query(driverAvailabilitySql,[weekday,tripTime,tripDate]);
+    const driverCount=Number(drivers.rows[0]?.driver_count ?? drivers.rows[0]?.available ?? 0);
    // Check fleet vehicle availability for this service
    const vehicles=await query(`
     SELECT COUNT(*) as available FROM vehicles
