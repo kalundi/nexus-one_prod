@@ -3356,6 +3356,57 @@ async function handler(event){
     return json(err?.statusCode||500,{error:err?.statusCode?message:`Create user failed: ${message}`});
    }
   }
+    if(p[0]==='admin'&&p[1]==='users'&&p[2]&&p[3]==='resend-credentials'&&method==='POST'){
+     const me=await requireUser(bearer(event),['ADMIN']);
+     const userId=decodeURIComponent(p[2]);
+     const userRes=await query('SELECT id,email,display_name,role,active FROM users WHERE id=$1 LIMIT 1',[userId]);
+     const target=userRes.rows[0];
+     if(!target)return json(404,{error:'User not found'});
+     if(target.active===false)return json(409,{error:'Cannot resend credentials for inactive user'});
+
+     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
+     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz').catch(()=>{});
+
+     const tempPassword=generateTempPassword(14);
+     const passwordHash=hashPassword(tempPassword);
+     const tempPasswordExpiresAt=new Date(Date.now()+2*60*60*1000).toISOString();
+     let warning='';
+     let policyEnforced=true;
+
+     try{
+      await query('UPDATE users SET password_hash=$2,must_change_password=true,password_reset_expires=$3,updated_at=now() WHERE id=$1',[userId,passwordHash,tempPasswordExpiresAt]);
+     }catch(err){
+      await query('UPDATE users SET password_hash=$2,updated_at=now() WHERE id=$1',[userId,passwordHash]);
+      policyEnforced=false;
+      warning='User password was reset, but policy columns are unavailable in this environment. Run migrations to enforce temporary-password expiry.';
+     }
+
+     let emailDeliveryStatus='skipped';
+     try{
+      const appBase=(process.env.APP_BASE_URL||'https://nexusmt.com').replace(/\/$/,'');
+      const loginUrl=`${appBase}/livecare.html`;
+      const expiresLabel=new Date(tempPasswordExpiresAt).toLocaleString('en-US',{timeZone:'America/New_York'});
+      const loginRole=String(target.role||'').toUpperCase();
+      const html=`
+        <h2>Nexus credentials reissued</h2>
+        <p>A new temporary password was issued for your account <strong>${clean(target.email)}</strong>.</p>
+        <p><strong>Temporary password:</strong> <code style="font-size:16px">${tempPassword}</code></p>
+        <p>This temporary password expires in <strong>2 hours</strong> (${expiresLabel} ET).</p>
+        <p>Sign in at <a href="${loginUrl}">${loginUrl}</a> using role <strong>${loginRole}</strong>, then change your password immediately.</p>
+      `;
+      const emailResult=await sendEmail([clean(target.email).toLowerCase()],'Your Nexus login credentials were reissued',html);
+      emailDeliveryStatus=emailResult?.status||'skipped';
+      if(emailDeliveryStatus!=='sent'){
+        warning=`${warning?`${warning} `:''}Credential email was not sent automatically. Share the temporary password securely with the user.`.trim();
+      }
+     }catch(emailErr){
+      emailDeliveryStatus='failed';
+      warning=`${warning?`${warning} `:''}Credential email failed to send. Share the temporary password securely with the user.`.trim();
+     }
+
+     await audit('USER',userId,'CREDENTIALS_REISSUED',{by:me.email,email:target.email,role:target.role,emailDeliveryStatus,policyEnforced});
+     return json(200,{ok:true,user:{id:String(target.id),email:target.email,name:target.display_name,role:target.role,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,emailDeliveryStatus,warning});
+    }
   if(p[0]==='driver'&&p[1]==='assignments'&&method==='GET'){
    const token=bearer(event);
    let u;

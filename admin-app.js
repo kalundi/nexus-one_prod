@@ -273,7 +273,12 @@ async function loadUsers(){
         <td><span class="pill ${ROLE_COLORS[u.role]||'muted'}">${u.role}</span></td>
         <td><span class="pill ${u.active?'green':'muted'}">${u.active?'Active':'Inactive'}</span></td>
         <td style="font-size:12px;color:var(--muted)">${u.createdAt?new Date(u.createdAt).toLocaleDateString():'--'}</td>
-        <td><button class="button compact" data-toggle-user="${u.id}" data-active="${u.active}" style="min-width:90px">${u.active?'Deactivate':'Activate'}</button></td>
+        <td>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="button compact" data-toggle-user="${u.id}" data-active="${u.active}" style="min-width:90px">${u.active?'Deactivate':'Activate'}</button>
+            <button class="button compact" data-resend-user="${u.id}" style="min-width:120px">Resend login</button>
+          </div>
+        </td>
       </tr>`).join('');
     document.querySelectorAll('[data-toggle-user]').forEach(btn=>{
       btn.addEventListener('click',async()=>{
@@ -284,6 +289,30 @@ async function loadUsers(){
           if(!r.ok){const e=await r.json();throw new Error(e.error||'Failed')}
           loadUsers();
         }catch(e){btn.disabled=false;btn.textContent=active?'Deactivate':'Activate';alert(e.message)}
+      });
+    });
+    document.querySelectorAll('[data-resend-user]').forEach(btn=>{
+      btn.addEventListener('click',async()=>{
+        const id=btn.dataset.resendUser;
+        if(!id) return;
+        if(!confirm('Reissue temporary credentials and email this user now?')) return;
+        btn.disabled=true;
+        const prev=btn.textContent;
+        btn.textContent='Sending...';
+        try{
+          const r=await fetch(`/api/admin/users/${encodeURIComponent(id)}/resend-credentials`,{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'}});
+          const data=await r.json().catch(()=>({}));
+          if(!r.ok) throw new Error(data.error||'Failed to resend credentials');
+          const expiresText=data.tempPasswordExpiresAt?new Date(data.tempPasswordExpiresAt).toLocaleString():'2 hours';
+          const emailText=data.emailDeliveryStatus==='sent'?'Credential email sent.':'Credential email not sent automatically.';
+          alert(`Temporary password reissued for ${data.user?.email||'user'}. Expires: ${expiresText}. ${emailText}`);
+          if(data.warning) alert(data.warning);
+        }catch(e){
+          alert(e.message||'Failed to resend credentials');
+        }finally{
+          btn.disabled=false;
+          btn.textContent=prev;
+        }
       });
     });
     updateDashboardSignals();
