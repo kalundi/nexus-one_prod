@@ -2971,7 +2971,12 @@ async function handler(event){
      `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id,active,metadata FROM vehicles${whereClause} ORDER BY unit_number`,
      `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id,active FROM vehicles${whereClause} ORDER BY unit_number`,
      `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id FROM vehicles${whereClause} ORDER BY unit_number`,
-     `SELECT unit_number,vehicle_type,status,latitude,longitude,last_seen_at FROM vehicles${whereClause} ORDER BY unit_number`
+      `SELECT unit_number,vehicle_type,status,latitude,longitude,last_seen_at FROM vehicles${whereClause} ORDER BY unit_number`,
+      `SELECT unit_number,vehicle_type,status,lat AS latitude,lng AS longitude,heading,speed_mph,last_seen_at,driver_scope_id,active,metadata FROM vehicles${whereClause} ORDER BY unit_number`,
+      `SELECT unit_number,vehicle_type,status,lat AS latitude,lng AS longitude,heading,speed_mph,last_seen_at,driver_scope_id,active FROM vehicles${whereClause} ORDER BY unit_number`,
+      `SELECT unit_number,vehicle_type,status,lat AS latitude,lng AS longitude,last_seen_at FROM vehicles${whereClause} ORDER BY unit_number`,
+      `SELECT unit_number,vehicle_type,status,lat AS latitude,lng AS longitude,last_seen AS last_seen_at FROM vehicles ORDER BY unit_number`,
+      `SELECT unit_number,vehicle_type,status FROM vehicles ORDER BY unit_number`
     ];
     let r=null;
     for(const sql of sqlVariants){
