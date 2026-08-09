@@ -3052,23 +3052,25 @@ async function handler(event){
    if(existing.rows[0])return json(409,{error:'A user with that email already exists'});
    const passwordHash=crypto.createHash('sha256').update(String(b.password)).digest('hex');
    const userId=crypto.randomUUID();
-   // Get organization_id from the authenticated admin (required NOT NULL column)
-   const adminRow=await query('SELECT organization_id FROM users WHERE id=$1',[me.id]);
-   const orgId=adminRow.rows[0]?.organization_id||null;
+  // Resolve organization_id for the new user. Some environments enforce NOT NULL.
+  const adminRow=await query('SELECT organization_id FROM users WHERE id=$1',[me.id]);
+  let orgId=adminRow.rows[0]?.organization_id||null;
+  if(!orgId){
+   const orgRow=await query('SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1').catch(()=>({rows:[]}));
+   orgId=orgRow.rows[0]?.id||null;
+  }
+  if(!orgId){
+   return json(500,{error:'Organization setup is incomplete. Run reset standard accounts, then try creating the user again.'});
+  }
    try{
-    if(orgId){
-      await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,$8,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,orgId,crypto.randomUUID()]);
-    }else{
-      await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,crypto.randomUUID()]);
-    }
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,$8,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,orgId,crypto.randomUUID()]);
    }catch(err){
     const message=String(err?.message||'').toLowerCase();
-    if(!message.includes('phone'))throw err;
-    if(orgId){
-      await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,orgId,crypto.randomUUID()]);
-    }else{
-      await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,crypto.randomUUID()]);
+    if(message.includes('organization')||message.includes('organization_id')){
+      return json(500,{error:'Organization setup is incomplete. Run reset standard accounts, then try again.'});
     }
+    if(!message.includes('phone'))throw err;
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,orgId,crypto.randomUUID()]);
    }
    await audit('USER',userId,'CREATED',{role:b.role,by:me.email});
      return json(201,{user:{id:userId,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true}});
