@@ -382,6 +382,7 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <span id="tripAttentionNotice" class="tripAttentionBadge"><span class="dot" aria-hidden="true"></span><span id="tripAttentionText">No trips need attention</span></span>
       <button id="tripBoardToggle" class="button secondary" type="button" aria-expanded="false" aria-controls="tripBoardBody">Show Trip Management</button>
+      <button id="normalizeTripAddresses" class="button ghost" type="button">Normalize trip addresses</button>
       <button id="loadTrips" class="button primary">Refresh from API</button><button id="loadLocal" class="button" hidden>Load local</button>
     </div>
   </div>
@@ -1404,6 +1405,79 @@ $('saveCustomCompany').addEventListener('click',()=>{
     renderFiltered();
   }
 
+  function buildTripAddressNormalizationPayload(trip, fullBooking, intakeAudit){
+    const sourceBooking=fullBooking||trip||{};
+    const parsedPayload=intakeAudit&&typeof intakeAudit.parsedPayload==='object'&&intakeAudit.parsedPayload?intakeAudit.parsedPayload:{};
+    const currentPickup=String(sourceBooking.pickup||parsedPayload.pickup||'').trim();
+    const currentDestination=String(sourceBooking.destination||parsedPayload.destination||'').trim();
+    const currentPickupLocation=String(sourceBooking.pickupLocation||sourceBooking.pickup_location||parsedPayload.pickup_location||'').trim();
+    const currentDestinationLocation=String(sourceBooking.destinationLocation||sourceBooking.dropoff_location||parsedPayload.destination_location||parsedPayload.dropoff_location||'').trim();
+
+    const pickupSplit=splitLocationTypeAndAddress(currentPickup);
+    const destinationSplit=splitLocationTypeAndAddress(currentDestination);
+    const nextPickupLocation=String(currentPickupLocation||pickupSplit.location||'').trim();
+    const nextPickup=String(pickupSplit.address||currentPickup||'').trim();
+    const nextDestinationLocation=String(currentDestinationLocation||destinationSplit.location||'').trim();
+    const nextDestination=String(destinationSplit.address||currentDestination||'').trim();
+
+    const payload={};
+    if(nextPickupLocation!==String(sourceBooking.pickupLocation||sourceBooking.pickup_location||'').trim()) payload.pickupLocation=nextPickupLocation;
+    if(nextPickup!==String(sourceBooking.pickup||'').trim()) payload.pickup=nextPickup;
+    if(nextDestinationLocation!==String(sourceBooking.destinationLocation||sourceBooking.dropoff_location||'').trim()) payload.destinationLocation=nextDestinationLocation;
+    if(nextDestination!==String(sourceBooking.destination||'').trim()) payload.destination=nextDestination;
+    return payload;
+  }
+
+  async function normalizeTripAddresses(trips=state.allTrips){
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    const candidates=(Array.isArray(trips)?trips:[]).filter((trip)=>classifyTrip(trip)==='REAL');
+    if(!candidates.length){
+      window.NexusTripPopup?.show({title:'No trips found',message:'There are no real trips to normalize.',detail:'Refresh from API first and try again.',accent:'#0f766e'});
+      return {updated:0,skipped:0,failed:0,total:0};
+    }
+    const confirmed=window.confirm(`Normalize pickup and destination location fields for ${candidates.length} real trip${candidates.length===1?'':'s'}?`);
+    if(!confirmed) return {updated:0,skipped:0,failed:0,total:candidates.length,canceled:true};
+
+    const button=document.getElementById('normalizeTripAddresses');
+    const originalText=button?.textContent||'Normalize trip addresses';
+    if(button){ button.disabled=true; button.textContent='Normalizing...'; }
+
+    let updated=0;
+    let skipped=0;
+    const failures=[];
+    try{
+      for(const trip of candidates){
+        const reference=String(trip?.reference||trip?.id||'').trim();
+        if(!reference) continue;
+        try{
+          const detailRes=await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+          const detailJson=await detailRes.json().catch(()=>({}));
+          if(!detailRes.ok) throw new Error(detailJson.error||'Unable to load trip details');
+          const booking=detailJson.booking||trip||{};
+          const intakeAudit=detailJson.intakeAudit||null;
+          const payload=buildTripAddressNormalizationPayload(trip,booking,intakeAudit);
+          if(!Object.keys(payload).length){
+            skipped+=1;
+            continue;
+          }
+          const patchRes=await fetch(`/api/admin/bookings/${encodeURIComponent(reference)}`,{method:'PATCH',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(payload)});
+          const patchJson=await patchRes.json().catch(()=>({}));
+          if(!patchRes.ok) throw new Error(patchJson.error||'Unable to update trip');
+          updated+=1;
+          state.allTrips=state.allTrips.map((item)=>String(item?.reference||item?.id||'')===reference?{...item,...patchJson.booking}:item);
+        }catch(err){
+          failures.push(`${reference}: ${err.message||'Unable to normalize'}`);
+        }
+      }
+      renderFiltered();
+      const detail=failures.length?`First error: ${failures[0]}`:`Updated ${updated} trip${updated===1?'':'s'}. Skipped ${skipped}.`;
+      window.NexusTripPopup?.show({title:'Trip address normalization complete',message:`Processed ${candidates.length} trip${candidates.length===1?'':'s'}.`,detail,accent:failures.length?'#b42318':'#0f766e'});
+      return {updated,skipped,failed:failures.length,total:candidates.length,failures};
+    }finally{
+      if(button){ button.disabled=false; button.textContent=originalText; }
+    }
+  }
+
   function refreshTripsLocalOnly(){
     // Demo/local trip loading is disabled to keep dispatch view operationally clean.
     state.allTrips = state.allTrips.filter((trip)=>classifyTrip(trip)==='REAL');
@@ -1493,6 +1567,16 @@ $('saveCustomCompany').addEventListener('click',()=>{
     catch(err){ alert(err.message || 'Unable to load trips from API'); }
   };
 
+  document.getElementById('normalizeTripAddresses')?.addEventListener('click',async()=>{
+    try{
+      await window.normalizeTripAddresses?.();
+    }catch(err){
+      alert(err.message || 'Unable to normalize trip addresses');
+    }
+  });
+
+  window.normalizeTripAddresses = normalizeTripAddresses;
+
   loadLocalBtn.onclick = ()=>{ refreshTripsLocalOnly(); };
 
   const autoLoad = async () => {
@@ -1566,9 +1650,11 @@ $('saveCustomCompany').addEventListener('click',()=>{
       <div class="formField"><label>Status</label><select id="dispatchEditStatus"><option value="SUBMITTED">Submitted</option><option value="SCHEDULED">Scheduled</option><option value="ASSIGNED">Assigned</option><option value="EN_ROUTE">En Route</option><option value="ARRIVED">Arrived</option><option value="IN_TRANSIT">In Transit</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option><option value="NO_SHOW">No Show</option></select><small id="dispatchEditCurrentStatus" class="subtle">Current status: --</small></div>
       <div class="formField"><label>Service</label><input id="dispatchEditService" type="text" placeholder="wheelchair"></div>
     </div>
-    <div class="formRow" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px">
-      <div class="formField"><label>Pickup</label><input id="dispatchEditPickup" type="text"></div>
-      <div class="formField"><label>Destination</label><input id="dispatchEditDestination" type="text"></div>
+    <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
+      <div class="formField"><label>Pickup location type</label><input id="dispatchEditPickupLocation" type="text" placeholder="Home, facility, etc." autocomplete="off"></div>
+      <div class="formField"><label>Pickup address</label><input id="dispatchEditPickup" type="text" autocomplete="street-address"></div>
+      <div class="formField"><label>Destination location type</label><input id="dispatchEditDestinationLocation" type="text" placeholder="Home, facility, etc." autocomplete="off"></div>
+      <div class="formField"><label>Destination address</label><input id="dispatchEditDestination" type="text" autocomplete="street-address"></div>
     </div>
     <div class="formRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px">
       <div class="formField"><label>Date</label><input id="dispatchEditDate" type="date"></div>
@@ -1681,6 +1767,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
   let mapsBrowserKey='';
   let mapsReadyPromise=null;
   let routeTimingRequestId=0;
+  let editorPickupAutocomplete=null;
+  let editorDestinationAutocomplete=null;
   let currentRouteContext={distanceMiles:0,durationMinutes:0,trafficDurationMinutes:0,liveRouteMinutes:0,liveYardMinutes:0,liveYardTrafficMinutes:0};
   let currentPersistedTripState={status:'',submitterType:'',brokerCompany:''};
 
@@ -1784,7 +1872,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       'dispatchEditStatus','dispatchEditService','dispatchEditPickup','dispatchEditDestination','dispatchEditDate',
       'dispatchEditAppointmentTime','dispatchEditTime','dispatchEditCheckInTime','dispatchEditDriver','dispatchEditVehicle',
       'dispatchEditSubmitterType','dispatchEditSubmitter','dispatchEditBrokerCompany','dispatchEditBrokerAcceptedRate',
-      'dispatchEditName','dispatchEditPhone','dispatchEditEmail','dispatchEditTripNotes'
+      'dispatchEditPickupLocation','dispatchEditDestinationLocation','dispatchEditName','dispatchEditPhone','dispatchEditEmail','dispatchEditTripNotes'
     ];
     const snapshot={};
     fields.forEach((id)=>{ snapshot[id]=String(get(id)?.value||''); });
@@ -1868,6 +1956,17 @@ $('saveCustomCompany').addEventListener('click',()=>{
     return Number.isFinite(numeric)?Math.round(numeric):0;
   }
 
+  function splitLocationTypeAndAddress(value){
+    const text=String(value||'').trim();
+    if(!text) return {location:'',address:''};
+    const match=text.match(/^(.*?)(\s+\d{2,}\b[\s\S]*)$/s);
+    if(!match) return {location:'',address:text};
+    return {
+      location:String(match[1]||'').trim(),
+      address:String(match[2]||'').trim()
+    };
+  }
+
   function parseRouteContextFromBooking(booking){
     const estText=String(booking?.estimatedDuration||'');
     const trafficMatch=estText.match(/traffic[^\d]*(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)?/i);
@@ -1912,6 +2011,33 @@ $('saveCustomCompany').addEventListener('click',()=>{
       document.head.appendChild(script);
     });
     return mapsReadyPromise;
+  }
+
+  async function ensureEditorAddressAutocomplete(){
+    if(!mapsEnabled||!mapsBrowserKey) return false;
+    try{
+      if(!window.google?.maps?.places?.Autocomplete){
+        await loadMaps();
+      }
+      if(!window.google?.maps?.places?.Autocomplete) return false;
+      if(!editorPickupAutocomplete&&get('dispatchEditPickup')){
+        editorPickupAutocomplete=new google.maps.places.Autocomplete(get('dispatchEditPickup'),{fields:['formatted_address','geometry','name'],componentRestrictions:{country:'us'},types:['geocode']});
+        editorPickupAutocomplete.addListener('place_changed',()=>{
+          const place=editorPickupAutocomplete.getPlace();
+          if(place?.formatted_address) get('dispatchEditPickup').value=place.formatted_address;
+        });
+      }
+      if(!editorDestinationAutocomplete&&get('dispatchEditDestination')){
+        editorDestinationAutocomplete=new google.maps.places.Autocomplete(get('dispatchEditDestination'),{fields:['formatted_address','geometry','name'],componentRestrictions:{country:'us'},types:['geocode']});
+        editorDestinationAutocomplete.addListener('place_changed',()=>{
+          const place=editorDestinationAutocomplete.getPlace();
+          if(place?.formatted_address) get('dispatchEditDestination').value=place.formatted_address;
+        });
+      }
+      return true;
+    }catch{
+      return false;
+    }
   }
 
   async function estimateTripRouteMinutes(pickup, destination, tripDate, appointmentTime){
@@ -2307,7 +2433,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
       status:String(payload.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
       service:String(payload.service||''),
       date:String(payload.date||'').slice(0,10),
+      pickupLocation:String(payload.pickupLocation||''),
       pickup:String(payload.pickup||''),
+      destinationLocation:String(payload.destinationLocation||''),
       destination:String(payload.destination||''),
       driverName:String(payload.driverName||''),
       vehicleUnit:String(payload.vehicleUnit||''),
@@ -2327,7 +2455,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
       status:String(saved?.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
       service:String(saved?.service||''),
       date:String(saved?.date||'').slice(0,10),
+      pickupLocation:String(saved?.pickupLocation||''),
       pickup:String(saved?.pickup||''),
+      destinationLocation:String(saved?.destinationLocation||''),
       destination:String(saved?.destination||''),
       driverName:String(saved?.driverName||saved?.driver||''),
       vehicleUnit:String(saved?.vehicleUnit||saved?.vehicle||''),
@@ -2365,8 +2495,12 @@ $('saveCustomCompany').addEventListener('click',()=>{
     get('dispatchEditRef').value=b.reference||currentRef||'';
     get('dispatchEditStatus').value=String((b.status||'SUBMITTED')).toUpperCase().replaceAll('-','_').replaceAll(' ','_');
     get('dispatchEditService').value=b.service||'';
-    get('dispatchEditPickup').value=b.pickup||'';
-    get('dispatchEditDestination').value=b.destination||'';
+    const pickupSplit=splitLocationTypeAndAddress(b.pickup);
+    const destinationSplit=splitLocationTypeAndAddress(b.destination);
+    get('dispatchEditPickupLocation').value=String(b.pickupLocation||b.pickup_location||pickupSplit.location||'');
+    get('dispatchEditPickup').value=String(b.pickup||pickupSplit.address||'');
+    get('dispatchEditDestinationLocation').value=String(b.destinationLocation||b.dropoff_location||destinationSplit.location||'');
+    get('dispatchEditDestination').value=String(b.destination||destinationSplit.address||'');
     get('dispatchEditDate').value=String(b.date||'').slice(0,10);
     get('dispatchEditTime').value='';
     await loadDispatchAssignmentOptions();
@@ -2408,6 +2542,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       updateCheckInFromPickup();
     }
     applyingEditorValues=false;
+    await ensureEditorAddressAutocomplete();
     markEditorBaseline();
     toggleBrokerFields();
     updateEditorDetails(b);
@@ -2678,7 +2813,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const payload={
       status:get('dispatchEditStatus').value,
       service:get('dispatchEditService').value,
+      pickupLocation:get('dispatchEditPickupLocation').value,
       pickup:get('dispatchEditPickup').value,
+      destinationLocation:get('dispatchEditDestinationLocation').value,
       destination:get('dispatchEditDestination').value,
       date:get('dispatchEditDate').value,
       time:get('dispatchEditTime').value,
@@ -2919,7 +3056,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   get('dispatchEditVehicle').addEventListener('change',()=>applyDispatchAssignmentFilters('vehicle'));
   panel.addEventListener('input',refreshUnsavedState);
   panel.addEventListener('change',refreshUnsavedState);
-  loadDispatchOpsSettings();
+  loadDispatchOpsSettings().then(()=>ensureEditorAddressAutocomplete());
   loadBrokerCompanies();
   loadDispatchAssignmentOptions();
 })();

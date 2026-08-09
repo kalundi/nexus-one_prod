@@ -71,6 +71,17 @@ function clean(value,max=500){
  return String(value||'').trim().slice(0,max);
 }
 
+function splitLocationTypeAndAddress(value){
+ const text=clean(value,500);
+ if(!text)return {location:'',address:''};
+ const match=text.match(/^(.*?)(\s+\d{2,}\b[\s\S]*)$/s);
+ if(!match)return {location:'',address:text};
+ return {
+  location:clean(match[1],160),
+  address:clean(match[2],300)
+ };
+}
+
 function safeJsonParse(value){
  if(value==null)return null;
  if(typeof value==='object')return value;
@@ -709,6 +720,13 @@ function parseBrokerIntakeText(input){
   if(!result.destination&&tableParsed.destination)result.destination=tableParsed.destination;
  }
 
+ const pickupSplit=splitLocationTypeAndAddress(result.pickup);
+ const destinationSplit=splitLocationTypeAndAddress(result.destination);
+ result.pickup_location=pickupSplit.location||result.pickup_location||'';
+ result.destination_location=destinationSplit.location||result.destination_location||'';
+ result.pickup=pickupSplit.address;
+ result.destination=destinationSplit.address;
+
  result.pickup=cleanupParsedAddress(result.pickup);
  result.destination=cleanupParsedAddress(result.destination);
 
@@ -1009,8 +1027,8 @@ function buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimat
 async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,platformRate,tripCostEstimate,tripDate,tripTime,brokerRequestId,attachments=[]}){
  const bookingReference=reference();
  const notes=buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimate});
- const result=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
- VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,null,null,null,null,$12,null,$13,$14,$15,$16,$17,now(),now()) RETURNING *`,[
+ const result=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,pickup_location,dropoff_location,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,null,null,null,null,$14,null,$15,$16,$17,$18,$19,now(),now()) RETURNING *`,[
   bookingReference,
   parsed.patient_name||brokerName||'Broker Request',
   null,
@@ -1018,6 +1036,8 @@ async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,plat
   parsed.service,
   parsed.pickup,
   parsed.destination,
+  parsed.pickup_location||null,
+  parsed.destination_location||null,
   tripDate,
   tripTime,
   'PENDING_DISPATCH_CONFIRMATION',
@@ -1042,13 +1062,15 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
   service=$3,
   pickup=$4,
   destination=$5,
-  trip_date=$6,
-  trip_time=$7,
-  notes=$8,
-  distance_miles=$9,
-  estimated_fare=$10,
-  broker_company_name=$11,
-  broker_accepted_rate=$12,
+  pickup_location=$6,
+  dropoff_location=$7,
+  trip_date=$8,
+  trip_time=$9,
+  notes=$10,
+  distance_miles=$11,
+  estimated_fare=$12,
+  broker_company_name=$13,
+  broker_accepted_rate=$14,
   updated_at=now()
   WHERE reference=$1`,[
   bookingReference,
@@ -1056,6 +1078,8 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
   parsed.service,
   parsed.pickup,
   parsed.destination,
+  parsed.pickup_location||null,
+  parsed.destination_location||null,
   tripDate,
   tripTime,
   notes,

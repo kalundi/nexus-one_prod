@@ -130,7 +130,9 @@ function collectBookingFieldHistoryEntries(beforeRow,afterRow){
  const fields=[
   {label:'Status',before:normalizeStatus(before.status),after:normalizeStatus(after.status),displayBefore:before.statusLabel||before.status,displayAfter:after.statusLabel||after.status},
   {label:'Service',before:clean(before.service),after:clean(after.service)},
+  {label:'Pickup location type',before:clean(before.pickupLocation||before.pickup_location),after:clean(after.pickupLocation||after.pickup_location)},
   {label:'Pickup',before:clean(before.pickup),after:clean(after.pickup)},
+  {label:'Destination location type',before:clean(before.destinationLocation||before.dropoff_location),after:clean(after.destinationLocation||after.dropoff_location)},
   {label:'Destination',before:clean(before.destination),after:clean(after.destination)},
   {label:'Trip date',before:clean(before.date),after:clean(after.date)},
   {label:'Pickup time',before:clean(before.time),after:clean(after.time)},
@@ -2680,7 +2682,7 @@ async function handler(event){
 
    // DRIVER role: only allowed to update trip status.
    if(u.role==='DRIVER'){
-    const forbidden=['driverName','vehicleUnit','estimatedFare','pickup','destination','date','time','service','name','phone','email','submitterEntity','bookingSource','brokerCompanyName','brokerAcceptedRate','checkInTime'];
+    const forbidden=['driverName','vehicleUnit','estimatedFare','pickup','destination','pickupLocation','destinationLocation','pickup_location','dropoff_location','date','time','service','name','phone','email','submitterEntity','bookingSource','brokerCompanyName','brokerAcceptedRate','checkInTime'];
     if(forbidden.some((key)=>Object.prototype.hasOwnProperty.call(b,key)))return json(403,{error:'Drivers may only update trip status'});
    }
 
@@ -2694,6 +2696,8 @@ async function handler(event){
    const hasService=Object.prototype.hasOwnProperty.call(b,'service');
    const hasPickup=Object.prototype.hasOwnProperty.call(b,'pickup');
    const hasDestination=Object.prototype.hasOwnProperty.call(b,'destination');
+  const hasPickupLocation=Object.prototype.hasOwnProperty.call(b,'pickupLocation')||Object.prototype.hasOwnProperty.call(b,'pickup_location');
+  const hasDestinationLocation=Object.prototype.hasOwnProperty.call(b,'destinationLocation')||Object.prototype.hasOwnProperty.call(b,'dropoff_location');
    const hasDate=Object.prototype.hasOwnProperty.call(b,'date');
    const hasTime=Object.prototype.hasOwnProperty.call(b,'time');
   const hasDriverName=Object.prototype.hasOwnProperty.call(b,'driverName');
@@ -2757,17 +2761,19 @@ async function handler(event){
         estimated_fare=CASE WHEN $5 THEN $6 ELSE estimated_fare END,
         service=CASE WHEN $7 THEN $8 ELSE service END,
         pickup=CASE WHEN $9 THEN $10 ELSE pickup END,
-        destination=CASE WHEN $11 THEN $12 ELSE destination END,
-        trip_date=CASE WHEN $13 THEN $14 ELSE trip_date END,
-        trip_time=CASE WHEN $15 THEN $16 ELSE trip_time END,
-        notes=CASE WHEN $17 THEN $18 ELSE notes END,
-        name=CASE WHEN $19 THEN $20 ELSE name END,
-        phone=CASE WHEN $21 THEN $22 ELSE phone END,
-        email=CASE WHEN $23 THEN $24 ELSE email END,
-        booking_source=CASE WHEN $25 THEN $26 ELSE booking_source END,
-        submitter_entity=CASE WHEN $27 THEN $28 ELSE submitter_entity END,
-        broker_company_name=CASE WHEN $29 THEN $30 ELSE broker_company_name END,
-        broker_accepted_rate=CASE WHEN $31 THEN $32 ELSE broker_accepted_rate END,
+      pickup_location=CASE WHEN $11 THEN $12 ELSE pickup_location END,
+      destination=CASE WHEN $13 THEN $14 ELSE destination END,
+      dropoff_location=CASE WHEN $15 THEN $16 ELSE dropoff_location END,
+      trip_date=CASE WHEN $17 THEN $18 ELSE trip_date END,
+      trip_time=CASE WHEN $19 THEN $20 ELSE trip_time END,
+      notes=CASE WHEN $21 THEN $22 ELSE notes END,
+      name=CASE WHEN $23 THEN $24 ELSE name END,
+      phone=CASE WHEN $25 THEN $26 ELSE phone END,
+      email=CASE WHEN $27 THEN $28 ELSE email END,
+      booking_source=CASE WHEN $29 THEN $30 ELSE booking_source END,
+      submitter_entity=CASE WHEN $31 THEN $32 ELSE submitter_entity END,
+      broker_company_name=CASE WHEN $33 THEN $34 ELSE broker_company_name END,
+      broker_accepted_rate=CASE WHEN $35 THEN $36 ELSE broker_accepted_rate END,
         updated_at=now()
     WHERE reference=$1
     RETURNING *`,[
@@ -2781,8 +2787,12 @@ async function handler(event){
       hasService?clean(b.service)||before.rows[0].service:null,
       hasPickup,
       hasPickup?clean(b.pickup)||before.rows[0].pickup:null,
+      hasPickupLocation,
+      hasPickupLocation?clean(b.pickupLocation||b.pickup_location)||before.rows[0].pickup_location:null,
       hasDestination,
       hasDestination?clean(b.destination)||before.rows[0].destination:null,
+      hasDestinationLocation,
+      hasDestinationLocation?clean(b.destinationLocation||b.dropoff_location)||before.rows[0].dropoff_location:null,
       hasDate,
       hasDate?clean(b.date)||before.rows[0].trip_date:null,
       hasTime,
@@ -3331,8 +3341,10 @@ function mapBooking(b){
   alternatePhone:b.alternate_phone,
   alternateEmail:b.alternate_email,
   service:b.service,
+  pickupLocation:b.pickup_location||b.pickupLocation||null,
   pickup:b.pickup,
   destination:b.destination,
+  destinationLocation:b.dropoff_location||b.destinationLocation||null,
   pickupLat:b.pickup_lat!=null?Number(b.pickup_lat):b.pickupLat!=null?Number(b.pickupLat):null,
   pickupLng:b.pickup_lng!=null?Number(b.pickup_lng):b.pickupLng!=null?Number(b.pickupLng):null,
   destinationLat:b.destination_lat!=null?Number(b.destination_lat):b.destinationLat!=null?Number(b.destinationLat):null,
