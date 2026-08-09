@@ -2710,6 +2710,18 @@ async function handler(event){
   const hasAppointmentTime=Object.prototype.hasOwnProperty.call(b,'appointmentTime');
   const appointmentTimeValue=hasAppointmentTime?normalizeOptionalTripTime(b.appointmentTime):'';
   if(hasAppointmentTime&&!appointmentTimeValue)return json(400,{error:'appointmentTime must be a valid time (for example 2:00 PM).'});
+  const hasPickupTime=Object.prototype.hasOwnProperty.call(b,'pickupTime')||Object.prototype.hasOwnProperty.call(b,'pickup_time');
+  const pickupTimeInput=Object.prototype.hasOwnProperty.call(b,'pickupTime')?b.pickupTime:b.pickup_time;
+  let pickupTimeValue=null;
+  if(hasPickupTime){
+   const raw=clean(pickupTimeInput);
+   if(raw==='')pickupTimeValue=null;
+   else{
+    const normalized=normalizeOptionalTripTime(pickupTimeInput);
+    if(!normalized)return json(400,{error:'pickupTime must be a valid time (for example 1:45 PM).'});
+    pickupTimeValue=normalized;
+   }
+  }
   const proposedTripTime=hasTime?normalizeOptionalTripTime(b.time):'';
   const hasCheckInTime=Object.prototype.hasOwnProperty.call(b,'checkInTime');
   const checkInTimeValue=hasCheckInTime?normalizeOptionalTripTime(b.checkInTime):'';
@@ -2815,14 +2827,19 @@ async function handler(event){
       hasBrokerAcceptedRate?brokerAcceptedRateValue:null
     ]);
 
-   if(!r.rows[0])return json(404,{error:'Booking not found'});
+  if(!r.rows[0])return json(404,{error:'Booking not found'});
+
+  if(hasPickupTime){
+  await query('UPDATE bookings SET pickup_time=$2,updated_at=now() WHERE reference=$1',[ref,pickupTimeValue]).catch(()=>{});
+  }
+  const afterRow=hasPickupTime?(await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref])).rows?.[0]||r.rows[0]:r.rows[0];
 
   if(hasBrokerQuotedRate){
    await query(`UPDATE broker_requests SET broker_quoted_rate=$2,updated_at=now() WHERE id=(SELECT id FROM broker_requests WHERE booking_reference=$1 ORDER BY created_at DESC LIMIT 1)`,[ref,brokerQuotedRateValue]).catch(()=>{});
     await query('UPDATE bookings SET broker_quoted_rate=$2,updated_at=now() WHERE reference=$1',[ref,brokerQuotedRateValue]).catch(()=>{});
   }
 
-   const shouldResetReminders=hasDate||hasTime||hasPickup||hasDestination||hasDriverName||hasVehicleUnit;
+  const shouldResetReminders=hasDate||hasTime||hasPickupTime||hasPickup||hasDestination||hasDriverName||hasVehicleUnit;
    if(shouldResetReminders){
     await query(`
       UPDATE bookings
@@ -2834,24 +2851,25 @@ async function handler(event){
    }
 
   const noteValue=clean((hasDispatchNote?(b.dispatchNote||b.note):b.note) || '')||null;
-  const fieldHistoryEntries=collectBookingFieldHistoryEntries(before.rows[0],r.rows[0]);
+  const fieldHistoryEntries=collectBookingFieldHistoryEntries(before.rows[0],afterRow);
   if(fieldHistoryEntries.length){
    for(const historyNote of fieldHistoryEntries){
-    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),historyNote,u.display_name]);
+    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,afterRow.status,statusLabel(afterRow.status),historyNote,u.display_name]);
    }
    const summary=`Updated fields: ${fieldHistoryEntries.map((entry)=>entry.split(' changed:')[0]).join(', ')}`;
-   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),summary,u.display_name]);
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,afterRow.status,statusLabel(afterRow.status),summary,u.display_name]);
   }
   if(noteValue){
-   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),`Dispatch note: ${noteValue}`,u.display_name]);
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,afterRow.status,statusLabel(afterRow.status),`Dispatch note: ${noteValue}`,u.display_name]);
   }
    await audit('BOOKING',ref,'UPDATED',{
-    status:r.rows[0].status,
+    status:afterRow.status,
     estimatedFare:hasEstimatedFare?estimatedFareRaw:undefined,
     pickup:hasPickup?clean(b.pickup):undefined,
     destination:hasDestination?clean(b.destination):undefined,
     date:hasDate?clean(b.date):undefined,
     time:hasTime?clean(b.time):undefined,
+    pickupTime:hasPickupTime?pickupTimeValue:undefined,
     driverName:b.driverName||undefined,
     vehicleUnit:b.vehicleUnit||undefined,
     bookingSource:hasBookingSource?bookingSourceValue:undefined,
@@ -2863,8 +2881,8 @@ async function handler(event){
     by:u.role
    });
 
-   const notifications=await sendTripStakeholderUpdate(before.rows[0],r.rows[0],u,noteValue||'').catch(()=>({status:'failed'}));
-   return json(200,{booking:mapBooking(r.rows[0]),notifications});
+  const notifications=await sendTripStakeholderUpdate(before.rows[0],afterRow,u,noteValue||'').catch(()=>({status:'failed'}));
+  return json(200,{booking:mapBooking(afterRow),notifications});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const next=STATUS_FLOW[current.rows[0].status]||current.rows[0].status;
@@ -3352,7 +3370,7 @@ function mapBooking(b){
   destinationLng:b.destination_lng!=null?Number(b.destination_lng):b.destinationLng!=null?Number(b.destinationLng):null,
   date:b.trip_date||b.date,
   time:String(b.trip_time||b.time||'').slice(0,5),
-  pickupTime:normalizeOptionalTripTime(b.pickup_time||b.pickupTime||b.pickupTimeEstimate||b.trip_time||b.time||'')||null,
+  pickupTime:normalizeOptionalTripTime(b.pickup_time||b.pickupTime||b.pickupTimeEstimate||'')||null,
   appointmentTime:linkedAppointmentTime,
   submittedAppointmentTime:effectiveSubmittedAppointment,
   checkInTime:checkInTime||null,

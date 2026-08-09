@@ -716,7 +716,7 @@ function parseBrokerIntakeText(input){
  if(!result.pickup)result.pickup=firstField(labeledFields,['pickup','pickup_address','origin','origin_address','from','from_address']);
  if(!result.destination)result.destination=firstField(labeledFields,['destination','destination_address','dropoff','drop_off','dropoff_address','drop_off_address','to','to_address']);
  if(!result.trip_date)result.trip_date=firstField(labeledFields,['date','appointment_date','pickup_date','requested_date']);
- if(!result.trip_time)result.trip_time=firstField(labeledFields,['time','appointment_time','pickup_time','requested_time']);
+ if(!result.trip_time)result.trip_time=firstField(labeledFields,['time','appointment_time','requested_time']);
  if(!result.patient_name)result.patient_name=firstField(labeledFields,['patient','patient_name','member','member_name','rider']);
  if(!result.referral_id)result.referral_id=firstField(labeledFields,['referral_id','reference','trip_id','trip_number','confirmation_number']);
  if(!result.crm_reference)result.crm_reference=firstField(labeledFields,['crm','crm_reference']);
@@ -782,6 +782,13 @@ function parseBrokerIntakeText(input){
  if(!result.trip_time){
   const timeAlt=text.match(/(?:^|\r?\n)\s*(?:appointment\s*time|pickup\s*time|requested\s*time)\s*[:|-]\s*([0-9]{1,2}:[0-9]{2}(?:\s*(?:AM|PM))?)/i);
   if(timeAlt)result.trip_time=normalizeTripTime(timeAlt[1]);
+ }
+ if(!result.pickup_time){
+  const inlineTimes=text.match(/(?:^|\r?\n)\s*([0-9]{1,2}:[0-9]{2}\s*(?:AM|PM))\s*([0-9]{1,2}:[0-9]{2}\s*(?:AM|PM))\s*(?:home|facility|hospital|clinic|\d{1,6})/i);
+  if(inlineTimes){
+   result.pickup_time=normalizeTripTime(inlineTimes[1]);
+   if(!result.trip_time)result.trip_time=normalizeTripTime(inlineTimes[2]);
+  }
  }
  if(!result.trip_date){
   const dateAlt=text.match(/(?:^|\r?\n)\s*(?:appointment\s*date|pickup\s*date|requested\s*date)\s*[:|-]\s*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[\/-][0-9]{1,2}[\/-][0-9]{2,4})/i);
@@ -1134,7 +1141,7 @@ async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,plat
   parsed.destination,
   parsed.pickup_location||null,
   parsed.destination_location||null,
-  parsed.pickup_time||tripTime||null,
+  parsed.pickup_time||null,
   tripDate,
   tripTime,
   'PENDING_DISPATCH_CONFIRMATION',
@@ -1182,7 +1189,7 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
   parsed.destination,
   parsed.pickup_location||null,
   parsed.destination_location||null,
-  parsed.pickup_time||tripTime||null,
+  parsed.pickup_time||null,
   tripDate,
   tripTime,
   notes,
@@ -1228,7 +1235,7 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
    destination:parsed.destination,
    trip_date:tripDate,
    trip_time:tripTime,
-    pickup_time:parsed.pickup_time||tripTime||null,
+    pickup_time:parsed.pickup_time||null,
    service:parsed.service,
    patient_name:parsed.patient_name||null,
     patient_phone:parsed.patient_phone||null,
