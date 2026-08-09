@@ -494,11 +494,6 @@ async function getRevenueAnalytics(start,end,groupBy){
    piiIncluded:false,
    intendedRoles:['ADMIN','EXECUTIVE','BILLING'],
    sourceTables:['bookings','trip_status_history','audit_log']
-    const mappedBooking=mapBooking(r.rows[0]);
-    if(intakeRow&&mappedBooking.brokerQuotedRate==null&&intakeRow.broker_quoted_rate!=null){
-     mappedBooking.brokerQuotedRate=Number(intakeRow.broker_quoted_rate);
-    }
-    return json(200,{booking:mappedBooking,intakeAudit});
   }
  };
 }
