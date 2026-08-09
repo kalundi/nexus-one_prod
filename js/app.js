@@ -17,15 +17,16 @@
  if(testPanel)testPanel.hidden=true;
  $('#livecareLogout')?.addEventListener('click',async()=>{const token=sessionStorage.getItem('nexusAccessToken');try{if(token)await fetch('/api/auth/logout',{method:'POST',headers:{authorization:`Bearer ${token}`}})}catch{}sessionStorage.removeItem('nexusAccessToken');sessionStorage.removeItem('nexusUser');sessionStorage.removeItem('nexusPatientRide');verified={reference:'',phone:''};location.assign('/livecare.html');});
  const qp=new URLSearchParams(location.search); if(qp.get('reference')){$('#reference').value=qp.get('reference');$('#patientAccess').hidden=false}
- function render(data){const t=data.booking,h=data.history||[],msgs=data.messages||[];$('#liveCommand').hidden=false; personalizeLivecare('PATIENT',t); renderFleet({generatedAt:new Date().toISOString(),vehicles:[{unit:t.vehicleUnit||'Your vehicle',status:t.status||'DRIVER_ASSIGNED',statusLabel:t.statusLabel||labels[t.status]||t.status,service:t.service||'Medical transportation',progress:Number(t.progress)||42,routeLabel:'Your authorized ride',eta:t.eta||'Live updates active',route:routeLibrary[0]}]},'PATIENT','live');$('#patientAccess').hidden=true;$('#tripRef').textContent=t.reference;$('#liveStatus').textContent=t.statusLabel||labels[t.status]||t.status;$('#tripSummary').innerHTML=`<span><small>Pickup</small><b>${esc(t.pickup)}</b></span><span><small>Destination</small><b>${esc(t.destination)}</b></span><span><small>Date and time</small><b>${esc(t.date)} at ${esc(t.time)}</b></span><span><small>Service</small><b>${esc(t.service)}</b></span><span><small>Driver</small><b>${esc(t.driverName||'Pending assignment')}</b></span><span><small>Vehicle</small><b>${esc(t.vehicleUnit||'Pending assignment')}</b></span>`;$('#mapTrip').textContent=`${t.pickup} → ${t.destination}`;const current=Math.max(0,order.indexOf(t.status));$('#liveTimeline').innerHTML=order.map((s,i)=>`<li class="${i<current?'done':i===current?'current':''}"><span class="node">${i<current?'✓':i+1}</span><span><strong>${labels[s]}</strong><small>${i<current?'Completed':i===current?'Current stage':'Pending'}</small></span></li>`).join('');$('#messages').innerHTML=msgs.length?msgs.map(m=>`<div class="message ${m.senderRole==='CLIENT'?'client':'dispatch'}"><strong>${esc(m.senderName)}</strong><p>${esc(m.message)}</p><small>${new Date(m.createdAt).toLocaleString()}</small></div>`).join(''):'<div class="notice">No messages yet.</div>';$('#liveCommand').scrollIntoView({behavior:'smooth',block:'start'})}
+ function render(data){const t=data.booking,h=data.history||[],msgs=data.messages||[];$('#liveCommand').hidden=false; personalizeLivecare('PATIENT',t); const primaryVehicle={unit:t.vehicleUnit||'Your vehicle',status:t.status||'DRIVER_ASSIGNED',statusLabel:t.statusLabel||labels[t.status]||t.status,service:t.service||'Medical transportation',progress:Number(t.progress)||42,routeLabel:'Your authorized ride',eta:t.eta||'Live updates active',route:routeLibrary[0],driverName:t.driverName||''}; const networkContext=fallbackFleet().slice(0,4).map((v,i)=>({...v,unit:`NEX-N${i+1}`,service:v.service||'Network movement',routeLabel:'Regional network context'})); renderFleet({generatedAt:new Date().toISOString(),vehicles:[primaryVehicle,...networkContext]},'PATIENT','live');$('#patientAccess').hidden=true;$('#tripRef').textContent=t.reference;$('#liveStatus').textContent=t.statusLabel||labels[t.status]||t.status;$('#tripSummary').innerHTML=`<span><small>Pickup</small><b>${esc(t.pickup)}</b></span><span><small>Destination</small><b>${esc(t.destination)}</b></span><span><small>Date and time</small><b>${esc(t.date)} at ${esc(t.time)}</b></span><span><small>Service</small><b>${esc(t.service)}</b></span><span><small>Driver</small><b>${esc(t.driverName||'Pending assignment')}</b></span><span><small>Vehicle</small><b>${esc(t.vehicleUnit||'Pending assignment')}</b></span>`;$('#mapTrip').textContent=`${t.pickup} → ${t.destination}`;const current=Math.max(0,order.indexOf(t.status));$('#liveTimeline').innerHTML=order.map((s,i)=>`<li class="${i<current?'done':i===current?'current':''}"><span class="node">${i<current?'✓':i+1}</span><span><strong>${labels[s]}</strong><small>${i<current?'Completed':i===current?'Current stage':'Pending'}</small></span></li>`).join('');$('#messages').innerHTML=msgs.length?msgs.map(m=>`<div class="message ${m.senderRole==='CLIENT'?'client':'dispatch'}"><strong>${esc(m.senderName)}</strong><p>${esc(m.message)}</p><small>${new Date(m.createdAt).toLocaleString()}</small></div>`).join(''):'<div class="notice">No messages yet.</div>';$('#liveCommand').scrollIntoView({behavior:'smooth',block:'start'})}
  async function request(url,options){let r;try{r=await fetch(url,options)}catch{throw Error('The secure server is not running. Start this project with npm start, then open the displayed local address.')}let j={};try{j=await r.json()}catch{}if(!r.ok)throw Error(j.error||`Request failed (${r.status}).`);return j}
  async function load(){render(await request(`/api/livecare/${encodeURIComponent(verified.reference)}?phone=${encodeURIComponent(verified.phone)}`,{cache:'no-store'}))}
  $('#patientVerify').addEventListener('submit',async e=>{e.preventDefault();$('#patientError').textContent='';verified={reference:$('#reference').value.trim().toUpperCase(),phone:$('#phone').value.trim()};try{await load();sessionStorage.setItem('nexusPatientRide',JSON.stringify(verified))}catch(err){$('#patientError').textContent=err.message}});
  $('#messageForm').addEventListener('submit',async e=>{e.preventDefault();try{await request(`/api/livecare/${encodeURIComponent(verified.reference)}?action=message`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone:verified.phone,message:$('#messageText').value.trim()})});$('#messageText').value='';await load()}catch(err){alert(err.message)}});
  $('#shareButton').addEventListener('click',async()=>{try{const j=await request(`/api/livecare/${encodeURIComponent(verified.reference)}?action=share`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({phone:verified.phone,hours:24})});const url=new URL(j.url,location.origin).href;await navigator.clipboard?.writeText(url);$('#shareResult').textContent='A 24-hour caregiver link was copied. Share only with an authorized person.'}catch(err){$('#shareResult').textContent=err.message}});
- $('#endPatientSession').addEventListener('click',()=>{verified={reference:'',phone:''};sessionStorage.removeItem('nexusPatientRide');$('#liveCommand').hidden=true;$('#patientAccess').hidden=false;$('#phone').value='';$('#patientAccess').scrollIntoView({behavior:'smooth'})});
+ $('#endPatientSession').addEventListener('click',()=>{verified={reference:'',phone:''};sessionStorage.removeItem('nexusPatientRide');$('#liveCommand').hidden=true;$('#patientAccess').hidden=false;$('#phone').value='';focusedVehicleUnit=null;personalizeLivecare('PUBLIC');$('#patientAccess').scrollIntoView({behavior:'smooth'})});
 
  let fleetAnimationFrame=0, fleetVehicles=[], allFleetVehicles=[], fleetMap=null, fleetMarkers=[], activeStatusFilter=null, activeServiceFilter="ALL";
+ let livecareRole='PUBLIC', focusedVehicleUnit=null, pinnedVehicleUnit=null;
  const routeLibrary=[
   [[39.1732,-77.2717],[39.1528,-77.2336],[39.1192,-77.1989],[39.0840,-77.1528],[39.0468,-77.1195]],
   [[39.0005,-77.0259],[38.9812,-77.0374],[38.9567,-77.0325],[38.9312,-77.0369],[38.9072,-77.0369]],
@@ -48,6 +49,26 @@
    ['NEX-22','REVIEWING','Medical transport',24,'Prince George’s review zone','Dispatch review']
   ];
   return defs.map((d,i)=>({unit:d[0],status:d[1],statusLabel:labels[d[1]]||d[1].replaceAll('_',' '),service:d[2],progress:d[3],routeLabel:d[4],eta:d[5],attention:d[1]==='REVIEWING',simulated:true,index:i,route:routeLibrary[i%routeLibrary.length]}));
+ }
+ function getActiveUser(){
+  try{return JSON.parse(sessionStorage.getItem('nexusUser')||'null')}catch{return null}
+ }
+ function selectFocusedVehicle(role,vehicles){
+  if(!Array.isArray(vehicles)||!vehicles.length)return null;
+  if(role==='PUBLIC')return null;
+  if(role==='PATIENT')return vehicles[0]?.unit||null;
+  const user=getActiveUser();
+  const byUnit=[user?.vehicleUnit,user?.vehicle_unit,user?.unitNumber,user?.assignedVehicle].map(v=>String(v||'').toUpperCase()).filter(Boolean);
+  const unitMatch=vehicles.find(v=>byUnit.includes(String(v.unit||'').toUpperCase()));
+  if(unitMatch)return unitMatch.unit;
+  const byDriver=[user?.displayName,user?.name,user?.email].map(v=>String(v||'').toUpperCase()).filter(Boolean);
+  const driverMatch=vehicles.find(v=>byDriver.some(s=>String(v.driverName||v.driver||'').toUpperCase().includes(s)));
+  if(driverMatch)return driverMatch.unit;
+  if(role==='DRIVER'){
+   const moving=vehicles.find(v=>['EN_ROUTE','ARRIVED','PATIENT_ON_BOARD','DRIVER_ASSIGNED'].includes(v.status));
+   if(moving)return moving.unit;
+  }
+  return vehicles[0].unit;
  }
  function statusClass(v){return v.attention?'attention':v.status==='PATIENT_ON_BOARD'?'onboard':v.status==='AVAILABLE'?'available':'moving'}
  function interpolateRoute(route,pct){
@@ -75,7 +96,15 @@
  function ensureFleetMap(){const el=$('#fleetMap');if(!el)return false;if(!fleetMap)fleetMap=nativeMap(el);return true}
  function clearFleetMap(){fleetMarkers=[];if(fleetMap){fleetMap.markers.innerHTML='';fleetMap.routes.innerHTML='';fleetMap.popup.hidden=true}}
  function showVehicle(index){const v=fleetVehicles[index],m=fleetMarkers[index];if(!v||!m||!fleetMap)return;const pos=interpolateRoute(v.route,v.progress);fleetMap.setView(pos,13);fleetMap.popup.innerHTML=`<strong>${esc(v.unit)}</strong><span>${esc(v.service||'Nexus transport')}</span><b>${esc(v.statusLabel)}</b><small>${esc(v.routeLabel||'Operational route')} · ${Math.round(v.progress)}%</small><small>${esc(v.eta||'Monitoring')}</small>`;fleetMap.popup.hidden=false;fleetMap.popup.style.left='50%';fleetMap.popup.style.top='38%'}
- function animateFleetMap(){if(!fleetMap||!fleetVehicles.length)return;fleetVehicles.forEach((v,i)=>{if(!['AVAILABLE','ARRIVED'].includes(v.status)){v.progress=(Number(v.progress)||0)+0.035;if(v.progress>=100)v.progress=1}const m=fleetMarkers[i];if(m){const pos=interpolateRoute(v.route,v.progress),xy=fleetMap.project(pos[0],pos[1]);m.style.transform=`translate(${xy[0]}px,${xy[1]}px) translate(-50%,-50%)`}});fleetAnimationFrame=requestAnimationFrame(animateFleetMap)}
+ function syncPinnedPopup(){
+  if(!fleetMap||!pinnedVehicleUnit)return;
+  const idx=fleetVehicles.findIndex(v=>v.unit===pinnedVehicleUnit);
+  if(idx<0){fleetMap.popup.hidden=true;return;}
+  const v=fleetVehicles[idx];
+  fleetMap.popup.innerHTML=`<strong>${esc(v.unit)}</strong><span>${esc(v.service||'Nexus transport')}</span><b>${esc(v.statusLabel)}</b><small>${esc(v.routeLabel||'Operational route')} · ${Math.round(v.progress)}%</small><small>${esc(v.eta||'Monitoring')}</small>`;
+  fleetMap.popup.hidden=false;
+ }
+ function animateFleetMap(){if(!fleetMap||!fleetVehicles.length)return;fleetVehicles.forEach((v,i)=>{if(!['AVAILABLE','ARRIVED'].includes(v.status)){v.progress=(Number(v.progress)||0)+0.035;if(v.progress>=100)v.progress=1}const m=fleetMarkers[i];if(m){const pos=interpolateRoute(v.route,v.progress),xy=fleetMap.project(pos[0],pos[1]);m.style.transform=`translate(${xy[0]}px,${xy[1]}px) translate(-50%,-50%)`}});syncPinnedPopup();fleetAnimationFrame=requestAnimationFrame(animateFleetMap)}
  function personalizeLivecare(role,trip){
   const audience=$('#livecareAudience'),headline=$('#livecareHeadline'),intro=$('#livecareIntro'),gateway=document.querySelector('.accessGateway');
   const user=(()=>{try{return JSON.parse(sessionStorage.getItem('nexusUser')||'null')}catch{return null}})();
@@ -88,7 +117,13 @@
    ADMIN:['Operations Livecare','System-wide transportation movement.','Authorized operational movement is consolidated into one live map.']
   }[role]||null;
   if(copy){audience.textContent=copy[0];headline.textContent=copy[1];intro.textContent=copy[2]} document.querySelector('.livecareExperience')?.setAttribute('data-role',role);
-  if(gateway)gateway.hidden=false; const accessLabel=$('#currentAccessLabel'),logout=$('#livecareLogout'); if(accessLabel)accessLabel.textContent=role==='PUBLIC'?'Choose your user type':`${copy?.[0]||role} active`; if(logout)logout.hidden=role==='PUBLIC';
+  livecareRole=role;
+  if(gateway)gateway.hidden=role!=='PUBLIC';
+  const accessLabel=$('#currentAccessLabel'),logout=$('#livecareLogout');
+  if(accessLabel)accessLabel.textContent=role==='PUBLIC'?'Choose your user type':`${copy?.[0]||role} active`;
+  if(logout)logout.hidden=role==='PUBLIC';
+  const focusEl=$('#fleetUserFocus');
+  if(focusEl)focusEl.textContent=role==='PUBLIC'?'Public network overview':'User-focused live operations';
 }
 function serviceMatches(vehicle,filter){
   if(filter==='ALL')return true;
@@ -107,13 +142,26 @@ function statusMatches(vehicle,filter){
 }
 function drawFilteredFleet(){
   fleetVehicles=allFleetVehicles.filter(v=>serviceMatches(v,activeServiceFilter)&&statusMatches(v,activeStatusFilter));
+  const focusedFromAll=focusedVehicleUnit?allFleetVehicles.find(v=>v.unit===focusedVehicleUnit):null;
+  if(focusedFromAll&&!fleetVehicles.some(v=>v.unit===focusedVehicleUnit))fleetVehicles=[focusedFromAll,...fleetVehicles];
   if(!ensureFleetMap())return;
   clearFleetMap();
-  fleetVehicles.forEach((v,i)=>{const b=document.createElement('button');b.type='button';b.className=`nativeVehicleMarker ${statusClass(v)}`;b.innerHTML=`<span>N</span><b>${esc((v.unit||'N').replace('NEX-',''))}</b>`;b.setAttribute('aria-label',`${v.unit} ${v.statusLabel}`);b.addEventListener('click',()=>showVehicle(i));fleetMap.markers.appendChild(b);fleetMarkers.push(b)});
+  fleetVehicles.forEach((v,i)=>{const isFocused=focusedVehicleUnit&&v.unit===focusedVehicleUnit,isDimmed=Boolean(focusedVehicleUnit&&!isFocused);const b=document.createElement('button');b.type='button';b.className=`nativeVehicleMarker ${statusClass(v)} ${isFocused?'focused':''} ${isDimmed?'dimmed':''}`.trim();b.innerHTML=`<span>N</span><b>${esc((v.unit||'N').replace('NEX-',''))}</b>`;b.setAttribute('aria-label',`${v.unit} ${v.statusLabel}`);b.addEventListener('click',()=>{pinnedVehicleUnit=v.unit;showVehicle(i)});fleetMap.markers.appendChild(b);fleetMarkers.push(b)});
   if(fleetVehicles.length)fleetMap.fit(); else {fleetMap.routes.innerHTML='';fleetMap.popup.hidden=true;}
+  if(focusedVehicleUnit){
+   pinnedVehicleUnit=focusedVehicleUnit;
+   const focusedIndex=fleetVehicles.findIndex(v=>v.unit===focusedVehicleUnit);
+   if(focusedIndex>=0)showVehicle(focusedIndex);
+  }else pinnedVehicleUnit=null;
+  syncPinnedPopup();
   const statusText=activeStatusFilter?document.querySelector(`[data-status-filter="${activeStatusFilter}"] small`)?.textContent:'all statuses';
   const serviceText=document.querySelector(`[data-service-filter="${activeServiceFilter}"]`)?.textContent||'all services';
   const mapStatus=$('#fleetMapStatus');if(mapStatus)mapStatus.textContent=`${fleetVehicles.length} vehicle${fleetVehicles.length===1?'':'s'} · ${serviceText} · ${statusText}`;
+  const focusEl=$('#fleetUserFocus');
+  if(focusEl){
+   if(focusedVehicleUnit)focusEl.textContent=`Focused vehicle ${focusedVehicleUnit} · broader network remains visible`;
+   else focusEl.textContent=livecareRole==='PUBLIC'?'Public network overview':'User-focused live operations';
+  }
   cancelAnimationFrame(fleetAnimationFrame);animateFleetMap();
 }
 function bindFleetFilters(){
@@ -124,6 +172,7 @@ function renderFleet(data,role,mode){
   personalizeLivecare(role);
   const board=$('#liveRideBoard'),metrics=$('#liveRideMetrics'),scope=$('#rideBoardScope'),updated=$('#fleetUpdated'),mapStatus=$('#fleetMapStatus');
   allFleetVehicles=(data.vehicles||[]).map((v,i)=>({...v,route:Array.isArray(v.route)&&v.route.length?v.route:routeLibrary[i%routeLibrary.length],progress:Number(v.progress)||0}));
+  focusedVehicleUnit=selectFocusedVehicle(role,allFleetVehicles);
   fleetVehicles=[...allFleetVehicles];
   const vehicles=allFleetVehicles,moving=vehicles.filter(v=>['EN_ROUTE','ARRIVED','PATIENT_ON_BOARD','DRIVER_ASSIGNED'].includes(v.status)).length,onboard=vehicles.filter(v=>v.status==='PATIENT_ON_BOARD').length,available=vehicles.filter(v=>v.status==='AVAILABLE').length,attention=vehicles.filter(v=>v.attention).length;
   metrics.innerHTML=`<button type="button" data-status-filter="MOVING" aria-pressed="false"><small>Moving</small><strong>${moving}</strong></button><button type="button" data-status-filter="PATIENT_ON_BOARD" aria-pressed="false"><small>With patient</small><strong>${onboard}</strong></button><button type="button" data-status-filter="AVAILABLE" aria-pressed="false"><small>Available</small><strong>${available}</strong></button><button type="button" data-status-filter="ATTENTION" aria-pressed="false"><small>Attention</small><strong>${attention}</strong></button>`; bindFleetFilters();
