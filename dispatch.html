@@ -2141,6 +2141,21 @@ $('saveCustomCompany').addEventListener('click',()=>{
     editorHomeAnchor.appendChild(calendarEditorAnchor);
   }
 
+  const schedulerViewEl=document.getElementById('tripSchedulerView');
+  const schedulerEditorAnchor=document.createElement('div');
+  schedulerEditorAnchor.id='dispatchTripEditorSchedulerAnchor';
+  schedulerEditorAnchor.style.marginTop='12px';
+  const schedulerEditorHeading=document.createElement('div');
+  schedulerEditorHeading.id='dispatchTripEditorSchedulerHeading';
+  schedulerEditorHeading.hidden=true;
+  schedulerEditorHeading.innerHTML='<p class="eyebrow" style="margin:0 0 8px">Selected trip details</p>';
+  schedulerEditorAnchor.appendChild(schedulerEditorHeading);
+  if(schedulerViewEl&&schedulerViewEl.parentNode){
+    schedulerViewEl.insertAdjacentElement('afterend',schedulerEditorAnchor);
+  }else{
+    editorHomeAnchor.appendChild(schedulerEditorAnchor);
+  }
+
   let inlineEditorRow=null;
 
   function clearInlineEditorRow(){
@@ -2173,15 +2188,27 @@ $('saveCustomCompany').addEventListener('click',()=>{
     panel.style.marginTop='14px';
     panel.hidden=true;
     calendarEditorHeading.hidden=true;
+    schedulerEditorHeading.hidden=true;
     editorHomeAnchor.appendChild(panel);
   }
 
   function mountEditorUnderCalendar(){
     clearInlineEditorRow();
     panel.style.marginTop='14px';
+    schedulerEditorHeading.hidden=true;
     calendarEditorHeading.hidden=false;
     if(!calendarEditorHeading.parentNode) calendarEditorAnchor.appendChild(calendarEditorHeading);
     calendarEditorAnchor.appendChild(panel);
+    return true;
+  }
+
+  function mountEditorUnderScheduler(){
+    clearInlineEditorRow();
+    panel.style.marginTop='14px';
+    calendarEditorHeading.hidden=true;
+    schedulerEditorHeading.hidden=false;
+    if(!schedulerEditorHeading.parentNode) schedulerEditorAnchor.appendChild(schedulerEditorHeading);
+    schedulerEditorAnchor.appendChild(panel);
     return true;
   }
 
@@ -3223,14 +3250,16 @@ $('saveCustomCompany').addEventListener('click',()=>{
     panel.hidden = false;
     try{
       await loadTrip(ref);
-      if(!mountEditorUnderReference(ref)){
-        const isCalendarView=String(document.getElementById('tripViewType')?.value||'').toUpperCase()==='CALENDAR' && calendarViewEl && !calendarViewEl.hidden;
-        if(isCalendarView){
-          mountEditorUnderCalendar();
-        }else{
-          panel.style.marginTop='14px';
-          editorHomeAnchor.appendChild(panel);
-        }
+      const activeView=String(document.getElementById('tripViewType')?.value||'TABLE').toUpperCase();
+      const isCalendarView=activeView==='CALENDAR' && calendarViewEl && !calendarViewEl.hidden;
+      const isSchedulerView=activeView==='SCHEDULER' && schedulerViewEl && !schedulerViewEl.hidden;
+      if(isCalendarView){
+        mountEditorUnderCalendar();
+      }else if(isSchedulerView){
+        mountEditorUnderScheduler();
+      }else if(!mountEditorUnderReference(ref)){
+        panel.style.marginTop='14px';
+        editorHomeAnchor.appendChild(panel);
       }
     }
     catch(err){ setMsg(err.message||'Unable to load selected trip','err'); }
