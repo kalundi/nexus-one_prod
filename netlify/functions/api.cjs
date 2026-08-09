@@ -3083,22 +3083,39 @@ async function handler(event){
   }
    let policyEnforced=true;
    let warning='';
+   const normalizedEmail=clean(b.email).toLowerCase();
+   const normalizedName=clean(b.name);
+   const normalizedRole=String(b.role).toUpperCase();
+   const identitySubject=crypto.randomUUID();
    try{
-    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,must_change_password,password_reset_expires,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,true,$8,$9,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,tempPasswordExpiresAt,orgId,crypto.randomUUID()]);
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,must_change_password,password_reset_expires,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,true,$8,$9,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,phoneDigits,tempPasswordExpiresAt,orgId,identitySubject]);
    }catch(err){
     const message=String(err?.message||'').toLowerCase();
     if(message.includes('organization')||message.includes('organization_id')){
       return json(500,{error:'Organization setup is incomplete. Run reset standard accounts, then try again.'});
     }
-    const missingOptionalColumn=message.includes('column')&&(message.includes('phone')||message.includes('must_change_password')||message.includes('password_reset_expires'));
-    if(!missingOptionalColumn)throw err;
-    // Fallback path for older schemas: create the user with core columns, then best-effort set optional policy columns.
-    await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,orgId,crypto.randomUUID()]);
-    const phoneUpdate=await query('UPDATE users SET phone=$2,updated_at=now() WHERE id=$1',[userId,phoneDigits]).then(()=>true).catch(()=>false);
-    const policyUpdate=await query('UPDATE users SET must_change_password=true,password_reset_expires=$2,updated_at=now() WHERE id=$1',[userId,tempPasswordExpiresAt]).then(()=>true).catch(()=>false);
-    policyEnforced=Boolean(policyUpdate);
-    if(!phoneUpdate||!policyUpdate){
-      warning='User created, but password policy columns are missing in this environment. Run migrations to enforce 2-hour temporary password expiry.';
+    let createdViaFallback=false;
+    try{
+      // Fallback 1: keep organization and identity subject, drop optional temp-password columns.
+      await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,orgId,identitySubject]);
+      createdViaFallback=true;
+    }catch(fallbackErr1){
+      const fallbackMessage1=String(fallbackErr1?.message||'').toLowerCase();
+      if(fallbackMessage1.includes('identity_subject')){
+        // Fallback 2: older schemas without identity_subject.
+        await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,orgId]);
+        createdViaFallback=true;
+      }else{
+        throw Object.assign(new Error(`User create failed: ${fallbackErr1.message||'database insert error'}`),{statusCode:500});
+      }
+    }
+    if(createdViaFallback){
+      const phoneUpdate=await query('UPDATE users SET phone=$2,updated_at=now() WHERE id=$1',[userId,phoneDigits]).then(()=>true).catch(()=>false);
+      const policyUpdate=await query('UPDATE users SET must_change_password=true,password_reset_expires=$2,updated_at=now() WHERE id=$1',[userId,tempPasswordExpiresAt]).then(()=>true).catch(()=>false);
+      policyEnforced=Boolean(policyUpdate);
+      if(!phoneUpdate||!policyUpdate){
+        warning='User created, but some security-policy columns are unavailable in this environment. Run migrations to enforce the 2-hour temporary password expiry.';
+      }
     }
    }
    await audit('USER',userId,'CREATED',{role:b.role,by:me.email});
