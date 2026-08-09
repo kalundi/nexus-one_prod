@@ -12,7 +12,7 @@ const {ensureDefaultTestUsers, ensureDefaultUserForEmail}=require('./_shared/def
 const {buildDriverEmployeeLookupSql, buildDriverAvailabilitySql}=require('./_shared/employee-driver-lookup.cjs');
 const {getFallbackUser, createFallbackSession, getFallbackSession, revokeFallbackSession, getFallbackAssignments, acceptFallbackAssignment, updateFallbackAssignmentStatus}=require('./_shared/fallback-auth.cjs');
 const {parseChannels,isDryRunValue,previewSocialSelection,runSocialPublish}=require('./_shared/social-engine.cjs');
-const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
+const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
 const clean=v=>String(v??'').trim();
@@ -2908,15 +2908,25 @@ async function handler(event){
   return json(200,{booking:mapBooking(afterRow),notifications});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
-   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const next=STATUS_FLOW[current.rows[0].status]||current.rows[0].status;
+   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const currentStatus=String(current.rows[0].status||'').toUpperCase();const next=STATUS_FLOW[currentStatus]||currentStatus;
     const submittedAppointment=getSubmittedAppointmentTime(current.rows[0]);
     if(!submittedAppointment)return json(409,{error:'Appointment time is required before advancing this trip. The submitter must provide appointment time first.',booking:mapBooking(current.rows[0])});
-  const availabilityCheck=await query(buildDriverAvailabilitySql());
+   if(!next||next===currentStatus)return json(409,{error:'Trip is already at the furthest workflow step for manual advance.',booking:mapBooking(current.rows[0])});
+  const driverAvailabilitySql=typeof buildDriverAvailabilitySql==='function'
+   ? buildDriverAvailabilitySql()
+   : `SELECT COUNT(DISTINCT e.id) AS available
+      FROM employees e
+      INNER JOIN employee_shifts es ON e.id=es.employee_id
+      LEFT JOIN users u ON e.user_id=u.id
+      WHERE e.role='DRIVER' AND e.active=true AND es.active=true AND u.scope_id IS NOT NULL`;
+  const availabilityCheck=await query(driverAvailabilitySql);
    const vehicleCheck=await query(`SELECT COUNT(*) as vehicle_count FROM vehicles WHERE active=true AND status='AVAILABLE'`,[]);
-   const availability={available:Number(availabilityCheck.rows[0]?.driver_count||0)>0&&Number(vehicleCheck.rows[0]?.vehicle_count||0)>0,drivers:{available:Number(availabilityCheck.rows[0]?.driver_count||0)},vehicles:{available:Number(vehicleCheck.rows[0]?.vehicle_count||0)}};
+   const driversAvailable=Number(availabilityCheck.rows[0]?.driver_count ?? availabilityCheck.rows[0]?.available ?? 0);
+   const vehiclesAvailable=Number(vehicleCheck.rows[0]?.vehicle_count||0);
+   const availability={available:driversAvailable>0&&vehiclesAvailable>0,drivers:{available:driversAvailable},vehicles:{available:vehiclesAvailable}};
    const approval=canAdvanceBookingForAvailability({currentStatus:current.rows[0].status,nextStatus:next,availability});
    if(!approval.allowed){return json(409,{error:approval.message,approval,booking:mapBooking(current.rows[0])});}
-  const r=await query('UPDATE bookings SET status=$2,updated_at=now() WHERE reference=$1 RETURNING *',[ref,next]);await query('INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,$2,$3,$4)',[ref,next,statusLabel(next),u.display_name]);await audit('BOOKING',ref,'STATUS_ADVANCED',{from:current.rows[0].status,to:next});
+  const r=await query('UPDATE bookings SET status=$2,updated_at=now() WHERE reference=$1 RETURNING *',[ref,next]);await query('INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,$2,$3,$4)',[ref,next,statusLabel(next),u.display_name||u.email||u.role]);await audit('BOOKING',ref,'STATUS_ADVANCED',{from:current.rows[0].status,to:next});
   const advanceNote=`Status advanced from ${statusLabel(current.rows[0].status)} to ${statusLabel(next)} by ${u.display_name||u.email||u.role}.`;
   const advanceNotifications=await sendTripStakeholderUpdate(current.rows[0],r.rows[0],u,advanceNote).catch(()=>({status:'failed'}));
    // When driver is en route and customer only paid a deposit, send the balance-due reminder
