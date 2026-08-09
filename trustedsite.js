@@ -17,4 +17,37 @@
     console.warn('TrustedSite trustmark could not load. It may require the verified production domain or may be blocked by a privacy extension.');
   });
   document.head.appendChild(script);
+
+  function enforceAccessibilityWidgetPresentation() {
+    if (!document.head) return;
+    if (!document.getElementById('nexus-accessibility-worldclass-style')) {
+      var style = document.createElement('style');
+      style.id = 'nexus-accessibility-worldclass-style';
+      style.textContent = ''
+        + '.accessButton,#accessToggle{position:fixed!important;right:18px!important;top:50%!important;bottom:auto!important;transform:translateY(-50%)!important;z-index:152!important;}'
+        + '.accessPanel,#accessPanel,#accessibility-options{position:fixed!important;right:82px!important;top:50%!important;bottom:auto!important;transform:translateY(-50%)!important;z-index:151!important;}'
+        + '.accessPanel button,#accessPanel button,#accessibility-options button{font:800 13px/1.2 Manrope,"Source Sans 3","Segoe UI",sans-serif!important;letter-spacing:.02em!important;text-transform:uppercase!important;border-radius:11px!important;}';
+      document.head.appendChild(style);
+    }
+
+    var panel = document.getElementById('accessibility-options') || document.getElementById('accessPanel');
+    var toggle = document.querySelector('.accessButton, #accessToggle, [aria-controls="accessibility-options"], [aria-controls="accessPanel"]');
+    if (panel && toggle && !toggle.dataset.nexusAccessNormalized) {
+      toggle.dataset.nexusAccessNormalized = '1';
+      panel.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+      document.addEventListener('click', function (event) {
+        if (!panel || panel.hidden) return;
+        if (panel.contains(event.target) || toggle.contains(event.target)) return;
+        panel.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', enforceAccessibilityWidgetPresentation, { once: true });
+  } else {
+    enforceAccessibilityWidgetPresentation();
+  }
 })();
