@@ -1307,6 +1307,11 @@ $('saveCustomCompany').addEventListener('click',()=>{
   schedulerDateInput.value = now.toISOString().slice(0,10);
   if(loadLocalBtn) loadLocalBtn.hidden = true;
   const schedulerDriverCache = new Map();
+  const schedulerAssignmentInFlight = new Set();
+  const schedulerRuntime = {
+    candidateMap:new Map(),
+    driverVehicleMap:new Map()
+  };
 
   function schedulerCacheKey(dateValue, timeValue){
     return `${String(dateValue||'').trim()}|${String(timeValue||'').trim()}`;
@@ -1537,6 +1542,46 @@ $('saveCustomCompany').addEventListener('click',()=>{
     });
   }
 
+  async function assignSchedulerTrip(reference, driverName){
+    const ref=String(reference||'').trim();
+    const driver=String(driverName||'').trim();
+    if(!ref||!driver) return;
+    const lockKey=`${ref}|${driver}`;
+    if(schedulerAssignmentInFlight.has(lockKey)) return;
+    schedulerAssignmentInFlight.add(lockKey);
+    try{
+      const token=sessionStorage.getItem('nexusAccessToken')||'';
+      const payload={driverName:driver};
+      const suggestedVehicle=String(schedulerRuntime.driverVehicleMap.get(driver)||'').trim();
+      if(suggestedVehicle) payload.vehicleUnit=suggestedVehicle;
+      const res=await fetch(`/api/admin/bookings/${encodeURIComponent(ref)}`,
+        {
+          method:'PATCH',
+          headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},
+          body:JSON.stringify(payload)
+        }
+      );
+      const json=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(json.error||'Unable to assign trip to selected driver');
+      window.NexusTripPopup?.show({
+        title:'Trip assigned',
+        message:`${ref} assigned to ${driver}.`,
+        detail:suggestedVehicle?`Vehicle ${suggestedVehicle} was applied from driver profile.`:'Driver assignment updated.',
+        accent:'#0f766e'
+      });
+      await refreshTripsFromApi();
+    }catch(err){
+      window.NexusTripPopup?.show({
+        title:'Assignment failed',
+        message:`Unable to assign ${ref}.`,
+        detail:err.message||'Try again or assign from Trip Editor.',
+        accent:'#b42318'
+      });
+    }finally{
+      schedulerAssignmentInFlight.delete(lockKey);
+    }
+  }
+
   function renderScheduler(trips, drivers){
     const dateKey=String(schedulerDateInput.value||new Date().toISOString().slice(0,10)).trim();
     const dayTrips=(Array.isArray(trips)?trips:[]).filter((trip)=>tripDateKey(trip)===dateKey&&isTripOpenForDispatch(trip));
@@ -1582,6 +1627,12 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const roster=[...(Array.isArray(drivers)?drivers:[])]
       .filter((d)=>d?.active!==false&&String(d?.name||'').trim())
       .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+    schedulerRuntime.driverVehicleMap=new Map(
+      roster
+        .map((d)=>[String(d?.name||'').trim(),String(d?.vehicleUnit||'').trim()])
+        .filter((entry)=>entry[0])
+    );
+    schedulerRuntime.candidateMap=new Map();
     const rosterNames=new Set(roster.map((d)=>String(d.name||'').trim()));
     const laneNames=[...new Set([
       ...roster.map((d)=>String(d.name||'').trim()),
@@ -1606,7 +1657,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         const tone=schedulerStatusTone(item.trip);
         return `<button type="button" data-scheduler-ref="${escapeHtml(item.reference)}" title="${escapeHtml(item.reference)} | ${escapeHtml(item.status)} | ${prettyMinutes(item.start)}-${prettyMinutes(item.end)}" style="position:absolute;left:${left}%;width:${width}%;top:10px;height:34px;border:1px solid #93a8bd;background:${tone};border-radius:8px;padding:0 8px;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;font-size:11px;font-weight:700;color:#0f172a">${escapeHtml(item.reference)} · ${escapeHtml(prettyMinutes(item.start))}</button>`;
       }).join('');
-      return `<div style="border:1px solid #d6e3ee;border-radius:12px;background:#fff;padding:10px 10px 8px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div><strong style="font-size:13px">${escapeHtml(driverName)}</strong><div style="font-size:11px;color:#667085">${escapeHtml(shiftText)} | Active trips: ${activeTrips}</div></div><span class="status ${onDutyNow?'green':'blue'}" style="font-size:10px">${onDutyNow?'On duty':'Off duty'}</span></div><div style="position:relative;margin-top:8px;height:54px;border:1px dashed #cbd5e1;border-radius:10px;background:linear-gradient(to right,#f8fafc 0,#f8fafc 50%,#f1f5f9 50%,#f1f5f9 100%);background-size:40px 100%">${tripBlocks||'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px">No assigned trips</div>'}</div></div>`;
+      return `<div data-scheduler-lane="${escapeHtml(driverName)}" style="border:1px solid #d6e3ee;border-radius:12px;background:#fff;padding:10px 10px 8px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div><strong style="font-size:13px">${escapeHtml(driverName)}</strong><div style="font-size:11px;color:#667085">${escapeHtml(shiftText)} | Active trips: ${activeTrips}</div></div><span class="status ${onDutyNow?'green':'blue'}" style="font-size:10px">${onDutyNow?'On duty':'Off duty'}</span></div><div style="position:relative;margin-top:8px;height:54px;border:1px dashed #cbd5e1;border-radius:10px;background:linear-gradient(to right,#f8fafc 0,#f8fafc 50%,#f1f5f9 50%,#f1f5f9 100%);background-size:40px 100%">${tripBlocks||'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px">Drop unassigned trip here</div>'}</div></div>`;
     }).join('');
 
     const unassigned=scheduled.filter((s)=>!s.driver);
@@ -1618,8 +1669,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
         const assigned=byDriver.get(name)||[];
         return !assigned.some((other)=>item.start<other.end&&other.start<item.end);
       }).slice(0,4);
+      schedulerRuntime.candidateMap.set(item.reference,candidates.map((d)=>String(d.name||'').trim()).filter(Boolean));
       const list=candidates.length?candidates.map((d)=>escapeHtml(String(d.name||''))).join(', '):'No conflict-free on-duty drivers';
-      return `<div style="padding:10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff"><strong style="font-size:12px">${escapeHtml(item.reference)}</strong><div style="font-size:11px;color:#475467;margin-top:2px">${escapeHtml(prettyMinutes(item.start))}-${escapeHtml(prettyMinutes(item.end))} | ${escapeHtml(item.service||'Service')}</div><div style="font-size:11px;color:#0f172a;margin-top:4px"><span class="status amber" style="font-size:10px">Suggested</span> ${list}</div></div>`;
+      return `<div draggable="true" data-scheduler-unassigned-ref="${escapeHtml(item.reference)}" style="padding:10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;cursor:grab"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong style="font-size:12px">${escapeHtml(item.reference)}</strong><div style="display:flex;gap:6px"><button type="button" class="button ghost" data-scheduler-open="${escapeHtml(item.reference)}" style="font-size:11px;padding:5px 8px">Open</button><button type="button" class="button secondary" data-scheduler-auto="${escapeHtml(item.reference)}" style="font-size:11px;padding:5px 8px">Auto assign</button></div></div><div style="font-size:11px;color:#475467;margin-top:6px">${escapeHtml(prettyMinutes(item.start))}-${escapeHtml(prettyMinutes(item.end))} | ${escapeHtml(item.service||'Service')}</div><div style="font-size:11px;color:#0f172a;margin-top:4px"><span class="status amber" style="font-size:10px">Suggested</span> ${list}</div><div style="font-size:10px;color:#64748b;margin-top:6px">Drag this card into a driver lane to assign.</div></div>`;
     }).join('');
 
     const overlapHtml=overlapConflicts.length
@@ -1971,10 +2023,59 @@ $('saveCustomCompany').addEventListener('click',()=>{
   });
 
   schedulerView.addEventListener('click',(event)=>{
+    const autoBtn=event.target.closest('[data-scheduler-auto]');
+    if(autoBtn){
+      const ref=String(autoBtn.dataset.schedulerAuto||'').trim();
+      const candidates=schedulerRuntime.candidateMap.get(ref)||[];
+      if(!ref) return;
+      if(!candidates.length){
+        window.NexusTripPopup?.show({
+          title:'No auto-assignment option',
+          message:`No conflict-free on-duty driver found for ${ref}.`,
+          detail:'Use Trip Editor to assign manually or adjust the schedule window.',
+          accent:'#b42318'
+        });
+        return;
+      }
+      assignSchedulerTrip(ref,candidates[0]);
+      return;
+    }
+    const openBtn=event.target.closest('[data-scheduler-open]');
+    if(openBtn){
+      const ref=String(openBtn.dataset.schedulerOpen||'').trim();
+      if(ref) window.openTripEditor?.(ref);
+      return;
+    }
     const button=event.target.closest('[data-scheduler-ref]');
     if(!button) return;
     const reference=String(button.dataset.schedulerRef||'').trim();
     if(reference) window.openTripEditor?.(reference);
+  });
+
+  schedulerView.addEventListener('dragstart',(event)=>{
+    const card=event.target.closest('[data-scheduler-unassigned-ref]');
+    if(!card) return;
+    const ref=String(card.dataset.schedulerUnassignedRef||'').trim();
+    if(!ref) return;
+    event.dataTransfer?.setData('text/plain',ref);
+    if(event.dataTransfer) event.dataTransfer.effectAllowed='move';
+  });
+
+  schedulerView.addEventListener('dragover',(event)=>{
+    const lane=event.target.closest('[data-scheduler-lane]');
+    if(!lane) return;
+    event.preventDefault();
+    if(event.dataTransfer) event.dataTransfer.dropEffect='move';
+  });
+
+  schedulerView.addEventListener('drop',(event)=>{
+    const lane=event.target.closest('[data-scheduler-lane]');
+    if(!lane) return;
+    event.preventDefault();
+    const driverName=String(lane.getAttribute('data-scheduler-lane')||'').trim();
+    const reference=String(event.dataTransfer?.getData('text/plain')||'').trim();
+    if(!driverName||!reference) return;
+    assignSchedulerTrip(reference,driverName);
   });
 
   sourceFilter.addEventListener('change', renderFiltered);
