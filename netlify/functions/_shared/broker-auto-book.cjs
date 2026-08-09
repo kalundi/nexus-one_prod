@@ -11,6 +11,7 @@ function buildBrokerBookingPayload(request, body = {}, bookingReference) {
     service: cleanString(body.service || request?.service || ''),
     pickup: cleanString(body.pickup || request?.pickup || ''),
     destination: cleanString(body.destination || request?.destination || ''),
+    pickup_time: cleanString(body.pickup_time || request?.pickup_time || body.trip_time || request?.trip_time || ''),
     trip_date: cleanString(body.trip_date || request?.trip_date || ''),
     trip_time: cleanString(body.trip_time || request?.trip_time || ''),
     notes: cleanString(body.notes || request?.notes || ''),

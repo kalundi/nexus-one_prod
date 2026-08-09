@@ -72,14 +72,21 @@ function clean(value,max=500){
 }
 
 function splitLocationTypeAndAddress(value){
- const text=clean(value,500);
+ let text=clean(value,500);
  if(!text)return {location:'',address:''};
- const match=text.match(/^(.*?)(\s+\d{2,}\b[\s\S]*)$/s);
- if(!match)return {location:'',address:text};
- return {
-  location:clean(match[1],160),
-  address:clean(match[2],300)
- };
+ text=text.replace(/^(?:pickup|pickup\s*address|destination|destination\s*address|drop\s*off|dropoff|from|to)\s*[:\-\s]*/i,'').trim();
+ const prefixMatch=text.match(/^(home|facility|hospital|clinic|residence|other|nursing\s+home|senior\s+living|assisted\s+living|care\s+center|dialysis\s+center|office|work|school)\b[\s,:-]+(.+)$/i);
+ if(prefixMatch){
+  const address=clean(prefixMatch[2],300);
+  if(address) return {location:clean(prefixMatch[1],160),address};
+ }
+ const addressMatch=text.match(/(\d{1,6}\s+.+)$/);
+ if(addressMatch){
+  const address=clean(addressMatch[1],300);
+  const location=clean(text.slice(0,text.length-address.length).replace(/[\s,;:-]+$/,'').trim(),160);
+  return {location,address};
+ }
+ return {location:'',address:text};
 }
 
 function safeJsonParse(value){
@@ -181,6 +188,52 @@ function firstField(fields,keys=[]){
   if(value)return value;
  }
  return '';
+}
+
+function parseLineItemNumber(value){
+ const text=clean(value,120);
+ if(!text) return 0;
+ const parsed=Number(String(text).replace(/[$,]/g,''));
+ return Number.isFinite(parsed)?parsed:0;
+}
+
+function computeBrokerQuotedRateFromSection(labeledFields, fallbackRate=0){
+ const flatRate=parseLineItemNumber(firstField(labeledFields,['flat_rate','flatrate']));
+ const perMile=parseLineItemNumber(firstField(labeledFields,['per_mile','permile','mile_rate']));
+ const waitTime=parseLineItemNumber(firstField(labeledFields,['wait_time','wait']));
+ const totalMiles=parseLineItemNumber(firstField(labeledFields,['total_miles','miles','distance']));
+ const noShowFee=parseLineItemNumber(firstField(labeledFields,['no_show_fee','noshow_fee','no_show']));
+ if(flatRate>0){
+  return {
+   brokerQuotedRate:Number((flatRate+(waitTime*2)).toFixed(2)),
+   quoteBasis:'flat_rate',
+   flatRate:Number(flatRate.toFixed(2)),
+   perMile:0,
+   waitTime:Number(waitTime.toFixed(2)),
+   totalMiles:Number(totalMiles.toFixed(2)),
+   noShowFee:Number(noShowFee.toFixed(2))
+  };
+ }
+ if(perMile>0&&totalMiles>0){
+  return {
+   brokerQuotedRate:Number(((perMile*totalMiles)+(waitTime*2)).toFixed(2)),
+   quoteBasis:'per_mile',
+   flatRate:0,
+   perMile:Number(perMile.toFixed(2)),
+   waitTime:Number(waitTime.toFixed(2)),
+   totalMiles:Number(totalMiles.toFixed(2)),
+   noShowFee:Number(noShowFee.toFixed(2))
+  };
+ }
+ return {
+  brokerQuotedRate:Number(fallbackRate||0),
+  quoteBasis:'fallback',
+  flatRate:0,
+  perMile:0,
+  waitTime:Number(waitTime.toFixed(2)),
+  totalMiles:Number(totalMiles.toFixed(2)),
+  noShowFee:Number(noShowFee.toFixed(2))
+ };
 }
 
 function extractZipBoundedAddressChunks(input,maxChunks=3){
@@ -605,9 +658,11 @@ function parseBrokerIntakeText(input){
   destination:'',
   trip_date:'',
   trip_time:'',
+  pickup_time:'',
   service:'ambulatory',
   broker_name:'Unknown Broker',
   patient_name:'',
+  patient_phone:'',
   referral_id:'',
   crm_reference:'',
   broker_quoted_rate:0,
@@ -634,6 +689,8 @@ function parseBrokerIntakeText(input){
  if(serviceMatch)result.service=clean(serviceMatch[2],120);
  if(brokerNameMatch)result.broker_name=clean(brokerNameMatch[2],160);
  if(patientMatch)result.patient_name=clean(patientMatch[2],160);
+ if(!result.patient_phone)result.patient_phone=firstField(labeledFields,['member_phone','patient_phone','phone_number','phone']);
+ if(!result.pickup_time)result.pickup_time=firstField(labeledFields,['pickup_time','requested_pickup_time','requested_time','pickup_time_estimate']);
  if(referralMatch)result.referral_id=clean(referralMatch[2],120);
  if(crmMatch)result.crm_reference=clean(crmMatch[2],120);
  if(rateMatch)result.broker_quoted_rate=parseCurrencyValue(rateMatch[1]);
@@ -720,6 +777,24 @@ function parseBrokerIntakeText(input){
   if(!result.destination&&tableParsed.destination)result.destination=tableParsed.destination;
  }
 
+ if(!result.patient_phone){
+  const phoneAlt=text.match(/(?:^|\r?\n)\s*(?:patient\s*phone|member\s*phone|phone\s*number|phone)\s*[:|-]\s*([+()\d\s.-]{7,})/i);
+  if(phoneAlt) result.patient_phone=clean(phoneAlt[1],60);
+ }
+
+ const quoteSection=computeBrokerQuotedRateFromSection(labeledFields, result.broker_quoted_rate);
+ if(quoteSection.quoteBasis!=='fallback'){
+  result.broker_quoted_rate=quoteSection.brokerQuotedRate;
+ }else if(result.broker_quoted_rate<=0){
+  result.broker_quoted_rate=quoteSection.brokerQuotedRate;
+ }
+ result.quote_basis=quoteSection.quoteBasis;
+ result.flat_rate=quoteSection.flatRate;
+ result.per_mile=quoteSection.perMile;
+ result.wait_time=quoteSection.waitTime;
+ result.total_miles=quoteSection.totalMiles;
+ result.no_show_fee=quoteSection.noShowFee;
+
  const pickupSplit=splitLocationTypeAndAddress(result.pickup);
  const destinationSplit=splitLocationTypeAndAddress(result.destination);
  result.pickup_location=pickupSplit.location||result.pickup_location||'';
@@ -729,11 +804,15 @@ function parseBrokerIntakeText(input){
 
  result.pickup=cleanupParsedAddress(result.pickup);
  result.destination=cleanupParsedAddress(result.destination);
+ result.pickup=clean(result.pickup,300);
+ result.destination=clean(result.destination,300);
+ if(!result.pickup||!result.destination)return null;
 
  const extraFields={
   member_id:firstField(labeledFields,['member_id','member_number','medicaid_id','id_number']),
   member_dob:firstField(labeledFields,['date_of_birth','dob','birth_date']),
   member_phone:firstField(labeledFields,['member_phone','patient_phone','phone','phone_number']),
+  patient_phone:result.patient_phone,
   pickup_phone:firstField(labeledFields,['pickup_phone','origin_phone']),
   destination_phone:firstField(labeledFields,['destination_phone','dropoff_phone','drop_off_phone']),
   appointment_type:firstField(labeledFields,['appointment_type','trip_type','reason_for_visit']),
@@ -1013,7 +1092,7 @@ async function insertBrokerRequest({brokerId,brokerName,service,pickup,destinati
 function buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimate}){
  return [
   'Broker confirmation intake created from inbound email attachment.',
-  `Broker quoted (with 2h wait): $${Number(brokerRate||0).toFixed(2)}`,
+  `Broker quoted (including wait): $${Number(brokerRate||0).toFixed(2)}`,
   `Platform rate (with 2h wait): $${Number(platformRate||0).toFixed(2)}`,
   `Variance: $${Number((brokerRate-platformRate)||0).toFixed(2)}`,
   `Estimated operating cost: $${Number(tripCostEstimate||0).toFixed(2)}`,
@@ -1027,17 +1106,18 @@ function buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimat
 async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,platformRate,tripCostEstimate,tripDate,tripTime,brokerRequestId,attachments=[]}){
  const bookingReference=reference();
  const notes=buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimate});
- const result=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,pickup_location,dropoff_location,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
- VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,null,null,null,null,$14,null,$15,$16,$17,$18,$19,now(),now()) RETURNING *`,[
+ const result=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,pickup_location,dropoff_location,pickup_time,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,null,null,null,null,$15,null,$16,$17,$18,$19,$20,now(),now()) RETURNING *`,[
   bookingReference,
   parsed.patient_name||brokerName||'Broker Request',
-  null,
+  parsed.patient_phone||null,
   null,
   parsed.service,
   parsed.pickup,
   parsed.destination,
   parsed.pickup_location||null,
   parsed.destination_location||null,
+  parsed.pickup_time||tripTime||null,
   tripDate,
   tripTime,
   'PENDING_DISPATCH_CONFIRMATION',
@@ -1059,27 +1139,33 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
  const normalizedBrokerQuote=Number(n(parsed.broker_quoted_rate,0).toFixed(2));
  await query(`UPDATE bookings SET
   name=$2,
-  service=$3,
-  pickup=$4,
-  destination=$5,
-  pickup_location=$6,
-  dropoff_location=$7,
-  trip_date=$8,
-  trip_time=$9,
-  notes=$10,
-  distance_miles=$11,
-  estimated_fare=$12,
-  broker_company_name=$13,
-  broker_accepted_rate=$14,
+  phone=COALESCE($3,phone),
+  email=COALESCE($4,email),
+  service=$5,
+  pickup=$6,
+  destination=$7,
+  pickup_location=$8,
+  dropoff_location=$9,
+  pickup_time=COALESCE($10,pickup_time),
+  trip_date=$11,
+  trip_time=$12,
+  notes=$13,
+  distance_miles=$14,
+  estimated_fare=$15,
+  broker_company_name=$16,
+  broker_accepted_rate=$17,
   updated_at=now()
   WHERE reference=$1`,[
   bookingReference,
   parsed.patient_name||brokerName||'Broker Request',
+  parsed.patient_phone||null,
+  parsed.submitter_email||null,
   parsed.service,
   parsed.pickup,
   parsed.destination,
   parsed.pickup_location||null,
   parsed.destination_location||null,
+  parsed.pickup_time||tripTime||null,
   tripDate,
   tripTime,
   notes,
@@ -1125,12 +1211,20 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
    destination:parsed.destination,
    trip_date:tripDate,
    trip_time:tripTime,
+    pickup_time:parsed.pickup_time||tripTime||null,
    service:parsed.service,
    patient_name:parsed.patient_name||null,
+    patient_phone:parsed.patient_phone||null,
    referral_id:parsed.referral_id||null,
    crm_reference:parsed.crm_reference||null,
    broker_quoted_rate:normalizedBrokerQuote,
    broker_quoted_rate_including_wait:Number(brokerRate||0),
+    quote_basis:parsed.quote_basis||'fallback',
+    flat_rate:parsed.flat_rate||0,
+    per_mile:parsed.per_mile||0,
+    wait_time:parsed.wait_time||0,
+    total_miles:parsed.total_miles||0,
+    no_show_fee:parsed.no_show_fee||0,
    distance_miles:Number(distanceMiles||0),
    notes:parsed.notes||'',
    extra_fields:parsed.extra_fields||{},
@@ -1391,7 +1485,7 @@ exports.handler=async(event)=>{
     parseDiagnostics:parseDiagnostics,
     bookingReference:booking?.reference||null,
     parsed:{...parsed,trip_date:tripDate,trip_time:tripTime,distance_miles:rateInfo.distanceMiles},
-    brokerQuotedWithWait:brokerRateWithWait,
+      brokerQuotedWithWait:brokerRateWithWait,
     platformRate,
     variance,
     estimatedTripCost:costBreakdown.tripCost
@@ -1400,7 +1494,7 @@ exports.handler=async(event)=>{
    actorRole:'BROKER'
   }).catch(()=>{});
 
-  const confirmationHtml=`<h2>Broker confirmation intake received</h2><p>We received your request for <strong>${parsed.pickup}</strong> to <strong>${parsed.destination}</strong> on <strong>${tripDate}</strong> at <strong>${tripTime.slice(0,5)}</strong>.</p><p>Status: <strong>PENDING DISPATCH CONFIRMATION</strong></p><p>Broker quoted (incl. 2h wait): <strong>$${brokerRateWithWait.toFixed(2)}</strong></p><p>Platform rate (incl. 2h wait): <strong>$${platformRate.toFixed(2)}</strong></p><p>Variance: <strong>$${variance.toFixed(2)}</strong></p><p>Dispatch will review and confirm final acceptance.</p>`;
+  const confirmationHtml=`<h2>Broker confirmation intake received</h2><p>We received your request for <strong>${parsed.pickup}</strong> to <strong>${parsed.destination}</strong> on <strong>${tripDate}</strong> at <strong>${tripTime.slice(0,5)}</strong>.</p><p>Status: <strong>PENDING DISPATCH CONFIRMATION</strong></p><p>Broker quoted rate: <strong>$${brokerRateWithWait.toFixed(2)}</strong></p><p>Platform rate (incl. wait): <strong>$${platformRate.toFixed(2)}</strong></p><p>Variance: <strong>$${variance.toFixed(2)}</strong></p><p>Dispatch will review and confirm final acceptance.</p>`;
   let emailNotification={status:'skipped'};
   const emailAlreadySent=await hasNotificationLog({requestId:request.id,messageId,channel:'BROKER_CONFIRMATION_EMAIL'});
   if(!emailAlreadySent){
