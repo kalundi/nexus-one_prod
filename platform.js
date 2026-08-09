@@ -40,27 +40,40 @@ if(access && panel){
 	const accessIcon=access.querySelector('span[aria-hidden="true"]');
 	if(accessIcon&&String(accessIcon.textContent||'').includes('â™¿')) accessIcon.textContent='♿';
 	const accessRoot=access.closest('.access') || access.parentElement;
+	let accessPinnedOpen=false;
 	const setAccessOpen=(open)=>{
 		panel.classList.toggle('open',open);
 		panel.hidden=!open;
 		access.setAttribute('aria-expanded',String(open));
 	};
 
+	// Ensure a consistent closed default state on load.
+	setAccessOpen(false);
+
 	access.addEventListener('click',(event)=>{
 		event.preventDefault();
-		setAccessOpen(!panel.classList.contains('open'));
+		accessPinnedOpen=!panel.classList.contains('open') || !accessPinnedOpen;
+		setAccessOpen(accessPinnedOpen);
 	});
 	access.addEventListener('mouseenter',()=>setAccessOpen(true));
 	access.addEventListener('focus',()=>setAccessOpen(true));
 	panel.addEventListener('mouseenter',()=>setAccessOpen(true));
+	accessRoot?.addEventListener('mouseleave',()=>{
+		if(accessPinnedOpen) return;
+		setAccessOpen(false);
+	});
 
 	document.addEventListener('click',(event)=>{
 		if(!panel.classList.contains('open')) return;
 		if(accessRoot && accessRoot.contains(event.target)) return;
+		accessPinnedOpen=false;
 		setAccessOpen(false);
 	});
 	document.addEventListener('keydown',(event)=>{
-		if(event.key==='Escape') setAccessOpen(false);
+		if(event.key==='Escape'){
+			accessPinnedOpen=false;
+			setAccessOpen(false);
+		}
 	});
 }
 $('#large')?.addEventListener('click',()=>document.body.classList.toggle('large'));
