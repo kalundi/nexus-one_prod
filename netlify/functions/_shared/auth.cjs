@@ -38,5 +38,11 @@ async function requireUser(token,roles=[]){
   if(roles.length&&!roles.includes(u.role)) throw Object.assign(new Error('Insufficient permission'),{statusCode:403});
   return u;
 }
-async function audit(entityType,entityId,action,changes){await query('INSERT INTO audit_log(entity_type,entity_id,action,changes) VALUES($1,$2,$3,$4)',[entityType,String(entityId),action,changes?JSON.stringify(changes):null])}
+async function audit(entityType,entityId,action,changes){
+  try{
+    await query('INSERT INTO audit_log(entity_type,entity_id,action,changes) VALUES($1,$2,$3,$4)',[entityType,String(entityId),action,changes?JSON.stringify(changes):null]);
+  }catch(error){
+    console.warn('[AUDIT] Non-blocking audit failure:', error?.message||error);
+  }
+}
 module.exports={digest,safeUser,requireUser,audit};

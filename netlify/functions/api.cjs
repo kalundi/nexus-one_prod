@@ -2367,10 +2367,14 @@ async function handler(event){
        const r=await query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[b.email||'']);
        let u=r.rows[0];
        if(!u){
-         const restored=await ensureDefaultUserForEmail(query, b.email||'');
-         if(restored){
-           const restoredRows=await query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[b.email||'']);
-           u=restoredRows.rows[0];
+         try{
+           const restored=await ensureDefaultUserForEmail(query, b.email||'');
+           if(restored){
+             const restoredRows=await query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[b.email||'']);
+             u=restoredRows.rows[0];
+           }
+         }catch(restoreErr){
+           console.warn('[LOGIN] Default-user restore skipped:', restoreErr?.message||restoreErr);
          }
        }
        if(!u){console.log('[LOGIN] User not found or inactive'); return json(401,{error:'Invalid credentials'});}
@@ -3077,6 +3081,8 @@ async function handler(event){
   if(!orgId){
    return json(500,{error:'Organization setup is incomplete. Run reset standard accounts, then try creating the user again.'});
   }
+   let policyEnforced=true;
+   let warning='';
    try{
     await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,must_change_password,password_reset_expires,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,true,$8,$9,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,phoneDigits,tempPasswordExpiresAt,orgId,crypto.randomUUID()]);
    }catch(err){
@@ -3084,11 +3090,19 @@ async function handler(event){
     if(message.includes('organization')||message.includes('organization_id')){
       return json(500,{error:'Organization setup is incomplete. Run reset standard accounts, then try again.'});
     }
-    if(!message.includes('phone'))throw err;
-    await query(`INSERT INTO users(id,email,display_name,role,password_hash,must_change_password,password_reset_expires,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,true,$7,$8,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,tempPasswordExpiresAt,orgId,crypto.randomUUID()]);
+    const missingOptionalColumn=message.includes('column')&&(message.includes('phone')||message.includes('must_change_password')||message.includes('password_reset_expires'));
+    if(!missingOptionalColumn)throw err;
+    // Fallback path for older schemas: create the user with core columns, then best-effort set optional policy columns.
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())`,[userId,clean(b.email).toLowerCase(),clean(b.name),String(b.role).toUpperCase(),passwordHash,orgId,crypto.randomUUID()]);
+    const phoneUpdate=await query('UPDATE users SET phone=$2,updated_at=now() WHERE id=$1',[userId,phoneDigits]).then(()=>true).catch(()=>false);
+    const policyUpdate=await query('UPDATE users SET must_change_password=true,password_reset_expires=$2,updated_at=now() WHERE id=$1',[userId,tempPasswordExpiresAt]).then(()=>true).catch(()=>false);
+    policyEnforced=Boolean(policyUpdate);
+    if(!phoneUpdate||!policyUpdate){
+      warning='User created, but password policy columns are missing in this environment. Run migrations to enforce 2-hour temporary password expiry.';
+    }
    }
    await audit('USER',userId,'CREATED',{role:b.role,by:me.email});
-    return json(201,{user:{id:userId,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true,mustChangePassword:true},tempPassword,tempPasswordExpiresAt});
+    return json(201,{user:{id:userId,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,warning});
   }
   if(p[0]==='driver'&&p[1]==='assignments'&&method==='GET'){
    const token=bearer(event);
