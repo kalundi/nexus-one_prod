@@ -3010,6 +3010,81 @@ async function handler(event){
    }));
    return json(200,{generatedAt:now.toISOString(),onDuty:drivers.length,drivers});
   }
+  if(p[0]==='admin'&&p[1]==='driver-schedule'&&method==='POST'){
+   await requireUser(bearer(event),['ADMIN']);
+   const b=parseBody(event);
+   const driverEmail=clean(b.driverEmail).toLowerCase();
+   const startTimeRaw=clean(b.startTime||'06:00');
+   const endTimeRaw=clean(b.endTime||'15:00');
+   const effectiveStartDate=clean(b.effectiveStartDate)||new Date().toISOString().slice(0,10);
+   const weekdaysInput=Array.isArray(b.weekdays)?b.weekdays:[1,2,3,4,5];
+   const weekdays=Array.from(new Set(weekdaysInput.map((x)=>Number(x)).filter((x)=>Number.isInteger(x)&&x>=1&&x<=7))).sort((a,b)=>a-b);
+   if(!driverEmail)return json(400,{error:'driverEmail is required'});
+   if(!/^\d{2}:\d{2}$/.test(startTimeRaw)||!/^\d{2}:\d{2}$/.test(endTimeRaw))return json(400,{error:'startTime and endTime must be HH:MM'});
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(effectiveStartDate))return json(400,{error:'effectiveStartDate must be YYYY-MM-DD'});
+   if(!weekdays.length)return json(400,{error:'At least one weekday is required (1=Mon ... 7=Sun)'});
+
+   const userRes=await query('SELECT id,email,display_name,role,phone FROM users WHERE lower(email)=lower($1) LIMIT 1',[driverEmail]);
+   const driverUser=userRes.rows[0];
+   if(!driverUser)return json(404,{error:'Driver user not found'});
+   if(String(driverUser.role||'').toUpperCase()!=='DRIVER')return json(409,{error:'Selected user is not a DRIVER role'});
+
+   const employeeRes=await query('SELECT id,employee_code FROM employees WHERE user_id=$1 OR lower(email)=lower($2) ORDER BY created_at ASC LIMIT 1',[driverUser.id,driverEmail]).catch(()=>({rows:[]}));
+   let employeeId=employeeRes.rows[0]?.id||null;
+   let employeeCode=employeeRes.rows[0]?.employee_code||null;
+
+   if(!employeeId){
+    const codeBase='NEXD';
+    for(let i=0;i<20;i++){
+     const suffix=String(Math.floor(Math.random()*10000)).padStart(4,'0');
+     const candidate=`${codeBase}${suffix}`;
+     try{
+      const inserted=await query(
+       `INSERT INTO employees(user_id,employee_code,role,display_name,email,phone,active,timezone,metadata,created_at,updated_at)
+        VALUES($1,$2,'DRIVER',$3,$4,$5,true,'America/New_York',jsonb_build_object('source','admin_driver_schedule_api'),now(),now())
+        RETURNING id,employee_code`,
+       [driverUser.id,candidate,clean(driverUser.display_name)||driverEmail,driverEmail,clean(driverUser.phone)||null]
+      );
+      employeeId=inserted.rows[0]?.id||null;
+      employeeCode=inserted.rows[0]?.employee_code||candidate;
+      break;
+     }catch(err){
+      const msg=String(err?.message||'').toLowerCase();
+      if(!msg.includes('employee_code'))throw err;
+     }
+    }
+   }
+   if(!employeeId)return json(500,{error:'Unable to create or resolve employee profile for this driver'});
+
+   await query(
+    `UPDATE employee_shifts
+     SET active=false,
+         effective_end_date=COALESCE(effective_end_date,($2::date-INTERVAL '1 day')::date),
+         updated_at=now()
+     WHERE employee_id=$1
+       AND assignment_role='DRIVER'
+       AND weekday_iso=ANY($3::int[])
+       AND active=true
+       AND (effective_end_date IS NULL OR effective_end_date>=$2::date)`,
+    [employeeId,effectiveStartDate,weekdays]
+   ).catch(()=>{});
+
+   const created=[];
+   for(const weekday of weekdays){
+    const shift=await query(
+     `INSERT INTO employee_shifts(employee_id,assignment_role,weekday_iso,start_time,end_time,effective_start_date,effective_end_date,active,notes,created_at,updated_at)
+      VALUES($1,'DRIVER',$2,$3::time,$4::time,$5::date,NULL,true,$6,now(),now())
+      ON CONFLICT (employee_id, assignment_role, weekday_iso, start_time, end_time, effective_start_date)
+      DO UPDATE SET active=true,effective_end_date=NULL,notes=EXCLUDED.notes,updated_at=now()
+      RETURNING id,weekday_iso,start_time::text AS start_time,end_time::text AS end_time,effective_start_date`,
+     [employeeId,weekday,startTimeRaw,endTimeRaw,effectiveStartDate,`Set by admin schedule API on ${new Date().toISOString()}`]
+    );
+    if(shift.rows[0])created.push(shift.rows[0]);
+   }
+
+   await audit('USER',String(driverUser.id),'SCHEDULE_UPDATED',{email:driverEmail,weekdayIso:weekdays,startTime:startTimeRaw,endTime:endTimeRaw,effectiveStartDate});
+   return json(200,{ok:true,driver:{userId:String(driverUser.id),email:driverUser.email,name:driverUser.display_name,employeeId:String(employeeId),employeeCode:employeeCode||null},schedule:{assignmentRole:'DRIVER',weekdayIso:weekdays,startTime:startTimeRaw,endTime:endTimeRaw,effectiveStartDate,created}});
+  }
   // Admin: reset all test credentials (idempotent upsert for all standard roles)
   if(p[0]==='admin'&&p[1]==='reset-credentials'&&method==='POST'){
    await requireUser(bearer(event),['ADMIN']);
