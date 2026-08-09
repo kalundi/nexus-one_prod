@@ -3056,8 +3056,8 @@ async function handler(event){
   }
   // Admin: create user
   if(p[0]==='admin'&&p[1]==='users'&&method==='POST'){
-   const me=await requireUser(bearer(event),['ADMIN']);
     try{
+    const me=await requireUser(bearer(event),['ADMIN']);
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone text').catch(()=>{});
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz').catch(()=>{});
