@@ -2966,18 +2966,18 @@ async function handler(event){
   if(p[0]==='fleet'&&p[1]==='live'&&method==='GET'){
     let u=null;try{if(bearer(event))u=await requireUser(bearer(event))}catch{}
     const includeAll=String(event.queryStringParameters?.includeAll||'').toLowerCase()==='true';
-    const sql=includeAll
-     ? `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id,active,metadata FROM vehicles ORDER BY unit_number`
-     : `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id,active,metadata FROM vehicles WHERE last_seen_at IS NULL OR last_seen_at>now()-interval '24 hours' ORDER BY unit_number`;
-    let r;
-    try{
-     r=await query(sql);
-    }catch(err){
-     const fallbackSql=includeAll
-      ? `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id FROM vehicles ORDER BY unit_number`
-      : `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id FROM vehicles WHERE last_seen_at IS NULL OR last_seen_at>now()-interval '24 hours' ORDER BY unit_number`;
-     r=await query(fallbackSql);
+    const whereClause=includeAll?'':' WHERE last_seen_at IS NULL OR last_seen_at>now()-interval \'24 hours\'';
+    const sqlVariants=[
+     `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id,active,metadata FROM vehicles${whereClause} ORDER BY unit_number`,
+     `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id,active FROM vehicles${whereClause} ORDER BY unit_number`,
+     `SELECT unit_number,vehicle_type,status,latitude,longitude,heading,speed_mph,last_seen_at,driver_scope_id FROM vehicles${whereClause} ORDER BY unit_number`,
+     `SELECT unit_number,vehicle_type,status,latitude,longitude,last_seen_at FROM vehicles${whereClause} ORDER BY unit_number`
+    ];
+    let r=null;
+    for(const sql of sqlVariants){
+     try{r=await query(sql);break;}catch{}
     }
+    if(!r) throw Object.assign(new Error('Fleet records unavailable for current schema'),{statusCode:500});
     return json(200,{generatedAt:new Date().toISOString(),role:u?.role||'PUBLIC',includeAll,vehicles:r.rows.map(v=>({id:v.unit_number,unit:v.unit_number,type:v.vehicle_type,status:v.status,lat:Number(v.latitude),lng:Number(v.longitude),heading:Number(v.heading||0),speed:Number(v.speed_mph||0),lastSeen:v.last_seen_at,driverScopeId:v.driver_scope_id||null,active:v.active!==false,metadata:v.metadata||{}}))});
   }
   // Auto-assign: find best available driver + vehicle for a booking
