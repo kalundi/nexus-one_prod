@@ -588,11 +588,17 @@ document.getElementById('manageTripSaveFare').addEventListener('click',async()=>
 });
 
 // Audit log
-const ACTION_ICONS={LOGIN:'🔑',CREATED:'➕',UPDATED:'✏️',ACTIVATED:'✅',DEACTIVATED:'🚫',STATUS_ADVANCED:'🔄',DRIVER_REFERRAL_INCENTIVE:'💵',DEFAULT:'📋'};
+const ACTION_ICONS={LOGIN:'🔑',CREATED:'➕',UPDATED:'✏️',ACTIVATED:'✅',DEACTIVATED:'🚫',CREDENTIALS_REISSUED:'📨',STATUS_ADVANCED:'🔄',DRIVER_REFERRAL_INCENTIVE:'💵',DEFAULT:'📋'};
 
 function summarizeAuditChanges(entry){
   const changes=entry?.changes;
   if(!changes||typeof changes!=='object')return '';
+  if(entry.action==='CREDENTIALS_REISSUED'){
+    const by=changes.by?`By: ${changes.by}`:'';
+    const email=changes.email?`Email: ${changes.email}`:'';
+    const status=changes.emailDeliveryStatus?`Delivery: ${changes.emailDeliveryStatus}`:'';
+    return [by,email,status].filter(Boolean).join(' | ');
+  }
   if(entry.action==='DRIVER_REFERRAL_INCENTIVE'){
     const amount=Number(changes.amount||10).toFixed(2);
     const currency=String(changes.currency||'USD').toUpperCase();
@@ -611,13 +617,16 @@ async function loadAudit(){
   container.innerHTML='<p style="color:var(--muted)">Loading...</p>';
   const since=document.getElementById('auditSince').value;
   const type=document.getElementById('auditType').value;
+  const search=(document.getElementById('auditSearch')?.value||'').trim();
   try{
     let url='/api/admin/audit-log?limit=100';
     if(since)url+=`&since=${encodeURIComponent(since)}`;
+    if(type)url+=`&action=${encodeURIComponent(type)}`;
+    if(search)url+=`&q=${encodeURIComponent(search)}`;
     const r=await fetch(url,{headers:{authorization:`Bearer ${token()}`}});
     if(!r.ok){const e=await r.json();throw new Error(e.error||'Failed to load audit log');}
     const {entries}=await r.json();
-    const filtered=type?entries.filter(e=>e.action===type):entries;
+    const filtered=Array.isArray(entries)?entries:[];
     if(!filtered.length){container.innerHTML='<p style="color:var(--muted)">No audit records found.</p>';updateDashboardSignals();return;}
     container.innerHTML=filtered.map(e=>`
       <div class="auditRow" data-created-at="${e.createdAt||''}">
@@ -635,6 +644,9 @@ async function loadAudit(){
 
 document.getElementById('refreshAudit').addEventListener('click',loadAudit);
 document.getElementById('applyAuditFilter').addEventListener('click',loadAudit);
+document.getElementById('auditSearch')?.addEventListener('keydown',(event)=>{
+  if(event.key==='Enter') loadAudit();
+});
 
 // Settings
 const SERVICE_POLICY_ORDER=['wheelchair','ambulatory','facility_transfer','facility_transfer_critical','broda','stretcher','bariatric','bls','als1','als2'];

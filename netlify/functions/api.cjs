@@ -3452,10 +3452,37 @@ async function handler(event){
   // Admin: audit log
   if(p[0]==='admin'&&p[1]==='audit-log'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
-   const limit=Math.min(Number(event.queryStringParameters?.limit)||100,500);
-   const since=event.queryStringParameters?.since;
-   let sql='SELECT * FROM audit_log',params=[];
-   if(since){sql+=' WHERE created_at>=$1';params=[since]}
+    const queryParams=event.queryStringParameters||{};
+    const limit=Math.min(Number(queryParams.limit)||100,500);
+    const since=queryParams.since;
+    const action=clean(queryParams.action).toUpperCase();
+    const entityType=clean(queryParams.entityType).toUpperCase();
+    const entityId=clean(queryParams.entityId);
+    const q=clean(queryParams.q);
+    let sql='SELECT * FROM audit_log';
+    const params=[];
+    const where=[];
+    if(since){
+     params.push(since);
+     where.push(`created_at >= $${params.length}`);
+    }
+    if(action){
+     params.push(action);
+     where.push(`upper(action) = $${params.length}`);
+    }
+    if(entityType){
+     params.push(entityType);
+     where.push(`upper(entity_type) = $${params.length}`);
+    }
+    if(entityId){
+     params.push(entityId);
+     where.push(`cast(entity_id as text) = $${params.length}`);
+    }
+    if(q){
+     params.push(`%${q}%`);
+     where.push(`(cast(entity_id as text) ILIKE $${params.length} OR cast(changes as text) ILIKE $${params.length})`);
+    }
+    if(where.length)sql+=` WHERE ${where.join(' AND ')}`;
    sql+=` ORDER BY created_at DESC LIMIT ${limit}`;
    const r=await query(sql,params);
    return json(200,{entries:r.rows.map(e=>({id:String(e.id||''),entityType:e.entity_type,entityId:String(e.entity_id||''),action:e.action,changes:e.changes,createdAt:e.created_at}))});

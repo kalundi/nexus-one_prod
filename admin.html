@@ -512,7 +512,8 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="button" id="refreshAudit">Refresh</button></div>
       <div class="auditFilter">
         <input type="date" id="auditSince" aria-label="Filter from date">
-        <select id="auditType" style="padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:inherit"><option value="">All actions</option><option value="LOGIN">Logins</option><option value="CREATED">Created</option><option value="UPDATED">Updated</option><option value="ACTIVATED">Activated</option><option value="DEACTIVATED">Deactivated</option><option value="DRIVER_REFERRAL_INCENTIVE">Driver referral incentives</option></select>
+        <select id="auditType" style="padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:inherit"><option value="">All actions</option><option value="LOGIN">Logins</option><option value="CREATED">Created</option><option value="UPDATED">Updated</option><option value="ACTIVATED">Activated</option><option value="DEACTIVATED">Deactivated</option><option value="CREDENTIALS_REISSUED">Credentials reissued</option><option value="DRIVER_REFERRAL_INCENTIVE">Driver referral incentives</option></select>
+        <input type="text" id="auditSearch" aria-label="Search audit by user email or entity" placeholder="User email or id" style="padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:inherit;min-width:200px">
         <button class="button" id="applyAuditFilter">Filter</button>
       </div>
       <div id="auditList" style="display:grid;gap:10px"><p style="color:var(--muted)">Loading audit records...</p></div>
