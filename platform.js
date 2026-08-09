@@ -52,16 +52,20 @@ if(access && panel){
 
 	access.addEventListener('click',(event)=>{
 		event.preventDefault();
-		accessPinnedOpen=!panel.classList.contains('open') || !accessPinnedOpen;
+		accessPinnedOpen=!accessPinnedOpen;
 		setAccessOpen(accessPinnedOpen);
 	});
-	access.addEventListener('mouseenter',()=>setAccessOpen(true));
-	access.addEventListener('focus',()=>setAccessOpen(true));
-	panel.addEventListener('mouseenter',()=>setAccessOpen(true));
-	accessRoot?.addEventListener('mouseleave',()=>{
+	const openFromHover=()=>setAccessOpen(true);
+	const closeFromHover=()=>{
 		if(accessPinnedOpen) return;
 		setAccessOpen(false);
-	});
+	};
+	access.addEventListener('mouseenter',openFromHover);
+	access.addEventListener('focus',()=>setAccessOpen(true));
+	panel.addEventListener('mouseenter',openFromHover);
+	access.addEventListener('mouseleave',closeFromHover);
+	panel.addEventListener('mouseleave',closeFromHover);
+	accessRoot?.addEventListener('pointerleave',closeFromHover);
 
 	document.addEventListener('click',(event)=>{
 		if(!panel.classList.contains('open')) return;
