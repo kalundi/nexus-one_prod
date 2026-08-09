@@ -522,9 +522,9 @@ async function loadDriverRoster(){
     if(heroList){
       heroList.innerHTML=fleetVehicles.length
         ?fleetVehicles.slice(0,16).map((v)=>{
-          const unit=escapeHtml(v.unit||v.vehicleUnit||v.id||'Vehicle');
-          const status=escapeHtml(v.statusLabel||v.status||'UNKNOWN');
-          const service=escapeHtml(v.service||'Medical transportation');
+          const unit=String(v.unit||v.vehicleUnit||v.id||'Vehicle').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          const status=String(v.statusLabel||v.status||'UNKNOWN').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          const service=String(v.service||'Medical transportation').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
           return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:rgba(255,255,255,.03)"><div><strong style="display:block;color:#e7f4ff;font-size:12px">${unit}</strong><small style="color:#9fc2d8;font-size:11px">${service}</small></div><span class="status blue" style="font-size:10px">${status}</span></div>`;
         }).join('')
         :'<div style="text-align:center;padding:20px;color:#9fc2d8">No live fleet telemetry was returned</div>';
