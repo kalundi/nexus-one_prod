@@ -131,7 +131,7 @@
     cancellationWindowHours: 24,
     cancellationLeadHours: 72,
     noShowFee: 50,
-    freeWaitMinutes: 15,
+    freeWaitMinutes: 120,
     mileageRoundingRule: 'TENTH_MILE',
     telemetryRefreshSeconds: 20,
     maxBookingDistanceMiles: 125,

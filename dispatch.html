@@ -297,7 +297,7 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
       </div>
       <div class="formRow" style="grid-template-columns:1fr 1fr 1fr">
         <div class="formField"><label for="brokerPickupTime">Pickup time</label><input id="brokerPickupTime" name="pickupTime" type="time"></div>
-        <div class="formField"><label for="brokerQuotedRate">Broker quoted rate ($)</label><input id="brokerQuotedRate" name="brokerQuotedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="formField"><label for="brokerQuotedRate">Broker quoted rate ($) <small style="color:var(--muted);font-weight:400">(auto)</small></label><input id="brokerQuotedRate" name="brokerQuotedRate" type="number" min="0" step="0.01" placeholder="0.00" readonly style="background:var(--soft,#f8fafc)"></div>
         <div class="formField"><label for="brokerCalculatedRate">Platform rate ($) <small style="color:var(--muted);font-weight:400">(auto)</small></label><input id="brokerCalculatedRate" name="platformCalculatedRate" type="number" min="0" step="0.01" readonly style="background:var(--soft,#f8fafc)"></div>
       </div>
       <div class="formField"><label for="brokerNotes">Notes</label><input id="brokerNotes" name="notes" type="text" placeholder="Special instructions, equipment needs, patient condition"></div>
@@ -521,11 +521,21 @@ function setPanelMessage(elId,text,type){const el=document.getElementById(elId);
 function ensureDispatchReference(prefix){const idMap={broker:'brokerReference',customer:'customerReference',facility:'facilityReference'};const el=document.getElementById(idMap[prefix]||'');if(!el)return null; if(el.value.trim()) return el.value.trim(); const now=new Date(); const stamp=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`; const value=`${prefix.toUpperCase()}-${stamp}`; el.value=value; return value;}
 function getDispatchRate(service, waitMinutes, isReturnTrip){const pricing=NexusCore?.getPricing?.()||NexusCore?.DEFAULT||{}; const rate=pricing[service]||pricing[service.toLowerCase?.()||service]||NexusCore?.DEFAULT?.[service]||NexusCore?.DEFAULT?.ambulatory||{base:65,includedMiles:5,perMile:3.25,waitPer15:20}; const base=Number(rate.base||0); const waitCharge=(Number(waitMinutes)||0)/15*Number(rate.waitPer15||0); const returnBoost=isReturnTrip?Number(rate.base||0)*0.15:0; return Number((base+waitCharge+returnBoost).toFixed(2));}
 function updateDispatchRateInputs(){const service=document.getElementById('customerService')?.value||'';const waitMinutes=Number(document.getElementById('customerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('customerReturnTrip')?.checked||false; const rate=getDispatchRate(service,waitMinutes,isReturnTrip); const rateInput=document.getElementById('customerCalculatedRate'); if(rateInput) rateInput.value=rate.toFixed(2); const facilityService=document.getElementById('facilityService')?.value||'';const facilityWait=Number(document.getElementById('facilityWaitMinutes')?.value||0);const facilityReturn=document.getElementById('facilityReturnTrip')?.checked||false; const facilityRate=getDispatchRate(facilityService,facilityWait,facilityReturn); const facilityInput=document.getElementById('facilityCalculatedRate'); if(facilityInput) facilityInput.value=facilityRate.toFixed(2); const brokerService=document.getElementById('brokerService')?.value||'';const brokerWait=Number(document.getElementById('brokerWaitMinutes')?.value||0); const brokerReturn=document.getElementById('brokerReturnTrip')?.checked||false; const brokerRate=getDispatchRate(brokerService,brokerWait,brokerReturn); const brokerInput=document.getElementById('brokerCalculatedRate'); if(brokerInput) brokerInput.value=brokerRate.toFixed(2);}function syncBrokerPickupTime(force=false){const appointmentInput=document.getElementById('brokerTripTime');const pickupInput=document.getElementById('brokerPickupTime');if(!appointmentInput||!pickupInput)return;const appointment=appointmentInput.value;if(!appointment)return;const service=document.getElementById('brokerService')?.value||'ambulatory';const serviceMinutes={wheelchair:35,ambulatory:25,facility_transfer:55,facility_transfer_critical:70,broda:40,stretcher:55,bariatric:65,bls:60,als1:70,als2:75}[service]||35;const waitMinutes=Number(document.getElementById('brokerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('brokerReturnTrip')?.checked||false;const travelMinutes=serviceMinutes+Math.round(waitMinutes/15)*10+(isReturnTrip?15:0);const [hour,minute]=appointment.split(':').map(Number);const totalMinutes=hour*60+minute-travelMinutes;const clamped=Math.max(0,Math.min(23*60+59,totalMinutes));const suggested=new Date(2000,0,1,Math.floor(clamped/60),clamped%60); if(force||!pickupInput.value){pickupInput.value=`${String(suggested.getHours()).padStart(2,'0')}:${String(suggested.getMinutes()).padStart(2,'0')}`;}}
+function floorWaitMinutes(value){return Math.max(120,Number(value)||0);}
+function getDispatchRate(service, waitMinutes, isReturnTrip){const pricing=NexusCore?.getPricing?.()||NexusCore?.DEFAULT||{}; const rate=pricing[service]||pricing[service.toLowerCase?.()||service]||NexusCore?.DEFAULT?.[service]||NexusCore?.DEFAULT?.ambulatory||{base:65,includedMiles:5,perMile:3.25,waitPer15:20}; const base=Number(rate.base||0); const waitCharge=floorWaitMinutes(waitMinutes)/15*Number(rate.waitPer15||0); const returnBoost=isReturnTrip?Number(rate.base||0)*0.15:0; return Number((base+waitCharge+returnBoost).toFixed(2));}
+function updateDispatchRateInputs(){const service=document.getElementById('customerService')?.value||'';const waitMinutes=floorWaitMinutes(document.getElementById('customerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('customerReturnTrip')?.checked||false; const rate=getDispatchRate(service,waitMinutes,isReturnTrip); const rateInput=document.getElementById('customerCalculatedRate'); if(rateInput) rateInput.value=rate.toFixed(2); const facilityService=document.getElementById('facilityService')?.value||'';const facilityWait=floorWaitMinutes(document.getElementById('facilityWaitMinutes')?.value||0);const facilityReturn=document.getElementById('facilityReturnTrip')?.checked||false; const facilityRate=getDispatchRate(facilityService,facilityWait,facilityReturn); const facilityInput=document.getElementById('facilityCalculatedRate'); if(facilityInput) facilityInput.value=facilityRate.toFixed(2); const brokerService=document.getElementById('brokerService')?.value||'';const brokerWait=floorWaitMinutes(document.getElementById('brokerWaitMinutes')?.value||0); const brokerReturn=document.getElementById('brokerReturnTrip')?.checked||false; const brokerRate=getDispatchRate(brokerService,brokerWait,brokerReturn); const brokerInput=document.getElementById('brokerCalculatedRate'); if(brokerInput) brokerInput.value=brokerRate.toFixed(2);}
+function syncBrokerPickupTime(force=false){const appointmentInput=document.getElementById('brokerTripTime');const pickupInput=document.getElementById('brokerPickupTime');if(!appointmentInput||!pickupInput)return;const appointment=appointmentInput.value;if(!appointment)return;const service=document.getElementById('brokerService')?.value||'ambulatory';const serviceMinutes={wheelchair:35,ambulatory:25,facility_transfer:55,facility_transfer_critical:70,broda:40,stretcher:55,bariatric:65,bls:60,als1:70,als2:75}[service]||35;const waitMinutes=floorWaitMinutes(document.getElementById('brokerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('brokerReturnTrip')?.checked||false;const routeMinutes=serviceMinutes+waitMinutes;const calculated=shiftTimeBack(appointment,routeMinutes);if(calculated||force){pickupInput.value=calculated;} }
+function haversineMiles(lat1,lng1,lat2,lng2){const toRad=(d)=>d*Math.PI/180;const R=3958.7613;const dLat=toRad(lat2-lat1);const dLng=toRad(lng2-lng1);const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));return R*c;}
+function coordFromInput(id){const el=document.getElementById(id);if(!el) return null;const lat=Number(el.dataset?.lat);const lng=Number(el.dataset?.lng);if(!Number.isFinite(lat)||!Number.isFinite(lng)) return null;return {lat,lng};}
+async function resolveBrokerRouteMiles(){const pickup=String(document.getElementById('brokerPickup')?.value||'').trim();const destination=String(document.getElementById('brokerDestination')?.value||'').trim();if(!pickup||!destination) return 0;if(window.google?.maps?.DirectionsService){try{const svc=new google.maps.DirectionsService();const route=await new Promise((resolve,reject)=>{svc.route({origin:pickup,destination:destination,travelMode:google.maps.TravelMode.DRIVING},(res,status)=>status==='OK'?resolve(res):reject(new Error(status)));});const meters=(route?.routes?.[0]?.legs||[]).reduce((sum,leg)=>sum+Number(leg?.distance?.value||0),0);if(meters>0) return meters/1609.34;}catch{}}
+const pickupCoord=coordFromInput('brokerPickup');const destinationCoord=coordFromInput('brokerDestination');if(pickupCoord&&destinationCoord){const straightMiles=haversineMiles(pickupCoord.lat,pickupCoord.lng,destinationCoord.lat,destinationCoord.lng);if(Number.isFinite(straightMiles)&&straightMiles>0) return straightMiles*1.2;}return 0;}
+async function refreshBrokerQuotedRateAuto(){const service=String(document.getElementById('brokerService')?.value||'');if(!service) return;const waitMinutes=floorWaitMinutes(document.getElementById('brokerWaitMinutes')?.value||0);const isReturnTrip=!!document.getElementById('brokerReturnTrip')?.checked;const pricing=NexusCore?.getPricing?.()||NexusCore?.DEFAULT||{};const rate=pricing[service]||pricing[service.toLowerCase?.()||service]||NexusCore?.DEFAULT?.[service]||NexusCore?.DEFAULT?.ambulatory||{base:65,perMile:3.25,waitPer15:20};const miles=Math.max(0,Number(await resolveBrokerRouteMiles())||0);const base=Number(rate.base||0);const mileageCharge=miles*Number(rate.perMile||0);const waitCharge=(waitMinutes/15)*Number(rate.waitPer15||0);const returnBoost=isReturnTrip?base*0.15:0;const total=Math.max(0,base+mileageCharge+waitCharge+returnBoost);const quotedInput=document.getElementById('brokerQuotedRate');if(quotedInput){quotedInput.value=total.toFixed(2);} }
 function activateIntakeTab(tab){document.querySelectorAll('[data-intake-tab]').forEach(btn=>{const active=btn.dataset.intakeTab===tab; btn.classList.toggle('active',active); btn.setAttribute('aria-selected',active?'true':'false');}); document.querySelectorAll('[data-intake-panel]').forEach(panel=>{panel.hidden=panel.dataset.intakePanel!==tab;});}
 
 async function submitBrokerRequest(event){
   event.preventDefault();
   syncBrokerPickupTime(true);
+  await refreshBrokerQuotedRateAuto();
   const form=document.getElementById('brokerIntakeForm');
   const payload={
     broker_name: document.getElementById('pickerCardName')?.textContent?.trim() || selectedCompanyName || 'Unknown',
@@ -617,6 +627,7 @@ document.getElementById('customerIntakeForm').addEventListener('submit',submitCu
 document.getElementById('facilityIntakeForm').addEventListener('submit',submitFacilityRequest);
 document.querySelectorAll('[data-intake-tab]').forEach(btn=>btn.addEventListener('click',()=>activateIntakeTab(btn.dataset.intakeTab)));
 ['customerPickup','customerDestination','customerService','customerWaitMinutes','customerReturnTrip','facilityPickup','facilityDestination','facilityService','facilityWaitMinutes','facilityReturnTrip','brokerPickup','brokerDestination','brokerService','brokerWaitMinutes','brokerReturnTrip','brokerTripTime','brokerTripDate'].forEach(id=>{const el=document.getElementById(id); if(el){el.addEventListener('input',()=>{updateDispatchRateInputs();syncBrokerPickupTime();});el.addEventListener('change',()=>{updateDispatchRateInputs();syncBrokerPickupTime();});}});
+['brokerPickup','brokerDestination','brokerService','brokerWaitMinutes','brokerReturnTrip','brokerTripDate','brokerTripTime'].forEach(id=>{const el=document.getElementById(id); if(el){el.addEventListener('input',()=>{refreshBrokerQuotedRateAuto().catch(()=>{});});el.addEventListener('change',()=>{refreshBrokerQuotedRateAuto().catch(()=>{});});}});
 document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); ensureDispatchReference('broker'); ensureDispatchReference('customer'); ensureDispatchReference('facility'); updateDispatchRateInputs();});
 
 (function(){
@@ -811,6 +822,42 @@ function formatShortDateTime(dateValue,timeValue){
   return `${shortDate}${shortTime?` ${shortTime}`:''}`;
 }
 
+function parseDiagnosticsTone(trip){
+  const source=String(trip?.intakeParseSource||'').toUpperCase();
+  const method=String(trip?.intakeParseMethod||'').toUpperCase();
+  const reason=String(trip?.intakeParseFailureReason||'').trim();
+  if(reason) return 'red';
+  if(source==='SUBJECT_FALLBACK' || method==='EMAIL_SUBJECT_FALLBACK') return 'amber';
+  return 'green';
+}
+
+function renderParseDiagnosticsList(trips){
+  const diagnosticsView=String(document.getElementById('tripParseDiagnosticsFilter')?.value || 'ALL').toUpperCase();
+  const candidates=(Array.isArray(trips)?trips:[])
+    .filter((trip)=>String(trip?.intakeParseFailureReason||'').trim() || String(trip?.intakeParseSource||'').toUpperCase()==='SUBJECT_FALLBACK' || String(trip?.intakeParseMethod||'').toUpperCase()==='EMAIL_SUBJECT_FALLBACK')
+    .filter((trip)=>{
+      if(diagnosticsView==='SUBJECT_FALLBACK') return String(trip?.intakeParseSource||'').toUpperCase()==='SUBJECT_FALLBACK' || String(trip?.intakeParseMethod||'').toUpperCase()==='EMAIL_SUBJECT_FALLBACK';
+      if(diagnosticsView==='FAILURE_ONLY') return Boolean(String(trip?.intakeParseFailureReason||'').trim());
+      return true;
+    })
+    .slice(0,12);
+  const wrap=document.getElementById('tripParseDiagnosticsList');
+  const countEl=document.getElementById('tripParseDiagnosticsCount');
+  if(countEl) countEl.textContent=`${candidates.length} flagged`;
+  if(!wrap) return;
+  if(!candidates.length){
+    wrap.innerHTML='<div style="font-size:13px;color:#667085">No current parse issues flagged.</div>';
+    return;
+  }
+  wrap.innerHTML=candidates.map((trip)=>{
+    const ref=trip?.reference||'';
+    const reason=trip?.intakeParseFailureReason||'Subject fallback used';
+    const source=trip?.intakeParseSource||trip?.intakeParseMethod||'UNKNOWN';
+    const att=Number(trip?.sourceAttachmentCount||0);
+    return `<button type="button" class="dispatch-parse-chip" data-parse-ref="${String(ref).replaceAll('"','&quot;')}" style="text-align:left;display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid #d6e3ee;border-radius:12px;background:#fff;cursor:pointer"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><strong style="font-size:13px">${ref}</strong><span class="status ${parseDiagnosticsTone(trip)}" style="font-size:10px">${source}</span></div><div style="font-size:12px;color:#334155;line-height:1.35">${reason}</div><div style="font-size:11px;color:#667085">Attachments: ${att}</div></button>`;
+  }).join('');
+}
+
 function renderTrips(trips){
   const list=Array.isArray(trips)?trips:[];
   const statuses={
@@ -828,42 +875,6 @@ function renderTrips(trips){
   const heroTripList=document.getElementById('heroTripList');
   if(heroTripList){
     heroTripList.innerHTML=list.slice(0,6).map(t=>`<div style="background:#fff;border:1px solid #d5e0e8;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="min-width:0"><strong style="font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name||''}</strong><small style="color:#52677c;font-size:11px">${t.service||''}  ${formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time)}</small></div><span class="status ${statusColors[(t.status||'').toLowerCase()]||'blue'}" style="font-size:10px;flex-shrink:0">${t.statusLabel||t.status||'Requested'}</span></div>`).join('')||'<div style="text-align:center;padding:16px;color:#52677c">No trips yet.</div>';
-  }
-
-  function parseDiagnosticsTone(trip){
-    const source=String(trip?.intakeParseSource||'').toUpperCase();
-    const method=String(trip?.intakeParseMethod||'').toUpperCase();
-    const reason=String(trip?.intakeParseFailureReason||'').trim();
-    if(reason) return 'red';
-    if(source==='SUBJECT_FALLBACK' || method==='EMAIL_SUBJECT_FALLBACK') return 'amber';
-    return 'green';
-  }
-
-  function renderParseDiagnosticsList(trips){
-    const diagnosticsView=String(parseDiagnosticsFilter?.value || 'ALL').toUpperCase();
-    const candidates=(Array.isArray(trips)?trips:[])
-      .filter((trip)=>String(trip?.intakeParseFailureReason||'').trim() || String(trip?.intakeParseSource||'').toUpperCase()==='SUBJECT_FALLBACK' || String(trip?.intakeParseMethod||'').toUpperCase()==='EMAIL_SUBJECT_FALLBACK')
-      .filter((trip)=>{
-        if(diagnosticsView==='SUBJECT_FALLBACK') return String(trip?.intakeParseSource||'').toUpperCase()==='SUBJECT_FALLBACK' || String(trip?.intakeParseMethod||'').toUpperCase()==='EMAIL_SUBJECT_FALLBACK';
-        if(diagnosticsView==='FAILURE_ONLY') return Boolean(String(trip?.intakeParseFailureReason||'').trim());
-        return true;
-      })
-      .slice(0,12);
-    const wrap=document.getElementById('tripParseDiagnosticsList');
-    const countEl=document.getElementById('tripParseDiagnosticsCount');
-    if(countEl) countEl.textContent=`${candidates.length} flagged`;
-    if(!wrap) return;
-    if(!candidates.length){
-      wrap.innerHTML='<div style="font-size:13px;color:#667085">No current parse issues flagged.</div>';
-      return;
-    }
-    wrap.innerHTML=candidates.map((trip)=>{
-      const ref=trip?.reference||'';
-      const reason=trip?.intakeParseFailureReason||'Subject fallback used';
-      const source=trip?.intakeParseSource||trip?.intakeParseMethod||'UNKNOWN';
-      const att=Number(trip?.sourceAttachmentCount||0);
-      return `<button type="button" class="dispatch-parse-chip" data-parse-ref="${String(ref).replaceAll('"','&quot;')}" style="text-align:left;display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid #d6e3ee;border-radius:12px;background:#fff;cursor:pointer"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><strong style="font-size:13px">${ref}</strong><span class="status ${parseDiagnosticsTone(trip)}" style="font-size:10px">${source}</span></div><div style="font-size:12px;color:#334155;line-height:1.35">${reason}</div><div style="font-size:11px;color:#667085">Attachments: ${att}</div></button>`;
-    }).join('');
   }
 
   const rowsEl=document.getElementById('tripRows');
@@ -1225,7 +1236,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         const status = escapeHtml(trip.statusLabel || trip.status || 'Submitted');
         const ref = escapeHtml(refOf(trip) || '');
         const time = escapeHtml(String(trip.time || '--:--'));
-        return `<div style="padding:4px 6px;border:1px solid #dbe7f0;border-radius:8px;background:#fff;margin-top:4px"><div style="display:flex;justify-content:space-between;gap:6px;align-items:center"><strong style="font-size:11px">${time}</strong><span class="status ${tone}" style="font-size:10px">${kind}</span></div><div style="font-size:11px;color:#0f172a">${ref}</div><div style="font-size:10px;color:#52677c">${status}</div></div>`;
+        return `<button type="button" data-calendar-ref="${ref}" style="width:100%;text-align:left;padding:4px 6px;border:1px solid #dbe7f0;border-radius:8px;background:#fff;margin-top:4px;cursor:pointer"><div style="display:flex;justify-content:space-between;gap:6px;align-items:center"><strong style="font-size:11px">${time}</strong><span class="status ${tone}" style="font-size:10px">${kind}</span></div><div style="font-size:11px;color:#0f172a">${ref}</div><div style="font-size:10px;color:#52677c">${status}</div></button>`;
       }).join('');
       const extra = dayTrips.length > 4 ? `<div style="font-size:10px;color:#52677c;margin-top:4px">+${dayTrips.length - 4} more trips</div>` : '';
       html += `<div style="min-height:120px;border:1px solid #d6e3ee;border-radius:10px;padding:8px;background:#f8fbfd"><div style="display:flex;justify-content:space-between;align-items:center"><strong>${dayNum}</strong><small style="color:#52677c">${dayTrips.length} trip${dayTrips.length===1?'':'s'}</small></div>${tripRows || '<div style="font-size:10px;color:#94a3b8;margin-top:8px">No trips</div>'}${extra}</div>`;
@@ -1459,6 +1470,13 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(reference) window.openTripEditor?.(reference);
   });
 
+  calendarView.addEventListener('click',(event)=>{
+    const button=event.target.closest('[data-calendar-ref]');
+    if(!button) return;
+    const reference=String(button.dataset.calendarRef||'').trim();
+    if(reference) window.openTripEditor?.(reference);
+  });
+
   sourceFilter.addEventListener('change', renderFiltered);
   parseSourceFilter.addEventListener('change', renderFiltered);
   parseDiagnosticsFilter.addEventListener('change', renderFiltered);
@@ -1567,7 +1585,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     <div class="formRow" id="dispatchEditBrokerRow" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px" hidden>
       <div class="formField"><label>Broker company</label><select id="dispatchEditBrokerCompany"><option value="">Select company</option></select><small id="dispatchEditCurrentBrokerCompany" class="subtle">Current broker company: --</small></div>
       <div class="formField"><label>Our estimate</label><input id="dispatchEditOurEstimate" type="text" readonly></div>
-      <div class="formField"><label>Broker quoted rate</label><input id="dispatchEditBrokerQuotedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="formField"><label>Broker quoted rate</label><input id="dispatchEditBrokerQuotedRate" type="number" min="0" step="0.01" placeholder="0.00" readonly style="background:var(--soft,#f8fafc)"></div>
       <div class="formField"><label>Broker accepted rate</label><input id="dispatchEditBrokerAcceptedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
     </div>
     <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">
@@ -1583,6 +1601,21 @@ $('saveCustomCompany').addEventListener('click',()=>{
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px"><button id="dispatchEditSave" class="button primary" type="button">Save trip update</button></div>
   `;
   editorHomeAnchor.appendChild(panel);
+
+  const calendarViewEl=document.getElementById('tripCalendarView');
+  const calendarEditorAnchor=document.createElement('div');
+  calendarEditorAnchor.id='dispatchTripEditorCalendarAnchor';
+  calendarEditorAnchor.style.marginTop='12px';
+  const calendarEditorHeading=document.createElement('div');
+  calendarEditorHeading.id='dispatchTripEditorCalendarHeading';
+  calendarEditorHeading.hidden=true;
+  calendarEditorHeading.innerHTML='<p class="eyebrow" style="margin:0 0 8px">Selected trip details</p>';
+  calendarEditorAnchor.appendChild(calendarEditorHeading);
+  if(calendarViewEl&&calendarViewEl.parentNode){
+    calendarViewEl.insertAdjacentElement('afterend',calendarEditorAnchor);
+  }else{
+    editorHomeAnchor.appendChild(calendarEditorAnchor);
+  }
 
   let inlineEditorRow=null;
 
@@ -1615,7 +1648,17 @@ $('saveCustomCompany').addEventListener('click',()=>{
     clearInlineEditorRow();
     panel.style.marginTop='14px';
     panel.hidden=true;
+    calendarEditorHeading.hidden=true;
     editorHomeAnchor.appendChild(panel);
+  }
+
+  function mountEditorUnderCalendar(){
+    clearInlineEditorRow();
+    panel.style.marginTop='14px';
+    calendarEditorHeading.hidden=false;
+    if(!calendarEditorHeading.parentNode) calendarEditorAnchor.appendChild(calendarEditorHeading);
+    calendarEditorAnchor.appendChild(panel);
+    return true;
   }
 
   const get=(id)=>document.getElementById(id);
@@ -2344,8 +2387,14 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const persistedAppointment=getBookingAppointmentTime(b);
     get('dispatchEditAppointmentTime').value=persistedAppointment;
     get('dispatchEditCheckInTime').value='';
-    const persistedPickup=String(b.time||'').slice(0,5);
-    if(persistedPickup){
+    const explicitPickupTime=String(b.pickupTime||'').slice(0,5);
+    const persistedPickup=explicitPickupTime || String(b.time||'').slice(0,5);
+    const bookingSource=String(b.bookingSource||'').toUpperCase();
+    const shouldRecalculatePickup=bookingSource==='BROKER' && persistedPickup && persistedAppointment && persistedPickup===persistedAppointment;
+    if(explicitPickupTime){
+      get('dispatchEditTime').value=explicitPickupTime;
+      lastCalculatedPickup=explicitPickupTime;
+    }else if(persistedPickup && !shouldRecalculatePickup){
       get('dispatchEditTime').value=persistedPickup;
       lastCalculatedPickup=persistedPickup;
     }else if(persistedAppointment){
@@ -2579,8 +2628,13 @@ $('saveCustomCompany').addEventListener('click',()=>{
     try{
       await loadTrip(ref);
       if(!mountEditorUnderReference(ref)){
-        panel.style.marginTop='14px';
-        editorHomeAnchor.appendChild(panel);
+        const isCalendarView=String(document.getElementById('tripViewType')?.value||'').toUpperCase()==='CALENDAR' && calendarViewEl && !calendarViewEl.hidden;
+        if(isCalendarView){
+          mountEditorUnderCalendar();
+        }else{
+          panel.style.marginTop='14px';
+          editorHomeAnchor.appendChild(panel);
+        }
       }
     }
     catch(err){ setMsg(err.message||'Unable to load selected trip','err'); }
