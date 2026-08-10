@@ -398,10 +398,16 @@
     btn.disabled=true;btn.textContent='Sending…';
     try{
       const r=await fetch('/api/auth/forgot-password',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email})});
-      const j=await r.json();
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(j.error||'Unable to process password reset right now.');
       const n=$('#forgotNotice');n.hidden=false;n.className='notice ok';n.textContent=j.message||'Check your email for a reset link.';
       $('#forgotForm').reset();
-    }catch{const n=$('#forgotNotice');n.hidden=false;n.className='notice err';n.textContent='Unable to send. Try again or call (888) 639-5766.';}
+    }catch(err){
+      const n=$('#forgotNotice');
+      n.hidden=false;
+      n.className='notice err';
+      n.textContent=err?.message||'Unable to send. Try again or call (888) 639-5766.';
+    }
     finally{btn.disabled=false;btn.textContent='Send Reset Link';}
   });
 

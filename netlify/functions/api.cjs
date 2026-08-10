@@ -982,6 +982,13 @@ async function sendEmail(to,subject,html){
  const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:recipients.map(email=>({email}))}],from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Medical Transit'},subject,content:[{type:'text/html',value:html}]})});
  if(!r.ok)throw new Error(`SendGrid request failed (${r.status})`);return {status:'sent'};
 }
+async function ensurePasswordResetColumns(){
+ await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
+ await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token text').catch(()=>{});
+ await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz').catch(()=>{});
+ await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_used boolean DEFAULT false').catch(()=>{});
+ await query('CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(password_reset_token) WHERE password_reset_token IS NOT NULL').catch(()=>{});
+}
 async function resolveDriverContacts({driverName='',driverScopeId='',driverEmail='',driverPhone=''}){
  if(clean(driverEmail)||clean(driverPhone))return {driverEmail:clean(driverEmail),driverPhone:clean(driverPhone)};
  const name=clean(driverName);
@@ -2412,6 +2419,7 @@ async function handler(event){
   }
   // Forgot password — send reset link via email
   if(p[0]==='auth'&&p[1]==='forgot-password'&&method==='POST'){
+    await ensurePasswordResetColumns();
    const b=parseBody(event);
    const email=clean(b.email).toLowerCase();
    if(!email)return json(400,{error:'Email is required'});
@@ -2440,6 +2448,7 @@ async function handler(event){
   }
   // Reset password via token
   if(p[0]==='auth'&&p[1]==='reset-password'&&method==='POST'){
+    await ensurePasswordResetColumns();
    const b=parseBody(event);
    const token=clean(b.token);
    const newPass=clean(b.newPassword);
@@ -2454,6 +2463,7 @@ async function handler(event){
   }
   // Change password (authenticated — first-time or in-app change)
   if(p[0]==='auth'&&p[1]==='change-password'&&method==='POST'){
+    await ensurePasswordResetColumns();
    const u=await requireUser(bearer(event));
    const b=parseBody(event);
    const newPass=clean(b.newPassword);
