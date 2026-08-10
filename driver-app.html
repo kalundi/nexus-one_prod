@@ -131,7 +131,7 @@ a{color:#7fc1ff;text-decoration:none}
 .fieldRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .passwordField{position:relative}
 .passwordField input{padding-right:58px}
-.passwordToggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--blue);font:700 13px/1.2 Sora,sans-serif;cursor:pointer;padding:0}
+.passwordToggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--blue);font:700 13px/1.2 Sora,sans-serif;cursor:pointer;padding:0;z-index:2}
 
 /* Buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;border:0;padding:0 20px;font:800 15px/1 Sora,sans-serif;cursor:pointer;min-height:52px;letter-spacing:-.01em;transition:transform .1s,box-shadow .1s}
@@ -753,6 +753,43 @@ a{color:#7fc1ff;text-decoration:none}
 </div><!-- #appShell -->
 
 <script src="./nexus-ai.js"></script>
+<script>
+(function(){
+  function bindLoginFallback(){
+    const forgotBtn=document.getElementById('showForgotBtn');
+    const forgotPanel=document.getElementById('forgotPanel');
+    const forgotEmail=document.getElementById('forgotEmail');
+    const loginEmail=document.getElementById('loginEmail');
+    const backBtn=document.getElementById('backToLoginBtn');
+
+    forgotBtn?.addEventListener('click',function(){
+      if(!forgotPanel) return;
+      forgotPanel.style.display='block';
+      if(forgotEmail&&loginEmail) forgotEmail.value=loginEmail.value||'';
+    });
+
+    backBtn?.addEventListener('click',function(){
+      if(forgotPanel) forgotPanel.style.display='none';
+    });
+
+    document.querySelectorAll('.passwordToggle').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        const targetId=btn.getAttribute('data-target');
+        if(!targetId) return;
+        const input=document.getElementById(targetId);
+        if(!input) return;
+        const show=input.type==='password';
+        input.type=show?'text':'password';
+        btn.textContent=show?'Hide':'Show';
+        btn.setAttribute('aria-label', show?'Hide password':'Show password');
+      });
+    });
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bindLoginFallback);
+  else bindLoginFallback();
+})();
+</script>
 <script src="./driver-app.js"></script>
 </body>
 </html>
