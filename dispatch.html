@@ -69,6 +69,73 @@ body.dispatchFocusMode .dispatchSection{display:none}
 body.dispatchFocusMode .dispatchScopedTripBoard{display:none !important}
 body.dispatchFocusMode .dispatchSection.focusVisible{display:block;min-height:calc(100vh - 130px);padding:18px;border-radius:18px;background:#fff;border:1px solid #d8e6f2;box-shadow:0 24px 42px rgba(6,24,44,.12);margin:0}
 body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !important}
+
+.dispatchHeroMapStage{position:relative;padding:12px;height:100%}
+.dispatchHeroMapStage #heroFleetMap{height:430px;min-height:430px;border-radius:14px;border:1px solid rgba(255,255,255,.16);overflow:hidden;background:#cfd8e3}
+.dispatchHeroOverlayPanel{
+  position:absolute;
+  z-index:30;
+  width:130px;
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  padding:8px;
+  border-radius:18px;
+  background:rgba(8,31,51,.82);
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 16px 34px rgba(3,18,31,.3);
+  backdrop-filter:blur(18px) saturate(130%);
+  -webkit-backdrop-filter:blur(18px) saturate(130%);
+}
+.dispatchHeroStatusPanel{left:12px;top:56px}
+.dispatchHeroTripPanel{right:12px;top:56px}
+.dispatchHeroOverlayPanel .statusDragHandle{
+  width:100%;
+  min-height:30px;
+  border:1px solid transparent;
+  border-radius:12px;
+  background:rgba(255,255,255,.08);
+  color:#d6e9f8;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  cursor:grab;
+}
+.dispatchHeroOverlayPanel .statusDragHandle:hover{background:rgba(255,255,255,.14)}
+.dispatchHeroMetricBtn{
+  width:100%;
+  border:1px solid transparent;
+  border-radius:14px;
+  background:rgba(255,255,255,.08);
+  color:#f3fbff;
+  padding:8px 9px;
+  display:grid;
+  grid-template-columns:10px 1fr;
+  align-items:center;
+  gap:8px;
+  text-align:left;
+}
+.dispatchHeroMetricBtn i{width:9px;height:9px;border-radius:999px;display:block}
+.dispatchHeroMetricBtn b{display:block;font-size:31px;line-height:1;font-weight:800;margin-top:1px}
+.dispatchHeroMetricBtn small{display:block;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;opacity:.93}
+.dispatchHeroMetricBtn.tone-moving i{background:#38bdf8}
+.dispatchHeroMetricBtn.tone-onboard i{background:#34d399}
+.dispatchHeroMetricBtn.tone-available i{background:#94a3b8}
+.dispatchHeroMetricBtn.tone-attention i{background:#f59e0b}
+.dispatchHeroMetricBtn.tone-trips i{background:#ffffff}
+.dispatchHeroMetricBtn.tone-pending i{background:#fbbf24}
+.dispatchHeroMetricBtn.tone-active i{background:#22c55e}
+.dispatchHeroMetricBtn.tone-done i{background:#60a5fa}
+@media(max-width:900px){
+  .dispatchHeroMapStage{padding:10px}
+  .dispatchHeroMapStage #heroFleetMap{height:360px;min-height:360px}
+  .dispatchHeroOverlayPanel{width:114px;padding:7px;gap:6px}
+  .dispatchHeroMetricBtn b{font-size:24px}
+  .dispatchHeroMetricBtn small{font-size:9px}
+  .dispatchHeroStatusPanel{left:10px;top:52px}
+  .dispatchHeroTripPanel{right:10px;top:52px}
+}
 @media(max-width:760px){.transportation-picker{padding:var(--sp);border-radius:12px}.picker-header,.company-card-heading{align-items:flex-start;flex-direction:column}.filter-grid,.form-grid{grid-template-columns:1fr}.company-actions a{width:100%}}
   </style>
   <script src="/trustedsite.js?v=2" defer></script>
@@ -95,21 +162,23 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
 <aside class="livecareMapPanel" aria-label="Dispatch fleet telemetry">
   <div class="mapTopBar"><div><span class="mapLiveBadge" id="heroFleetStatus">Connecting</span><small id="heroFleetUpdated">Loading fleet telemetry</small></div><button id="heroRefreshFleet" type="button" class="mapRefresh">Refresh</button></div>
   <div class="liveFleetMapShell mapOnlyShell" style="background:#061f35">
-    <div style="padding:16px 18px;height:100%;display:flex;flex-direction:column;gap:10px;overflow:auto">
-      <div id="heroFleetMap" class="liveFleetMap" style="height:300px;min-height:300px;border-radius:14px;border:1px solid rgba(255,255,255,.16);overflow:hidden;background:#cfd8e3"></div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
-        <div style="background:rgba(22,163,106,.15);border:1px solid rgba(22,163,106,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#4ade80" id="heroFleetMoving"></strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Moving</small></div>
-        <div style="background:rgba(129,70,214,.15);border:1px solid rgba(129,70,214,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#c4b5fd" id="heroFleetOnboard"></strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">On-board</small></div>
-        <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#d1d5db" id="heroFleetAvail"></strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Available</small></div>
-        <div style="background:rgba(217,130,24,.15);border:1px solid rgba(217,130,24,.3);border-radius:12px;padding:11px 8px;text-align:center"><strong style="display:block;font-size:22px;color:#fbbf24" id="heroFleetAttn"></strong><small style="font-size:10px;color:#9fc2d8;text-transform:uppercase;letter-spacing:.06em">Attention</small></div>
+    <div class="dispatchHeroMapStage">
+      <div id="heroFleetMap" class="liveFleetMap"></div>
+      <div class="dispatchHeroOverlayPanel dispatchHeroStatusPanel dispatchHeroMovablePanel" data-panel-key="fleet-status" role="group" aria-label="Fleet status telemetry">
+        <button class="statusDragHandle" type="button" aria-label="Move fleet status panel. Drag to reposition; double-click to reset." title="Drag to move">Move</button>
+        <button class="dispatchHeroMetricBtn tone-moving" type="button" tabindex="-1" aria-label="Moving vehicles"><i></i><span><b id="heroFleetMoving">--</b><small>Moving</small></span></button>
+        <button class="dispatchHeroMetricBtn tone-onboard" type="button" tabindex="-1" aria-label="On-board vehicles"><i></i><span><b id="heroFleetOnboard">--</b><small>On-board</small></span></button>
+        <button class="dispatchHeroMetricBtn tone-available" type="button" tabindex="-1" aria-label="Available vehicles"><i></i><span><b id="heroFleetAvail">--</b><small>Available</small></span></button>
+        <button class="dispatchHeroMetricBtn tone-attention" type="button" tabindex="-1" aria-label="Vehicles needing attention"><i></i><span><b id="heroFleetAttn">--</b><small>Attention</small></span></button>
       </div>
-      <div id="heroVehicleList" style="flex:1;overflow:auto;display:grid;gap:8px"><div style="text-align:center;padding:20px;color:#9fc2d8">Loading fleet telemetry</div></div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px">
-        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#fff" id="heroTotalTrips"></strong>Trips</span>
-        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#fbbf24" id="heroPendingTrips"></strong>Pending</span>
-        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#4ade80" id="heroActiveTrips"></strong>Active</span>
-        <span style="text-align:center;font-size:11px;color:#9fc2d8"><strong style="display:block;color:#60a5fa" id="heroCompletedTrips"></strong>Done</span>
+      <div class="dispatchHeroOverlayPanel dispatchHeroTripPanel dispatchHeroMovablePanel" data-panel-key="trip-status" role="group" aria-label="Trip status telemetry">
+        <button class="statusDragHandle" type="button" aria-label="Move trip status panel. Drag to reposition; double-click to reset." title="Drag to move">Move</button>
+        <button class="dispatchHeroMetricBtn tone-trips" type="button" tabindex="-1" aria-label="Total trips"><i></i><span><b id="heroTotalTrips">--</b><small>Trips</small></span></button>
+        <button class="dispatchHeroMetricBtn tone-pending" type="button" tabindex="-1" aria-label="Pending trips"><i></i><span><b id="heroPendingTrips">--</b><small>Pending</small></span></button>
+        <button class="dispatchHeroMetricBtn tone-active" type="button" tabindex="-1" aria-label="Active trips"><i></i><span><b id="heroActiveTrips">--</b><small>Active</small></span></button>
+        <button class="dispatchHeroMetricBtn tone-done" type="button" tabindex="-1" aria-label="Completed trips"><i></i><span><b id="heroCompletedTrips">--</b><small>Done</small></span></button>
       </div>
+      <div id="heroVehicleList" hidden></div>
     </div>
   </div>
   <div class="service-marquee-wrap dispatch-service-marquee" aria-label="Filter by service">
@@ -555,6 +624,114 @@ function ensureDispatchHeroMap(){
   return dispatchHeroMap;
 }
 
+function initDispatchHeroMovablePanels(){
+  const shell=document.querySelector('.dispatchHeroMapStage');
+  if(!shell)return;
+
+  const clamp=(value,min,max)=>Math.min(Math.max(value,min),Math.max(min,max));
+
+  document.querySelectorAll('.dispatchHeroMovablePanel').forEach((panel)=>{
+    if(panel.dataset.dragBound==='1')return;
+    panel.dataset.dragBound='1';
+    const key=`nexusDispatchHeroPanelPosV1_${panel.dataset.panelKey||'panel'}`;
+    const handle=panel.querySelector('.statusDragHandle');
+    if(!handle)return;
+
+    let active=false;
+    let startClientX=0;
+    let startClientY=0;
+    let startLeft=0;
+    let startTop=0;
+
+    const bounds=()=>({
+      maxLeft:Math.max(0,shell.clientWidth-panel.offsetWidth),
+      maxTop:Math.max(0,shell.clientHeight-panel.offsetHeight)
+    });
+
+    const position=()=>{
+      const shellRect=shell.getBoundingClientRect();
+      const panelRect=panel.getBoundingClientRect();
+      return {left:panelRect.left-shellRect.left,top:panelRect.top-shellRect.top};
+    };
+
+    const place=(left,top,save)=>{
+      const b=bounds();
+      const x=clamp(left,0,b.maxLeft);
+      const y=clamp(top,0,b.maxTop);
+      panel.style.left=`${x}px`;
+      panel.style.top=`${y}px`;
+      panel.style.right='auto';
+      panel.style.bottom='auto';
+      if(save){
+        try{
+          localStorage.setItem(key,JSON.stringify({
+            x:b.maxLeft?x/b.maxLeft:0,
+            y:b.maxTop?y/b.maxTop:0
+          }));
+        }catch(_){ }
+      }
+    };
+
+    const restore=()=>{
+      let saved=null;
+      try{saved=JSON.parse(localStorage.getItem(key)||'null');}catch(_){ }
+      const b=bounds();
+      if(saved&&Number.isFinite(saved.x)&&Number.isFinite(saved.y)){
+        place(saved.x*b.maxLeft,saved.y*b.maxTop,false);
+        return;
+      }
+      const baseTop=Math.max(14,Math.round((shell.clientHeight-panel.offsetHeight)*0.18));
+      const baseLeft=panel.classList.contains('dispatchHeroTripPanel')?Math.max(12,b.maxLeft-12):12;
+      place(baseLeft,baseTop,false);
+    };
+
+    const begin=(event)=>{
+      const p=position();
+      active=true;
+      startClientX=event.clientX;
+      startClientY=event.clientY;
+      startLeft=p.left;
+      startTop=p.top;
+      panel.classList.add('isDragging');
+      document.documentElement.classList.add('livecareStatusDragging');
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    const drag=(event)=>{
+      if(!active)return;
+      place(startLeft+event.clientX-startClientX,startTop+event.clientY-startClientY,false);
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    const finish=(event)=>{
+      if(!active)return;
+      active=false;
+      panel.classList.remove('isDragging');
+      document.documentElement.classList.remove('livecareStatusDragging');
+      const p=position();
+      place(p.left,p.top,true);
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    handle.addEventListener('pointerdown',(event)=>{begin(event);handle.setPointerCapture?.(event.pointerId);});
+    window.addEventListener('pointermove',drag,{passive:false});
+    window.addEventListener('pointerup',finish,{passive:false});
+    window.addEventListener('pointercancel',finish,{passive:false});
+    handle.addEventListener('dblclick',(event)=>{
+      try{localStorage.removeItem(key);}catch(_){ }
+      restore();
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    window.addEventListener('resize',()=>{if(!active)restore();},{passive:true});
+    if('ResizeObserver' in window){new ResizeObserver(()=>{if(!active)restore();}).observe(shell);}
+    requestAnimationFrame(()=>requestAnimationFrame(restore));
+  });
+}
+
 async function loadDriverRoster(){
   try{
     const token=sessionStorage.getItem('nexusAccessToken');
@@ -719,6 +896,7 @@ document.getElementById('resetDriverStatusNow')?.addEventListener('click',()=>{
   if(timeInput) timeInput.value=now.toTimeString().slice(0,5);
   loadDriverRoster();
 });
+initDispatchHeroMovablePanels();
 loadDriverRoster();
 
 function setBrokerIntakeMessage(text,type){const el=document.getElementById('brokerIntakeMessage');if(!el)return;el.hidden=false;el.className=`msgBox ${type==='err'?'err':'ok'}`;el.textContent=text;}
