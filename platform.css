@@ -557,13 +557,21 @@ header .nav .navCta,header .nav .bookRide{background:linear-gradient(135deg,#ef3
   .service-marquee-wrap {
     position: relative;
     width: calc(100% - 40px);
-    margin: -20px auto 6px;
-    overflow: hidden;
+    margin: -20px auto 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
     background: rgba(255, 255, 255, 0.96);
     border-radius: 24px;
     box-shadow: 0 14px 40px rgba(8, 42, 67, 0.12);
     padding: 8px 0;
     z-index: 20;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .service-marquee-wrap::-webkit-scrollbar {
+    width: 0;
+    height: 0;
   }
 
   .service-marquee-wrap::before,
@@ -601,10 +609,12 @@ header .nav .navCta,header .nav .bookRide{background:linear-gradient(135deg,#ef3
     width: max-content;
     gap: 12px;
     padding: 0 16px;
-    animation: nexusServiceScroll 32s linear infinite;
+    animation: nexusServiceScroll 22s linear infinite;
+    will-change: transform;
   }
 
-  .service-marquee-wrap:hover .service-marquee {
+  .service-marquee-wrap:active .service-marquee,
+  .service-marquee-wrap.is-dragging .service-marquee {
     animation-play-state: paused;
   }
 
@@ -640,11 +650,11 @@ header .nav .navCta,header .nav .bookRide{background:linear-gradient(135deg,#ef3
 
   @keyframes nexusServiceScroll {
     from {
-      transform: translateX(-50%);
+      transform: translateX(0);
     }
 
     to {
-      transform: translateX(0);
+      transform: translateX(-50%);
     }
   }
 
@@ -659,7 +669,7 @@ header .nav .navCta,header .nav .bookRide{background:linear-gradient(135deg,#ef3
     .service-marquee-wrap {
       width: calc(100% - 20px);
       border-radius: 18px;
-      margin: -14px auto 4px;
+      margin: -14px auto 2px;
     }
 
     .service-pill {
@@ -668,6 +678,46 @@ header .nav .navCta,header .nav .bookRide{background:linear-gradient(135deg,#ef3
       font-size: 13px;
     }
   }
+
+/* Livecare: map reaches divider and service rail overlays bottom edge */
+.livecareMapPanel{
+  position:relative;
+}
+
+.livecareMapPanel .mapOnlyShell{
+  flex:1 1 auto;
+  min-height:0;
+}
+
+.livecareMapPanel .livecare-service-marquee{
+  position:absolute;
+  left:20px;
+  right:20px;
+  bottom:10px;
+  width:auto;
+  margin:0;
+  z-index:35;
+}
+
+.livecareMapPanel #rideBoardScope{
+  display:none;
+}
+
+/* Dispatch: keep marquee integrated without covering telemetry rows */
+.livecareMapPanel .dispatch-service-marquee{
+  margin:-20px 18px 2px;
+}
+
+@media (max-width:700px){
+  .livecareMapPanel .livecare-service-marquee{
+    left:10px;
+    right:10px;
+    bottom:8px;
+  }
+  .livecareMapPanel .dispatch-service-marquee{
+    margin:-14px 10px 2px;
+  }
+}
 
 /* Build 031: modern far-right vertical status rail */
 .livecareMapPanel .mapLegend.verticalStatusPanel{

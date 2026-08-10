@@ -172,6 +172,59 @@ function syncServicePillState(){
     btn.setAttribute('aria-pressed',String(on));
   });
 }
+
+function bindServiceMarqueeRail(){
+  const wraps=Array.from(document.querySelectorAll('.service-marquee-wrap'));
+  wraps.forEach((wrap)=>{
+    if(wrap.dataset.dragBound==='1') return;
+    wrap.dataset.dragBound='1';
+    let dragging=false;
+    let moved=false;
+    let startX=0;
+    let startScrollLeft=0;
+
+    wrap.addEventListener('pointerdown',(event)=>{
+      dragging=true;
+      moved=false;
+      startX=event.clientX;
+      startScrollLeft=wrap.scrollLeft;
+      wrap.classList.add('is-dragging');
+      wrap.setPointerCapture?.(event.pointerId);
+    });
+
+    wrap.addEventListener('pointermove',(event)=>{
+      if(!dragging) return;
+      const delta=event.clientX-startX;
+      if(Math.abs(delta)>4) moved=true;
+      wrap.scrollLeft=startScrollLeft-delta;
+      event.preventDefault();
+    });
+
+    const stopDrag=(event)=>{
+      if(!dragging) return;
+      dragging=false;
+      wrap.classList.remove('is-dragging');
+      wrap.releasePointerCapture?.(event.pointerId);
+    };
+
+    wrap.addEventListener('pointerup',stopDrag);
+    wrap.addEventListener('pointercancel',stopDrag);
+    wrap.addEventListener('pointerleave',(event)=>{if(dragging) stopDrag(event);});
+
+    wrap.addEventListener('click',(event)=>{
+      if(!moved) return;
+      event.preventDefault();
+      event.stopPropagation();
+      moved=false;
+    },true);
+
+    wrap.addEventListener('wheel',(event)=>{
+      if(Math.abs(event.deltaY)<=Math.abs(event.deltaX)) return;
+      wrap.scrollLeft+=event.deltaY;
+      event.preventDefault();
+    },{passive:false});
+  });
+}
 function statusMatches(vehicle,filter){
   if(!filter)return true;
   if(filter==='MOVING')return ['EN_ROUTE','ARRIVED','PATIENT_ON_BOARD','DRIVER_ASSIGNED'].includes(vehicle.status);
@@ -215,6 +268,7 @@ function bindFleetFilters(){
     });
   });
   syncServicePillState();
+  bindServiceMarqueeRail();
 }
 
 window.filterVehiclesByService=function(service){
