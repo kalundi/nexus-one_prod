@@ -12,9 +12,24 @@
   const INSP_KEY  = 'nxDriverInsp_v3';
   const INSP_COLLAPSE_KEY = 'nxDriverInspCollapsed_v1';
 
-  const tok = () => sessionStorage.getItem('nexusAccessToken');
-  const usr = () => { try { return JSON.parse(sessionStorage.getItem('nexusUser') || '{}'); } catch { return {}; } };
+  const tok = () => sessionStorage.getItem('nexusAccessToken') || localStorage.getItem('nexusAccessToken');
+  const usr = () => {
+    try {
+      return JSON.parse(sessionStorage.getItem('nexusUser') || localStorage.getItem('nexusUser') || '{}');
+    } catch {
+      return {};
+    }
+  };
   const ah  = () => ({ authorization: `Bearer ${tok()}`, 'content-type': 'application/json' });
+  function persistAuthSession(token,user){
+    const userJson=JSON.stringify(user||{});
+    if(token){
+      sessionStorage.setItem('nexusAccessToken',token);
+      localStorage.setItem('nexusAccessToken',token);
+    }
+    sessionStorage.setItem('nexusUser',userJson);
+    localStorage.setItem('nexusUser',userJson);
+  }
   const ADDRESS_COORDS = {
     '110 irving street nw, washington, dc 20010': {lat:38.929298,lng:-77.013962},
     '2041 georgia avenue nw, washington, dc 20060': {lat:38.917715,lng:-77.021294},
@@ -346,11 +361,16 @@
       if(!r.ok){clearSess();showLoginView();return false;}
       const j=await r.json();
       if(!['DRIVER','ADMIN','DISPATCHER'].includes(j.user?.role)){clearSess();showLoginErr('This app is for drivers only.');showLoginView();return false;}
-      sessionStorage.setItem('nexusUser',JSON.stringify(j.user));
+      persistAuthSession(tok(),j.user);
       return true;
     } catch{clearSess();showLoginView();return false;}
   }
-  function clearSess(){sessionStorage.removeItem('nexusAccessToken');sessionStorage.removeItem('nexusUser');}
+  function clearSess(){
+    sessionStorage.removeItem('nexusAccessToken');
+    sessionStorage.removeItem('nexusUser');
+    localStorage.removeItem('nexusAccessToken');
+    localStorage.removeItem('nexusUser');
+  }
   function showLoginView(){const l=$('#loginView'),a=$('#appShell');if(l)l.hidden=false;if(a)a.hidden=true;}
   function hideLoginView(){const l=$('#loginView'),a=$('#appShell');if(l)l.hidden=true;if(a)a.hidden=false;}
   function showLoginErr(m){const el=$('#loginNotice');if(el){el.hidden=false;el.textContent=m;}}
@@ -377,8 +397,7 @@
       const j=await r.json();
       if(!r.ok)throw new Error(j.error||'Sign-in failed');
       if(!['DRIVER','ADMIN','DISPATCHER'].includes(j.user?.role))throw new Error('This app is for drivers only.');
-      sessionStorage.setItem('nexusAccessToken',j.token);
-      sessionStorage.setItem('nexusUser',JSON.stringify(j.user));
+      persistAuthSession(j.token,j.user);
       hideLoginView();
       if(j.user?.mustChangePassword){showChangePassword(true);return;}
       await initApp();
@@ -455,7 +474,7 @@
       const body=usr().mustChangePassword?{newPassword:np}:{currentPassword:cur,newPassword:np};
       const r=await fetch('/api/auth/change-password',{method:'POST',headers:ah(),body:JSON.stringify(body)});
       const j=await r.json();if(!r.ok)throw new Error(j.error||'Password change failed');
-      const u=usr();u.mustChangePassword=false;sessionStorage.setItem('nexusUser',JSON.stringify(u));
+      const u=usr();u.mustChangePassword=false;persistAuthSession(tok(),u);
       n.hidden=false;n.className='notice ok';n.textContent='Password updated!';
       $('#changePasswordForm').reset();
       setTimeout(()=>{hideLoginView();initApp();},1200);

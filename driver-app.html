@@ -813,7 +813,9 @@ a{color:#7fc1ff;text-decoration:none}
         const role=String(j?.user?.role||'').toUpperCase();
         if(!['DRIVER','ADMIN','DISPATCHER'].includes(role)) throw new Error('This app is for drivers only.');
         sessionStorage.setItem('nexusAccessToken',j.token||'');
+        localStorage.setItem('nexusAccessToken',j.token||'');
         sessionStorage.setItem('nexusUser',JSON.stringify(j.user||{}));
+        localStorage.setItem('nexusUser',JSON.stringify(j.user||{}));
         loginNotice.hidden=false;
         loginNotice.style.display='block';
         loginNotice.className='notice ok';
