@@ -1132,15 +1132,12 @@
     const todayIso=new Date().toISOString().slice(0,10);
     const startOfToday=new Date(now.getFullYear(),now.getMonth(),now.getDate());
     const dayEnd=new Date(startOfToday.getTime()+manifestDays*86400000);
-    const rollingEnd=new Date(now.getTime()+manifestDays*86400000);
     const list=trips.filter(t=>{
       if(!t.date)return false;
       const tripDt=new Date(`${t.date}T${(t.time||'00:00').slice(0,5)}:00`);
       if(Number.isNaN(tripDt.getTime()))return false;
       if(manifestDays===1){
-        if(tripDt>=now&&tripDt<rollingEnd)return true;
-        if(isTerminalStatus(t.status)&&t.date===todayIso)return true;
-        return false;
+        return t.date===todayIso;
       }
       const tripDay=new Date(t.date+'T00:00:00');
       return tripDay>=startOfToday&&tripDay<dayEnd;
