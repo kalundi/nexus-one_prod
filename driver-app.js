@@ -56,6 +56,13 @@
   let routeFocusOpen = false;
   let routeFocusDismissedRef = null;
   let routeFocusMapMode = 'leg';
+  let tripSyncTimer = null;
+  let tripSyncInFlight = false;
+  let lastTripSyncSignature = '';
+  let lastTripSyncAt = 0;
+  let manifestNoticeTimer = null;
+  const TRIP_SYNC_FAST_MS = 10000;
+  const TRIP_SYNC_NORMAL_MS = 30000;
   const ROUTE_AUTO_ARRIVAL_MI = 0.12;
   const ROUTE_AUTO_DEPART_MI = 0.18;
   let routeAuto = {
@@ -305,6 +312,7 @@
     if(id==='tripView'||id==='endView'||id==='changePasswordView'||id==='inspectionView'||id==='manifestView'||id==='dashView'){
       requestAnimationFrame(()=>ensureCardFocus(v));
     }
+    scheduleTripSync();
   }
   $$('.navBtn').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
   $('#focusToggleBtn')?.addEventListener('click',()=>{
@@ -986,12 +994,80 @@
   });
 
   // ── Trips / manifest ──────────────────────────────────────────
-  async function loadTrips(){
+  function tripSnapshotKey(trip){
+    return [
+      String(trip?.ref||''),
+      String(trip?.status||''),
+      String(trip?.date||''),
+      String(trip?.time||''),
+      String(trip?.pickup||''),
+      String(trip?.destination||''),
+      String(trip?.vehicleUnit||''),
+      String(trip?.patient||''),
+      String(trip?.service||'')
+    ].join('|');
+  }
+
+  function buildTripSyncSignature(list){
+    return (Array.isArray(list)?list:[])
+      .map((trip)=>tripSnapshotKey(trip))
+      .sort()
+      .join('||');
+  }
+
+  function formatSyncTime(ts){
+    if(!ts) return '--';
+    return new Date(ts).toLocaleTimeString([], {hour:'numeric', minute:'2-digit', second:'2-digit'});
+  }
+
+  function setManifestNotice(message, tone='info', autoHideMs=4500){
+    const notice=$('#manifestNotice');
+    if(!notice) return;
+    notice.hidden=false;
+    notice.className=`notice ${tone}`;
+    notice.textContent=message;
+    if(manifestNoticeTimer){
+      clearTimeout(manifestNoticeTimer);
+      manifestNoticeTimer=null;
+    }
+    if(autoHideMs>0){
+      manifestNoticeTimer=setTimeout(()=>{
+        notice.hidden=true;
+      }, autoHideMs);
+    }
+  }
+
+  function preferredTripSyncIntervalMs(){
+    const visible=document.visibilityState==='visible';
+    const manifestActive=$('#manifestView')?.classList.contains('active');
+    const tripActive=$('#tripView')?.classList.contains('active');
+    if(!visible) return TRIP_SYNC_NORMAL_MS;
+    return (manifestActive||tripActive||shift.onDuty) ? TRIP_SYNC_FAST_MS : TRIP_SYNC_NORMAL_MS;
+  }
+
+  function scheduleTripSync(){
+    if(tripSyncTimer){
+      clearTimeout(tripSyncTimer);
+      tripSyncTimer=null;
+    }
+    const waitMs=preferredTripSyncIntervalMs();
+    tripSyncTimer=setTimeout(async()=>{
+      await loadTrips({reason:'poll',silent:true});
+      scheduleTripSync();
+    }, waitMs);
+  }
+
+  async function loadTrips(options={}){
+    const {reason='manual', silent=false}=options||{};
+    if(tripSyncInFlight) return false;
+    tripSyncInFlight=true;
     try{
       const r=await fetch('/api/driver/assignments',{headers:ah(),cache:'no-store'});
-      if(!r.ok)return;
+      if(!r.ok)return false;
       const j=await r.json();
-      trips=(j.assignments||[]).map(b=>({
+      const previousTrips=Array.isArray(trips)?trips:[];
+      const previousByRef=new Map(previousTrips.map((trip)=>[String(trip.ref||''),trip]));
+      const nextTrips=(j.assignments||[]).map(b=>({
         ...(()=>{
           const pickupFromApi=b.pickupLat!=null?Number(b.pickupLat):b.pickup_lat!=null?Number(b.pickup_lat):null;
           const pickupLngFromApi=b.pickupLng!=null?Number(b.pickupLng):b.pickup_lng!=null?Number(b.pickup_lng):null;
@@ -1251,10 +1327,47 @@
       enabled:false,
       tripRef,
       startOdo:null,
-      milesSinceStart:0,
-      lastPos:null,
-      segmentStartMiles:0,
-      segmentStartOdo:null,
+      const nextSignature=buildTripSyncSignature(nextTrips);
+      const hadSignature=Boolean(lastTripSyncSignature);
+      const changed=hadSignature ? nextSignature!==lastTripSyncSignature : true;
+      const removedRefs=[];
+      const changedRefs=[];
+      if(hadSignature){
+        const nextByRef=new Map(nextTrips.map((trip)=>[String(trip.ref||''),trip]));
+        previousByRef.forEach((trip,ref)=>{
+          if(ref&&!nextByRef.has(ref)) removedRefs.push(ref);
+        });
+        nextByRef.forEach((trip,ref)=>{
+          const previous=previousByRef.get(ref);
+          if(!previous){
+            changedRefs.push(ref);
+            return;
+          }
+          if(tripSnapshotKey(previous)!==tripSnapshotKey(trip)) changedRefs.push(ref);
+        });
+      }
+
+      trips=nextTrips;
+      lastTripSyncSignature=nextSignature;
+      lastTripSyncAt=Date.now();
+
+      if(changed||!silent||reason!=='poll'){
+        updateBadge();
+        renderDash();
+        if($('#manifestView')?.classList.contains('active'))renderManifest();
+      }
+
+      if(changed&&hadSignature&&reason==='poll'){
+        const updateCount=changedRefs.length+removedRefs.length;
+        const message=updateCount
+          ? `Live dispatch update: ${updateCount} trip${updateCount===1?'':'s'} changed. Synced at ${formatSyncTime(lastTripSyncAt)}.`
+          : `Live dispatch update received. Synced at ${formatSyncTime(lastTripSyncAt)}.`;
+        setManifestNotice(message,'ok',5000);
+      }
+
+      if(!changed&&($('#manifestView')?.classList.contains('active'))&&!silent){
+        setManifestNotice(`Live updates on. Last synced at ${formatSyncTime(lastTripSyncAt)}.`,'info',2800);
+      }
       pickupCoord:null,
       destinationCoord:null,
       arrivedDestinationAt:null,
@@ -1264,7 +1377,10 @@
 
   function statusLabelPlain(status){
     return String(status||'').replaceAll('_',' ').trim();
+      return changed;
   }
+    finally{tripSyncInFlight=false;}
+    return false;
 
   function syncRouteAutoUi(trip){
     const startInput=$('#routeAutoStartOdo');
@@ -1891,13 +2007,16 @@
     checkResetToken(); // Check for ?action=reset&token= in URL
     const ok=await checkAuth();if(!ok)return;
     hideLoginView();renderDash();renderInspection();loadFleetForInspection();bindAnalyticsTabs();
-    await loadTrips();
+    await loadTrips({reason:'init'});
     showView('dashView');
     if(shift.onDuty)startGPS();
     setInterval(()=>{if(shift.onDuty)renderDash();},30000);
-    setInterval(()=>{if(document.visibilityState==='visible')loadTrips();},30000);
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')loadTrips();});
-    window.addEventListener('focus',()=>loadTrips());
+    scheduleTripSync();
+    document.addEventListener('visibilitychange',()=>{
+      if(document.visibilityState==='visible') loadTrips({reason:'visibility'});
+      scheduleTripSync();
+    });
+    window.addEventListener('focus',()=>loadTrips({reason:'focus'}));
   }
   initApp();
 })();
