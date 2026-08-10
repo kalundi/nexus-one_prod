@@ -761,6 +761,9 @@ a{color:#7fc1ff;text-decoration:none}
     const forgotEmail=document.getElementById('forgotEmail');
     const loginEmail=document.getElementById('loginEmail');
     const backBtn=document.getElementById('backToLoginBtn');
+    const forgotForm=document.getElementById('forgotForm');
+    const forgotNotice=document.getElementById('forgotNotice');
+    const forgotBtnAction=document.getElementById('forgotBtn');
 
     forgotBtn?.addEventListener('click',function(){
       if(!forgotPanel) return;
@@ -770,6 +773,42 @@ a{color:#7fc1ff;text-decoration:none}
 
     backBtn?.addEventListener('click',function(){
       if(forgotPanel) forgotPanel.style.display='none';
+    });
+
+    forgotForm?.addEventListener('submit',async function(e){
+      e.preventDefault();
+      if(!forgotNotice) return;
+      const email=(forgotEmail?.value||'').trim();
+      if(!email){
+        forgotNotice.hidden=false;
+        forgotNotice.className='notice err';
+        forgotNotice.textContent='Enter your email address first.';
+        return;
+      }
+      if(forgotBtnAction){
+        forgotBtnAction.disabled=true;
+        forgotBtnAction.textContent='Sending…';
+      }
+      try{
+        const r=await fetch('/api/auth/forgot-password',{
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          body:JSON.stringify({email})
+        });
+        const j=await r.json().catch(function(){ return {}; });
+        forgotNotice.hidden=false;
+        forgotNotice.className=r.ok?'notice ok':'notice err';
+        forgotNotice.textContent=(j&& (j.message||j.error)) || (r.ok?'If that email is registered you will receive a reset link shortly.':'Unable to process password reset right now.');
+      }catch(_err){
+        forgotNotice.hidden=false;
+        forgotNotice.className='notice err';
+        forgotNotice.textContent='Network error while sending reset request. Try again or call (888) 639-5766.';
+      }finally{
+        if(forgotBtnAction){
+          forgotBtnAction.disabled=false;
+          forgotBtnAction.textContent='Send Reset Link';
+        }
+      }
     });
 
     document.querySelectorAll('.passwordToggle').forEach(function(btn){
