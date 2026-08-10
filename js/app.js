@@ -26,9 +26,23 @@
 
  let fleetAnimationFrame=0, fleetVehicles=[], allFleetVehicles=[], fleetMap=null, fleetMarkers=[], activeStatusFilter=null, activeServiceFilter="ALL";
  let forceShowAccessGateway=false;
+ let lastWorkspaceRevealRole='';
+ function shouldUseMapFocusMode(role){
+  return role==='PATIENT'||role==='DRIVER';
+ }
+ function shouldAutoRevealWorkspace(role){
+  return role==='DISPATCHER'||role==='ADMIN';
+ }
+ function revealWorkspaceForRole(role){
+  if(lastWorkspaceRevealRole===role) return;
+  const target=role==='FACILITY' ? $('#facilityWorkspace') : $('#roleWorkspace');
+  if(!target||target.hidden) return;
+  target.scrollIntoView({behavior:'smooth',block:'start'});
+  lastWorkspaceRevealRole=role;
+ }
  function syncLivecareFocusMode(roleOverride){
   const role=(roleOverride||livecareRole||'PUBLIC');
-  const shouldFocus=(role!=='PUBLIC')&&!forceShowAccessGateway;
+  const shouldFocus=shouldUseMapFocusMode(role)&&!forceShowAccessGateway;
   document.body.classList.toggle('livecare-focus-mode',shouldFocus);
  }
  function openAccessGatewayForSwitch(){
@@ -355,7 +369,7 @@ function renderFleet(data,role,mode){
  async function loadRoleWorkspace(role,user,token){
   const facility=$('#facilityWorkspace'),workspace=$('#roleWorkspace'); if(facility)facility.hidden=true; if(workspace)workspace.hidden=true;
   if(!['FACILITY','DRIVER','DISPATCHER','ADMIN','EXECUTIVE','QA','BILLING'].includes(role))return;
-  try{const data=await request('/api/portal/trips',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(role==='FACILITY')renderFacilityWorkspace(data.trips||[],user);else renderRoleWorkspace(role,data.trips||[],user)}catch(err){const target=role==='FACILITY'?facility:workspace;if(target){target.hidden=false;target.innerHTML=`<div class="facilityPanel roleErrorPanel"><h2>Role information unavailable</h2><p>${esc(err.message)}</p></div>`}}
+  try{const data=await request('/api/portal/trips',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(role==='FACILITY')renderFacilityWorkspace(data.trips||[],user);else renderRoleWorkspace(role,data.trips||[],user);if(shouldAutoRevealWorkspace(role))revealWorkspaceForRole(role)}catch(err){const target=role==='FACILITY'?facility:workspace;if(target){target.hidden=false;target.innerHTML=`<div class="facilityPanel roleErrorPanel"><h2>Role information unavailable</h2><p>${esc(err.message)}</p></div>`}}
  }
  async function loadRideBoard(){
   if(verified.reference)return;

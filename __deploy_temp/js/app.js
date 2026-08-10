@@ -25,6 +25,28 @@
  $('#endPatientSession').addEventListener('click',()=>{verified={reference:'',phone:''};sessionStorage.removeItem('nexusPatientRide');$('#liveCommand').hidden=true;$('#patientAccess').hidden=false;$('#phone').value='';forceShowAccessGateway=true;$('#patientAccess').scrollIntoView({behavior:'smooth'})});
 
  let fleetAnimationFrame=0, fleetVehicles=[], allFleetVehicles=[], fleetMap=null, fleetMarkers=[], activeStatusFilter=null, activeServiceFilter="ALL";
+ let livecareRole='PUBLIC';
+ let lastWorkspaceRevealRole='';
+ function shouldUseMapFocusMode(role){
+  return role==='PATIENT'||role==='DRIVER';
+ }
+ function shouldAutoRevealWorkspace(role){
+  return role==='DISPATCHER'||role==='ADMIN';
+ }
+ function revealWorkspaceForRole(role){
+  if(lastWorkspaceRevealRole===role) return;
+  const target=role==='FACILITY' ? $('#facilityWorkspace') : $('#roleWorkspace');
+  if(!target||target.hidden) return;
+  target.scrollIntoView({behavior:'smooth',block:'start'});
+  lastWorkspaceRevealRole=role;
+ }
+ function syncLivecareFocusMode(roleOverride){
+  const role=(roleOverride||livecareRole||'PUBLIC');
+  const shouldFocus=shouldUseMapFocusMode(role)&&!forceShowAccessGateway;
+  document.body.classList.toggle('livecare-focus-mode',shouldFocus);
+ }
+ function openAccessGatewayForSwitch(){const gateway=$('#accessTitle')?.closest('.accessGateway');forceShowAccessGateway=true;if(gateway)gateway.hidden=false;document.querySelectorAll('.securePanel').forEach(panel=>{panel.hidden=true});const accessLabel=$('#currentAccessLabel');if(accessLabel)accessLabel.textContent='Choose your user type';syncLivecareFocusMode();gateway?.scrollIntoView({behavior:'smooth',block:'start'});}
+ $('#accessBackToMap')?.addEventListener('click',()=>{const gateway=$('#accessTitle')?.closest('.accessGateway');forceShowAccessGateway=false;if(gateway)gateway.hidden=true;syncLivecareFocusMode();window.scrollTo({top:0,behavior:'smooth'});});
  let forceShowAccessGateway=false;
  const routeLibrary=[
   [[39.1732,-77.2717],[39.1528,-77.2336],[39.1192,-77.1989],[39.0840,-77.1528],[39.0468,-77.1195]],
@@ -88,7 +110,9 @@
    ADMIN:['Operations Livecare','System-wide transportation movement.','Authorized operational movement is consolidated into one live map.']
   }[role]||null;
   if(copy){audience.textContent=copy[0];headline.textContent=copy[1];intro.textContent=copy[2]} document.querySelector('.livecareExperience')?.setAttribute('data-role',role);
+  livecareRole=role;
   if(gateway)gateway.hidden=!forceShowAccessGateway&&role!=='PUBLIC'; const accessLabel=$('#currentAccessLabel'),logout=$('#livecareLogout'); if(accessLabel)accessLabel.textContent=role==='PUBLIC'?'Choose your user type':`${copy?.[0]||role} active`; if(logout)logout.hidden=role==='PUBLIC';
+  syncLivecareFocusMode(role);
 }
 function serviceMatches(vehicle,filter){
   if(filter==='ALL')return true;
@@ -233,6 +257,7 @@ function renderFleet(data,role,mode){
   const facility=$('#facilityWorkspace'),workspace=$('#roleWorkspace'); if(facility)facility.hidden=true; if(workspace)workspace.hidden=true;
   if(!['FACILITY','DRIVER','DISPATCHER','ADMIN','EXECUTIVE','QA','BILLING'].includes(role))return;
   try{const data=await request('/api/portal/trips',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(role==='FACILITY')renderFacilityWorkspace(data.trips||[],user);else renderRoleWorkspace(role,data.trips||[],user)}catch(err){const target=role==='FACILITY'?facility:workspace;if(target){target.hidden=false;target.innerHTML=`<div class="facilityPanel roleErrorPanel"><h2>Role information unavailable</h2><p>${esc(err.message)}</p></div>`}}
+  try{const data=await request('/api/portal/trips',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(role==='FACILITY')renderFacilityWorkspace(data.trips||[],user);else renderRoleWorkspace(role,data.trips||[],user);if(shouldAutoRevealWorkspace(role))revealWorkspaceForRole(role)}catch(err){const target=role==='FACILITY'?facility:workspace;if(target){target.hidden=false;target.innerHTML=`<div class="facilityPanel roleErrorPanel"><h2>Role information unavailable</h2><p>${esc(err.message)}</p></div>`}}
  }
  async function loadRideBoard(){
   if(verified.reference)return;
