@@ -140,11 +140,37 @@
 function serviceMatches(vehicle,filter){
   if(filter==='ALL')return true;
   const text=`${vehicle.service||''} ${vehicle.routeLabel||''}`.toUpperCase();
-  if(filter==='AMBULANCE')return text.includes('AMBULANCE')||text.includes('BLS');
+  if(filter==='AMBULANCE')return text.includes('AMBULANCE')||text.includes('BLS')||text.includes('ALS');
   if(filter==='WHEELCHAIR')return text.includes('WHEELCHAIR');
-  if(filter==='STRETCHER')return text.includes('STRETCHER')||text.includes('BARIATRIC');
+  if(filter==='AMBULATORY')return text.includes('AMBULATORY');
+  if(filter==='STRETCHER')return text.includes('STRETCHER');
+  if(filter==='BARIATRIC')return text.includes('BARIATRIC');
   if(filter==='HOSPITAL')return text.includes('HOSPITAL')||text.includes('DISCHARGE');
+  if(filter==='FACILITY_TRANSFER')return text.includes('FACILITY')&&text.includes('TRANSFER');
   return true;
+}
+
+function normalizeServiceFilter(value){
+  const raw=String(value||'').trim().toLowerCase();
+  if(!raw||raw==='all')return 'ALL';
+  if(raw==='ambulance')return 'AMBULANCE';
+  if(raw==='wheelchair')return 'WHEELCHAIR';
+  if(raw==='ambulatory')return 'AMBULATORY';
+  if(raw==='stretcher')return 'STRETCHER';
+  if(raw==='bariatric')return 'BARIATRIC';
+  if(raw==='hospital-discharge'||raw==='hospital')return 'HOSPITAL';
+  if(raw==='facility-transfer')return 'FACILITY_TRANSFER';
+  return String(value||'ALL').toUpperCase().replaceAll('-','_');
+}
+
+function syncServicePillState(){
+  const serviceButtons=Array.from(document.querySelectorAll('[data-service-filter],[data-service]'));
+  serviceButtons.forEach((btn)=>{
+    const token=normalizeServiceFilter(btn.dataset.serviceFilter||btn.dataset.service||'ALL');
+    const on=token===activeServiceFilter;
+    btn.classList.toggle('active',on);
+    btn.setAttribute('aria-pressed',String(on));
+  });
 }
 function statusMatches(vehicle,filter){
   if(!filter)return true;
@@ -167,7 +193,7 @@ function drawFilteredFleet(){
   }else pinnedVehicleUnit=null;
   syncPinnedPopup();
   const statusText=activeStatusFilter?document.querySelector(`[data-status-filter="${activeStatusFilter}"] small`)?.textContent:'all statuses';
-  const serviceText=document.querySelector(`[data-service-filter="${activeServiceFilter}"]`)?.textContent||'all services';
+  const serviceText=document.querySelector('[data-service-filter].active,[data-service].active')?.textContent||'all services';
   const mapStatus=$('#fleetMapStatus');if(mapStatus)mapStatus.textContent=`${fleetVehicles.length} vehicle${fleetVehicles.length===1?'':'s'} · ${serviceText} · ${statusText}`;
   const focusEl=$('#fleetUserFocus');
   if(focusEl){
@@ -178,8 +204,24 @@ function drawFilteredFleet(){
 }
 function bindFleetFilters(){
   document.querySelectorAll('[data-status-filter]').forEach(btn=>{if(btn.dataset.bound)return;btn.dataset.bound='1';btn.addEventListener('click',()=>{const next=btn.dataset.statusFilter;activeStatusFilter=activeStatusFilter===next?null:next;document.querySelectorAll('[data-status-filter]').forEach(x=>{const on=x.dataset.statusFilter===activeStatusFilter;x.classList.toggle('active',on);x.setAttribute('aria-pressed',String(on))});drawFilteredFleet()})});
-  document.querySelectorAll('[data-service-filter]').forEach(btn=>{if(btn.dataset.bound)return;btn.dataset.bound='1';btn.addEventListener('click',()=>{activeServiceFilter=btn.dataset.serviceFilter;document.querySelectorAll('[data-service-filter]').forEach(x=>{const on=x.dataset.serviceFilter===activeServiceFilter;x.classList.toggle('active',on);x.setAttribute('aria-pressed',String(on))});drawFilteredFleet()})});
+  const serviceButtons=Array.from(document.querySelectorAll('[data-service-filter],[data-service]'));
+  serviceButtons.forEach((btn)=>{
+    if(btn.dataset.bound)return;
+    btn.dataset.bound='1';
+    btn.addEventListener('click',()=>{
+      activeServiceFilter=normalizeServiceFilter(btn.dataset.serviceFilter||btn.dataset.service||'ALL');
+      syncServicePillState();
+      drawFilteredFleet();
+    });
+  });
+  syncServicePillState();
 }
+
+window.filterVehiclesByService=function(service){
+  activeServiceFilter=normalizeServiceFilter(service);
+  syncServicePillState();
+  drawFilteredFleet();
+};
 function renderFleet(data,role,mode){
   personalizeLivecare(role);
   const board=$('#liveRideBoard'),metrics=$('#liveRideMetrics'),scope=$('#rideBoardScope'),updated=$('#fleetUpdated'),mapStatus=$('#fleetMapStatus');

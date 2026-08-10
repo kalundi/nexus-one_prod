@@ -28,12 +28,26 @@
   <div class="mapTopBar"><div><span id="fleetMapStatus" class="mapLiveBadge">Connecting</span><small id="fleetUpdated">Preparing map</small><small id="fleetUserFocus">Public network overview</small></div><div style="display:flex;gap:8px;align-items:center"><button id="heroSwitchUser" type="button" class="mapRefresh">Switch user</button><button id="refreshRideBoard" type="button" class="mapRefresh">Refresh</button></div></div>
   <h2 id="liveRideTitle" class="sr">Livecare moving vehicle map</h2>
   <div class="liveFleetMapShell mapOnlyShell"><div id="fleetMap" class="liveFleetMap" role="application" aria-label="Interactive live map showing only the vehicles and rides authorized for this user"><div class="rideBoardLoading">Loading live map</div></div><div class="opsLegend mapLegend verticalStatusPanel" aria-label="Filter vehicles by status"><button class="statusDragHandle" type="button" aria-label="Move status panel. Drag to reposition; double-click to reset." title="Drag to move"><span aria-hidden="true"></span><small>Move</small></button><button type="button" data-status-filter="MOVING" aria-pressed="false" title="Show moving vehicles"><i class="moving"></i><b>Moving</b></button><button type="button" data-status-filter="PATIENT_ON_BOARD" aria-pressed="false" title="Show vehicles with a patient"><i class="onboard"></i><b>Patient</b></button><button type="button" data-status-filter="AVAILABLE" aria-pressed="false" title="Show available vehicles"><i class="available"></i><b>Available</b></button><button type="button" data-status-filter="ATTENTION" aria-pressed="false" title="Show vehicles needing attention"><i class="attention"></i><b>Attention</b></button></div></div>
-  <div class="mapServiceStrip" aria-label="Filter map by transportation service">
-    <button type="button" data-service-filter="ALL" class="active" aria-pressed="true">All services</button>
-    <button type="button" data-service-filter="AMBULANCE" aria-pressed="false">Ambulance</button>
-    <button type="button" data-service-filter="WHEELCHAIR" aria-pressed="false">Wheelchair</button>
-    <button type="button" data-service-filter="STRETCHER" aria-pressed="false">Stretcher</button>
-    <button type="button" data-service-filter="HOSPITAL" aria-pressed="false">Hospital discharge</button>
+  <div class="service-marquee-wrap" aria-label="Filter map by transportation service">
+    <div class="service-marquee" id="serviceMarquee">
+      <button class="service-pill active" type="button" aria-pressed="true" data-service="all" data-service-filter="ALL">All Services</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulance" data-service-filter="AMBULANCE">Ambulance</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="wheelchair" data-service-filter="WHEELCHAIR">Wheelchair</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulatory" data-service-filter="AMBULATORY">Ambulatory</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="stretcher" data-service-filter="STRETCHER">Stretcher</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="bariatric" data-service-filter="BARIATRIC">Bariatric</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="hospital-discharge" data-service-filter="HOSPITAL">Hospital Discharge</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="facility-transfer" data-service-filter="FACILITY_TRANSFER">Facility Transfer</button>
+
+      <button class="service-pill" type="button" aria-pressed="false" data-service="all" data-service-filter="ALL">All Services</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulance" data-service-filter="AMBULANCE">Ambulance</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="wheelchair" data-service-filter="WHEELCHAIR">Wheelchair</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulatory" data-service-filter="AMBULATORY">Ambulatory</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="stretcher" data-service-filter="STRETCHER">Stretcher</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="bariatric" data-service-filter="BARIATRIC">Bariatric</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="hospital-discharge" data-service-filter="HOSPITAL">Hospital Discharge</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="facility-transfer" data-service-filter="FACILITY_TRANSFER">Facility Transfer</button>
+    </div>
   </div>
   <p id="rideBoardScope" class="subtle" style="margin:10px 0 0">Preparing authorized routing and live fleet context</p>
   <div id="liveRideBoard" hidden></div>

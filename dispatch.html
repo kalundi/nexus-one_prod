@@ -112,12 +112,26 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
       </div>
     </div>
   </div>
-  <div class="mapServiceStrip" aria-label="Filter by service">
-    <button type="button" class="active" data-svc-filter="ALL" aria-pressed="true">All services</button>
-    <button type="button" data-svc-filter="AMBULANCE" aria-pressed="false">Ambulance</button>
-    <button type="button" data-svc-filter="WHEELCHAIR" aria-pressed="false">Wheelchair</button>
-    <button type="button" data-svc-filter="STRETCHER" aria-pressed="false">Stretcher</button>
-    <button type="button" data-svc-filter="HOSPITAL" aria-pressed="false">Hospital discharge</button>
+  <div class="service-marquee-wrap" aria-label="Filter by service">
+    <div class="service-marquee" id="serviceMarquee">
+      <button class="service-pill active" type="button" aria-pressed="true" data-service="all" data-svc-filter="ALL">All Services</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulance" data-svc-filter="AMBULANCE">Ambulance</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="wheelchair" data-svc-filter="WHEELCHAIR">Wheelchair</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulatory" data-svc-filter="AMBULATORY">Ambulatory</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="stretcher" data-svc-filter="STRETCHER">Stretcher</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="bariatric" data-svc-filter="BARIATRIC">Bariatric</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="hospital-discharge" data-svc-filter="HOSPITAL">Hospital Discharge</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="facility-transfer" data-svc-filter="FACILITY_TRANSFER">Facility Transfer</button>
+
+      <button class="service-pill" type="button" aria-pressed="false" data-service="all" data-svc-filter="ALL">All Services</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulance" data-svc-filter="AMBULANCE">Ambulance</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="wheelchair" data-svc-filter="WHEELCHAIR">Wheelchair</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulatory" data-svc-filter="AMBULATORY">Ambulatory</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="stretcher" data-svc-filter="STRETCHER">Stretcher</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="bariatric" data-svc-filter="BARIATRIC">Bariatric</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="hospital-discharge" data-svc-filter="HOSPITAL">Hospital Discharge</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="facility-transfer" data-svc-filter="FACILITY_TRANSFER">Facility Transfer</button>
+    </div>
   </div>
 </aside>
 </div></section><main id="main" class="shell moduleMain" tabindex="-1">

@@ -553,6 +553,122 @@ header .nav .navCta,header .nav .bookRide{background:linear-gradient(135deg,#ef3
   .livecareMapPanel .mapLegend.verticalStatusPanel button b{font-size:10px!important}
 }
 
+  /* Build 036: premium service marquee for livecare/dispatch map filter */
+  .service-marquee-wrap {
+    position: relative;
+    width: calc(100% - 40px);
+    margin: -20px auto 6px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 24px;
+    box-shadow: 0 14px 40px rgba(8, 42, 67, 0.12);
+    padding: 8px 0;
+    z-index: 20;
+  }
+
+  .service-marquee-wrap::before,
+  .service-marquee-wrap::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 80px;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  .service-marquee-wrap::before {
+    left: 0;
+    background: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 1),
+      rgba(255, 255, 255, 0)
+    );
+  }
+
+  .service-marquee-wrap::after {
+    right: 0;
+    background: linear-gradient(
+      to left,
+      rgba(255, 255, 255, 1),
+      rgba(255, 255, 255, 0)
+    );
+  }
+
+  .service-marquee {
+    display: flex;
+    align-items: center;
+    width: max-content;
+    gap: 12px;
+    padding: 0 16px;
+    animation: nexusServiceScroll 32s linear infinite;
+  }
+
+  .service-marquee-wrap:hover .service-marquee {
+    animation-play-state: paused;
+  }
+
+  .service-pill {
+    flex: 0 0 auto;
+    min-width: 190px;
+    padding: 18px 28px;
+    border: 0;
+    border-radius: 18px;
+    background: transparent;
+    color: #0d2d45;
+    font-size: 15px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background 0.25s ease,
+      color 0.25s ease,
+      transform 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+
+  .service-pill:hover {
+    background: #eef5f8;
+    transform: translateY(-2px);
+  }
+
+  .service-pill.active {
+    background: #0d4c72;
+    color: #ffffff;
+    box-shadow: 0 8px 20px rgba(13, 76, 114, 0.22);
+  }
+
+  @keyframes nexusServiceScroll {
+    from {
+      transform: translateX(-50%);
+    }
+
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .service-marquee {
+      animation: none;
+      overflow-x: auto;
+    }
+  }
+
+  @media (max-width: 700px) {
+    .service-marquee-wrap {
+      width: calc(100% - 20px);
+      border-radius: 18px;
+      margin: -14px auto 4px;
+    }
+
+    .service-pill {
+      min-width: 150px;
+      padding: 15px 20px;
+      font-size: 13px;
+    }
+  }
+
 /* Build 031: modern far-right vertical status rail */
 .livecareMapPanel .mapLegend.verticalStatusPanel{
   position:absolute!important;
