@@ -46,7 +46,11 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
 a{color:#7fc1ff;text-decoration:none}
 
 /* Phone shell */
-.phone{max-width:500px;margin:0 auto;height:100svh;display:flex;flex-direction:column;padding:0 10px calc(82px + var(--safe-bottom));overflow:hidden}
+.phone{max-width:500px;margin:0 auto;height:100svh;display:flex;flex-direction:column;padding:0 10px calc(82px + var(--safe-bottom));overflow:hidden;position:relative}
+.phone::before,.phone::after{content:'';position:absolute;top:calc(env(safe-area-inset-top,0) + 88px);bottom:calc(88px + var(--safe-bottom));width:1px;background:linear-gradient(180deg,rgba(149,197,242,.34) 0%,rgba(149,197,242,.2) 72%,rgba(149,197,242,.08) 100%);pointer-events:none;z-index:0}
+.phone::before{left:10px}
+.phone::after{right:10px}
+.phone > *{position:relative;z-index:1}
 
 /* Top bar */
 .topBar{background:transparent;color:#fff;padding:env(safe-area-inset-top,0) 0 0;position:sticky;top:0;z-index:50}
@@ -204,7 +208,7 @@ a{color:#7fc1ff;text-decoration:none}
 /* Login */
 #loginView{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;background:radial-gradient(circle at 20% 0%,#173963 0%,#0a1931 45%,#060f1d 100%)}
 .loginCard{width:min(420px,100%);background:linear-gradient(180deg,rgba(18,43,73,.96),rgba(11,30,52,.96));border:1px solid rgba(144,191,240,.26);border-radius:22px;padding:28px;box-shadow:0 30px 60px rgba(0,0,0,.44)}
-.loginLogo{display:block;width:160px;margin:0 auto 24px}
+.loginLogo{display:block;width:160px;margin:0 auto 24px;background:transparent;filter:drop-shadow(0 4px 12px rgba(0,0,0,.35));mix-blend-mode:normal;opacity:1;animation:logoPop .9s cubic-bezier(.36,.07,.19,.97) both;transform-origin:center center}
 .loginCard h1{margin:0 0 4px;font:900 22px/1 Sora,sans-serif;text-align:center}
 .loginCard p{margin:0 0 20px;color:var(--muted);text-align:center;font-size:14px}
 
@@ -273,7 +277,7 @@ a{color:#7fc1ff;text-decoration:none}
 <!-- LOGIN -->
 <div id="loginView">
   <div class="loginCard">
-    <img class="loginLogo" src="./nexus-logo.png" alt="Nexus Medical Transit">
+    <img class="loginLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit">
     <h1>Driver Sign In</h1>
     <p>Sign in with your Nexus credentials</p>
     <div id="loginNotice" class="notice err" hidden></div>
