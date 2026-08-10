@@ -756,6 +756,13 @@ a{color:#7fc1ff;text-decoration:none}
 <script>
 (function(){
   function bindLoginFallback(){
+    const loginForm=document.getElementById('loginForm');
+    const loginEmailField=document.getElementById('loginEmail');
+    const loginPasswordField=document.getElementById('loginPassword');
+    const loginBtn=document.getElementById('loginBtn');
+    const loginNotice=document.getElementById('loginNotice');
+    const loginView=document.getElementById('loginView');
+    const appShell=document.getElementById('appShell');
     const forgotBtn=document.getElementById('showForgotBtn');
     const forgotPanel=document.getElementById('forgotPanel');
     const forgotEmail=document.getElementById('forgotEmail');
@@ -777,6 +784,55 @@ a{color:#7fc1ff;text-decoration:none}
       resetPanel.style.display='block';
       window.__resetToken=resetToken;
     }
+
+    loginForm?.addEventListener('submit',async function(e){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if(!loginNotice) return;
+      const email=(loginEmailField?.value||'').trim();
+      const password=(loginPasswordField?.value||'');
+      if(!email||!password){
+        loginNotice.hidden=false;
+        loginNotice.style.display='block';
+        loginNotice.className='notice err';
+        loginNotice.textContent='Enter email and password.';
+        return;
+      }
+      if(loginBtn){
+        loginBtn.disabled=true;
+        loginBtn.textContent='Signing in…';
+      }
+      try{
+        const r=await fetch('/api/auth/login',{
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          body:JSON.stringify({email:email,password:password})
+        });
+        const j=await r.json().catch(function(){ return {}; });
+        if(!r.ok) throw new Error((j&&j.error)||'Sign-in failed');
+        const role=String(j?.user?.role||'').toUpperCase();
+        if(!['DRIVER','ADMIN','DISPATCHER'].includes(role)) throw new Error('This app is for drivers only.');
+        sessionStorage.setItem('nexusAccessToken',j.token||'');
+        sessionStorage.setItem('nexusUser',JSON.stringify(j.user||{}));
+        loginNotice.hidden=false;
+        loginNotice.style.display='block';
+        loginNotice.className='notice ok';
+        loginNotice.textContent='Sign-in successful. Loading your workspace…';
+        if(loginView) loginView.hidden=true;
+        if(appShell) appShell.hidden=false;
+        window.location.reload();
+      }catch(err){
+        loginNotice.hidden=false;
+        loginNotice.style.display='block';
+        loginNotice.className='notice err';
+        loginNotice.textContent=(err&&err.message)||'Unable to sign in right now.';
+      }finally{
+        if(loginBtn){
+          loginBtn.disabled=false;
+          loginBtn.textContent='Sign In';
+        }
+      }
+    });
 
     forgotBtn?.addEventListener('click',function(){
       if(!forgotPanel) return;
