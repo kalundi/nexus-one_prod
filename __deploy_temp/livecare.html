@@ -27,12 +27,26 @@
   <div class="mapTopBar"><div><span id="fleetMapStatus" class="mapLiveBadge">Connecting</span><small id="fleetUpdated">Preparing map</small></div><button id="refreshRideBoard" type="button" class="mapRefresh">Refresh</button></div>
   <h2 id="liveRideTitle" class="sr">Livecare moving vehicle map</h2>
   <div class="liveFleetMapShell mapOnlyShell"><div id="fleetMap" class="liveFleetMap" role="application" aria-label="Interactive live map showing only the vehicles and rides authorized for this user"><div class="rideBoardLoading">Loading live map</div></div><div class="opsLegend mapLegend verticalStatusPanel" aria-label="Filter vehicles by status"><button class="statusDragHandle" type="button" aria-label="Move status panel. Drag to reposition; double-click to reset." title="Drag to move"><span aria-hidden="true"></span><small>Move</small></button><button type="button" data-status-filter="MOVING" aria-pressed="false" title="Show moving vehicles"><i class="moving"></i><b>Moving</b></button><button type="button" data-status-filter="PATIENT_ON_BOARD" aria-pressed="false" title="Show vehicles with a patient"><i class="onboard"></i><b>Patient</b></button><button type="button" data-status-filter="AVAILABLE" aria-pressed="false" title="Show available vehicles"><i class="available"></i><b>Available</b></button><button type="button" data-status-filter="ATTENTION" aria-pressed="false" title="Show vehicles needing attention"><i class="attention"></i><b>Attention</b></button></div></div>
-  <div class="mapServiceStrip" aria-label="Filter map by transportation service">
-    <button type="button" data-service-filter="ALL" class="active" aria-pressed="true">All services</button>
-    <button type="button" data-service-filter="AMBULANCE" aria-pressed="false">Ambulance</button>
-    <button type="button" data-service-filter="WHEELCHAIR" aria-pressed="false">Wheelchair</button>
-    <button type="button" data-service-filter="STRETCHER" aria-pressed="false">Stretcher</button>
-    <button type="button" data-service-filter="HOSPITAL" aria-pressed="false">Hospital discharge</button>
+  <div class="service-marquee-wrap livecare-service-marquee" aria-label="Filter map by transportation service">
+    <div class="service-marquee" id="serviceMarquee">
+      <button class="service-pill active" type="button" aria-pressed="true" data-service="all" data-service-filter="ALL">All Services</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulance" data-service-filter="AMBULANCE">Ambulance</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="wheelchair" data-service-filter="WHEELCHAIR">Wheelchair</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulatory" data-service-filter="AMBULATORY">Ambulatory</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="stretcher" data-service-filter="STRETCHER">Stretcher</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="bariatric" data-service-filter="BARIATRIC">Bariatric</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="hospital-discharge" data-service-filter="HOSPITAL">Hospital Discharge</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="facility-transfer" data-service-filter="FACILITY_TRANSFER">Facility Transfer</button>
+
+      <button class="service-pill" type="button" aria-pressed="false" data-service="all" data-service-filter="ALL">All Services</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulance" data-service-filter="AMBULANCE">Ambulance</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="wheelchair" data-service-filter="WHEELCHAIR">Wheelchair</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="ambulatory" data-service-filter="AMBULATORY">Ambulatory</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="stretcher" data-service-filter="STRETCHER">Stretcher</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="bariatric" data-service-filter="BARIATRIC">Bariatric</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="hospital-discharge" data-service-filter="HOSPITAL">Hospital Discharge</button>
+      <button class="service-pill" type="button" aria-pressed="false" data-service="facility-transfer" data-service-filter="FACILITY_TRANSFER">Facility Transfer</button>
+    </div>
   </div>
   <div id="liveRideBoard" hidden></div>
 </aside>
@@ -72,6 +86,76 @@
 </section>
 <section id="liveCommand" class="card" hidden><div class="statusHeader"><div><div class="statusKicker"><span class="pulse" aria-hidden="true"></span> Verified Livecare access</div><h2>Trip <span id="tripRef"></span></h2><p><span id="liveStatus" class="status blue">Loading</span></p></div><div class="eta"><small>Estimated arrival</small><strong id="etaValue">Updates when en route</strong></div></div><div class="grid cols2 sectionSpace"><article class="panel"><h3>Trip summary</h3><div id="tripSummary" class="summary"></div><div class="liveMap" role="img" aria-label="Illustrative live trip route"><div class="routeLine"></div><span class="mapPoint pickupPoint">P</span><span class="mapPoint vehiclePoint">N</span><span class="mapPoint destinationPoint">D</span><p id="mapTrip" class="mapCaption"></p></div><div class="toolbar"><button id="shareButton" class="button">Share caregiver link</button><a class="button secondary" href="tel:+18886395766">Call Nexus</a><button id="endPatientSession" class="button secondary" type="button">End access</button></div><p id="shareResult" class="shareResult" aria-live="polite">Caregiver links expire automatically.</p></article><article class="panel"><h3>Trip progress</h3><ol id="liveTimeline" class="timeline"></ol></article></div><div class="grid cols2 sectionSpace"><article class="panel"><h3>Messages</h3><div id="messages" class="messages" aria-live="polite"></div><form id="messageForm"><label class="field">Message dispatch<textarea id="messageText" rows="3" required maxlength="1000" placeholder="Type a non-emergency transportation message"></textarea></label><button class="button" type="submit">Send message</button></form></article><article class="panel"><h3>Privacy and safety</h3><div class="stackList"><div class="notice"><strong>Minimum necessary information</strong><p>Driver and vehicle details appear only when assigned.</p></div><div class="notice"><strong>Protect the ride reference</strong><p>Treat your reference and phone number like a private access credential.</p></div><div class="notice"><strong>Emergency help</strong><p>Livecare is not an emergency service. Call 911 for an emergency.</p></div></div></article></div></section></main>
 <footer class="footer"><div class="shell footerGrid" data-unified-footer-applied="1" data-compact-redesign-applied="1"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Patients</strong><a href="/booking-app.html">Book Transportation</a><a href="/livecare.html">Track a Ride</a></div><div><strong>Authorized portals</strong><a href="/facility.html">Facility</a><a href="/dispatch.html">Dispatch</a><a href="/driver-app.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18886395766">Main line: (888) 639-5766</a><a href="tel:+18887604990">Customer service: (888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true"></span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="/js/app.js"></script>
+<script>
+// Build 038: runtime fallback so service rail visibly scrolls on older bundles and reduced-motion environments.
+window.addEventListener('DOMContentLoaded',function(){
+  function serviceKey(filter){
+    const token=String(filter||'ALL').toUpperCase();
+    if(token==='ALL')return 'all';
+    if(token==='AMBULANCE')return 'ambulance';
+    if(token==='WHEELCHAIR')return 'wheelchair';
+    if(token==='AMBULATORY')return 'ambulatory';
+    if(token==='STRETCHER')return 'stretcher';
+    if(token==='BARIATRIC')return 'bariatric';
+    if(token==='HOSPITAL')return 'hospital-discharge';
+    if(token==='FACILITY_TRANSFER')return 'facility-transfer';
+    return token.toLowerCase().replaceAll('_','-');
+  }
+  document.querySelectorAll('.mapServiceStrip').forEach(function(strip){
+    if(strip.dataset.marqueeUpgraded==='1')return;
+    const buttons=Array.from(strip.querySelectorAll('button[data-service-filter]'));
+    if(!buttons.length)return;
+    strip.dataset.marqueeUpgraded='1';
+    const wrap=document.createElement('div');
+    wrap.className='service-marquee-wrap livecare-service-marquee';
+    wrap.setAttribute('aria-label',strip.getAttribute('aria-label')||'Filter map by transportation service');
+    const marquee=document.createElement('div');
+    marquee.className='service-marquee';
+    buttons.forEach(function(btn){
+      btn.classList.add('service-pill');
+      if(!btn.dataset.service)btn.dataset.service=serviceKey(btn.dataset.serviceFilter);
+      marquee.appendChild(btn);
+    });
+    buttons.forEach(function(btn){
+      const clone=btn.cloneNode(true);
+      clone.classList.remove('active');
+      clone.setAttribute('aria-pressed','false');
+      clone.removeAttribute('data-bound');
+      marquee.appendChild(clone);
+    });
+    wrap.appendChild(marquee);
+    strip.replaceWith(wrap);
+  });
+
+  document.querySelectorAll('.service-marquee-wrap').forEach(function(wrap){
+    if(wrap.dataset.autoScrollBound==='1')return;
+    wrap.dataset.autoScrollBound='1';
+    const marquee=wrap.querySelector('.service-marquee');
+    if(!marquee)return;
+    const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const cssAnim=getComputedStyle(marquee).animationName;
+    if(!reduced&&cssAnim&&cssAnim!=='none')return;
+    let raf=0;
+    let paused=false;
+    const step=0.7;
+    function tick(){
+      if(!paused){
+        const limit=Math.max(1,(wrap.scrollWidth-wrap.clientWidth)/2);
+        wrap.scrollLeft+=step;
+        if(wrap.scrollLeft>=limit)wrap.scrollLeft=0;
+      }
+      raf=window.requestAnimationFrame(tick);
+    }
+    wrap.addEventListener('pointerenter',function(){paused=true;});
+    wrap.addEventListener('pointerleave',function(){paused=false;});
+    wrap.addEventListener('pointerdown',function(){paused=true;});
+    wrap.addEventListener('pointerup',function(){paused=false;});
+    wrap.addEventListener('pointercancel',function(){paused=false;});
+    raf=window.requestAnimationFrame(tick);
+    wrap.addEventListener('remove',function(){if(raf)window.cancelAnimationFrame(raf);});
+  });
+});
+</script>
 <script>
 // Build 035: reliable mouse, touch, and pen dragging for the Livecare status panel.
 window.addEventListener('DOMContentLoaded', function () {

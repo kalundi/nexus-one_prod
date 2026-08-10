@@ -643,3 +643,80 @@ header .nav .navCta,header .nav .bookRide{background:linear-gradient(135deg,#ef3
 .livecareMapPanel .verticalStatusPanel[data-drag-ready="true"] .statusDragHandle *{
   pointer-events:none!important;
 }
+
+/* Build 036 fallback: animated service marquee for deploy-temp Livecare */
+.service-marquee-wrap{
+  position:relative;
+  width:min(calc(100% - 40px),1600px);
+  margin:-20px auto 2px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  background:rgba(255,255,255,.96);
+  border-radius:24px;
+  box-shadow:0 14px 40px rgba(8,42,67,.12);
+  padding:8px 0;
+  z-index:20;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+}
+.service-marquee-wrap::-webkit-scrollbar{width:0;height:0}
+.service-marquee-wrap::before,.service-marquee-wrap::after{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  width:80px;
+  z-index:4;
+  pointer-events:none;
+}
+.service-marquee-wrap::before{left:0;background:linear-gradient(to right,rgba(255,255,255,1),rgba(255,255,255,0))}
+.service-marquee-wrap::after{right:0;background:linear-gradient(to left,rgba(255,255,255,1),rgba(255,255,255,0))}
+.service-marquee{
+  display:flex;
+  align-items:center;
+  width:max-content;
+  gap:12px;
+  padding:0 16px;
+  animation:nexusServiceScroll 16s linear infinite;
+  will-change:transform;
+}
+.service-marquee-wrap:active .service-marquee,.service-marquee-wrap.is-dragging .service-marquee{animation-play-state:paused}
+.service-pill{
+  --pill-bg:#f4f8fb;
+  --pill-fg:#0d2d45;
+  --pill-border:rgba(8,41,67,.12);
+  --pill-active-bg:#0d4c72;
+  --pill-active-fg:#ffffff;
+  --pill-active-shadow:rgba(13,76,114,.22);
+  flex:0 0 auto;
+  min-width:190px;
+  padding:18px 28px;
+  border:1px solid var(--pill-border);
+  border-radius:18px;
+  background:var(--pill-bg);
+  color:var(--pill-fg);
+  font-size:15px;
+  font-weight:800;
+  white-space:nowrap;
+  cursor:pointer;
+  transition:background .25s ease,color .25s ease,transform .25s ease,box-shadow .25s ease;
+}
+.service-pill[data-service="all"]{--pill-bg:#e7f4ff;--pill-fg:#0d4670;--pill-border:rgba(13,70,112,.22);--pill-active-bg:#0d4c72;--pill-active-fg:#ffffff;--pill-active-shadow:rgba(13,76,114,.24)}
+.service-pill[data-service="ambulance"]{--pill-bg:#ffe9e9;--pill-fg:#7a1520;--pill-border:rgba(122,21,32,.22);--pill-active-bg:#b42318;--pill-active-fg:#ffffff;--pill-active-shadow:rgba(180,35,24,.28)}
+.service-pill[data-service="wheelchair"]{--pill-bg:#e8f7ef;--pill-fg:#0b5f43;--pill-border:rgba(11,95,67,.22);--pill-active-bg:#067647;--pill-active-fg:#ffffff;--pill-active-shadow:rgba(6,118,71,.28)}
+.service-pill[data-service="ambulatory"]{--pill-bg:#fff5e6;--pill-fg:#8f5300;--pill-border:rgba(143,83,0,.24);--pill-active-bg:#b54708;--pill-active-fg:#ffffff;--pill-active-shadow:rgba(181,71,8,.3)}
+.service-pill[data-service="stretcher"]{--pill-bg:#f3efff;--pill-fg:#4b2f8a;--pill-border:rgba(75,47,138,.24);--pill-active-bg:#5b3db5;--pill-active-fg:#ffffff;--pill-active-shadow:rgba(91,61,181,.28)}
+.service-pill[data-service="bariatric"]{--pill-bg:#ffeef7;--pill-fg:#8b1d5c;--pill-border:rgba(139,29,92,.24);--pill-active-bg:#c21774;--pill-active-fg:#ffffff;--pill-active-shadow:rgba(194,23,116,.29)}
+.service-pill[data-service="hospital-discharge"]{--pill-bg:#e9fbff;--pill-fg:#0b5971;--pill-border:rgba(11,89,113,.24);--pill-active-bg:#0c718f;--pill-active-fg:#ffffff;--pill-active-shadow:rgba(12,113,143,.29)}
+.service-pill[data-service="facility-transfer"]{--pill-bg:#edf2ff;--pill-fg:#223a87;--pill-border:rgba(34,58,135,.24);--pill-active-bg:#2f4fb8;--pill-active-fg:#ffffff;--pill-active-shadow:rgba(47,79,184,.3)}
+.service-pill:hover{filter:saturate(1.06) brightness(.98);transform:translateY(-2px)}
+.service-pill.active{background:var(--pill-active-bg);color:var(--pill-active-fg);border-color:transparent;box-shadow:0 8px 20px var(--pill-active-shadow)}
+@keyframes nexusServiceScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.service-marquee{animation-duration:32s}}
+.livecareMapPanel{position:relative}
+.livecareMapPanel .livecare-service-marquee{position:absolute;left:50%;right:auto;bottom:10px;width:min(calc(100% - 40px),1600px);margin:0;transform:translateX(-50%);z-index:35}
+@media (max-width:700px){
+  .service-marquee-wrap{width:calc(100% - 20px);border-radius:18px;margin:-14px auto 2px}
+  .service-pill{min-width:150px;padding:15px 20px;font-size:13px}
+  .livecareMapPanel .livecare-service-marquee{left:50%;right:auto;bottom:8px;width:calc(100% - 20px)}
+}

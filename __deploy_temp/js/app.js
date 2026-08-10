@@ -95,9 +95,53 @@ function serviceMatches(vehicle,filter){
   const text=`${vehicle.service||''} ${vehicle.routeLabel||''}`.toUpperCase();
   if(filter==='AMBULANCE')return text.includes('AMBULANCE')||text.includes('BLS');
   if(filter==='WHEELCHAIR')return text.includes('WHEELCHAIR');
+  if(filter==='AMBULATORY')return text.includes('AMBULATORY');
   if(filter==='STRETCHER')return text.includes('STRETCHER')||text.includes('BARIATRIC');
+  if(filter==='BARIATRIC')return text.includes('BARIATRIC');
   if(filter==='HOSPITAL')return text.includes('HOSPITAL')||text.includes('DISCHARGE');
+  if(filter==='FACILITY_TRANSFER')return text.includes('FACILITY')&&text.includes('TRANSFER');
   return true;
+}
+function serviceKeyFromFilter(filter){
+  const token=String(filter||'ALL').toUpperCase();
+  if(token==='ALL')return 'all';
+  if(token==='AMBULANCE')return 'ambulance';
+  if(token==='WHEELCHAIR')return 'wheelchair';
+  if(token==='AMBULATORY')return 'ambulatory';
+  if(token==='STRETCHER')return 'stretcher';
+  if(token==='BARIATRIC')return 'bariatric';
+  if(token==='HOSPITAL')return 'hospital-discharge';
+  if(token==='FACILITY_TRANSFER')return 'facility-transfer';
+  return token.toLowerCase().replaceAll('_','-');
+}
+function upgradeLegacyServiceRail(){
+  document.querySelectorAll('.mapServiceStrip').forEach((strip)=>{
+    if(strip.dataset.marqueeUpgraded==='1')return;
+    const buttons=Array.from(strip.querySelectorAll('button[data-service-filter]'));
+    if(!buttons.length)return;
+    strip.dataset.marqueeUpgraded='1';
+    buttons.forEach((btn)=>{
+      btn.classList.add('service-pill');
+      if(!btn.dataset.service)btn.dataset.service=serviceKeyFromFilter(btn.dataset.serviceFilter);
+    });
+
+    const wrap=document.createElement('div');
+    wrap.className='service-marquee-wrap livecare-service-marquee';
+    wrap.setAttribute('aria-label',strip.getAttribute('aria-label')||'Filter map by transportation service');
+
+    const marquee=document.createElement('div');
+    marquee.className='service-marquee';
+    buttons.forEach((btn)=>marquee.appendChild(btn));
+    buttons.forEach((btn)=>{
+      const clone=btn.cloneNode(true);
+      clone.classList.remove('active');
+      clone.setAttribute('aria-pressed','false');
+      delete clone.dataset.bound;
+      marquee.appendChild(clone);
+    });
+    wrap.appendChild(marquee);
+    strip.replaceWith(wrap);
+  });
 }
 function statusMatches(vehicle,filter){
   if(!filter)return true;
@@ -117,6 +161,7 @@ function drawFilteredFleet(){
   cancelAnimationFrame(fleetAnimationFrame);animateFleetMap();
 }
 function bindFleetFilters(){
+  upgradeLegacyServiceRail();
   document.querySelectorAll('[data-status-filter]').forEach(btn=>{if(btn.dataset.bound)return;btn.dataset.bound='1';btn.addEventListener('click',()=>{const next=btn.dataset.statusFilter;activeStatusFilter=activeStatusFilter===next?null:next;document.querySelectorAll('[data-status-filter]').forEach(x=>{const on=x.dataset.statusFilter===activeStatusFilter;x.classList.toggle('active',on);x.setAttribute('aria-pressed',String(on))});drawFilteredFleet()})});
   document.querySelectorAll('[data-service-filter]').forEach(btn=>{if(btn.dataset.bound)return;btn.dataset.bound='1';btn.addEventListener('click',()=>{activeServiceFilter=btn.dataset.serviceFilter;document.querySelectorAll('[data-service-filter]').forEach(x=>{const on=x.dataset.serviceFilter===activeServiceFilter;x.classList.toggle('active',on);x.setAttribute('aria-pressed',String(on))});drawFilteredFleet()})});
 }
