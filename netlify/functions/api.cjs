@@ -3270,6 +3270,36 @@ async function handler(event){
    }
    return json(200,{users:r.rows.map(u=>({id:String(u.id),email:u.email,name:u.display_name,phone:u.phone||'',role:u.role,active:u.active,createdAt:u.created_at}))});
   }
+  // Admin: emergency password reset by email (manual support fallback)
+  if(p[0]==='admin'&&p[1]==='users'&&p[2]==='reset-password'&&method==='POST'){
+   const me=await requireUser(bearer(event),['ADMIN']);
+   await ensurePasswordResetColumns();
+   const b=parseBody(event);
+   const targetEmail=clean(b.email).toLowerCase();
+   if(!targetEmail)return json(400,{error:'email is required'});
+   const userRes=await query('SELECT id,email,display_name,role,active FROM users WHERE lower(email)=lower($1) LIMIT 1',[targetEmail]);
+   const target=userRes.rows[0];
+   if(!target)return json(404,{error:'User not found'});
+   if(target.active===false)return json(409,{error:'Cannot reset password for inactive user'});
+
+   const tempPassword=generateTempPassword(14);
+   const passwordHash=hashPassword(tempPassword);
+   const tempPasswordExpiresAt=new Date(Date.now()+2*60*60*1000).toISOString();
+
+   await query(
+    'UPDATE users SET password_hash=$2,must_change_password=true,password_reset_expires=$3,password_reset_token=null,password_reset_used=false,updated_at=now() WHERE id=$1',
+    [target.id,passwordHash,tempPasswordExpiresAt]
+   );
+
+   await audit('USER',String(target.id),'ADMIN_PASSWORD_RESET',{by:me.email,targetEmail:target.email,role:target.role,expiresAt:tempPasswordExpiresAt});
+   return json(200,{
+    ok:true,
+    user:{id:String(target.id),email:target.email,name:target.display_name,role:target.role,mustChangePassword:true},
+    tempPassword,
+    tempPasswordExpiresAt,
+    message:'Temporary password issued. User must change password at next login.'
+   });
+  }
   // Admin: create user
   if(p[0]==='admin'&&p[1]==='users'&&!p[2]&&method==='POST'){
     try{
