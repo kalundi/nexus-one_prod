@@ -764,6 +764,19 @@ a{color:#7fc1ff;text-decoration:none}
     const forgotForm=document.getElementById('forgotForm');
     const forgotNotice=document.getElementById('forgotNotice');
     const forgotBtnAction=document.getElementById('forgotBtn');
+    const resetPanel=document.getElementById('resetPanel');
+    const resetForm=document.getElementById('resetForm');
+    const resetNotice=document.getElementById('resetNotice');
+    const resetBtn=document.getElementById('resetBtn');
+    const resetPassword=document.getElementById('resetPassword');
+    const resetConfirm=document.getElementById('resetConfirm');
+
+    const params=new URLSearchParams(window.location.search);
+    const resetToken=params.get('action')==='reset'?params.get('token'):'';
+    if(resetToken&&resetPanel){
+      resetPanel.style.display='block';
+      window.__resetToken=resetToken;
+    }
 
     forgotBtn?.addEventListener('click',function(){
       if(!forgotPanel) return;
@@ -777,6 +790,7 @@ a{color:#7fc1ff;text-decoration:none}
 
     forgotForm?.addEventListener('submit',async function(e){
       e.preventDefault();
+      e.stopImmediatePropagation();
       if(!forgotNotice) return;
       const email=(forgotEmail?.value||'').trim();
       if(!email){
@@ -807,6 +821,62 @@ a{color:#7fc1ff;text-decoration:none}
         if(forgotBtnAction){
           forgotBtnAction.disabled=false;
           forgotBtnAction.textContent='Send Reset Link';
+        }
+      }
+    });
+
+    resetForm?.addEventListener('submit',async function(e){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if(!resetNotice) return;
+      const token=window.__resetToken||resetToken||'';
+      const newPass=(resetPassword?.value||'');
+      const confirmPass=(resetConfirm?.value||'');
+      if(!token){
+        resetNotice.hidden=false;
+        resetNotice.className='notice err';
+        resetNotice.textContent='Reset link is invalid. Request a new password reset email.';
+        return;
+      }
+      if(newPass!==confirmPass){
+        resetNotice.hidden=false;
+        resetNotice.className='notice err';
+        resetNotice.textContent='Passwords do not match.';
+        return;
+      }
+      if(newPass.length<8){
+        resetNotice.hidden=false;
+        resetNotice.className='notice err';
+        resetNotice.textContent='Password must be at least 8 characters.';
+        return;
+      }
+      if(resetBtn){
+        resetBtn.disabled=true;
+        resetBtn.textContent='Saving…';
+      }
+      try{
+        const r=await fetch('/api/auth/reset-password',{
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          body:JSON.stringify({token:token,newPassword:newPass})
+        });
+        const j=await r.json().catch(function(){ return {}; });
+        resetNotice.hidden=false;
+        resetNotice.className=r.ok?'notice ok':'notice err';
+        resetNotice.textContent=(j&&(j.message||j.error))||(r.ok?'Password updated successfully.':'Unable to reset password.');
+        if(r.ok){
+          resetForm.reset();
+          if(resetPanel) resetPanel.style.display='none';
+          window.history.replaceState({},'',window.location.pathname);
+        }
+      }catch(_err){
+        resetNotice.hidden=false;
+        resetNotice.className='notice err';
+        resetNotice.textContent='Network error while resetting password. Please try again.';
+      }finally{
+        if(resetBtn){
+          resetBtn.disabled=false;
+          resetBtn.textContent='Save New Password';
         }
       }
     });
