@@ -2420,6 +2420,10 @@ async function handler(event){
   // Forgot password — send reset link via email
   if(p[0]==='auth'&&p[1]==='forgot-password'&&method==='POST'){
     await ensurePasswordResetColumns();
+   const emailServiceReady=envEnabled('SENDGRID_API_KEY')&&envEnabled('SENDGRID_FROM_EMAIL');
+   if(!emailServiceReady){
+    return json(200,{message:'Password reset email service is temporarily unavailable. Call (888) 639-5766 for immediate access reset.'});
+   }
    const b=parseBody(event);
    const email=clean(b.email).toLowerCase();
    if(!email)return json(400,{error:'Email is required'});
@@ -2434,15 +2438,20 @@ async function handler(event){
     const resetUrl=isDriver
       ?`${base}/driver-app.html?action=reset&token=${encodeURIComponent(resetToken)}`
       :`${base}/livecare.html?action=reset&token=${encodeURIComponent(resetToken)}`;
-    await sendEmail(r.rows[0].email,'Reset your Nexus password',
-      `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">
-       <h2 style="color:#082f49">Reset your password</h2>
-       <p>We received a request to reset your Nexus Medical Transit password.</p>
-       <p style="margin:24px 0"><a href="${resetUrl}" style="background:#d61f1f;color:#fff;padding:13px 22px;border-radius:10px;text-decoration:none;font-weight:700">Reset Password</a></p>
-       <p style="color:#666;font-size:13px">This link expires in 1 hour. If you did not request this, you can ignore this email.</p>
-       <p style="color:#666;font-size:13px">Or copy this link: ${resetUrl}</p>
-      </div>`
-    ).catch(()=>{});
+    try{
+     await sendEmail(r.rows[0].email,'Reset your Nexus password',
+       `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+        <h2 style="color:#082f49">Reset your password</h2>
+        <p>We received a request to reset your Nexus Medical Transit password.</p>
+        <p style="margin:24px 0"><a href="${resetUrl}" style="background:#d61f1f;color:#fff;padding:13px 22px;border-radius:10px;text-decoration:none;font-weight:700">Reset Password</a></p>
+        <p style="color:#666;font-size:13px">This link expires in 1 hour. If you did not request this, you can ignore this email.</p>
+        <p style="color:#666;font-size:13px">Or copy this link: ${resetUrl}</p>
+       </div>`
+     );
+    }catch(err){
+     console.error('[FORGOT_PASSWORD] Email delivery failed:', err?.message||err);
+     return json(200,{message:'Password reset request received, but email delivery is delayed. Call (888) 639-5766 for immediate credential reset.'});
+    }
    }
    return json(200,{message:'If that email is registered you will receive a reset link shortly.'});
   }
