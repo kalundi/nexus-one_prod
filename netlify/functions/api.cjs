@@ -3324,6 +3324,52 @@ async function handler(event){
     message:'Temporary password issued. User must change password at next login.'
    });
   }
+  // Admin: set a specific password by email (support use only)
+  if(p[0]==='admin'&&p[1]==='users'&&p[2]==='set-password'&&method==='POST'){
+   const me=await requireUser(bearer(event),['ADMIN']);
+   await ensurePasswordResetColumns();
+   const b=parseBody(event);
+   const targetEmail=clean(b.email).toLowerCase();
+   const newPassword=String(b.password||'');
+   const sendCredentialEmail=Boolean(b.sendEmail);
+   if(!targetEmail)return json(400,{error:'email is required'});
+   if(newPassword.length<8)return json(400,{error:'password must be at least 8 characters'});
+   const userRes=await query('SELECT id,email,display_name,role,active FROM users WHERE lower(email)=lower($1) LIMIT 1',[targetEmail]);
+   const target=userRes.rows[0];
+   if(!target)return json(404,{error:'User not found'});
+   if(target.active===false)return json(409,{error:'Cannot set password for inactive user'});
+
+   const passwordHash=hashPassword(newPassword);
+   await query(
+    'UPDATE users SET password_hash=$2,must_change_password=true,password_reset_expires=$3,password_reset_token=null,password_reset_used=false,updated_at=now() WHERE id=$1',
+    [target.id,passwordHash,new Date(Date.now()+2*60*60*1000).toISOString()]
+   );
+
+   let emailDeliveryStatus='skipped';
+   let warning='';
+   if(sendCredentialEmail){
+    try{
+      const appBase=(process.env.APP_BASE_URL||process.env.SITE_URL||process.env.URL||'https://nexusmt.com').replace(/\/$/,'');
+      const isDriver=String(target.role||'').toUpperCase()==='DRIVER';
+      const loginUrl=isDriver?`${appBase}/driver-app.html`:`${appBase}/livecare.html`;
+      const html=`
+        <h2>Nexus password updated</h2>
+        <p>Your account password has been updated for <strong>${clean(target.email)}</strong>.</p>
+        <p><strong>Temporary password:</strong> <code style="font-size:16px">${newPassword}</code></p>
+        <p>Sign in at <a href="${loginUrl}">${loginUrl}</a> and change your password immediately.</p>
+      `;
+      const emailResult=await sendEmail([clean(target.email).toLowerCase()],'Your Nexus password has been updated',html);
+      emailDeliveryStatus=emailResult?.status||'skipped';
+      if(emailDeliveryStatus!=='sent')warning='Password updated, but email was not delivered automatically.';
+    }catch(_err){
+      emailDeliveryStatus='failed';
+      warning='Password updated, but email delivery failed.';
+    }
+   }
+
+   await audit('USER',String(target.id),'ADMIN_SET_PASSWORD',{by:me.email,targetEmail:target.email,role:target.role,emailDeliveryStatus});
+   return json(200,{ok:true,user:{id:String(target.id),email:target.email,name:target.display_name,role:target.role,mustChangePassword:true},emailDeliveryStatus,warning,message:'Password set successfully. User must change password at next login.'});
+  }
   // Admin: create user
   if(p[0]==='admin'&&p[1]==='users'&&!p[2]&&method==='POST'){
     try{
