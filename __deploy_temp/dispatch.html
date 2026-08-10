@@ -1881,11 +1881,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const allVehicles=Array.isArray(dispatchAssignmentDirectory.vehicles)?dispatchAssignmentDirectory.vehicles:[];
 
     let filteredDrivers=[...allDrivers];
-    let filteredVehicles=[...allVehicles];
+    const filteredVehicles=[...allVehicles];
 
-    if(selectedDriver&&dispatchAssignmentDirectory.driverToVehicles.has(selectedDriver)){
-      filteredVehicles=[...dispatchAssignmentDirectory.driverToVehicles.get(selectedDriver)].sort((a,b)=>a.localeCompare(b));
-    }
+    // Keep the vehicle dropdown complete so dispatch can always pick any fleet unit.
     if(selectedVehicle&&dispatchAssignmentDirectory.vehicleToDrivers.has(selectedVehicle)){
       filteredDrivers=[...dispatchAssignmentDirectory.vehicleToDrivers.get(selectedVehicle)].sort((a,b)=>a.localeCompare(b));
     }
@@ -1893,11 +1891,6 @@ $('saveCustomCompany').addEventListener('click',()=>{
     renderAssignmentSelect(driverSelect,'Select driver',filteredDrivers);
     renderAssignmentSelect(vehicleSelect,'Select vehicle',filteredVehicles);
 
-    if(source==='driver'&&selectedVehicle&&!filteredVehicles.includes(selectedVehicle)){
-      driverSelect.value=selectedDriver;
-      vehicleSelect.value='';
-      return;
-    }
     if(source==='vehicle'&&selectedDriver&&!filteredDrivers.includes(selectedDriver)){
       vehicleSelect.value=selectedVehicle;
       driverSelect.value='';
@@ -1925,7 +1918,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     try{
       const [driversRes,fleetRes]=await Promise.all([
         fetch('/api/dispatch/drivers',{headers,cache:'no-store'}),
-        fetch('/api/fleet/live',{headers,cache:'no-store'})
+        fetch('/api/fleet/live?includeAll=true',{headers,cache:'no-store'})
       ]);
       const driversJson=await driversRes.json().catch(()=>({drivers:[]}));
       const fleetJson=await fleetRes.json().catch(()=>({vehicles:[]}));
