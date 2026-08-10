@@ -21,10 +21,13 @@ function isFallbackAuthEnabled() {
   if (explicit === 'true' || explicit === '1' || explicit === 'yes') return true;
   if (explicit === 'false' || explicit === '0' || explicit === 'no') return false;
   const context = String(process.env.CONTEXT || '').trim().toLowerCase();
-  if (context === 'production') return false;
+  if (['dev','deploy-preview','branch-deploy'].includes(context)) return true;
+  if (String(process.env.NETLIFY_DEV || '').trim().toLowerCase() === 'true') return true;
   const nodeEnv = String(process.env.NODE_ENV || '').trim().toLowerCase();
-  if (nodeEnv === 'production') return false;
-  return true;
+  if (nodeEnv === 'development' || nodeEnv === 'test') return true;
+  const appEnv = String(process.env.APP_ENV || '').trim().toLowerCase();
+  if (appEnv === 'development' || appEnv === 'test') return true;
+  return false;
 }
 
 function fallbackSecret() {
