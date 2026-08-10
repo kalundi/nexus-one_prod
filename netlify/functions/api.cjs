@@ -3291,12 +3291,36 @@ async function handler(event){
     [target.id,passwordHash,tempPasswordExpiresAt]
    );
 
-   await audit('USER',String(target.id),'ADMIN_PASSWORD_RESET',{by:me.email,targetEmail:target.email,role:target.role,expiresAt:tempPasswordExpiresAt});
+   let emailDeliveryStatus='skipped';
+   let warning='';
+   try{
+    const appBase=(process.env.APP_BASE_URL||process.env.SITE_URL||process.env.URL||'https://nexusmt.com').replace(/\/$/,'');
+    const isDriver=String(target.role||'').toUpperCase()==='DRIVER';
+    const loginUrl=isDriver?`${appBase}/driver-app.html`:`${appBase}/livecare.html`;
+    const expiresLabel=new Date(tempPasswordExpiresAt).toLocaleString('en-US',{timeZone:'America/New_York'});
+    const html=`
+      <h2>Nexus temporary password issued</h2>
+      <p>A temporary password was created for <strong>${clean(target.email)}</strong>.</p>
+      <p><strong>Temporary password:</strong> <code style="font-size:16px">${tempPassword}</code></p>
+      <p>This temporary password expires in <strong>2 hours</strong> (${expiresLabel} ET).</p>
+      <p>Sign in at <a href="${loginUrl}">${loginUrl}</a> and change your password immediately.</p>
+    `;
+    const emailResult=await sendEmail([clean(target.email).toLowerCase()],'Your Nexus temporary password',html);
+    emailDeliveryStatus=emailResult?.status||'skipped';
+    if(emailDeliveryStatus!=='sent')warning='Password reset completed, but credential email was not delivered automatically. Share the temporary password with the user securely.';
+   }catch(err){
+    emailDeliveryStatus='failed';
+    warning='Password reset completed, but credential email failed to send. Share the temporary password with the user securely.';
+   }
+
+   await audit('USER',String(target.id),'ADMIN_PASSWORD_RESET',{by:me.email,targetEmail:target.email,role:target.role,expiresAt:tempPasswordExpiresAt,emailDeliveryStatus});
    return json(200,{
     ok:true,
     user:{id:String(target.id),email:target.email,name:target.display_name,role:target.role,mustChangePassword:true},
     tempPassword,
     tempPasswordExpiresAt,
+    emailDeliveryStatus,
+    warning,
     message:'Temporary password issued. User must change password at next login.'
    });
   }
