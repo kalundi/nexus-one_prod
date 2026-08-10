@@ -3664,6 +3664,24 @@ $('saveCustomCompany').addEventListener('click',()=>{
   loadDispatchOpsSettings().then(()=>ensureEditorAddressAutocomplete());
   loadBrokerCompanies();
   loadDispatchAssignmentOptions();
+
+  const dispatchServicePills=Array.from(document.querySelectorAll('.service-pill[data-svc-filter]'));
+  dispatchServicePills.forEach((button)=>{
+    if(button.dataset.bound==='1') return;
+    button.dataset.bound='1';
+    button.addEventListener('click',()=>{
+      const token=String(button.dataset.svcFilter||'ALL').trim();
+      dispatchServicePills.forEach((pill)=>{
+        const active=String(pill.dataset.svcFilter||'').trim()===token;
+        pill.classList.toggle('active',active);
+        pill.setAttribute('aria-pressed',String(active));
+      });
+      if(typeof window.filterVehiclesByService==='function'){
+        const serviceToken=String(button.dataset.service||'all').trim();
+        window.filterVehiclesByService(serviceToken);
+      }
+    });
+  });
 })();
 </script></body></html>
 
