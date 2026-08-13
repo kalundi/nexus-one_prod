@@ -289,6 +289,7 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 			+     '<a href="/#services">Services</a>'
 			+     '<a href="/about-nexus-medical-transit.html">About</a>'
 			+     '<a href="/contact-service-areas.html">Contact and Areas</a>'
+			+     '<a href="/careers.html">Careers</a>'
 			+     '<a href="/livecare.html">Livecare</a>'
 			+   '</div>'
 			+ '</div>'

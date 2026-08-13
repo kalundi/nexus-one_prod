@@ -124,6 +124,16 @@
   to = "/accessibility.html"
   status = 200
 
+[[redirects]]
+  from = "/careers"
+  to = "/careers.html"
+  status = 200
+
+[[redirects]]
+  from = "/careers/apply"
+  to = "/career-application.html"
+  status = 200
+
 # Exclude dist files from SPA redirect
 [[redirects]]
   from = "/dist/*"

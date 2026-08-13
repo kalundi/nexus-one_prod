@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Apply for employment opportunities with Nexus Medical Transit.">
+  <meta name="robots" content="index,follow">
+  <title>Career Application | Nexus Medical Transit</title>
+  <link rel="canonical" href="https://nexusmt.com/career-application.html">
+  <link rel="stylesheet" href="./platform.css?v=32">
+  <style>
+    body{background:#edf5fa;color:#0c2038}.applicationHero{background:linear-gradient(128deg,#071f37,#0d4267 62%,#0e7284);color:#fff;padding:54px 0}.applicationHero h1{font-size:clamp(38px,5vw,58px);line-height:1.05;margin:10px 0}.applicationHero p{max-width:720px;color:#d8e8f1;font-size:18px}.applicationMain{padding:42px 0 70px}.applicationLayout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:28px;align-items:start}.applicationCard,.applicationAside{background:#fff;border:1px solid #d5e3ec;border-radius:22px;padding:28px;box-shadow:0 14px 38px rgba(7,31,55,.08)}.applicationAside{position:sticky;top:104px}.applicationAside h2{font-size:22px;margin-top:0}.applicationAside li{margin-bottom:10px;color:#40566c}.applicationForm{display:grid;grid-template-columns:1fr 1fr;gap:18px}.formSection{grid-column:1/-1;border:0;padding:0;margin:12px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:18px}.formSection legend{width:100%;font-size:24px;font-weight:850;margin-bottom:16px;border-bottom:1px solid #d8e4ec;padding-bottom:10px}.applicationField{display:grid;gap:7px;font-weight:750}.applicationField span small{font-weight:500;color:#5a6d80}.applicationField input,.applicationField select,.applicationField textarea{width:100%;min-height:48px;border:1px solid #9fb3c2;border-radius:10px;padding:11px 12px;font:inherit;background:#fff;color:#102338}.applicationField textarea{min-height:120px;resize:vertical}.full{grid-column:1/-1}.checkField{grid-column:1/-1;display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start;color:#30465d}.checkField input{width:20px;height:20px;margin-top:2px}.requiredNote{background:#edf7fa;border-left:4px solid #0b6c82;border-radius:10px;padding:12px;margin:0 0 20px}.privacyNote{font-size:14px;color:#52677a}.submitButton{grid-column:1/-1;border:0;border-radius:13px;background:#d72838;color:#fff;min-height:52px;padding:13px 20px;font-weight:900;cursor:pointer}.honeypot{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}.backLink{color:#bfeef1;font-weight:800;text-decoration:none}@media(max-width:900px){.applicationLayout,.applicationForm,.formSection{grid-template-columns:1fr}.applicationAside{position:static}.full,.formSection{grid-column:auto}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to main content</a>
+  <header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="applicationNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a aria-current="page" href="/careers.html">Careers</a><a href="/booking-app.html">Book a Ride</a></nav><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="applicationNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header>
+  <section class="applicationHero"><div class="shell"><a class="backLink" href="/careers.html">← Back to careers</a><h1>Career application</h1><p>Tell us about your interests and experience. Fields marked with an asterisk are required. Do not include Social Security numbers, medical information, or other sensitive personal data.</p></div></section>
+  <main id="main" class="applicationMain"><div class="shell applicationLayout"><section class="applicationCard" aria-labelledby="application-heading"><h2 id="application-heading">Apply to Nexus Medical Transit</h2><p class="requiredNote">Applications are reviewed according to current staffing needs. Submitting this form does not create an employment contract or guarantee an interview.</p>
+    <form class="applicationForm" name="career-application" method="POST" action="/careers.html?submitted=true#application-received" data-netlify="true" netlify-honeypot="bot-field" enctype="multipart/form-data">
+      <input type="hidden" name="form-name" value="career-application">
+      <p class="honeypot"><label>Do not fill this out: <input name="bot-field" tabindex="-1" autocomplete="off"></label></p>
+      <fieldset class="formSection"><legend>Contact information</legend>
+        <label class="applicationField"><span>First name *</span><input name="first-name" autocomplete="given-name" required maxlength="80"></label>
+        <label class="applicationField"><span>Last name *</span><input name="last-name" autocomplete="family-name" required maxlength="80"></label>
+        <label class="applicationField"><span>Email *</span><input type="email" name="email" autocomplete="email" required maxlength="160"></label>
+        <label class="applicationField"><span>Phone *</span><input type="tel" name="phone" autocomplete="tel" required maxlength="30"></label>
+        <label class="applicationField"><span>City *</span><input name="city" autocomplete="address-level2" required maxlength="100"></label>
+        <label class="applicationField"><span>State *</span><select name="state" autocomplete="address-level1" required><option value="">Select state</option><option>Maryland</option><option>Washington, DC</option><option>Virginia</option><option>Other</option></select></label>
+      </fieldset>
+      <fieldset class="formSection"><legend>Role and availability</legend>
+        <label class="applicationField"><span>Position of interest *</span><select id="position" name="position" required><option value="">Select a role</option><option value="driver">Professional Driver</option><option value="emt">EMT / Medical Transport</option><option value="dispatcher">Dispatcher</option><option value="customer-care">Customer Care</option><option value="fleet">Fleet Support</option><option value="other">Other / General Application</option></select></label>
+        <label class="applicationField"><span>Employment preference *</span><select name="employment-preference" required><option value="">Select preference</option><option>Full-time</option><option>Part-time</option><option>On-call / PRN</option><option>Any available</option></select></label>
+        <label class="applicationField"><span>Earliest available start date</span><input type="date" name="available-start-date"></label>
+        <label class="applicationField"><span>Preferred shift</span><select name="preferred-shift"><option value="">Select shift</option><option>Day</option><option>Evening</option><option>Overnight</option><option>Weekend</option><option>Flexible</option></select></label>
+        <label class="checkField"><input type="checkbox" name="authorized-to-work" value="yes" required><span>I am legally authorized to work in the United States. *</span></label>
+        <label class="checkField"><input type="checkbox" name="reliable-transportation" value="yes"><span>I have reliable transportation to report to assigned work locations.</span></label>
+      </fieldset>
+      <fieldset class="formSection"><legend>Qualifications</legend>
+        <label class="applicationField"><span>Years of relevant experience *</span><select name="experience-years" required><option value="">Select experience</option><option>Less than 1 year</option><option>1–2 years</option><option>3–5 years</option><option>6–10 years</option><option>More than 10 years</option></select></label>
+        <label class="applicationField"><span>Driver's license state <small>(if role requires driving)</small></span><input name="license-state" maxlength="40"></label>
+        <label class="applicationField full"><span>Relevant licenses or certifications</span><input name="certifications" maxlength="300" placeholder="For example: EMT, CPR/BLS, CDL, wheelchair securement"></label>
+        <label class="applicationField full"><span>Résumé <small>(PDF, DOC, or DOCX; maximum 10 MB)</small></span><input type="file" name="resume" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label>
+        <label class="applicationField full"><span>Why are you interested in Nexus? *</span><textarea name="interest" required maxlength="2000"></textarea></label>
+        <label class="applicationField full"><span>Additional experience or information</span><textarea name="additional-information" maxlength="3000"></textarea></label>
+      </fieldset>
+      <label class="checkField"><input type="checkbox" name="certification" value="yes" required><span>I certify that the information provided is true and complete to the best of my knowledge. I understand that false statements may disqualify me from consideration or employment. *</span></label>
+      <p class="privacyNote full">By submitting, you authorize Nexus Medical Transit to contact you about employment opportunities. Information is used for recruiting and hiring purposes.</p>
+      <button class="submitButton" type="submit">Submit application</button>
+    </form>
+  </section><aside class="applicationAside"><h2>Before you submit</h2><ul><li>Review your phone number and email.</li><li>Include role-relevant credentials.</li><li>Attach a current résumé when available.</li><li>Do not send Social Security or financial information.</li></ul><h2>Need an accommodation?</h2><p>Call <a href="tel:+18886395766">(888) 639-5766</a> or email <a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a>.</p><p><a href="/careers.html">Review career opportunities</a></p></aside></div></main>
+  <footer class="footer"><div class="shell footerGrid"></div></footer>
+  <script src="./platform.js?v=32"></script>
+  <script>const requestedPosition=new URLSearchParams(location.search).get('position');if(requestedPosition&&document.querySelector('#position option[value="'+CSS.escape(requestedPosition)+'"]'))document.getElementById('position').value=requestedPosition;</script>
+</body>
+</html>
