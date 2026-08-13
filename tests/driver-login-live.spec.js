@@ -37,12 +37,14 @@ test.describe('Driver live authentication and permission journey @live', () => {
 
     await test.step('Open the public Livecare entry point', async () => {
       await page.goto('/livecare', { waitUntil: 'domcontentloaded' });
-      await expect(page.getByRole('heading', { name: /Know where your ride stands/i })).toBeVisible();
+      const accessRegion = page.getByRole('region', { name: 'How are you using Livecare?' });
+      await expect(accessRegion).toBeVisible();
+      await expect(accessRegion.getByRole('button', { name: 'Driver sign in' })).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath('01-livecare-entry.png'), fullPage: true });
     });
 
     await test.step('Choose Driver secure access', async () => {
-      const driverButton = page.locator('[data-open="staffAccess"][data-role="DRIVER"]').first();
+      const driverButton = page.getByRole('button', { name: 'Driver sign in' });
       await expect(driverButton).toBeVisible();
       await driverButton.click();
       await expect(page.locator('#staffAccess')).toBeVisible();

@@ -1088,41 +1088,79 @@
     tripSyncInFlight=true;
     try{
       const r=await fetch('/api/driver/assignments',{headers:ah(),cache:'no-store'});
-      if(!r.ok)return false;
+      if(!r.ok){
+        throw new Error('Assignments request failed with HTTP '+r.status);
+      }
+
       const j=await r.json();
       const previousTrips=Array.isArray(trips)?trips:[];
       const previousByRef=new Map(previousTrips.map((trip)=>[String(trip.ref||''),trip]));
-      const nextTrips=(j.assignments||[]).map(b=>({
-        ...(()=>{
-          const pickupFromApi=b.pickupLat!=null?Number(b.pickupLat):b.pickup_lat!=null?Number(b.pickup_lat):null;
-          const pickupLngFromApi=b.pickupLng!=null?Number(b.pickupLng):b.pickup_lng!=null?Number(b.pickup_lng):null;
-          const destFromApi=b.destinationLat!=null?Number(b.destinationLat):b.destination_lat!=null?Number(b.destination_lat):null;
-          const destLngFromApi=b.destinationLng!=null?Number(b.destinationLng):b.destination_lng!=null?Number(b.destination_lng):null;
-          const pickupFallback=coordForAddress(b.pickup||'');
-          const destFallback=coordForAddress(b.destination||'');
-          return {
-            pickupLat:Number.isFinite(pickupFromApi)?pickupFromApi:(pickupFallback?.lat??null),
-            pickupLng:Number.isFinite(pickupLngFromApi)?pickupLngFromApi:(pickupFallback?.lng??null),
-            destinationLat:Number.isFinite(destFromApi)?destFromApi:(destFallback?.lat??null),
-            destinationLng:Number.isFinite(destLngFromApi)?destLngFromApi:(destFallback?.lng??null),
-          };
-        })(),
-        ref:b.reference||b.id,date:normalizeTripDate(b.date||b.trip_date||''),
-        time:(b.time||b.trip_time||'').slice(0,5),
-        pickup:b.pickup||'',destination:b.destination||'',
-        vehicleUnit:String(b.vehicleUnit||b.vehicle_unit||b.vehicle||'').trim().toUpperCase(),
-        patient:b.name||'Patient',service:b.service||'',
-        status:normalizeBookingStatus(b.status||'SCHEDULED'),notes:b.notes||'',
-        distanceMiles:b.distanceMiles!=null?Number(b.distanceMiles):null,
-        distMi:b.distanceMiles!=null?Number(b.distanceMiles).toFixed(1):null,
-        accepted:false,
-        comments:'',
-      }));
-      updateBadge();
-      renderDash();
-      if($('#manifestView')?.classList.contains('active'))renderManifest();
+      const nextTrips=(Array.isArray(j.assignments)?j.assignments:[]).map(b=>{
+        const ref=String(b.reference||b.id||'');
+        const previous=previousByRef.get(ref)||{};
+        const pickupFromApi=b.pickupLat!=null?Number(b.pickupLat):b.pickup_lat!=null?Number(b.pickup_lat):null;
+        const pickupLngFromApi=b.pickupLng!=null?Number(b.pickupLng):b.pickup_lng!=null?Number(b.pickup_lng):null;
+        const destFromApi=b.destinationLat!=null?Number(b.destinationLat):b.destination_lat!=null?Number(b.destination_lat):null;
+        const destLngFromApi=b.destinationLng!=null?Number(b.destinationLng):b.destination_lng!=null?Number(b.destination_lng):null;
+        const pickupFallback=coordForAddress(b.pickup||'');
+        const destFallback=coordForAddress(b.destination||'');
+        const status=normalizeBookingStatus(b.status||'SCHEDULED');
+
+        return {
+          pickupLat:Number.isFinite(pickupFromApi)?pickupFromApi:(pickupFallback?.lat??null),
+          pickupLng:Number.isFinite(pickupLngFromApi)?pickupLngFromApi:(pickupFallback?.lng??null),
+          destinationLat:Number.isFinite(destFromApi)?destFromApi:(destFallback?.lat??null),
+          destinationLng:Number.isFinite(destLngFromApi)?destLngFromApi:(destFallback?.lng??null),
+          ref,
+          date:normalizeTripDate(b.date||b.trip_date||''),
+          time:(b.time||b.trip_time||'').slice(0,5),
+          pickup:b.pickup||'',
+          destination:b.destination||'',
+          vehicleUnit:String(b.vehicleUnit||b.vehicle_unit||b.vehicle||'').trim().toUpperCase(),
+          patient:b.name||'Patient',
+          service:b.service||'',
+          status,
+          notes:b.notes||'',
+          distanceMiles:b.distanceMiles!=null?Number(b.distanceMiles):null,
+          distMi:b.distanceMiles!=null?Number(b.distanceMiles).toFixed(1):null,
+          accepted:Boolean(previous.accepted)||acceptedStatus(status),
+          comments:previous.comments||'',
+        };
+      });
+
+      const nextSignature=buildTripSyncSignature(nextTrips);
+      const hadSignature=Boolean(lastTripSyncSignature);
+      const changed=hadSignature ? nextSignature!==lastTripSyncSignature : true;
+      const removedRefs=[];
+      const changedRefs=[];
+
+      if(hadSignature){
+        const nextByRef=new Map(nextTrips.map((trip)=>[String(trip.ref||''),trip]));
+        previousByRef.forEach((trip,ref)=>{
+          if(ref&&!nextByRef.has(ref)) removedRefs.push(ref);
+        });
+        nextByRef.forEach((trip,ref)=>{
+          const previous=previousByRef.get(ref);
+          if(!previous || tripSnapshotKey(previous)!==tripSnapshotKey(trip)) changedRefs.push(ref);
+        });
+      }
+
+      trips=nextTrips;
+      lastTripSyncSignature=nextSignature;
+      lastTripSyncAt=Date.now();
+
+      if(activeRef && !trips.some((trip)=>trip.ref===activeRef)){
+        activeRef=null;
+      }
+
+      if(changed||!silent||reason!=='poll'){
+        updateBadge();
+        renderDash();
+        if($('#manifestView')?.classList.contains('active')) renderManifest();
+      }
+
       if($('#tripView')?.classList.contains('active')&&activeRef){
-        const activeTrip=trips.find(x=>x.ref===activeRef);
+        const activeTrip=trips.find((trip)=>trip.ref===activeRef);
         if(activeTrip){
           renderTripDetailPanel(activeTrip);
         }else{
@@ -1130,7 +1168,27 @@
           showView('manifestView');
         }
       }
-    }catch(e){console.error('[DRIVER]',e);}
+
+      if(changed&&hadSignature&&reason==='poll'){
+        const updateCount=changedRefs.length+removedRefs.length;
+        const message=updateCount
+          ? `Live dispatch update: ${updateCount} trip${updateCount===1?'':'s'} changed. Synced at ${formatSyncTime(lastTripSyncAt)}.`
+          : `Live dispatch update received. Synced at ${formatSyncTime(lastTripSyncAt)}.`;
+        setManifestNotice(message,'ok',5000);
+      }else if(!changed&&$('#manifestView')?.classList.contains('active')&&!silent){
+        setManifestNotice(`Live updates on. Last synced at ${formatSyncTime(lastTripSyncAt)}.`,'info',2800);
+      }
+
+      return changed;
+    }catch(error){
+      console.error('[DRIVER] assignment sync failed:',error);
+      if(!silent){
+        setManifestNotice('Unable to refresh assigned trips. Your last loaded trips remain visible.','err',5000);
+      }
+      return false;
+    }finally{
+      tripSyncInFlight=false;
+    }
   }
 
   async function acceptTrip(ref){
@@ -1349,47 +1407,10 @@
       enabled:false,
       tripRef,
       startOdo:null,
-      const nextSignature=buildTripSyncSignature(nextTrips);
-      const hadSignature=Boolean(lastTripSyncSignature);
-      const changed=hadSignature ? nextSignature!==lastTripSyncSignature : true;
-      const removedRefs=[];
-      const changedRefs=[];
-      if(hadSignature){
-        const nextByRef=new Map(nextTrips.map((trip)=>[String(trip.ref||''),trip]));
-        previousByRef.forEach((trip,ref)=>{
-          if(ref&&!nextByRef.has(ref)) removedRefs.push(ref);
-        });
-        nextByRef.forEach((trip,ref)=>{
-          const previous=previousByRef.get(ref);
-          if(!previous){
-            changedRefs.push(ref);
-            return;
-          }
-          if(tripSnapshotKey(previous)!==tripSnapshotKey(trip)) changedRefs.push(ref);
-        });
-      }
-
-      trips=nextTrips;
-      lastTripSyncSignature=nextSignature;
-      lastTripSyncAt=Date.now();
-
-      if(changed||!silent||reason!=='poll'){
-        updateBadge();
-        renderDash();
-        if($('#manifestView')?.classList.contains('active'))renderManifest();
-      }
-
-      if(changed&&hadSignature&&reason==='poll'){
-        const updateCount=changedRefs.length+removedRefs.length;
-        const message=updateCount
-          ? `Live dispatch update: ${updateCount} trip${updateCount===1?'':'s'} changed. Synced at ${formatSyncTime(lastTripSyncAt)}.`
-          : `Live dispatch update received. Synced at ${formatSyncTime(lastTripSyncAt)}.`;
-        setManifestNotice(message,'ok',5000);
-      }
-
-      if(!changed&&($('#manifestView')?.classList.contains('active'))&&!silent){
-        setManifestNotice(`Live updates on. Last synced at ${formatSyncTime(lastTripSyncAt)}.`,'info',2800);
-      }
+      milesSinceStart:0,
+      lastPos:null,
+      segmentStartMiles:0,
+      segmentStartOdo:null,
       pickupCoord:null,
       destinationCoord:null,
       arrivedDestinationAt:null,
@@ -1399,10 +1420,7 @@
 
   function statusLabelPlain(status){
     return String(status||'').replaceAll('_',' ').trim();
-      return changed;
   }
-    finally{tripSyncInFlight=false;}
-    return false;
 
   function syncRouteAutoUi(trip){
     const startInput=$('#routeAutoStartOdo');
