@@ -16,6 +16,7 @@
     "start": "netlify dev --dir dist",
     "admin:create-test": "node scripts/create-test-admin.mjs",
     "test:create-users": "node scripts/create-test-users.mjs",
+    "test:driver:live": "playwright test tests/driver-login-live.spec.js --project=chromium",
     "driver:add-fletcher": "node scripts/add-fletcher-driver.mjs",
     "fleet:seed": "node scripts/seed-fleet.mjs",
     "seed:demo": "node scripts/seed-demo-bookings.mjs",
