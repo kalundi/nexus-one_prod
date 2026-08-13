@@ -7,8 +7,10 @@
     "node": ">=20.20.0"
   },
   "scripts": {
+    "driver:repair": "node scripts/repair-driver-app.mjs",
+    "prebuild": "npm run driver:repair",
     "build": "node scripts/build-static.mjs",
-    "build:prod": "node scripts/build-static.mjs && node scripts/obfuscate-code.mjs",
+    "build:prod": "npm run driver:repair && node scripts/build-static.mjs && node scripts/obfuscate-code.mjs",
     "obfuscate": "node scripts/obfuscate-code.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:check": "node scripts/db-check.mjs",
@@ -16,7 +18,7 @@
     "start": "netlify dev --dir dist",
     "admin:create-test": "node scripts/create-test-admin.mjs",
     "test:create-users": "node scripts/create-test-users.mjs",
-    "test:driver:live": "playwright test tests/driver-login-live.spec.js --project=chromium",
+    "test:driver:live": "npm run driver:repair && playwright test tests/driver-login-live.spec.js --project=chromium",
     "driver:add-fletcher": "node scripts/add-fletcher-driver.mjs",
     "fleet:seed": "node scripts/seed-fleet.mjs",
     "seed:demo": "node scripts/seed-demo-bookings.mjs",
