@@ -31,6 +31,12 @@ function buildPostText(post,feed,channel){
  if(channel==='bluesky'){
   return `${post.shortCaption||headline}\n${link}\n${hashtags}`.trim();
  }
+ if(channel==='x'){
+  return `${post.shortCaption||headline}\n${link}\n${hashtags}`.trim().slice(0,280);
+ }
+ if(channel==='youtube'){
+  return `${headline}\n\n${baseCaption}\n\n${cta}: ${link}\n${hashtags}`.trim();
+ }
  if(channel==='facebook'){
   return `${headline}\n\n${baseCaption}\n\n${cta}: ${link}\nCall ${phone}\n${hashtags}`.trim();
  }
@@ -54,6 +60,8 @@ function buildPublishPayload(post,feed,channel,baseUrl='https://nexusmt.com'){
   asset:String(post.asset||''),
     assetUrl:toAbsoluteAssetUrl(post.asset,baseUrl),
   altText:String(post.altText||''),
+  title:String(post.youtubeTitle||post.headline||'Nexus Medical Transit').slice(0,100),
+  videoUrl:toAbsoluteAssetUrl(post.videoAsset||'',baseUrl),
   text:buildPostText(post,feed,channel),
   link:String(post.url||'https://nexusmt.com/'),
   hashtags:formatHashtags(post,feed)

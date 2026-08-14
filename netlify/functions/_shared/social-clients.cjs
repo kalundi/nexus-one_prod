@@ -1,5 +1,6 @@
 const BLUESKY_API='https://bsky.social/xrpc';
 const META_GRAPH_API='https://graph.facebook.com/v20.0';
+const crypto=require('node:crypto');
 
 function env(name){
  return String(process.env[name]||'').trim();
@@ -79,13 +80,94 @@ async function postToInstagram(payload){
  return {status:'published',id:publishBody.id||null,creationId:createBody.id};
 }
 
+function oauthEncode(value){
+ return encodeURIComponent(String(value)).replace(/[!'()*]/g,char=>`%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+async function postToX(payload){
+ const consumerKey=env('X_API_KEY');
+ const consumerSecret=env('X_API_SECRET');
+ const accessToken=env('X_ACCESS_TOKEN');
+ const accessTokenSecret=env('X_ACCESS_TOKEN_SECRET');
+ if(!consumerKey||!consumerSecret||!accessToken||!accessTokenSecret){
+  return {status:'skipped',reason:'missing_x_credentials'};
+ }
+ const method='POST';
+ const url='https://api.x.com/2/tweets';
+ const oauth={
+  oauth_consumer_key:consumerKey,
+  oauth_nonce:crypto.randomBytes(18).toString('hex'),
+  oauth_signature_method:'HMAC-SHA1',
+  oauth_timestamp:String(Math.floor(Date.now()/1000)),
+  oauth_token:accessToken,
+  oauth_version:'1.0'
+ };
+ const parameterString=Object.entries(oauth).sort(([a],[b])=>a.localeCompare(b)).map(([key,value])=>`${oauthEncode(key)}=${oauthEncode(value)}`).join('&');
+ const signatureBase=`${method}&${oauthEncode(url)}&${oauthEncode(parameterString)}`;
+ oauth.oauth_signature=crypto.createHmac('sha1',`${oauthEncode(consumerSecret)}&${oauthEncode(accessTokenSecret)}`).update(signatureBase).digest('base64');
+ const authorization=`OAuth ${Object.entries(oauth).sort(([a],[b])=>a.localeCompare(b)).map(([key,value])=>`${oauthEncode(key)}="${oauthEncode(value)}"`).join(', ')}`;
+ const res=await fetch(url,{
+  method,
+  headers:{authorization,'content-type':'application/json'},
+  body:JSON.stringify({text:String(payload.text||'').slice(0,280)})
+ });
+ const body=await res.json().catch(()=>({}));
+ if(!res.ok)return {status:'failed',code:res.status,error:JSON.stringify(body).slice(0,400)};
+ return {status:'published',id:body.data?.id||null};
+}
+
+async function youtubeAccessToken(){
+ const clientId=env('YOUTUBE_CLIENT_ID');
+ const clientSecret=env('YOUTUBE_CLIENT_SECRET');
+ const refreshToken=env('YOUTUBE_REFRESH_TOKEN');
+ if(!clientId||!clientSecret||!refreshToken)return null;
+ const params=new URLSearchParams({client_id:clientId,client_secret:clientSecret,refresh_token:refreshToken,grant_type:'refresh_token'});
+ const res=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:params});
+ const body=await res.json().catch(()=>({}));
+ if(!res.ok||!body.access_token)throw new Error(`youtube_token_exchange_failed:${res.status}:${JSON.stringify(body).slice(0,240)}`);
+ return body.access_token;
+}
+
+async function postToYouTube(payload){
+ if(!payload.videoUrl||!/^https?:\/\//i.test(payload.videoUrl))return {status:'skipped',reason:'missing_youtube_video_url'};
+ const token=await youtubeAccessToken();
+ if(!token)return {status:'skipped',reason:'missing_youtube_credentials'};
+ const videoRes=await fetch(payload.videoUrl);
+ if(!videoRes.ok)return {status:'failed',step:'fetch_video',code:videoRes.status,error:'Unable to fetch video asset'};
+ const contentType=videoRes.headers.get('content-type')||'video/mp4';
+ if(!contentType.startsWith('video/'))return {status:'skipped',reason:'youtube_asset_is_not_video'};
+ const metadata={
+  snippet:{title:String(payload.title||'Nexus Medical Transit').slice(0,100),description:String(payload.text||'').slice(0,5000),categoryId:env('YOUTUBE_CATEGORY_ID')||'22'},
+  status:{privacyStatus:env('YOUTUBE_DEFAULT_PRIVACY')||'private',selfDeclaredMadeForKids:false}
+ };
+ const initRes=await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',{
+  method:'POST',
+  headers:{authorization:`Bearer ${token}`,'content-type':'application/json; charset=UTF-8','x-upload-content-type':contentType},
+  body:JSON.stringify(metadata)
+ });
+ if(!initRes.ok){
+  const error=await initRes.text().catch(()=> '');
+  return {status:'failed',step:'initialize_upload',code:initRes.status,error:error.slice(0,400)};
+ }
+ const uploadUrl=initRes.headers.get('location');
+ if(!uploadUrl)return {status:'failed',step:'initialize_upload',error:'Missing resumable upload URL'};
+ const uploadHeaders={'content-type':contentType};
+ const contentLength=videoRes.headers.get('content-length');
+ if(contentLength)uploadHeaders['content-length']=contentLength;
+ const uploadRes=await fetch(uploadUrl,{method:'PUT',headers:uploadHeaders,body:videoRes.body,duplex:'half'});
+ const body=await uploadRes.json().catch(()=>({}));
+ if(!uploadRes.ok)return {status:'failed',step:'upload_video',code:uploadRes.status,error:JSON.stringify(body).slice(0,400)};
+ return {status:'published',id:body.id||null,privacyStatus:body.status?.privacyStatus||metadata.status.privacyStatus};
+}
+
 async function publishToChannel(channel,payload){
  const normalized=String(channel||'').toLowerCase();
  if(normalized==='bluesky') return postToBluesky(payload);
  if(normalized==='facebook') return postToFacebook(payload);
  if(normalized==='instagram') return postToInstagram(payload);
+ if(normalized==='x') return postToX(payload);
+ if(normalized==='youtube') return postToYouTube(payload);
  if(normalized==='tiktok') return {status:'skipped',reason:'tiktok_not_configured'};
- if(normalized==='youtube-shorts') return {status:'skipped',reason:'youtube_not_configured'};
  return {status:'skipped',reason:'unsupported_channel'};
 }
 
