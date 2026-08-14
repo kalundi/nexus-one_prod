@@ -5,7 +5,8 @@ const FEED_FILE=path.join(__dirname,'..','..','..','social','evergreen-posts.jso
 
 const CHANNEL_ALIASES={
  'instagram-reels':'instagram',
- 'linkedin-alt':'facebook'
+ 'linkedin-alt':'facebook',
+ 'youtube-shorts':'youtube'
 };
 
 function normalizeChannel(channel){
@@ -40,7 +41,12 @@ function getRecentPillars(historyRows){
 
 function choosePostForChannel(posts,channel,historyRows=[]){
  const normalized=normalizeChannel(channel);
- const eligible=posts.filter(post=>Array.isArray(post.channels)&&post.channels.includes(normalized));
+ const eligible=posts.filter(post=>{
+  if(!Array.isArray(post.channels))return false;
+  if(post.channels.includes(normalized))return true;
+  // X can reuse the reviewed Facebook evergreen queue without duplicating every feed entry.
+  return normalized==='x'&&post.channels.includes('facebook');
+ });
  if(!eligible.length) return null;
 
  const used=getUsedPostIds(historyRows);

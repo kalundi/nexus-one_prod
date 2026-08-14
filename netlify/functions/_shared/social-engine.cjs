@@ -3,7 +3,7 @@ const {loadEvergreenFeed,normalizeChannel,choosePostForChannel}=require('./socia
 const {buildPublishPayload}=require('./social-formatters.cjs');
 const {publishToChannel}=require('./social-clients.cjs');
 
-const DEFAULT_CHANNELS=['facebook','instagram','bluesky'];
+const DEFAULT_CHANNELS=['facebook','instagram','bluesky','x','youtube'];
 
 function parseChannels(raw=''){
  const value=String(raw||'').trim();
