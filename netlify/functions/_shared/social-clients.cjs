@@ -49,7 +49,6 @@ async function postToFacebook(payload){
  if(!pageId||!accessToken)return {status:'skipped',reason:'missing_facebook_credentials'};
  const params=new URLSearchParams({
   message:String(payload.text||''),
-  link:String(payload.link||''),
   access_token:accessToken
  });
  const res=await fetch(`${META_GRAPH_API}/${encodeURIComponent(pageId)}/feed`,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:params});
