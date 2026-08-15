@@ -1,5 +1,5 @@
 const BLUESKY_API='https://bsky.social/xrpc';
-const META_GRAPH_API='https://graph.facebook.com/v20.0';
+const META_GRAPH_API=`https://graph.facebook.com/${String(process.env.META_GRAPH_API_VERSION||'v26.0').trim()}`;
 const crypto=require('node:crypto');
 
 function env(name){
