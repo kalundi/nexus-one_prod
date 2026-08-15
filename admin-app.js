@@ -1146,7 +1146,7 @@ function renderSocialPreviewRows(items=[]){
     const postId=String(item.postId||'--');
     const pillar=String(item.pillar||'--');
     const status=String(item.status||'--');
-    const text=String(item.payload?.text||item.response?.error||item.reason||'').replaceAll('<','&lt;').replaceAll('>','&gt;');
+    const text=String(item.payload?.text||item.response?.error||item.response?.reason||item.reason||'').replaceAll('<','&lt;').replaceAll('>','&gt;');
     return `<tr>
       <td>${channel}</td>
       <td>${postId}</td>

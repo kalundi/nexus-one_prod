@@ -90,8 +90,16 @@ async function runSocialPublish({channels=[],dryRun=true,forcedPostId=''}={}){
 
  for(const channel of channels){
   const recent=await readRecentHistory(channel);
-  const forced=forcedPostId?feed.posts.find(post=>post.id===forcedPostId && post.channels.includes(channel)):null;
-  const nextPost=forced||choosePostForChannel(feed.posts,channel,recent);
+  const requestedPost=forcedPostId?feed.posts.find(post=>post.id===forcedPostId):null;
+  if(forcedPostId&&!requestedPost){
+   results.push({channel,status:'skipped',postId:forcedPostId,reason:'forced_post_not_found'});
+   continue;
+  }
+  if(requestedPost&&!requestedPost.channels.includes(channel)){
+   results.push({channel,status:'skipped',postId:forcedPostId,pillar:requestedPost.pillar,reason:'forced_post_not_eligible_for_channel'});
+   continue;
+  }
+  const nextPost=requestedPost||choosePostForChannel(feed.posts,channel,recent);
   if(!nextPost){
    results.push({channel,status:'skipped',reason:'no_eligible_post'});
    continue;
@@ -108,7 +116,7 @@ async function runSocialPublish({channels=[],dryRun=true,forcedPostId=''}={}){
   try{publishResult=await publishToChannel(channel,payload);}catch(error){publishResult={status:'failed',error:error.message};}
   const status=String(publishResult.status||'failed');
   await writeHistory({runDate,channel,postId:nextPost.id,status,dryRun:false,payload,response:publishResult,errorMessage:publishResult.error||''});
-  results.push({channel,status,postId:nextPost.id,pillar:nextPost.pillar,response:publishResult});
+  results.push({channel,status,postId:nextPost.id,pillar:nextPost.pillar,payload,response:publishResult});
  }
 
  return {runDate,dryRun,channels,results};
