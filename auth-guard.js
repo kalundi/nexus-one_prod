@@ -11,6 +11,7 @@
     '/admin.html':['ADMIN','DISPATCHER'],
     '/ai-operations.html':['DISPATCHER','ADMIN'],
     '/operations.html':['DISPATCHER','ADMIN']
+    ,'/keymark.html':['ADMIN','DISPATCHER','EXECUTIVE','QA','FACILITY']
   };
 
   let pathname=location.pathname;

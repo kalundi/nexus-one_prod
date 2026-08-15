@@ -14,6 +14,8 @@
         "npm:@playwright/test@^1.62.1",
         "npm:http-server@^14.1.1",
         "npm:javascript-obfuscator@^4.2.0",
+        "npm:mailparser@^3.7.2",
+        "npm:pdf-parse@^1.1.1",
         "npm:pg@8.16.3"
       ]
     }
