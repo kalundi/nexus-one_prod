@@ -57,6 +57,74 @@ async function postToFacebook(payload){
  return {status:'published',id:body.id||null};
 }
 
+function safeMetaError(body,status){
+ const error=body?.error||{};
+ return {
+  httpStatus:Number(status||0)||null,
+  code:Number(error.code||0)||null,
+  subcode:Number(error.error_subcode||0)||null,
+  type:String(error.type||''),
+  message:String(error.message||'Meta request failed').slice(0,240)
+ };
+}
+
+async function diagnoseFacebook(){
+ const pageId=env('FACEBOOK_PAGE_ID');
+ const accessToken=env('FACEBOOK_PAGE_ACCESS_TOKEN');
+ const graphVersion=env('META_GRAPH_API_VERSION')||'v26.0';
+ const diagnostic={
+  checkedAt:new Date().toISOString(),
+  deployment:{
+   context:env('CONTEXT')||null,
+   commitRef:env('COMMIT_REF')||null,
+   deployId:env('DEPLOY_ID')||null
+  },
+  graphVersion,
+  pageId:pageId||null,
+  configured:Boolean(pageId&&accessToken),
+  tokenFingerprint:accessToken?crypto.createHash('sha256').update(accessToken).digest('hex').slice(0,12):null,
+  permissions:[],
+  requiredPermissions:{pages_read_engagement:false,pages_manage_posts:false},
+  pageAccessible:false,
+  feedReadable:false,
+  page:null,
+  errors:[]
+ };
+ if(!diagnostic.configured) return diagnostic;
+
+ const permissionsRes=await fetch(`${META_GRAPH_API}/me/permissions?access_token=${encodeURIComponent(accessToken)}`);
+ const permissionsBody=await permissionsRes.json().catch(()=>({}));
+ if(permissionsRes.ok){
+  diagnostic.permissions=(Array.isArray(permissionsBody.data)?permissionsBody.data:[])
+   .filter(item=>String(item?.status||'').toLowerCase()==='granted')
+   .map(item=>String(item?.permission||''))
+   .filter(Boolean)
+   .sort();
+  diagnostic.requiredPermissions.pages_read_engagement=diagnostic.permissions.includes('pages_read_engagement');
+  diagnostic.requiredPermissions.pages_manage_posts=diagnostic.permissions.includes('pages_manage_posts');
+ }else{
+  diagnostic.errors.push({step:'permissions',...safeMetaError(permissionsBody,permissionsRes.status)});
+ }
+
+ const pageRes=await fetch(`${META_GRAPH_API}/${encodeURIComponent(pageId)}?fields=id,name&access_token=${encodeURIComponent(accessToken)}`);
+ const pageBody=await pageRes.json().catch(()=>({}));
+ if(pageRes.ok){
+  diagnostic.pageAccessible=true;
+  diagnostic.page={id:String(pageBody.id||''),name:String(pageBody.name||'')};
+ }else{
+  diagnostic.errors.push({step:'page',...safeMetaError(pageBody,pageRes.status)});
+ }
+
+ const feedRes=await fetch(`${META_GRAPH_API}/${encodeURIComponent(pageId)}/feed?limit=1&fields=id&access_token=${encodeURIComponent(accessToken)}`);
+ const feedBody=await feedRes.json().catch(()=>({}));
+ if(feedRes.ok){
+  diagnostic.feedReadable=true;
+ }else{
+  diagnostic.errors.push({step:'feed',...safeMetaError(feedBody,feedRes.status)});
+ }
+ return diagnostic;
+}
+
 async function postToInstagram(payload){
  const igUserId=env('INSTAGRAM_BUSINESS_ACCOUNT_ID');
  const accessToken=env('INSTAGRAM_PAGE_ACCESS_TOKEN')||env('FACEBOOK_PAGE_ACCESS_TOKEN');
@@ -170,4 +238,4 @@ async function publishToChannel(channel,payload){
  return {status:'skipped',reason:'unsupported_channel'};
 }
 
-module.exports={publishToChannel};
+module.exports={publishToChannel,diagnoseFacebook};
