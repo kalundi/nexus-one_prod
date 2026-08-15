@@ -1114,6 +1114,26 @@ function socialMsg(text,type='ok'){
   showMsg(el,text,type);
 }
 
+async function runSocialDiagnostics(){
+  const btn=document.getElementById('socialDiagnosticsBtn');
+  const output=document.getElementById('socialDiagnosticsOutput');
+  if(btn){btn.disabled=true;btn.textContent='Checking...';}
+  try{
+    const res=await fetch('/.netlify/functions/social-diagnostics',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Failed to run social diagnostics');
+    if(output){output.hidden=false;output.textContent=JSON.stringify(data.facebook||{},null,2);}
+    const fb=data.facebook||{};
+    const healthy=fb.configured&&fb.pageAccessible&&fb.feedReadable&&fb.requiredPermissions?.pages_read_engagement&&fb.requiredPermissions?.pages_manage_posts;
+    socialMsg(healthy?'Facebook diagnostics passed.':'Facebook diagnostics found a configuration mismatch.',healthy?'ok':'err');
+  }catch(error){
+    if(output){output.hidden=false;output.textContent=String(error.message||error);}
+    socialMsg(error.message,'err');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Run diagnostics';}
+  }
+}
+
 function renderSocialPreviewRows(items=[]){
   const body=document.getElementById('socialPreviewRows');
   if(!body) return;
@@ -1464,6 +1484,7 @@ document.getElementById('adminTripRows')?.addEventListener('click',(event)=>{
   if(ref) advanceAdminTrip(ref);
 });
 document.getElementById('socialPreviewBtn')?.addEventListener('click',()=>{loadSocialPreview().catch((err)=>console.error(err));});
+document.getElementById('socialDiagnosticsBtn')?.addEventListener('click',()=>{runSocialDiagnostics().catch((err)=>console.error(err));});
 document.getElementById('socialPublishBtn')?.addEventListener('click',()=>{runSocialPublish().catch((err)=>console.error(err));});
 document.getElementById('socialHistoryRefreshBtn')?.addEventListener('click',()=>{loadSocialHistory().catch((err)=>console.error(err));});
 document.querySelectorAll('.socialChannel').forEach((el)=>el.addEventListener('change',()=>{loadSocialPreview().catch((err)=>console.error(err));}));
