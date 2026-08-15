@@ -9,12 +9,12 @@ if (!connectionString) {
 }
 
 const email = String(process.env.NEXUS_ADMIN_EMAIL || 'admin@nexusmt.com').trim().toLowerCase();
-const password = String(process.env.NEXUS_ADMIN_PASSWORD || 'NexusAdmin042!');
+const password = String(process.env.NEXUS_ADMIN_PASSWORD || '');
 const displayName = String(process.env.NEXUS_ADMIN_NAME || 'Nexus Test Administrator').trim();
 const identitySubject = crypto.randomUUID();
 
-if (password.length < 12) {
-  console.error('NEXUS_ADMIN_PASSWORD must contain at least 12 characters.');
+if (!password || password.length < 12) {
+  console.error('Set NEXUS_ADMIN_PASSWORD to a protected value containing at least 12 characters.');
   process.exit(1);
 }
 
@@ -26,7 +26,6 @@ const pool = new Pool({
 });
 
 const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-console.log(`[ADMIN] Password hash (first 16 chars): ${passwordHash.substring(0, 16)}...`);
 
 const client = await pool.connect();
 try {
@@ -99,7 +98,7 @@ try {
   await client.query('COMMIT');
   console.log('[ADMIN] Admin test account is ready.');
   console.log(`[ADMIN] Email: ${email}`);
-  console.log(`[ADMIN] Password: ${password}`);
+  console.log('[ADMIN] Password is configured through the protected deployment environment.');
   console.log('[ADMIN] Sign in through Livecare using Dispatch sign in, then open /admin.html.');
 } catch (error) {
   await client.query('ROLLBACK').catch(() => {});

@@ -49,6 +49,7 @@ const PAGES = [
   { path: '/accessibility.html',  title: 'Accessibility', role: null },
   { path: '/careers.html',        title: 'Careers',       role: null },
   { path: '/career-application.html', title: 'Career Application', role: null },
+  { path: '/keymark.html',        title: 'KeyMark',       role: 'DISPATCHER' },
 ];
 
 test.describe('All pages render non-blank content', () => {

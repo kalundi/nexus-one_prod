@@ -1,0 +1,58 @@
+[
+  {
+    "file": "01-rider-empty.png",
+    "target": {
+      "x": 270,
+      "y": 424
+    }
+  },
+  {
+    "file": "02-rider-filled.png",
+    "target": {
+      "x": 136,
+      "y": 758
+    }
+  },
+  {
+    "file": "03-route-empty.png",
+    "target": {
+      "x": 270,
+      "y": 762
+    }
+  },
+  {
+    "file": "04-route-filled.png",
+    "target": {
+      "x": 136,
+      "y": 850
+    }
+  },
+  {
+    "file": "05-ride-type.png",
+    "target": {
+      "x": 270,
+      "y": 501
+    }
+  },
+  {
+    "file": "06-ride-filled.png",
+    "target": {
+      "x": 373,
+      "y": 653
+    }
+  },
+  {
+    "file": "07-ready-to-book.png",
+    "target": {
+      "x": 390,
+      "y": 925
+    }
+  },
+  {
+    "file": "08-confirmed.png",
+    "target": {
+      "x": 270,
+      "y": 926
+    }
+  }
+]

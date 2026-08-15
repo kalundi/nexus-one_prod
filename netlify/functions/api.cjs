@@ -12,6 +12,8 @@ const {ensureDefaultTestUsers, ensureDefaultUserForEmail}=require('./_shared/def
 const {buildDriverEmployeeLookupSql, buildDriverAvailabilitySql}=require('./_shared/employee-driver-lookup.cjs');
 const {getFallbackUser, createFallbackSession, getFallbackSession, revokeFallbackSession, getFallbackAssignments, acceptFallbackAssignment, updateFallbackAssignmentStatus}=require('./_shared/fallback-auth.cjs');
 const {parseChannels,isDryRunValue,previewSocialSelection,runSocialPublish}=require('./_shared/social-engine.cjs');
+const {mapFhirAppointment,parseHl7,verifyIntegrationRequest,payloadDigest}=require('./_shared/keymark-connectors.cjs');
+const {testConnection:testKeymarkFhirConnection}=require('./_shared/keymark-fhir-client.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -1735,6 +1737,141 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p[0]==='keymark'){
+   const upsertIntegratedAppointment=async(mapped,facilityId=null,organizationId=null)=>{
+    const source=clean(mapped.sourceSystem).toUpperCase()||'FHIR';
+    const r=await query(`INSERT INTO keymark_appointments(organization_id,facility_id,external_appointment_id,source_system,patient_external_id,patient_name,patient_phone,patient_email,appointment_at,department,appointment_type,arrival_risk_score,notes,integration_payload)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,0,$12,$13)
+     ON CONFLICT(source_system,external_appointment_id) DO UPDATE SET patient_external_id=EXCLUDED.patient_external_id,patient_name=EXCLUDED.patient_name,patient_phone=EXCLUDED.patient_phone,patient_email=EXCLUDED.patient_email,appointment_at=EXCLUDED.appointment_at,department=EXCLUDED.department,appointment_type=EXCLUDED.appointment_type,notes=EXCLUDED.notes,integration_payload=EXCLUDED.integration_payload,updated_at=now() RETURNING *`,[organizationId,facilityId,clean(mapped.externalAppointmentId),source,clean(mapped.patientExternalId)||null,clean(mapped.patientName),clean(mapped.patientPhone)||null,clean(mapped.patientEmail)||null,mapped.appointmentAt,clean(mapped.department)||null,clean(mapped.appointmentType)||null,clean(mapped.notes)||null,JSON.stringify(mapped.integrationPayload||{})]);
+    return r.rows[0];
+   };
+   if(p[1]==='integrations'&&['fhir','hl7'].includes(p[2])&&method==='POST'){
+    verifyIntegrationRequest(event);
+    const protocol=p[2].toUpperCase(),sourceSystem=clean(event.headers?.['x-keymark-source-system']||protocol).toUpperCase();
+    const facilityId=clean(event.headers?.['x-keymark-facility-id'])||null;
+    const rawBody=event.isBase64Encoded?Buffer.from(event.body||'','base64').toString('utf8'):String(event.body||'');
+    const digestValue=payloadDigest(rawBody),existing=await query('SELECT appointment_id,status FROM keymark_integration_messages WHERE source_system=$1 AND payload_digest=$2',[sourceSystem,digestValue]);
+    if(existing.rows[0])return json(200,{accepted:true,deduplicated:true,appointmentId:existing.rows[0].appointment_id,status:existing.rows[0].status});
+    let mapped,externalMessageId='';
+    try{
+     if(protocol==='FHIR'){
+      const body=JSON.parse(rawBody||'{}'),resource=body.resource||body;
+      mapped=mapFhirAppointment(resource,{sourceSystem,patient:body.patient||{}});externalMessageId=clean(resource.id||mapped.externalAppointmentId);
+     }else{mapped={...parseHl7(rawBody),sourceSystem};externalMessageId=clean(mapped.messageControlId||mapped.externalAppointmentId)}
+     const row=await upsertIntegratedAppointment(mapped,facilityId,null);
+     await query(`INSERT INTO keymark_integration_messages(direction,protocol,source_system,external_message_id,payload_digest,status,appointment_id,metadata,processed_at) VALUES('INBOUND',$1,$2,$3,$4,'PROCESSED',$5,$6,now())`,[protocol,sourceSystem,externalMessageId,digestValue,row.id,JSON.stringify({facilityId,resourceType:protocol==='FHIR'?'Appointment':'SIU'})]);
+     await query('INSERT INTO keymark_events(appointment_id,event_type,event_status,actor_role,details) VALUES($1,$2,$3,$4,$5)',[row.id,'INTEGRATION_INGESTED','PROCESSED','SYSTEM',JSON.stringify({protocol,sourceSystem,externalMessageId})]);
+     await audit('KEYMARK_INTEGRATION',String(row.id),'INGESTED',{protocol,sourceSystem,externalMessageId});
+     return json(202,{accepted:true,deduplicated:false,appointmentId:String(row.id),externalAppointmentId:mapped.externalAppointmentId});
+    }catch(error){
+     await query(`INSERT INTO keymark_integration_messages(direction,protocol,source_system,external_message_id,payload_digest,status,error_code,error_message,metadata,processed_at) VALUES('INBOUND',$1,$2,$3,$4,'REJECTED','MAPPING_ERROR',$5,$6,now()) ON CONFLICT(source_system,payload_digest) DO NOTHING`,[protocol,sourceSystem,externalMessageId,digestValue,String(error.message).slice(0,500),JSON.stringify({facilityId})]).catch(()=>{});
+     throw error;
+    }
+   }
+   const allowedRoles=['ADMIN','DISPATCHER','EXECUTIVE','QA','FACILITY'];
+   const u=await requireUser(bearer(event),allowedRoles);
+   const facilityScope=u.role==='FACILITY'?clean(u.scope_id):'';
+   const scopedWhere=(alias='a')=>facilityScope?{sql:` WHERE ${alias}.facility_id=$1`,params:[facilityScope]}:{sql:'',params:[]};
+   const calculateRisk=(input)=>{
+    const barriers=Array.isArray(input.barrierCodes)?input.barrierCodes.map(v=>clean(v).toUpperCase()).filter(Boolean):[];
+    let score=0;
+    if(input.eligibilityStatus==='PENDING'||input.eligibilityStatus==='INELIGIBLE')score+=20;
+    if(input.consentStatus!=='GRANTED')score+=10;
+    if(input.transportationRequired===true&&(!input.transportationMode||['NOT_ASSESSED','NEEDS_RIDE'].includes(input.transportationStatus)))score+=30;
+    score+=Math.min(30,barriers.length*10);
+    const hours=(new Date(input.appointmentAt).getTime()-Date.now())/3600000;
+    if(Number.isFinite(hours)&&hours<=24)score+=10;
+    return Math.max(0,Math.min(100,score));
+   };
+   const mapAppointment=row=>({
+    id:String(row.id),externalAppointmentId:row.external_appointment_id,sourceSystem:row.source_system,
+    facilityId:row.facility_id,patientExternalId:row.patient_external_id,patientName:row.patient_name,
+    patientPhone:row.patient_phone,patientEmail:row.patient_email,appointmentAt:row.appointment_at,
+    department:row.department,appointmentType:row.appointment_type,eligibilityStatus:row.eligibility_status,
+    consentStatus:row.consent_status,barrierCodes:row.barrier_codes||[],outreachStatus:row.outreach_status,
+    nextOutreachAt:row.next_outreach_at,transportationRequired:row.transportation_required,
+    transportationMode:row.transportation_mode,transportationStatus:row.transportation_status,
+    bookingReference:row.booking_reference,arrivalRiskScore:Number(row.arrival_risk_score||0),
+    arrivalStatus:row.arrival_status,outcomeReasonCode:row.outcome_reason_code,notes:row.notes,
+    createdAt:row.created_at,updatedAt:row.updated_at
+   });
+   if(p[1]==='appointments'&&!p[2]&&method==='GET'){
+    const scope=scopedWhere('a');
+    const r=await query(`SELECT a.* FROM keymark_appointments a${scope.sql} ORDER BY a.appointment_at ASC LIMIT 500`,scope.params);
+    await audit('KEYMARK','appointments','VIEWED',{role:u.role,facilityScope:facilityScope||null,count:r.rowCount});
+    return json(200,{appointments:r.rows.map(mapAppointment)});
+   }
+   if(p[1]==='appointments'&&!p[2]&&method==='POST'){
+    if(u.role==='EXECUTIVE'||u.role==='QA')return json(403,{error:'This role has read-only KeyMark access'});
+    const b=parseBody(event);required(b,['externalAppointmentId','patientName','appointmentAt']);
+    const sourceSystem=clean(b.sourceSystem).toUpperCase()||'MANUAL';
+    const facilityId=facilityScope||clean(b.facilityId)||null;
+    const appointmentAt=new Date(b.appointmentAt);
+    if(Number.isNaN(appointmentAt.getTime()))return json(400,{error:'appointmentAt must be a valid date and time'});
+    const normalized={...b,appointmentAt:appointmentAt.toISOString(),eligibilityStatus:clean(b.eligibilityStatus).toUpperCase()||'PENDING',consentStatus:clean(b.consentStatus).toUpperCase()||'UNKNOWN',transportationStatus:clean(b.transportationStatus).toUpperCase()||'NOT_ASSESSED'};
+    const risk=calculateRisk(normalized);
+    const r=await query(`INSERT INTO keymark_appointments(organization_id,facility_id,external_appointment_id,source_system,patient_external_id,patient_name,patient_phone,patient_email,appointment_at,department,appointment_type,eligibility_status,consent_status,barrier_codes,outreach_status,next_outreach_at,transportation_required,transportation_mode,transportation_status,arrival_risk_score,notes,integration_payload,created_by)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+     ON CONFLICT(source_system,external_appointment_id) DO UPDATE SET patient_name=EXCLUDED.patient_name,patient_phone=EXCLUDED.patient_phone,patient_email=EXCLUDED.patient_email,appointment_at=EXCLUDED.appointment_at,department=EXCLUDED.department,appointment_type=EXCLUDED.appointment_type,eligibility_status=EXCLUDED.eligibility_status,consent_status=EXCLUDED.consent_status,barrier_codes=EXCLUDED.barrier_codes,transportation_required=EXCLUDED.transportation_required,transportation_mode=EXCLUDED.transportation_mode,transportation_status=EXCLUDED.transportation_status,arrival_risk_score=EXCLUDED.arrival_risk_score,notes=EXCLUDED.notes,integration_payload=EXCLUDED.integration_payload,updated_at=now() RETURNING *`,[
+      u.organization_id||null,facilityId,clean(b.externalAppointmentId),sourceSystem,clean(b.patientExternalId)||null,clean(b.patientName),clean(b.patientPhone)||null,clean(b.patientEmail)||null,appointmentAt.toISOString(),clean(b.department)||null,clean(b.appointmentType)||null,normalized.eligibilityStatus,normalized.consentStatus,Array.isArray(b.barrierCodes)?b.barrierCodes.map(v=>clean(v).toUpperCase()).filter(Boolean):[],clean(b.outreachStatus).toUpperCase()||'NOT_STARTED',b.nextOutreachAt||null,b.transportationRequired===true,clean(b.transportationMode).toUpperCase()||null,normalized.transportationStatus,risk,clean(b.notes)||null,JSON.stringify(b.integrationPayload||{}),u.id
+     ]);
+    const row=r.rows[0];
+    await query('INSERT INTO keymark_events(appointment_id,event_type,event_status,actor_id,actor_role,details) VALUES($1,$2,$3,$4,$5,$6)',[row.id,'APPOINTMENT_INGESTED','ACCEPTED',u.id,u.role,JSON.stringify({sourceSystem,risk})]);
+    await audit('KEYMARK_APPOINTMENT',String(row.id),'UPSERTED',{sourceSystem,externalAppointmentId:b.externalAppointmentId,risk,role:u.role});
+    return json(201,{appointment:mapAppointment(row)});
+   }
+   if(p[1]==='appointments'&&p[2]&&method==='PATCH'){
+    if(u.role==='EXECUTIVE'||u.role==='QA')return json(403,{error:'This role has read-only KeyMark access'});
+    const b=parseBody(event),id=p[2];
+    const found=await query(`SELECT * FROM keymark_appointments WHERE id=$1${facilityScope?' AND facility_id=$2':''}`,[id,...(facilityScope?[facilityScope]:[])]);
+    if(!found.rows[0])return json(404,{error:'KeyMark appointment not found'});
+    const current=mapAppointment(found.rows[0]);
+    const next={...current,...b,eligibilityStatus:clean(b.eligibilityStatus||current.eligibilityStatus).toUpperCase(),consentStatus:clean(b.consentStatus||current.consentStatus).toUpperCase(),transportationStatus:clean(b.transportationStatus||current.transportationStatus).toUpperCase(),arrivalStatus:clean(b.arrivalStatus||current.arrivalStatus).toUpperCase()};
+    const risk=calculateRisk(next);
+    const r=await query(`UPDATE keymark_appointments SET eligibility_status=$2,consent_status=$3,barrier_codes=$4,outreach_status=$5,next_outreach_at=$6,transportation_required=$7,transportation_mode=$8,transportation_status=$9,booking_reference=$10,arrival_risk_score=$11,arrival_status=$12,outcome_reason_code=$13,notes=$14,updated_at=now() WHERE id=$1 RETURNING *`,[id,next.eligibilityStatus,next.consentStatus,Array.isArray(next.barrierCodes)?next.barrierCodes:[],clean(next.outreachStatus).toUpperCase()||'NOT_STARTED',next.nextOutreachAt||null,next.transportationRequired===true,clean(next.transportationMode).toUpperCase()||null,next.transportationStatus,clean(next.bookingReference)||null,risk,next.arrivalStatus,clean(next.outcomeReasonCode).toUpperCase()||null,clean(next.notes)||null]);
+    const changed=Object.keys(b||{});
+    await query('INSERT INTO keymark_events(appointment_id,event_type,event_status,channel,actor_id,actor_role,details) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,clean(b.eventType).toUpperCase()||'APPOINTMENT_UPDATED',clean(b.eventStatus).toUpperCase()||next.arrivalStatus,clean(b.channel).toUpperCase()||null,u.id,u.role,JSON.stringify({changed,risk})]);
+    await audit('KEYMARK_APPOINTMENT',id,'UPDATED',{changed,risk,role:u.role});
+    return json(200,{appointment:mapAppointment(r.rows[0])});
+   }
+   if(p[1]==='analytics'&&method==='GET'){
+    const scope=scopedWhere('a');
+    const r=await query(`SELECT count(*)::int AS monitored,count(*) FILTER (WHERE outreach_status IN ('CONFIRMED','COMPLETED'))::int AS contacted,count(*) FILTER (WHERE array_length(barrier_codes,1)>0)::int AS barriers_found,count(*) FILTER (WHERE transportation_status IN ('ARRANGED','SCHEDULED','DISPATCHED','ARRIVING','PICKED_UP','DELIVERED'))::int AS rides_arranged,count(*) FILTER (WHERE arrival_status='ARRIVED')::int AS arrived,count(*) FILTER (WHERE arrival_status='NO_SHOW')::int AS no_shows,round(avg(arrival_risk_score),1) AS average_risk FROM keymark_appointments a${scope.sql}`,scope.params);
+    const reasons=await query(`SELECT COALESCE(outcome_reason_code,'UNSPECIFIED') AS reason,count(*)::int AS count FROM keymark_appointments a${scope.sql}${scope.sql?' AND':' WHERE'} arrival_status IN ('NO_SHOW','CANCELLED','LATE','TRANSPORT_FAILED') GROUP BY 1 ORDER BY 2 DESC LIMIT 10`,scope.params);
+    return json(200,{summary:r.rows[0]||{},failureReasons:reasons.rows});
+   }
+   if(p[1]==='connections'&&!p[2]&&method==='GET'){
+    const scope=facilityScope?' WHERE facility_id=$1 OR facility_id IS NULL':'';
+    const r=await query(`SELECT id,name,vendor,protocol,base_url,auth_type,status,configuration,last_success_at,last_error_at,last_error FROM keymark_connections${scope} ORDER BY name`,facilityScope?[facilityScope]:[]);
+    return json(200,{connections:r.rows});
+   }
+   if(p[1]==='integration-health'&&method==='GET'){
+    const counts=await query(`SELECT count(*)::int AS total,count(*) FILTER(WHERE status='ACTIVE')::int AS active,count(*) FILTER(WHERE status='ERROR')::int AS errors FROM keymark_connections${facilityScope?' WHERE facility_id=$1 OR facility_id IS NULL':''}`,facilityScope?[facilityScope]:[]);
+    const messages=await query(`SELECT count(*) FILTER(WHERE status='REJECTED' AND received_at>now()-interval '24 hours')::int AS rejected_24h,count(*) FILTER(WHERE status='PROCESSED' AND received_at>now()-interval '24 hours')::int AS processed_24h FROM keymark_integration_messages`);
+    const queued=await query(`SELECT count(*) FILTER(WHERE status IN ('QUEUED','RETRY'))::int AS outreach,count(*) FILTER(WHERE status='BLOCKED_CONSENT')::int AS blocked_consent FROM keymark_communications`);
+    const payer=await query(`SELECT count(*) FILTER(WHERE status='QUEUED')::int AS queued FROM keymark_payer_requests`);
+    return json(200,{gateway:{configured:Boolean(process.env.KEYMARK_INTEGRATION_API_KEY)},ehr:{...(counts.rows[0]||{}),processed24h:messages.rows[0]?.processed_24h||0,rejected24h:messages.rows[0]?.rejected_24h||0},outreach:{twilioConfigured:Boolean(process.env.TWILIO_ACCOUNT_SID&&process.env.TWILIO_AUTH_TOKEN&&process.env.TWILIO_PHONE_NUMBER),queued:queued.rows[0]?.outreach||0,blockedConsent:queued.rows[0]?.blocked_consent||0},payer:{connectorConfigured:Boolean(process.env.KEYMARK_PAYER_ENDPOINT&&process.env.KEYMARK_PAYER_TOKEN),queued:payer.rows[0]?.queued||0},checkedAt:new Date().toISOString()});
+   }
+   if(p[1]==='connections'&&p[2]&&p[3]==='test'&&method==='POST'){
+    if(u.role!=='ADMIN')return json(403,{error:'Only Admin can test KeyMark connections'});
+    const found=await query('SELECT * FROM keymark_connections WHERE id=$1 AND organization_id=$2',[p[2],u.organization_id]);if(!found.rows[0])return json(404,{error:'KeyMark connection not found'});const connection=found.rows[0];if(connection.protocol!=='FHIR')return json(400,{error:'Automated connection testing currently supports FHIR connections'});
+    try{const result=await testKeymarkFhirConnection(connection);await query(`UPDATE keymark_connections SET status='ACTIVE',last_success_at=now(),last_error=null,updated_at=now() WHERE id=$1`,[connection.id]);await audit('KEYMARK_CONNECTION',String(connection.id),'TEST_SUCCEEDED',result);return json(200,{ok:true,status:'ACTIVE',capability:result})}catch(error){await query(`UPDATE keymark_connections SET status='ERROR',last_error_at=now(),last_error=$2,updated_at=now() WHERE id=$1`,[connection.id,String(error.message).slice(0,500)]);await audit('KEYMARK_CONNECTION',String(connection.id),'TEST_FAILED',{error:error.message});return json(502,{ok:false,status:'ERROR',error:error.message})}
+   }
+   if(p[1]==='connections'&&!p[2]&&method==='POST'){
+    if(u.role!=='ADMIN')return json(403,{error:'Only Admin can configure KeyMark connections'});
+    const b=parseBody(event);required(b,['name','vendor','protocol']);
+    const r=await query(`INSERT INTO keymark_connections(organization_id,facility_id,name,vendor,protocol,base_url,auth_type,status,configuration) VALUES($1,$2,$3,$4,$5,$6,$7,'CONFIGURATION_REQUIRED',$8) ON CONFLICT(organization_id,name) DO UPDATE SET vendor=EXCLUDED.vendor,protocol=EXCLUDED.protocol,base_url=EXCLUDED.base_url,auth_type=EXCLUDED.auth_type,configuration=EXCLUDED.configuration,updated_at=now() RETURNING id,name,vendor,protocol,base_url,auth_type,status,configuration`,[u.organization_id,clean(b.facilityId)||null,clean(b.name),clean(b.vendor).toUpperCase(),clean(b.protocol).toUpperCase(),clean(b.baseUrl)||null,clean(b.authType).toUpperCase()||'OAUTH2',JSON.stringify(b.configuration||{})]);
+    await audit('KEYMARK_CONNECTION',String(r.rows[0].id),'CONFIGURED',{vendor:r.rows[0].vendor,protocol:r.rows[0].protocol});return json(201,{connection:r.rows[0]});
+   }
+   if(p[1]==='appointments'&&p[2]&&p[3]==='communications'&&method==='POST'){
+    if(['EXECUTIVE','QA'].includes(u.role))return json(403,{error:'This role has read-only KeyMark access'});
+    const b=parseBody(event);required(b,['channel','templateKey']);const found=await query(`SELECT id,patient_phone,patient_email,consent_status FROM keymark_appointments WHERE id=$1${facilityScope?' AND facility_id=$2':''}`,[p[2],...(facilityScope?[facilityScope]:[])]);const appointment=found.rows[0];if(!appointment)return json(404,{error:'KeyMark appointment not found'});if(appointment.consent_status!=='GRANTED')return json(409,{error:'Patient consent must be granted before SMS or voice outreach'});const channel=clean(b.channel).toUpperCase();if(!['SMS','VOICE'].includes(channel))return json(400,{error:'channel must be SMS or VOICE'});const destination=clean(b.destination||appointment.patient_phone);if(!destination)return json(400,{error:'A patient phone number is required'});const r=await query(`INSERT INTO keymark_communications(appointment_id,channel,template_key,destination,consent_verified,status,scheduled_at,created_by) VALUES($1,$2,$3,$4,true,'QUEUED',COALESCE($5::timestamptz,now()),$6) RETURNING *`,[p[2],channel,clean(b.templateKey),destination,b.scheduledAt||null,u.id]);await audit('KEYMARK_COMMUNICATION',String(r.rows[0].id),'QUEUED',{appointmentId:p[2],channel,templateKey:b.templateKey});return json(202,{communication:r.rows[0]});
+   }
+   if(p[1]==='appointments'&&p[2]&&p[3]==='payer-requests'&&method==='POST'){
+    if(['EXECUTIVE','QA'].includes(u.role))return json(403,{error:'This role has read-only KeyMark access'});const b=parseBody(event);required(b,['payerName']);const found=await query(`SELECT id FROM keymark_appointments WHERE id=$1${facilityScope?' AND facility_id=$2':''}`,[p[2],...(facilityScope?[facilityScope]:[])]);if(!found.rows[0])return json(404,{error:'KeyMark appointment not found'});const r=await query(`INSERT INTO keymark_payer_requests(appointment_id,payer_name,request_type,status,created_by) VALUES($1,$2,$3,'QUEUED',$4) RETURNING *`,[p[2],clean(b.payerName),clean(b.requestType).toUpperCase()||'ELIGIBILITY',u.id]);await audit('KEYMARK_PAYER_REQUEST',String(r.rows[0].id),'QUEUED',{appointmentId:p[2],payerName:b.payerName});return json(202,{payerRequest:r.rows[0]});
+   }
+   return json(404,{error:'Unknown KeyMark endpoint'});
+  }
   if(p[0]==='voice'&&p[1]==='incoming-call'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();
     const params=parseWebhookBody(event);
@@ -4057,4 +4194,3 @@ exports.sendBrokerRequestConfirmation=sendBrokerRequestConfirmation;
 exports.sendBrokerRequestDispatchNotifications=sendBrokerRequestDispatchNotifications;
 exports.buildBookingTeamsMessage=buildBookingTeamsMessage;
 exports.sendBookingTeamsAlert=sendBookingTeamsAlert;
-

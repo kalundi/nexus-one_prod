@@ -15,6 +15,7 @@
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:check": "node scripts/db-check.mjs",
     "verify": "node scripts/verify-build042.mjs",
+    "verify:keymark:staging": "node scripts/verify-keymark-staging.mjs",
     "start": "netlify dev --dir dist",
     "admin:create-test": "node scripts/create-test-admin.mjs",
     "test:create-users": "node scripts/create-test-users.mjs",
