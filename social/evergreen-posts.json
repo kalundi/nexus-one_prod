@@ -208,16 +208,16 @@
     {
       "id": "shorts-hook-001",
       "pillar": "service-awareness",
-      "channels": ["tiktok", "youtube-shorts", "instagram-reels"],
+      "channels": ["facebook", "instagram", "instagram-reels", "bluesky", "x", "tiktok", "youtube", "youtube-shorts"],
       "asset": "/assets/nexus-shuttle-rear.webp",
-      "videoAsset": "/assets/nexus-booking-app-walkthrough-v5-narrated.mp4",
+      "videoAsset": "/assets/nexus-booking-app-walkthrough-v6-narrated.mp4",
       "url": "https://nexusmt.com/booking-app.html",
-      "headline": "On-screen text: Need medical transportation that stays coordinated?",
-      "caption": "Hook: Need medical transportation that stays coordinated from request to arrival?\nBody: Nexus supports wheelchair, stretcher, dialysis, and discharge transportation across Maryland, DC, and Northern Virginia.\nCTA: Link in bio or visit nexusmt.com.",
-      "shortCaption": "Need coordinated medical transportation?",
-      "cta": "Visit nexusmt.com",
-      "hashtags": ["#MedicalTransportation", "#NEMT", "#WashingtonMetro"],
-      "altText": "Nexus shuttle for short-form social video"
+      "headline": "Booking a medical ride online is now easier.",
+      "caption": "See how to request a Nexus medical ride online—from rider details and pickup information through fare confirmation and payment options. Nexus coordinates accessible transportation across Maryland, Washington, DC, and Northern Virginia.",
+      "shortCaption": "See how to book a Nexus medical ride online.",
+      "cta": "Book your ride",
+      "hashtags": ["#BookARide", "#MedicalTransportation", "#NEMT", "#AccessibleTransportation"],
+      "altText": "Walkthrough of the Nexus Medical Transit online booking application"
     }
   ]
 }
