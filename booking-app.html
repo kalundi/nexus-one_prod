@@ -655,6 +655,15 @@
           <input id="email" name="email" type="email" placeholder="name@example.com" autocomplete="email">
         </div>
         <div class="field">
+          <label for="payerType">How will this ride be paid?</label>
+          <select id="payerType" name="payerType">
+            <option value="SELF_PAY">Self-pay / private pay</option>
+            <option value="INSURANCE">Private insurance</option>
+            <option value="MEDICARE">Medicare</option>
+            <option value="MEDICAID">Medicaid</option>
+          </select>
+        </div>
+        <div class="field">
           <label for="notes">Notes (optional)</label>
           <textarea id="notes" name="notes" placeholder="Gate code, mobility info, or pickup instructions"></textarea>
         </div>

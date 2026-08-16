@@ -2541,6 +2541,7 @@
       name: $('name').value.trim(),
       phone: formatPhone($('phone').value.trim()),
       email: $('email').value.trim(),
+      payerType: $('payerType')?.value || 'SELF_PAY',
       service: normalizeService($('service').value),
       pickup: $('pickup').value.trim(),
       destination: routeDestinations.length > 1 ? routeDestinations.join(' → ') : String(routeDestinations[0] || '').trim(),
@@ -2624,9 +2625,11 @@
       }else{
         setStatus(`${confirmationBase} Dispatch will contact you shortly to finalize payment.`, 'ok');
       }
-      const isPending = data.persisted === false || r.status === 202 || String(data.booking?.status || '').toUpperCase() === 'PENDING';
+      const requiresDeposit = data.requiresOnlinePayment === true && data.depositRequired === true;
+      const bookingStatus = String(data.booking?.status || '').toUpperCase().replaceAll('-', '_');
+      const isPending = requiresDeposit || data.persisted === false || r.status === 202 || bookingStatus === 'PENDING' || bookingStatus === 'PENDING_PAYMENT';
       if(isPending){
-        setBookingOutcome('Booking Pending', 'pending');
+        setBookingOutcome(requiresDeposit ? '25% deposit required to confirm booking' : 'Booking Pending', 'pending');
       }else if(onlinePaymentEnabled){
         setBookingOutcome('Booking Confirmed', 'confirmed');
       }else{
@@ -2634,10 +2637,10 @@
       }
       const popupMessage = confirmationMessage || `Booking created. Reference: ${ref}`;
       window.NexusTripPopup?.show({
-        title: isPending ? 'Trip request received' : 'Trip booked successfully',
+        title: requiresDeposit ? 'Deposit required' : (isPending ? 'Trip request received' : 'Trip booked successfully'),
         message: popupMessage,
         detail: isPending
-          ? 'Dispatch will confirm and finalize your trip shortly.'
+          ? (requiresDeposit ? 'Pay the 25% deposit below to reserve and confirm your ride.' : 'Dispatch will confirm and finalize your trip shortly.')
           : 'Your trip is now booked and dispatch will follow up as needed.',
         accent: isPending ? '#0f766e' : '#0b1d47'
       });

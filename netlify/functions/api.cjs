@@ -14,6 +14,7 @@ const {getFallbackUser, createFallbackSession, getFallbackSession, revokeFallbac
 const {parseChannels,isDryRunValue,previewSocialSelection,runSocialPublish}=require('./_shared/social-engine.cjs');
 const {mapFhirAppointment,parseHl7,verifyIntegrationRequest,payloadDigest}=require('./_shared/keymark-connectors.cjs');
 const {testConnection:testKeymarkFhirConnection}=require('./_shared/keymark-fhir-client.cjs');
+const {bookingPaymentPolicy,requiresFullPaymentBeforeBoarding}=require('./_shared/payment-policy.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -1124,7 +1125,7 @@ async function notifyBooking(b){
  const text=`Nexus Medical Transit: Your trip ${b.reference} is confirmed for ${b.date} at ${pickupLine}.${driverLine} Questions? Call (888) 760-4990.`;
  const html=`<h2 style="color:#082f49">Trip Confirmed — ${b.reference}</h2><table style="width:100%;border-collapse:collapse;margin:16px 0">${b.driverName?`<tr><td style="padding:8px;font-weight:600;color:#62758a">Driver</td><td style="padding:8px"><strong>${b.driverName}</strong></td></tr>`:''}<tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup Time</td><td style="padding:8px"><strong>${pickupLine}</strong></td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Date</td><td style="padding:8px">${b.date}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup</td><td style="padding:8px">${b.pickup}</td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Destination</td><td style="padding:8px">${b.destination}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Service</td><td style="padding:8px">${b.service||'—'}</td></tr></table><p>Questions? Call <strong>(888) 760-4990</strong></p>`;
  const smsRecipients=buildSmsRecipients(b.phone);
- const emailRecipients=buildEmailRecipients(b.email);
+ const emailRecipients=Array.isArray(b.email)?[...new Set(b.email.flatMap(buildEmailRecipients))]:buildEmailRecipients(b.email);
  const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Trip confirmed — ${b.reference}`,html),sendBookingTeamsAlert({...b,pickupTime:pickupLine},'🚐 New Trip Booked — Admin_NMT','New Trip Booked')]);
  return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message},teams:results[2].status==='fulfilled'?results[2].value:{status:'failed',error:results[2].reason?.message}};
 }
@@ -1138,6 +1139,21 @@ async function sendInvoice(b){
  const emailRecipients=buildEmailRecipients(b.email);
  const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Invoice — Nexus booking ${b.reference}`,html)]);
  return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
+}
+
+async function issueFacilityCompletionInvoice(row){
+ if(clean(row.booking_source).toUpperCase()!=='FACILITY'||row.facility_invoice_sent_at)return null;
+ const fare=Number(row.estimated_fare||0),facilityCode=clean(row.facility_id)||null;
+ const managers=facilityCode?await query("SELECT email FROM users WHERE role='FACILITY' AND scope_id=$1 AND active=true",[facilityCode]).catch(()=>({rows:[]})):{rows:[]};
+ const recipients=[...new Set(managers.rows.map(x=>clean(x.email)).filter(Boolean))];
+ if(!recipients.length&&clean(row.email))recipients.push(clean(row.email));
+ const invoiceNumber=`INV-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${clean(row.reference).replace(/^NMT-/,'')}`;
+ const lineItems=[{description:`Completed ${clean(row.service)||'medical transportation'} trip`,quantity:1,amount:fare,tripDate:row.trip_date,pickup:row.pickup,destination:row.destination}];
+ await query(`INSERT INTO invoices(invoice_number,booking_reference,facility_code,amount,status,due_date,recipient_email,line_items,sent_at) VALUES($1,$2,$3,$4,'SENT',CURRENT_DATE+30,$5,$6::jsonb,now()) ON CONFLICT(invoice_number) DO NOTHING`,[invoiceNumber,row.reference,facilityCode,fare,recipients.join(','),JSON.stringify(lineItems)]);
+ const result=await sendInvoice({...mapBooking(row),email:recipients,estimatedFare:fare});
+ await query("UPDATE bookings SET payment_status='INVOICED',facility_invoice_sent_at=now(),updated_at=now() WHERE reference=$1",[row.reference]);
+ await audit('BOOKING',row.reference,'FACILITY_INVOICE_SENT',{invoiceNumber,facilityCode,amount:fare,recipients});
+ return result;
 }
 
 async function sendDriverReferralIncentiveAlert(b,driverEmail){
@@ -2227,6 +2243,8 @@ async function handler(event){
   else if(actorRole==='PATIENT'||actorRole==='RIDER') bookingSource='PATIENT';
   else if(actorRole==='ADMIN'||actorRole==='BILLING') bookingSource='STAFF';
   bookingSource=normalizeBookingSource(bookingSource);
+  const paymentPolicy=bookingPaymentPolicy({authenticated:Boolean(bookingActor),bookingSource,payerType:b.payerType});
+  const initialStatus=paymentPolicy.requiresDeposit?'PENDING_PAYMENT':'SUBMITTED';
 
   const baseNotes=clean(b.notes)||'';
   const metadataNotes=[
@@ -2243,19 +2261,24 @@ async function handler(event){
   const composedNotes=upsertCheckInNote(notesWithAppointment,checkInTime);
 
    const ref=reference();
-  const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
-  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,b.estimatedFare||null,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null]);
-   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,'SUBMITTED','submitted','Online transportation request received',bookingActor?.display_name||bookingSource||'PUBLIC']);
+   const fare=Number(b.estimatedFare||0);
+   const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,created_at,updated_at)
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare]);
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,initialStatus,statusLabel(initialStatus),paymentPolicy.requiresDeposit?'Awaiting required 25% deposit':'Online transportation request received',bookingActor?.display_name||bookingSource||'PUBLIC']);
   await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource,requestedByRole,appointmentTime:appointmentTime||null,pickupTimeEstimate:pickupTimeEstimate||null,referralIncentiveEligible:bookingSource==='DRIVER_REFERRAL'});
   const mappedBooking=mapBooking(r.rows[0]);
   const booking={...mappedBooking,appointmentTime,pickupTime:pickupTimeEstimate||mappedBooking.time,requestedByRole,requestedByUser:clean(b.requestedByUser||bookingActor?.email||'')};
    // Auto-assign driver + vehicle (fire-and-forget, does not block response)
-   autoAssign(r.rows[0]).catch(()=>{});
+   if(!paymentPolicy.requiresDeposit)autoAssign(r.rows[0]).catch(()=>{});
    let notifications;
-   const isFacilityInvoice=bookingSource==='FACILITY' || bookingSource==='STAFF';
+   const isFacilityInvoice=bookingSource==='FACILITY';
    const isDriverReferral=bookingSource==='DRIVER_REFERRAL';
 
    if(isFacilityInvoice){
+    const facilityTeams=await sendBookingTeamsAlert(booking,'New Facility Trip Booked','New Trip Booked');
+    await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[ref,JSON.stringify({teams:facilityTeams})]).catch(()=>{});
+    return json(201,{booking:{...booking,notifications:{teams:facilityTeams}},invoiceSent:false,invoiceAfterCompletion:true,requiresOnlinePayment:false,clientMessage:'Booking created. A detailed invoice will be sent to facility managers after the trip is complete.'});
+    /* Legacy pre-trip invoicing retained below only for deployment rollback reference.
     const invoiceTargetEmail=bookingSource==='FACILITY'
       ? clean(bookingActor?.email||booking.email)
       : clean(booking.email||bookingActor?.email);
@@ -2264,7 +2287,13 @@ async function handler(event){
       const mergedNotifications={...notifications,teams:teamsNotification};
       await query('UPDATE bookings SET payment_status=$2,notification_status=$3::jsonb WHERE reference=$1',[ref,'INVOICED',JSON.stringify(mergedNotifications)]).catch(()=>{});
       return json(201,{booking:{...booking,paymentStatus:'INVOICED',notifications:mergedNotifications},invoiceSent:true,requiresOnlinePayment:false,clientMessage:'Booking created. Invoice sent by email.'});
+    */
    }
+
+  if(paymentPolicy.requiresDeposit){
+   const teamsNotification=await sendBookingTeamsAlert(booking,'New Trip Awaiting Deposit','Deposit Required');
+   return json(201,{booking,requiresOnlinePayment:true,depositRequired:true,clientMessage:`Ride request created. Pay the 25% deposit to confirm booking ${ref}.`,notifications:{teams:teamsNotification}});
+  }
 
   notifications=await notifyBooking(booking);
    const extra={};
@@ -2410,9 +2439,14 @@ async function handler(event){
       const isDeposit=paymentMode==='deposit';
       const newStatus=isDeposit?'DEPOSIT_PAID':'PAID_IN_FULL';
       const updateSql=isDeposit
-       ?'UPDATE bookings SET payment_status=$2,deposit_paid_at=now(),updated_at=now() WHERE reference=$1 RETURNING *'
-       :'UPDATE bookings SET payment_status=$2,paid_in_full_at=now(),updated_at=now() WHERE reference=$1 RETURNING *';
-      await query(updateSql,[bookingReference,newStatus]);
+       ?"UPDATE bookings SET payment_status=$2,deposit_paid_at=now(),status=CASE WHEN status='PENDING_PAYMENT' THEN 'SUBMITTED' ELSE status END,updated_at=now() WHERE reference=$1 RETURNING *"
+       :"UPDATE bookings SET payment_status=$2,paid_in_full_at=now(),balance_due=0,status=CASE WHEN status='PENDING_PAYMENT' THEN 'SUBMITTED' ELSE status END,updated_at=now() WHERE reference=$1 RETURNING *";
+      const paidBookingResult=await query(updateSql,[bookingReference,newStatus]);
+      if(clean(bk.status).toUpperCase()==='PENDING_PAYMENT'){
+       const confirmedRow=paidBookingResult.rows[0]||{...bk,status:'SUBMITTED',payment_status:newStatus};
+       autoAssign(confirmedRow).catch(()=>{});
+       await notifyBooking(mapBooking(confirmedRow)).catch(()=>{});
+      }
       await audit('BOOKING',bookingReference,'PAYMENT_RECEIVED',{mode:paymentMode,sessionId:session.id,amount:session.amount_total});
       if(isDeposit){
        const depositSmsRecipients=buildSmsRecipients(bk.phone);
@@ -3110,6 +3144,7 @@ async function handler(event){
    const approval=canAdvanceBookingForAvailability({currentStatus:current.rows[0].status,nextStatus:next,availability});
    if(!approval.allowed){return json(409,{error:approval.message,approval,booking:mapBooking(current.rows[0])});}
   const r=await query('UPDATE bookings SET status=$2,updated_at=now() WHERE reference=$1 RETURNING *',[ref,next]);await query('INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,$2,$3,$4)',[ref,next,statusLabel(next),u.display_name||u.email||u.role]);await audit('BOOKING',ref,'STATUS_ADVANCED',{from:current.rows[0].status,to:next});
+  if(next==='COMPLETED')await issueFacilityCompletionInvoice(r.rows[0]).catch(err=>console.error('[FACILITY_INVOICE]',err.message));
   const advanceNote=`Status advanced from ${statusLabel(current.rows[0].status)} to ${statusLabel(next)} by ${u.display_name||u.email||u.role}.`;
   const advanceNotifications=await sendTripStakeholderUpdate(current.rows[0],r.rows[0],u,advanceNote).catch(()=>({status:'failed'}));
    // When driver is en route and customer only paid a deposit, send the balance-due reminder
@@ -3769,6 +3804,17 @@ async function handler(event){
   // Update trip details/status.
   // - Authenticated DRIVER/DISPATCHER/ADMIN path: status/vehicle updates via token.
   // - Passenger path: requires booking phone verification and allows contact/detail edits.
+  if(p[0]==='bookings'&&p[1]&&p[2]==='payment'&&p[3]==='confirm-full'&&method==='POST'){
+   const u=await requireUser(bearer(event),['DRIVER','ADMIN','DISPATCHER']);
+   const ref=decodeURIComponent(p[1]);
+   const found=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
+   if(!found.rows[0])return json(404,{error:'Booking not found'});
+   if(u.role==='DRIVER'&&clean(found.rows[0].driver_scope_id)&&clean(found.rows[0].driver_scope_id)!==clean(u.scope_id))return json(403,{error:'This trip is not assigned to you.'});
+   if(clean(found.rows[0].payer_type).toUpperCase()!=='SELF_PAY')return json(409,{error:'Driver payment confirmation applies only to self-pay trips.'});
+   const updated=await query("UPDATE bookings SET payment_status='PAID_IN_FULL',balance_due=0,paid_in_full_at=now(),payment_confirmed_at=now(),payment_confirmed_by=$2,updated_at=now() WHERE reference=$1 RETURNING *",[ref,u.email||u.display_name||u.role]);
+   await audit('BOOKING',ref,'FULL_PAYMENT_CONFIRMED',{by:u.email||u.role,source:'DRIVER_APP'});
+   return json(200,{booking:mapBooking(updated.rows[0]),message:'Full payment confirmed'});
+  }
   if(p[0]==='bookings'&&p[1]&&p[2]==='update'&&method==='POST'){
    const ref=decodeURIComponent(p[1]);
    const token=bearer(event);
@@ -3802,6 +3848,7 @@ async function handler(event){
     const driverScopeInput=u.role==='DRIVER'?(clean(u.scope_id||u.scopeId||null)||null):null;
     const currentBooking=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
     if(!currentBooking.rows[0])return json(404,{error:'Booking not found'});
+    if(statusInput==='PATIENT_ON_BOARD'&&requiresFullPaymentBeforeBoarding(currentBooking.rows[0]))return json(409,{error:'Full payment must be confirmed before a self-pay passenger can board.'});
     if(statusInput==='EN_ROUTE'){
      const startPolicy=getTripStartPolicy(currentBooking.rows[0],earlyPickupReason);
      if(!startPolicy.allowed)return json(409,{error:startPolicy.message});
@@ -3812,7 +3859,8 @@ async function handler(event){
     await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),note,u.display_name||u.email||u.role]);
     await audit('BOOKING',ref,'UPDATED',{by:u.role,status:updated.rows[0].status,vehicleUnit:updated.rows[0].vehicle_unit||null});
     const notifications=await sendTripStakeholderUpdate(currentBooking.rows[0],updated.rows[0],u,note||`Trip updated by ${u.display_name||u.email||u.role}`).catch(()=>({status:'failed'}));
-    return json(200,{booking:mapBooking(updated.rows[0]),notifications,message:'Trip updated successfully'});
+    const facilityInvoice=statusInput==='COMPLETED'?await issueFacilityCompletionInvoice(updated.rows[0]).catch(err=>({status:'failed',error:err.message})):null;
+    return json(200,{booking:mapBooking(updated.rows[0]),notifications,facilityInvoice,message:'Trip updated successfully'});
    }
 
    const phone=clean(b.phone);if(!phone)return json(400,{error:'Phone number is required to update'});
@@ -4105,6 +4153,8 @@ function mapBooking(b){
   estimatedDuration:b.estimated_duration,
   estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,
   paymentStatus:b.payment_status||'UNPAID',
+  payerType:b.payer_type||'SELF_PAY',
+  requiresDeposit:Boolean(b.requires_deposit),
   bookingSource:b.booking_source||'CUSTOMER',
   submitterEntity:b.submitter_entity||null,
   brokerCompanyName:b.broker_company_name||null,

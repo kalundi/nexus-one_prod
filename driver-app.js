@@ -1122,6 +1122,9 @@
           status,
           notes:b.notes||'',
           distanceMiles:b.distanceMiles!=null?Number(b.distanceMiles):null,
+          payerType:String(b.payerType||b.payer_type||'SELF_PAY').toUpperCase(),
+          paymentStatus:String(b.paymentStatus||b.payment_status||'UNPAID').toUpperCase(),
+          balanceDue:Number(b.balanceDue||b.balance_due||0),
           distMi:b.distanceMiles!=null?Number(b.distanceMiles).toFixed(1):null,
           accepted:Boolean(previous.accepted)||acceptedStatus(status),
           comments:previous.comments||'',
@@ -1640,6 +1643,12 @@
     $('#tripStatusBadge').textContent=t.status.replace(/_/g,' ');
     $('#tripStatusBadge').className=`badge ${sc[t.status]||'blue'}`;
     $('#tripComments').value=t.comments||'';
+    const paymentPanel=$('#tripPaymentPanel');
+    const paymentText=$('#tripPaymentStatus');
+    const selfPay=t.payerType==='SELF_PAY';
+    const paid=t.paymentStatus==='PAID_IN_FULL';
+    if(paymentPanel)paymentPanel.hidden=!selfPay||paid;
+    if(paymentText&&selfPay&&!paid)paymentText.textContent=`Self-pay balance must be confirmed before boarding${t.balanceDue>0?`: $${t.balanceDue.toFixed(2)}`:''}.`;
     renderTripWorkflow(t);
     renderStepHints(t);
     renderAiHelp(t);
@@ -1731,6 +1740,17 @@
   }
 
   $('#btnMarkNoShow')?.addEventListener('click',markTripNoShow);
+
+  $('#btnConfirmFullPayment')?.addEventListener('click',async()=>{
+    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    const btn=$('#btnConfirmFullPayment');btn.disabled=true;btn.textContent='Confirming…';
+    try{
+      const r=await fetch(`/api/bookings/${encodeURIComponent(t.ref)}/payment/confirm-full`,{method:'POST',headers:ah(),body:'{}'});
+      const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
+      t.paymentStatus='PAID_IN_FULL';t.balanceDue=0;renderTripDetailPanel(t);dashNotice('Full payment confirmed. Passenger may board.','ok');
+    }catch(err){dashNotice('Payment confirmation failed: '+err.message,'err');}
+    finally{btn.disabled=false;btn.textContent='Confirm Full Payment';}
+  });
 
   $('#btnTripStepHelp')?.addEventListener('click',()=>{
     const t=trips.find(x=>x.ref===activeRef);if(!t)return;
