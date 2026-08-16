@@ -14,6 +14,15 @@ test('authenticated and covered bookings do not require a guest deposit', () => 
   assert.equal(bookingPaymentPolicy({ authenticated: false, payerType: 'INSURANCE' }).requiresDeposit, false);
 });
 
+test('insurance, Medicare, and Medicaid bookings require approval', () => {
+  for (const payerType of ['INSURANCE', 'MEDICARE', 'MEDICAID']) {
+    const policy = bookingPaymentPolicy({ authenticated: true, payerType });
+    assert.equal(policy.requiresApproval, true);
+    assert.equal(policy.requiresDeposit, false);
+  }
+  assert.equal(bookingPaymentPolicy({ payerType: 'SELF_PAY' }).requiresApproval, false);
+});
+
 test('facility trips are invoiced and do not require a deposit', () => {
   const policy = bookingPaymentPolicy({ authenticated: true, bookingSource: 'FACILITY' });
   assert.equal(policy.facilityBilling, true);

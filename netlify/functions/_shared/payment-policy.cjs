@@ -15,8 +15,9 @@ function bookingPaymentPolicy({ authenticated = false, bookingSource = 'CUSTOMER
   const source = String(bookingSource || 'CUSTOMER').toUpperCase();
   const payer = normalizePayerType(payerType, source);
   const facilityBilling = source === 'FACILITY' || payer === 'FACILITY';
+  const requiresApproval = COVERED_PAYER_TYPES.has(payer);
   const requiresDeposit = !authenticated && !facilityBilling && payer === 'SELF_PAY';
-  return { payerType: payer, facilityBilling, requiresDeposit };
+  return { payerType: payer, facilityBilling, requiresDeposit, requiresApproval };
 }
 
 function requiresFullPaymentBeforeBoarding({ payerType, paymentStatus } = {}) {

@@ -846,7 +846,7 @@ Destination: -</p>
           <button type="button" class="primary" id="payStripeBtn" hidden>Pay with Stripe</button>
           <button type="button" class="secondaryPay" id="paySquareBtn" hidden>Pay with Square</button>
         </div>
-        <p class="paymentChoiceHint" id="paymentChoiceHint">For patient-direct billing, a secure payment link is sent before pickup. Facility bookings are invoiced by email.</p>
+        <p class="paymentChoiceHint" id="paymentChoiceHint">Self-pay guest bookings require a 25% deposit or full payment to be confirmed. Facility bookings are invoiced after trip completion.</p>
         <p class="subtle" id="paymentStatusMsg"></p>
       </section>
 
@@ -864,7 +864,7 @@ Destination: -</p>
   <script src="./nexus-core.js"></script>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=32"></script>
-  <script src="./booking-app.js"></script>
+  <script src="./booking-app.js?v=20260816-payment-approval"></script>
 </body>
 </html>
 

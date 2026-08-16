@@ -182,6 +182,7 @@
   let currentBookingReference = '';
   let currentBookingFare = 0;
   let bookingSubmitted = false;
+  let paymentRequiredForBooking = false;
   let destinationConfirmed = false;
   let riderDetailsConfirmed = false;
   let activeManagedBooking = null;
@@ -842,7 +843,7 @@
     if(paymentSection){
       const hasBookingReference = Boolean(String(currentBookingReference || '').trim());
       if(bookingSubmitted && hasBookingReference){
-        paymentSection.hidden = false;
+        paymentSection.hidden = !paymentRequiredForBooking;
       }else if(finalView){
         paymentSection.hidden = true;
         if(!hasBookingReference){
@@ -1400,6 +1401,9 @@
       squareEnabled = false;
     }
     updatePaymentButtonState();
+    // Deposit/full choices select the configured provider; do not render a third legacy provider button.
+    if(payStripeBtn) payStripeBtn.hidden = true;
+    if(paySquareBtn) paySquareBtn.hidden = true;
   }
 
   function updatePaymentButtonState(){
@@ -1517,6 +1521,7 @@
     currentBookingReference = '';
     currentBookingFare = 0;
     bookingSubmitted = false;
+    paymentRequiredForBooking = false;
     if(paymentSection) paymentSection.hidden = true;
     setPaymentMessage('');
     if(submitBtn){
@@ -1528,6 +1533,7 @@
   function showPaymentOptions(reference, fare, requiresOnlinePayment = true){
     currentBookingReference = String(reference || '').trim();
     currentBookingFare = Number(fare || 0);
+    paymentRequiredForBooking = Boolean(requiresOnlinePayment);
     if(!paymentSection || !currentBookingReference) return;
     // Bookings configured for delayed or invoice-based billing do not show immediate checkout.
     if(!requiresOnlinePayment){
@@ -1558,6 +1564,8 @@
     if(payStripeBtn) payStripeBtn.hidden = true;
     if(paySquareBtn) paySquareBtn.hidden = true;
     updatePaymentButtonState();
+    if(payStripeBtn) payStripeBtn.hidden = true;
+    if(paySquareBtn) paySquareBtn.hidden = true;
     if(stripeEnabled && squareEnabled){
       setPaymentMessage('Choose a payment method to reserve your ride.');
     }else if(squareEnabled || stripeEnabled){
@@ -2626,21 +2634,16 @@
         setStatus(`${confirmationBase} Dispatch will contact you shortly to finalize payment.`, 'ok');
       }
       const requiresDeposit = data.requiresOnlinePayment === true && data.depositRequired === true;
+      const pendingApproval = data.pendingApproval === true;
       const bookingStatus = String(data.booking?.status || '').toUpperCase().replaceAll('-', '_');
-      const isPending = requiresDeposit || data.persisted === false || r.status === 202 || bookingStatus === 'PENDING' || bookingStatus === 'PENDING_PAYMENT';
-      if(isPending){
-        setBookingOutcome(requiresDeposit ? '25% deposit required to confirm booking' : 'Booking Pending', 'pending');
-      }else if(onlinePaymentEnabled){
-        setBookingOutcome('Booking Confirmed', 'confirmed');
-      }else{
-        setBookingOutcome('Booking Confirmed - Dispatch will follow up for payment', 'confirmed');
-      }
+      const isPending = requiresDeposit || pendingApproval || data.persisted === false || r.status === 202 || bookingStatus === 'PENDING' || bookingStatus === 'PENDING_PAYMENT' || bookingStatus === 'PENDING_APPROVAL';
+      const outcomeText = requiresDeposit ? '25% deposit required to confirm booking' : pendingApproval ? 'Booking Pending Approval' : isPending ? 'Booking Pending' : 'Booking Confirmed';
       const popupMessage = confirmationMessage || `Booking created. Reference: ${ref}`;
       window.NexusTripPopup?.show({
-        title: requiresDeposit ? 'Deposit required' : (isPending ? 'Trip request received' : 'Trip booked successfully'),
+        title: requiresDeposit ? 'Deposit required' : (pendingApproval ? 'Pending approval' : (isPending ? 'Trip request received' : 'Trip booked successfully')),
         message: popupMessage,
         detail: isPending
-          ? (requiresDeposit ? 'Pay the 25% deposit below to reserve and confirm your ride.' : 'Dispatch will confirm and finalize your trip shortly.')
+          ? (requiresDeposit ? 'Pay the 25% deposit below to reserve and confirm your ride.' : pendingApproval ? 'Coverage must be verified before this booking is confirmed.' : 'Dispatch will confirm and finalize your trip shortly.')
           : 'Your trip is now booked and dispatch will follow up as needed.',
         accent: isPending ? '#0f766e' : '#0b1d47'
       });
@@ -2648,6 +2651,7 @@
       bookingSubmitted = true;
       if(submitBtn) submitBtn.textContent = 'Book My Ride';
       syncSectionProgressUi();
+      setBookingOutcome(outcomeText, isPending ? 'pending' : 'confirmed');
     }catch(err){
       setStatus(err.message, 'err');
       setBookingOutcome(String(err.message || 'Booking request failed'), 'pending');
