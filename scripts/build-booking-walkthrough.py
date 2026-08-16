@@ -11,7 +11,7 @@ titles=['ENTER RIDER DETAILS','CONFIRM THE RIDER','ADD PICKUP + DESTINATION','CO
 captions=['Enter the passenger information.','Confirm to unlock the next step.','Enter the real pickup and destination.','Confirm every required stop.','Choose the transportation support.','Set the appointment date and time.','Review the estimate and submit.','Save the reference for updates.']
 font_path='C:/Windows/Fonts/segoeuib.ttf'
 title_font=ImageFont.truetype(font_path,22); caption_font=ImageFont.truetype(font_path,16)
-W,H,FPS,frames_per_step=540,960,5,14
+W,H,FPS,frames_per_step=540,960,5,23
 
 for index,state in enumerate(states):
     shot=Image.open(states_dir/state['file']).convert('RGB').resize((445,790),Image.Resampling.LANCZOS)
@@ -35,7 +35,7 @@ for index,state in enumerate(states):
         draw.text(((W-(cbox[2]-cbox[0]))/2,917),cap,font=caption_font,fill='white')
         canvas.save(frame_dir/f'frame-{index*frames_per_step+phase:04d}.jpg',quality=91)
 
-ffmpeg=imageio_ffmpeg.get_ffmpeg_exe(); video=root/'assets'/'nexus-booking-app-walkthrough-v3.mp4'
+ffmpeg=imageio_ffmpeg.get_ffmpeg_exe(); video=root/'assets'/'nexus-booking-app-walkthrough-v4-silent.mp4'
 subprocess.run([ffmpeg,'-y','-framerate',str(FPS),'-i',str(frame_dir/'frame-%04d.jpg'),'-frames:v',str(len(states)*frames_per_step),'-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',str(video)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 sheet=Image.new('RGB',(1080,960),'white')
 for i in range(8):
