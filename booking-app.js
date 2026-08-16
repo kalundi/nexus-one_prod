@@ -45,6 +45,11 @@
   const fareSummaryEta = $('fareSummaryEta');
   const fareMemberSavingsRow = $('fareMemberSavingsRow');
   const fareMemberSavings = $('fareMemberSavings');
+  const fareConfirmDialog = $('fareConfirmDialog');
+  const fareConfirmAmount = $('fareConfirmAmount');
+  const fareConfirmDetails = $('fareConfirmDetails');
+  const fareConfirmCancel = $('fareConfirmCancel');
+  const fareConfirmAccept = $('fareConfirmAccept');
   const rideTypeSummary = $('rideTypeSummary');
   const appointmentTimeInput = $('appointmentTime');
   const bookingLoginSummary = $('bookingLoginSummary');
@@ -183,6 +188,9 @@
   let currentBookingFare = 0;
   let bookingSubmitted = false;
   let paymentRequiredForBooking = false;
+  let fareEstimateSignature = '';
+  let confirmedFareSignature = '';
+  let lastPromptedFareSignature = '';
   let destinationConfirmed = false;
   let riderDetailsConfirmed = false;
   let activeManagedBooking = null;
@@ -890,7 +898,31 @@
 
     if(submitBtn){
       submitBtn.hidden = bookingSubmitted && Boolean(String(currentBookingReference || '').trim());
+      if(!bookingSubmitted) submitBtn.disabled = !fareEstimateSignature || confirmedFareSignature !== fareEstimateSignature;
     }
+  }
+
+  function buildFareEstimateSignature(){
+    return [normalizeService($('service')?.value),String($('pickup')?.value||'').trim(),getRouteDestinations().join('|'),String($('tripDate')?.value||''),String(appointmentTimeInput?.value||''),Number(estimateState.fare||0).toFixed(2),Number(estimateState.miles||0).toFixed(2)].join('::');
+  }
+
+  function updateFareConfirmationState(){
+    const next=Number(estimateState.fare||0)>0&&Number(estimateState.miles||0)>0?buildFareEstimateSignature():'';
+    if(next!==fareEstimateSignature){
+      fareEstimateSignature=next;
+      confirmedFareSignature='';
+    }
+    if(submitBtn&&!bookingSubmitted)submitBtn.disabled=!fareEstimateSignature||confirmedFareSignature!==fareEstimateSignature;
+  }
+
+  function promptFareConfirmation(){
+    updateFareConfirmationState();
+    if(!fareEstimateSignature||confirmedFareSignature===fareEstimateSignature||lastPromptedFareSignature===fareEstimateSignature)return;
+    if(!getProgressState().allRequiredComplete||!destinationConfirmed)return;
+    lastPromptedFareSignature=fareEstimateSignature;
+    if(fareConfirmAmount)fareConfirmAmount.textContent=`$${Number(estimateState.fare||0).toFixed(2)}`;
+    if(fareConfirmDetails)fareConfirmDetails.textContent=`${Number(estimateState.miles||0).toFixed(1)} miles • ${estimateState.durationText||'Estimated travel time pending'}`;
+    if(fareConfirmDialog?.showModal)fareConfirmDialog.showModal();
   }
 
   function bindSectionProgressTracking(){
@@ -2220,6 +2252,7 @@
         renderFareEstimateBreakdown(fallbackBreakdown, fallbackMiles, `Estimated locally (~${fallbackDurationMinutes} min)`, fallbackDurationMinutes, fallbackDurationMinutes);
         setStatus('Route estimated locally because Google Maps is unavailable.', 'ok');
         syncSectionProgressUi();
+        promptFareConfirmation();
         return estimateState;
       }
       markDestinationUnconfirmed();
@@ -2234,6 +2267,7 @@
     renderFareEstimateBreakdown(breakdown, miles, durationText || '-', durationMinutes, trafficDurationMinutes);
     setStatus('Route and fare estimate updated.', 'ok');
     syncSectionProgressUi();
+    promptFareConfirmation();
     return estimateState;
   }
 
@@ -2247,6 +2281,14 @@
       });
     }
     form.addEventListener('submit', submitBooking);
+    fareConfirmCancel?.addEventListener('click',()=>fareConfirmDialog?.close());
+    fareConfirmAccept?.addEventListener('click',()=>{
+      updateFareConfirmationState();
+      confirmedFareSignature=fareEstimateSignature;
+      fareConfirmDialog?.close();
+      syncSectionProgressUi();
+      setStatus('Fare estimate confirmed. You can now book your ride.', 'ok');
+    });
     coreActionsBound = true;
   }
 
@@ -2541,6 +2583,13 @@
     event.preventDefault();
     clearStatus();
     setBookingOutcome('', 'pending');
+    updateFareConfirmationState();
+    if(!fareEstimateSignature||confirmedFareSignature!==fareEstimateSignature){
+      setStatus('Confirm the current fare estimate before booking your ride.', 'err');
+      lastPromptedFareSignature='';
+      promptFareConfirmation();
+      return;
+    }
     const routeDestinations = getRouteDestinations();
     const routeStops = getRouteStops();
     const destinationReady = isMultipleStopsEnabled() ? areDestinationRowsFilled() : Boolean(routeDestinations[0]);

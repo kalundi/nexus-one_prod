@@ -1124,8 +1124,9 @@ async function notifyBooking(b){
  const pickupLine=b.pickupTime||b.time;
  const text=`Nexus Medical Transit: Your trip ${b.reference} is confirmed for ${b.date} at ${pickupLine}.${driverLine} Questions? Call (888) 760-4990.`;
  const html=`<h2 style="color:#082f49">Trip Confirmed — ${b.reference}</h2><table style="width:100%;border-collapse:collapse;margin:16px 0">${b.driverName?`<tr><td style="padding:8px;font-weight:600;color:#62758a">Driver</td><td style="padding:8px"><strong>${b.driverName}</strong></td></tr>`:''}<tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup Time</td><td style="padding:8px"><strong>${pickupLine}</strong></td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Date</td><td style="padding:8px">${b.date}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup</td><td style="padding:8px">${b.pickup}</td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Destination</td><td style="padding:8px">${b.destination}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Service</td><td style="padding:8px">${b.service||'—'}</td></tr></table><p>Questions? Call <strong>(888) 760-4990</strong></p>`;
- const smsRecipients=buildSmsRecipients(b.phone);
- const emailRecipients=Array.isArray(b.email)?[...new Set(b.email.flatMap(buildEmailRecipients))]:buildEmailRecipients(b.email);
+ const recipients=await resolveBookingIntakeRecipients(b);
+ const smsRecipients=recipients.sms;
+ const emailRecipients=recipients.email;
  const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Trip confirmed — ${b.reference}`,html),sendBookingTeamsAlert({...b,pickupTime:pickupLine},'🚐 New Trip Booked — Admin_NMT','New Trip Booked')]);
  return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message},teams:results[2].status==='fulfilled'?results[2].value:{status:'failed',error:results[2].reason?.message}};
 }
@@ -1139,6 +1140,27 @@ async function sendInvoice(b){
  const emailRecipients=buildEmailRecipients(b.email);
  const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Invoice — Nexus booking ${b.reference}`,html)]);
  return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
+}
+
+async function resolveBookingIntakeRecipients(b){
+ const ops=await query("SELECT email,phone FROM users WHERE role IN ('ADMIN','DISPATCHER') AND active=true").catch(()=>({rows:[]}));
+ const opsEmails=(ops.rows||[]).map(row=>clean(row.email)).filter(Boolean);
+ const opsPhones=(ops.rows||[]).map(row=>clean(row.phone)).filter(Boolean);
+ if(clean(process.env.COMPANY_EMAIL))opsEmails.push(clean(process.env.COMPANY_EMAIL));
+ if(clean(process.env.NEXUS_ADMIN_EMAIL))opsEmails.push(clean(process.env.NEXUS_ADMIN_EMAIL));
+ return {
+  email:[...new Set(buildEmailRecipients([b.email,...opsEmails]).filter(Boolean))],
+  sms:[...new Set(buildSmsRecipients([b.phone,...opsPhones]).filter(Boolean))]
+ };
+}
+
+async function notifyBookingPending(b,{subject,statusText,detail}){
+ const recipients=await resolveBookingIntakeRecipients(b);
+ const pickupLine=clean(b.pickupTime||b.time);
+ const sms=`Nexus Medical Transit: Booking ${b.reference} ${statusText}. ${detail} Questions? Call (888) 760-4990.`;
+ const html=`<h2>Booking ${statusText} — ${b.reference}</h2><p>${detail}</p><p><strong>Passenger:</strong> ${b.name||'—'}</p><p><strong>Date/time:</strong> ${b.date||'—'} at ${pickupLine||'—'}</p><p><strong>Route:</strong> ${b.pickup||'—'} → ${b.destination||'—'}</p><p><strong>Service:</strong> ${b.service||'—'}</p>`;
+ const results=await Promise.allSettled([Promise.all(recipients.sms.map(phone=>sendSms(phone,sms))),sendEmail(recipients.email,subject,html)]);
+ return {sms:results[0].status==='fulfilled'?{status:'sent'}:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
 }
 
 async function issueFacilityCompletionInvoice(row){
@@ -2276,8 +2298,10 @@ async function handler(event){
 
    if(isFacilityInvoice){
     const facilityTeams=await sendBookingTeamsAlert(booking,'New Facility Trip Booked','New Trip Booked');
-    await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[ref,JSON.stringify({teams:facilityTeams})]).catch(()=>{});
-    return json(201,{booking:{...booking,notifications:{teams:facilityTeams}},invoiceSent:false,invoiceAfterCompletion:true,requiresOnlinePayment:false,clientMessage:'Booking created. A detailed invoice will be sent to facility managers after the trip is complete.'});
+    const direct=await notifyBookingPending(booking,{subject:`Facility booking received — ${ref}`,statusText:'was received',detail:'The trip is on the facility account. A detailed invoice will be sent after completion.'});
+    const facilityNotifications={...direct,teams:facilityTeams};
+    await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[ref,JSON.stringify(facilityNotifications)]).catch(()=>{});
+    return json(201,{booking:{...booking,notifications:facilityNotifications},invoiceSent:false,invoiceAfterCompletion:true,requiresOnlinePayment:false,clientMessage:'Booking created. A detailed invoice will be sent to facility managers after the trip is complete.'});
     /* Legacy pre-trip invoicing retained below only for deployment rollback reference.
     const invoiceTargetEmail=bookingSource==='FACILITY'
       ? clean(bookingActor?.email||booking.email)
@@ -2292,12 +2316,15 @@ async function handler(event){
 
   if(paymentPolicy.requiresDeposit){
    const teamsNotification=await sendBookingTeamsAlert(booking,'New Trip Awaiting Deposit','Deposit Required');
-   return json(201,{booking,requiresOnlinePayment:true,depositRequired:true,coverageNotAvailable:paymentPolicy.coverageNotAvailable,coverageStatus:paymentPolicy.coverageStatus,clientMessage:paymentPolicy.coverageNotAvailable?`${paymentPolicy.coverageMessage} Pay the 25% self-pay deposit to confirm booking ${ref}.`:`Ride request created. Pay the 25% deposit to confirm booking ${ref}.`,notifications:{teams:teamsNotification}});
+   const detail=paymentPolicy.coverageNotAvailable?`${paymentPolicy.coverageMessage} A 25% self-pay deposit is required to confirm.`:'A 25% deposit or full payment is required to confirm this booking.';
+   const direct=await notifyBookingPending(booking,{subject:`Deposit required — ${ref}`,statusText:'is awaiting payment',detail});
+   return json(201,{booking,requiresOnlinePayment:true,depositRequired:true,coverageNotAvailable:paymentPolicy.coverageNotAvailable,coverageStatus:paymentPolicy.coverageStatus,clientMessage:paymentPolicy.coverageNotAvailable?`${paymentPolicy.coverageMessage} Pay the 25% self-pay deposit to confirm booking ${ref}.`:`Ride request created. Pay the 25% deposit to confirm booking ${ref}.`,notifications:{...direct,teams:teamsNotification}});
   }
 
   if(paymentPolicy.requiresApproval){
    const teamsNotification=await sendBookingTeamsAlert(booking,'New Trip Pending Payer Approval','Approval Required');
-   return json(202,{booking,requiresOnlinePayment:false,pendingApproval:true,coverageStatus:paymentPolicy.coverageStatus,clientMessage:`Booking ${ref} is pending approval. ${paymentPolicy.coverageMessage}`,notifications:{teams:teamsNotification}});
+   const direct=await notifyBookingPending(booking,{subject:`Booking pending approval — ${ref}`,statusText:'is pending approval',detail:paymentPolicy.coverageMessage});
+   return json(202,{booking,requiresOnlinePayment:false,pendingApproval:true,coverageStatus:paymentPolicy.coverageStatus,clientMessage:`Booking ${ref} is pending approval. ${paymentPolicy.coverageMessage}`,notifications:{...direct,teams:teamsNotification}});
   }
 
   notifications=await notifyBooking(booking);

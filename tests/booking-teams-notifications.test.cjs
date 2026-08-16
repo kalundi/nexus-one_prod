@@ -123,3 +123,10 @@ test('api booking flows still invoke sendBookingTeamsAlert', () => {
   assert.match(source, /if\(isFacilityInvoice\)\{[\s\S]*sendBookingTeamsAlert\(/);
   assert.match(source, /p\[0\]==='voice'&&p\[1\]==='ride-request'[\s\S]*sendBookingTeamsAlert\(/);
 });
+
+test('pending booking flows notify customer plus active admins and dispatchers', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'netlify', 'functions', 'api.cjs'), 'utf8');
+  assert.match(source, /role IN \('ADMIN','DISPATCHER'\) AND active=true/);
+  assert.match(source, /if\(paymentPolicy\.requiresDeposit\)[\s\S]*notifyBookingPending\(/);
+  assert.match(source, /if\(paymentPolicy\.requiresApproval\)[\s\S]*notifyBookingPending\(/);
+});
