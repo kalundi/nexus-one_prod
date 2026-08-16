@@ -490,6 +490,14 @@
     .fareDialogBody h2,.fareDialogBody p{margin:0}
     .fareDialogAmount{font:900 34px/1 Sora,sans-serif;color:#0a6b99}
     .fareDialogActions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .nextStepGuide{position:sticky;top:8px;z-index:25;margin:0 0 12px;padding:12px 14px;border:2px solid #7dd3fc;border-radius:16px;background:linear-gradient(135deg,#f0f9ff,#ecfeff);box-shadow:0 12px 28px rgba(14,116,144,.14);display:flex;align-items:center;gap:12px}
+    .nextStepArrow{flex:0 0 38px;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#0a6b99;color:#fff;font:900 22px/1 Sora,sans-serif;animation:nextStepPulse 1.6s ease-in-out infinite}
+    .nextStepCopy{min-width:0;flex:1}.nextStepCopy small{display:block;color:#0e7490;font:900 10px/1.2 Sora,sans-serif;letter-spacing:.1em;text-transform:uppercase}.nextStepCopy strong{display:block;margin-top:3px;color:#10324a;font:800 14px/1.3 Sora,sans-serif}
+    .nextStepGuide button{flex:0 0 auto;padding:9px 11px;font-size:12px}
+    .fareConfirmLauncher{width:100%;margin-top:12px}
+    @keyframes nextStepPulse{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+    @media (prefers-reduced-motion:reduce){.nextStepArrow{animation:none}.sectionProgressive.unlocked{animation:none}*{scroll-behavior:auto!important}}
+    @media (max-width:480px){.nextStepGuide{align-items:flex-start;flex-wrap:wrap}.nextStepGuide button{margin-left:50px}}
     @media (min-width:780px){
       .phone{max-width:760px;padding-bottom:26px}
       .bottomBar{position:static;border:none;background:transparent;box-shadow:none;padding:0}
@@ -528,6 +536,11 @@
       <div class="completedSectionsToggle" id="completedSectionsToggleWrap">
         <button type="button" class="ghost" id="toggleCompletedSectionsBtn">Show completed sections</button>
       </div>
+      <aside class="nextStepGuide" id="nextStepGuide" aria-live="polite">
+        <span class="nextStepArrow" aria-hidden="true">↓</span>
+        <span class="nextStepCopy"><small>Next step</small><strong id="nextStepText">Enter the rider’s details.</strong></span>
+        <button type="button" class="ghost" id="nextStepAction">Go</button>
+      </aside>
 
       <section class="section" id="bookingLoginSection">
         <h2>Login</h2>
@@ -727,8 +740,9 @@ Destination: -</p>
         </div>
       </section>
 
-      <section class="section sectionProgressive" id="rideTypeSection">
+      <section class="section" id="rideTypeSection">
         <h2>Type of Ride</h2>
+        <p class="subtle">Choose the option that best supports the rider’s mobility and care needs. All available customer services remain visible here.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
         <div class="serviceChips" id="serviceChips" role="radiogroup" aria-label="Service type">
           <button class="chip" type="button" data-service="ambulatory">Ambulatory</button>
@@ -855,6 +869,7 @@ Destination: -</p>
           <div class="subtle" style="margin:0">Fare Estimate</div>
           <div class="fareSummaryAmount" id="fareSummaryAmount">-</div>
         </div>
+        <button type="button" class="primary fareConfirmLauncher" id="reviewFareBtn">Review &amp; Confirm Fare</button>
       </section>
 
       <section class="section" id="paymentSection" hidden>
@@ -884,7 +899,7 @@ Destination: -</p>
   <script src="./nexus-core.js"></script>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=32"></script>
-  <script src="./booking-app.js?v=20260816-fare-confirmation"></script>
+  <script src="./booking-app.js?v=20260816-equity-guidance"></script>
 </body>
 </html>
 

@@ -50,6 +50,10 @@
   const fareConfirmDetails = $('fareConfirmDetails');
   const fareConfirmCancel = $('fareConfirmCancel');
   const fareConfirmAccept = $('fareConfirmAccept');
+  const reviewFareBtn = $('reviewFareBtn');
+  const nextStepGuide = $('nextStepGuide');
+  const nextStepText = $('nextStepText');
+  const nextStepAction = $('nextStepAction');
   const rideTypeSummary = $('rideTypeSummary');
   const appointmentTimeInput = $('appointmentTime');
   const bookingLoginSummary = $('bookingLoginSummary');
@@ -900,6 +904,23 @@
       submitBtn.hidden = bookingSubmitted && Boolean(String(currentBookingReference || '').trim());
       if(!bookingSubmitted) submitBtn.disabled = !fareEstimateSignature || confirmedFareSignature !== fareEstimateSignature;
     }
+    updateNextStepGuide();
+  }
+
+  function updateNextStepGuide(){
+    if(!nextStepGuide||!nextStepText||!nextStepAction)return;
+    let targetId='riderDetailsSection',focusId='name',message='Enter and confirm the rider’s details.';
+    if(riderDetailsConfirmed){targetId='pickupDropoffSection';focusId='pickup';message='Enter and confirm the pickup and destination.';}
+    if(riderDetailsConfirmed&&destinationConfirmed){targetId='rideTypeSection';focusId='serviceChips';message='Choose the type of ride and appointment schedule.';}
+    const rideComplete=Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&appointmentTimeInput?.value&&$('tripTime')?.value);
+    if(riderDetailsConfirmed&&destinationConfirmed&&rideComplete){targetId='fareSummarySection';focusId='reviewFareBtn';message=fareEstimateSignature?'Review and confirm the fare estimate.':'Wait for the route and fare estimate, then review it.';}
+    if(fareEstimateSignature&&confirmedFareSignature===fareEstimateSignature){targetId='submitBtn';focusId='submitBtn';message='Fare confirmed. Book the ride when you are ready.';}
+    if(bookingSubmitted){nextStepGuide.hidden=true;return;}
+    nextStepGuide.hidden=false;
+    nextStepText.textContent=message;
+    nextStepAction.dataset.target=targetId;
+    nextStepAction.dataset.focus=focusId;
+    nextStepAction.textContent=targetId==='submitBtn'?'Book ride':'Go';
   }
 
   function buildFareEstimateSignature(){
@@ -915,14 +936,25 @@
     if(submitBtn&&!bookingSubmitted)submitBtn.disabled=!fareEstimateSignature||confirmedFareSignature!==fareEstimateSignature;
   }
 
-  function promptFareConfirmation(){
+  function promptFareConfirmation(force = false){
     updateFareConfirmationState();
-    if(!fareEstimateSignature||confirmedFareSignature===fareEstimateSignature||lastPromptedFareSignature===fareEstimateSignature)return;
+    if(!fareEstimateSignature||(!force&&confirmedFareSignature===fareEstimateSignature)||(!force&&lastPromptedFareSignature===fareEstimateSignature))return;
     if(!getProgressState().allRequiredComplete||!destinationConfirmed)return;
     lastPromptedFareSignature=fareEstimateSignature;
     if(fareConfirmAmount)fareConfirmAmount.textContent=`$${Number(estimateState.fare||0).toFixed(2)}`;
     if(fareConfirmDetails)fareConfirmDetails.textContent=`${Number(estimateState.miles||0).toFixed(1)} miles • ${estimateState.durationText||'Estimated travel time pending'}`;
     if(fareConfirmDialog?.showModal)fareConfirmDialog.showModal();
+  }
+
+  function reopenFareConfirmation(){
+    updateFareConfirmationState();
+    if(!fareEstimateSignature){
+      setStatus('Complete the route and schedule so a fare can be estimated first.', 'err');
+      updateNextStepGuide();
+      return;
+    }
+    lastPromptedFareSignature='';
+    promptFareConfirmation(true);
   }
 
   function bindSectionProgressTracking(){
@@ -2288,6 +2320,17 @@
       fareConfirmDialog?.close();
       syncSectionProgressUi();
       setStatus('Fare estimate confirmed. You can now book your ride.', 'ok');
+    });
+    reviewFareBtn?.addEventListener('click',reopenFareConfirmation);
+    nextStepAction?.addEventListener('click',()=>{
+      const targetId=nextStepAction.dataset.target||'riderDetailsSection';
+      const focusId=nextStepAction.dataset.focus||'';
+      if(targetId==='submitBtn'){
+        submitBtn?.focus();
+        submitBtn?.scrollIntoView({behavior:'smooth',block:'center'});
+      }else{
+        revealSectionForAction(targetId,focusId);
+      }
     });
     coreActionsBound = true;
   }
