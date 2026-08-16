@@ -85,11 +85,21 @@ a:focus-visible{
   100%{transform:scale(1) rotate(0deg)}
 }
 
-.logo-pop{
+.logo-pop,
+.logo,
+.footerLogo,
+.brandLogo,
+img[src$="nexus-logo.png"],
+img[src$="nexus-footer-logo.png"]{
   animation:logoPop .8s cubic-bezier(.36,.07,.19,.97) both !important;
   transform-origin:center center;
 }
 
 @media (prefers-reduced-motion:reduce){
-  .logo-pop{animation:none !important}
+  .logo-pop,
+  .logo,
+  .footerLogo,
+  .brandLogo,
+  img[src$="nexus-logo.png"],
+  img[src$="nexus-footer-logo.png"]{animation:none !important}
 }
