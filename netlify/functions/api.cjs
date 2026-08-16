@@ -2256,12 +2256,21 @@ async function handler(event){
    if(phoneDigits.length!==10)return json(400,{error:'Phone number must be 10 digits'});
    // Validate email if provided
    if(b.email){const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;if(!emailPattern.test(b.email.trim()))return json(400,{error:'Please enter a valid email address'});}
+   if(clean(b.payerType).toUpperCase()==='INSURANCE'&&!clean(b.insuranceCarrier))return json(400,{error:'Private insurance provider is required'});
   // Detect booking source and billing behavior by role.
    let bookingActor=null;
    try{if(bearer(event))bookingActor=await requireUser(bearer(event))}catch{}
   const actorRole=String(bookingActor?.role||'CUSTOMER').toUpperCase();
   const appointmentTime=normalizeOptionalTripTime(b.appointmentTime||'');
   if(!appointmentTime)return json(400,{error:'Appointment time is required and must be valid (for example 2:00 PM).'});
+  const tripType=['ONE_WAY','ROUND_TRIP','RECURRING'].includes(clean(b.tripType).toUpperCase())?clean(b.tripType).toUpperCase():'ONE_WAY';
+  const returnTripDate=tripType==='ROUND_TRIP'?normalizeTripDate(b.returnTripDate||''):null;
+  const returnTripTime=tripType==='ROUND_TRIP'?normalizeOptionalTripTime(b.returnTripTime||''):null;
+  const recurrenceDays=tripType==='RECURRING'?[...new Set((Array.isArray(b.recurrenceDays)?b.recurrenceDays:[]).map((day)=>clean(day).toUpperCase()).filter((day)=>['MON','TUE','WED','THU','FRI','SAT','SUN'].includes(day)))]:[];
+  const recurrenceEndDate=tripType==='RECURRING'?normalizeTripDate(b.recurrenceEndDate||''):null;
+  if(tripType==='ROUND_TRIP'&&(!returnTripDate||!returnTripTime))return json(400,{error:'Return date and pickup time are required for a round trip'});
+  if(tripType==='RECURRING'&&(!recurrenceEndDate||!recurrenceDays.length))return json(400,{error:'Recurring rides require at least one weekday and an end date'});
+  if(tripType==='RECURRING'){const start=new Date(`${normalizeTripDate(b.date)}T00:00:00Z`);const end=new Date(`${recurrenceEndDate}T00:00:00Z`);if(end<start||end-start>84*86400000)return json(400,{error:'Recurring ride schedules must end within 12 weeks of the first ride'});}
   const pickupTimeEstimate=clean(b.pickupTimeEstimate||b.time||'');
   const yardAddress=clean(b.yardAddress||'');
   const yardToPickupMinutes=Number(b.yardToPickupMinutes);
@@ -2289,6 +2298,9 @@ async function handler(event){
     checkInTime?`Check-in time: ${checkInTime}`:'',
     Number.isFinite(preTripInspectionMinutes)&&preTripInspectionMinutes>=0?`Pre-trip inspection buffer: ${Math.round(preTripInspectionMinutes)} min`:'',
    requestedByRole?`Requested by role: ${requestedByRole}`:'',
+   paymentPolicy.payerType==='INSURANCE'&&clean(b.insuranceCarrier)?`Insurance carrier: ${clean(b.insuranceCarrier)}`:'',
+   tripType==='ROUND_TRIP'?`Round trip return: ${returnTripDate} ${returnTripTime}`:'',
+   tripType==='RECURRING'?`Recurring schedule: ${recurrenceDays.join(', ')} through ${recurrenceEndDate}`:'',
    clean(b.paymentWindowLabel)?clean(b.paymentWindowLabel):''
   ].filter(Boolean).join(' | ');
   const notesWithAppointment=upsertAppointmentNote([baseNotes,metadataNotes].filter(Boolean).join(baseNotes&&metadataNotes?'\n':''),appointmentTime);
@@ -2296,8 +2308,8 @@ async function handler(event){
 
    const ref=reference();
    const fare=Number(b.estimatedFare||0);
-   const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,created_at,updated_at)
-  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null]);
+   const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,trip_type,return_trip_date,return_trip_time,recurrence_days,recurrence_end_date,created_at,updated_at)
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null,tripType,returnTripDate,returnTripTime,JSON.stringify(recurrenceDays),recurrenceEndDate]);
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,initialStatus,statusLabel(initialStatus),paymentPolicy.coverageMessage||(paymentPolicy.requiresDeposit?'Awaiting required 25% deposit':paymentPolicy.requiresApproval?'Awaiting payer eligibility approval':'Online transportation request received'),bookingActor?.display_name||bookingSource||'PUBLIC']);
    await query("UPDATE booking_drafts SET completed_at=now(),updated_at=now() WHERE completed_at IS NULL AND regexp_replace(phone,'\\D','','g')=$1",[phoneDigits]).catch(()=>{});
   await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource,requestedByRole,appointmentTime:appointmentTime||null,pickupTimeEstimate:pickupTimeEstimate||null,referralIncentiveEligible:bookingSource==='DRIVER_REFERRAL'});
@@ -4199,6 +4211,11 @@ function mapBooking(b){
   estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,
   paymentStatus:b.payment_status||'UNPAID',
   payerType:b.payer_type||'SELF_PAY',
+  tripType:b.trip_type||'ONE_WAY',
+  returnTripDate:b.return_trip_date||null,
+  returnTripTime:b.return_trip_time?String(b.return_trip_time).slice(0,5):null,
+  recurrenceDays:Array.isArray(b.recurrence_days)?b.recurrence_days:[],
+  recurrenceEndDate:b.recurrence_end_date||null,
   coverageStatus:b.coverage_status||null,
   coverageMessage:b.coverage_message||null,
   requiresDeposit:Boolean(b.requires_deposit),

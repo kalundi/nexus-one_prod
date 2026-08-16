@@ -114,6 +114,15 @@
   const manageRescheduleBtn = $('manageRescheduleBtn');
   const manageCancelBtn = $('manageCancelBtn');
   const manageTripMessage = $('manageTripMessage');
+  const payerType = $('payerType');
+  const insuranceCarrierField = $('insuranceCarrierField');
+  const insuranceCarrier = $('insuranceCarrier');
+  const tripType = $('tripType');
+  const roundTripFields = $('roundTripFields');
+  const returnTripDate = $('returnTripDate');
+  const returnTripTime = $('returnTripTime');
+  const recurringRideFields = $('recurringRideFields');
+  const recurrenceEndDate = $('recurrenceEndDate');
   const rideGuidanceDialog = $('rideGuidanceDialog');
   const rideGuidanceForm = $('rideGuidanceForm');
   const helpChooseRideBtn = $('helpChooseRideBtn');
@@ -240,6 +249,7 @@
     '7500 Osler Dr, Towson, Maryland, 21204'
   ];
   const MEMBER_DISCOUNT_PCT = 5;
+  const CARD_PROCESSING_FEE_PCT = 3;
   const SIGNUP_CTA_LABEL = 'Sign Up & Save 5%';
 
   function isRiderRole(role){
@@ -520,7 +530,7 @@
       subtotal,
       taxAmount,
       total: subtotal + taxAmount,
-      taxRatePct: Number(fareRules.taxRatePct || 0)
+      taxRatePct: CARD_PROCESSING_FEE_PCT
     }, estimateState.miles, estimateState.durationText || '-', estimateState.durationMinutes, estimateState.trafficDurationMinutes);
   }
 
@@ -947,7 +957,7 @@
   function updateJourneyHeader(targetId,focusId){
     if(!journeyHeader||!journeyCurrent||!journeyNext)return;
     const routeReady=riderDetailsConfirmed&&destinationConfirmed;
-    const rideReady=routeReady&&Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&appointmentTimeInput?.value&&$('tripTime')?.value);
+    const rideReady=routeReady&&Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&appointmentTimeInput?.value&&$('tripTime')?.value&&isTripScheduleComplete());
     const reviewReady=Boolean(fareEstimateSignature&&confirmedFareSignature===fareEstimateSignature);
     let step=1;
     if(riderDetailsConfirmed)step=2;
@@ -967,7 +977,7 @@
   function currentDraftStep(){
     if(!riderDetailsConfirmed)return 'RIDER';
     if(!destinationConfirmed)return 'ROUTE';
-    if(!normalizeService($('service')?.value)||!$('tripDate')?.value||!appointmentTimeInput?.value)return 'RIDE';
+    if(!normalizeService($('service')?.value)||!$('tripDate')?.value||!appointmentTimeInput?.value||!isTripScheduleComplete())return 'RIDE';
     if(!fareEstimateSignature||confirmedFareSignature!==fareEstimateSignature)return 'REVIEW';
     return 'PAYMENT';
   }
@@ -1091,6 +1101,13 @@
     if(!name || !phone){
       setStatus('Enter passenger name and phone, then confirm details.', 'err');
       riderDetailsConfirmed = false;
+      syncSectionProgressUi();
+      return;
+    }
+    if(String(payerType?.value||'').toUpperCase()==='INSURANCE'&&!String(insuranceCarrier?.value||'').trim()){
+      setStatus('Select the private insurance provider, then confirm details.', 'err');
+      riderDetailsConfirmed=false;
+      insuranceCarrier?.focus();
       syncSectionProgressUi();
       return;
     }
@@ -1420,7 +1437,7 @@
     if(isAfterHours) subtotal += subtotal * (Number((policy.afterHoursSurchargePct ?? fareRules.afterHoursSurchargePct) ?? 0) / 100);
 
     const normalizedSubtotal = Math.max(Number(fareRules.minimumFare || 0), subtotal);
-    const taxRatePct = Math.max(0, Number(fareRules.taxRatePct || 0));
+    const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const taxAmount = normalizedSubtotal * (taxRatePct / 100);
     return {
       subtotal: normalizedSubtotal,
@@ -1674,14 +1691,14 @@
     }
     paymentSection.hidden = false;
     const depositAmt = Math.round(currentBookingFare * 0.25 * 100) / 100;
-    const taxRatePct = Math.max(0, Number(fareRules.taxRatePct || 0));
+    const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const discountText = estimateState.memberSavings > 0
       ? ` Includes member savings of $${estimateState.memberSavings.toFixed(2)}.`
       : ` Guest fare shown. Create a rider account to save ${MEMBER_DISCOUNT_PCT}% every ride.`;
     if(taxRatePct > 0){
       const inferredSubtotal = currentBookingFare / (1 + (taxRatePct / 100));
       const inferredTax = Math.max(0, currentBookingFare - inferredSubtotal);
-      paymentSummary.textContent = `Booking ${currentBookingReference} is ready for payment. Estimated total: $${currentBookingFare.toFixed(2)} (subtotal $${inferredSubtotal.toFixed(2)} + tax $${inferredTax.toFixed(2)} at ${taxRatePct.toFixed(2)}%).${discountText}`;
+      paymentSummary.textContent = `Booking ${currentBookingReference} is ready for payment. Estimated total: $${currentBookingFare.toFixed(2)} (fare $${inferredSubtotal.toFixed(2)} + card processing fee $${inferredTax.toFixed(2)} at ${taxRatePct.toFixed(0)}%).${discountText}`;
     }else{
       paymentSummary.textContent = `Booking ${currentBookingReference} is ready for payment. Estimated total: $${currentBookingFare.toFixed(2)}.${discountText}`;
     }
@@ -1969,8 +1986,7 @@
   }
 
   function renderRateEditor(service){
-    const taxRatePct = Math.max(0, Number(fareRules.taxRatePct || 0));
-    const taxHint = taxRatePct > 0 ? ` Tax ${taxRatePct.toFixed(2)}% is added on top.` : ' Tax is not applied.';
+    const taxHint = ` A ${CARD_PROCESSING_FEE_PCT}% card processing fee is included.`;
     const selectedService = normalizeService(service);
     if(!isAdminUser){
       rateBase.value = '';
@@ -2581,6 +2597,28 @@
     });
   }
 
+  function selectedRecurrenceDays(){
+    return Array.from(document.querySelectorAll('input[name="recurrenceDay"]:checked')).map((input)=>input.value);
+  }
+
+  function syncTripScheduleUi(){
+    const type=String(tripType?.value||'ONE_WAY').toUpperCase();
+    if(roundTripFields)roundTripFields.hidden=type!=='ROUND_TRIP';
+    if(recurringRideFields)recurringRideFields.hidden=type!=='RECURRING';
+    if(returnTripDate)returnTripDate.required=type==='ROUND_TRIP';
+    if(returnTripTime)returnTripTime.required=type==='ROUND_TRIP';
+    if(recurrenceEndDate)recurrenceEndDate.required=type==='RECURRING';
+    if(type!=='ROUND_TRIP'){if(returnTripDate)returnTripDate.value='';if(returnTripTime)returnTripTime.value='';}
+    if(type!=='RECURRING'){if(recurrenceEndDate)recurrenceEndDate.value='';document.querySelectorAll('input[name="recurrenceDay"]').forEach((input)=>{input.checked=false;});}
+  }
+
+  function isTripScheduleComplete(){
+    const type=String(tripType?.value||'ONE_WAY').toUpperCase();
+    if(type==='ROUND_TRIP')return Boolean(returnTripDate?.value&&returnTripTime?.value);
+    if(type==='RECURRING')return Boolean(recurrenceEndDate?.value&&selectedRecurrenceDays().length);
+    return true;
+  }
+
   function bindAccessibilityControls(){
     const settings = [
       ['largeTextToggle','accessLargeText','nexusAccessLargeText'],
@@ -2757,6 +2795,12 @@
       phone: formatPhone($('phone').value.trim()),
       email: $('email').value.trim(),
       payerType: $('payerType')?.value || 'SELF_PAY',
+      insuranceCarrier: String(insuranceCarrier?.value || '').trim(),
+      tripType: String(tripType?.value || 'ONE_WAY').toUpperCase(),
+      returnTripDate: String(returnTripDate?.value || '').trim(),
+      returnTripTime: String(returnTripTime?.value || '').trim(),
+      recurrenceDays: selectedRecurrenceDays(),
+      recurrenceEndDate: String(recurrenceEndDate?.value || '').trim(),
       service: normalizeService($('service').value),
       pickup: $('pickup').value.trim(),
       destination: routeDestinations.length > 1 ? routeDestinations.join(' → ') : String(routeDestinations[0] || '').trim(),
@@ -2787,13 +2831,21 @@
       referralSource: String(currentUserRole || '').toUpperCase() === 'DRIVER' ? 'DRIVER_REFERRAL' : ''
     };
 
-    if(!payload.name || !payload.phone || !payload.service || !payload.pickup || !routeDestinations.length || !payload.date || !payload.appointmentTime || !payload.time || !destinationReady){
+    const invalidRoundTrip=payload.tripType==='ROUND_TRIP'&&(!payload.returnTripDate||!payload.returnTripTime);
+    const invalidRecurring=payload.tripType==='RECURRING'&&(!payload.recurrenceEndDate||!payload.recurrenceDays.length);
+    if(!payload.name || !payload.phone || !payload.service || !payload.pickup || !routeDestinations.length || !payload.date || !payload.appointmentTime || !payload.time || !destinationReady || (payload.payerType==='INSURANCE'&&!payload.insuranceCarrier) || invalidRoundTrip || invalidRecurring){
       setStatus('Please complete all required fields.', 'err');
       setBookingOutcome('Action required before booking', 'pending');
-      if(!payload.name || !payload.phone){
-        revealSectionForAction('riderDetailsSection', !payload.name ? 'name' : 'phone');
+      if(!payload.name || !payload.phone || (payload.payerType==='INSURANCE'&&!payload.insuranceCarrier)){
+        revealSectionForAction('riderDetailsSection', !payload.name ? 'name' : (!payload.phone ? 'phone' : 'insuranceCarrier'));
       }else if(!payload.pickup || !routeDestinations.length || !destinationReady){
         revealSectionForAction('pickupDropoffSection', !payload.pickup ? 'pickup' : 'destination');
+      }else if(invalidRoundTrip){
+        setStatus('Enter the return date and pickup time for the round trip.', 'err');
+        revealSectionForAction('rideTypeSection', !payload.returnTripDate ? 'returnTripDate' : 'returnTripTime');
+      }else if(invalidRecurring){
+        setStatus('Choose at least one recurring day and an end date.', 'err');
+        revealSectionForAction('rideTypeSection', !payload.recurrenceDays.length ? 'recurrenceDays' : 'recurrenceEndDate');
       }else{
         const missingRideField = !payload.date ? 'tripDate' : (!payload.appointmentTime ? 'appointmentTime' : 'tripTime');
         revealSectionForAction('rideTypeSection', missingRideField);
@@ -3175,8 +3227,11 @@
   async function init(){
     const now = new Date();
     const defaultDate = now.toISOString().slice(0,10);
+    const maxRecurringDate=new Date(now.getTime()+84*86400000).toISOString().slice(0,10);
     bindManageTripActions(defaultDate, '');
     if($('tripDate')) $('tripDate').min = defaultDate;
+    if(returnTripDate)returnTripDate.min=defaultDate;
+    if(recurrenceEndDate){recurrenceEndDate.min=defaultDate;recurrenceEndDate.max=maxRecurringDate;}
     bindAuthActions();
 
     await loadIntegrationConfig();
@@ -3189,6 +3244,14 @@
     bindServiceChips();
     bindAccessibilityControls();
     bindRideGuidance();
+    const syncInsuranceCarrierUi=()=>{const isPrivateInsurance=String(payerType?.value||'').toUpperCase()==='INSURANCE';if(insuranceCarrierField)insuranceCarrierField.hidden=!isPrivateInsurance;if(insuranceCarrier){insuranceCarrier.required=isPrivateInsurance;if(!isPrivateInsurance)insuranceCarrier.value='';}riderDetailsConfirmed=false;};
+    payerType?.addEventListener('change',()=>{syncInsuranceCarrierUi();syncSectionProgressUi();});
+    insuranceCarrier?.addEventListener('change',()=>{riderDetailsConfirmed=false;syncSectionProgressUi();});
+    syncInsuranceCarrierUi();
+    tripType?.addEventListener('change',()=>{syncTripScheduleUi();syncSectionProgressUi();});
+    [returnTripDate,returnTripTime,recurrenceEndDate].forEach((input)=>input?.addEventListener('change',syncSectionProgressUi));
+    document.querySelectorAll('input[name="recurrenceDay"]').forEach((input)=>input.addEventListener('change',syncSectionProgressUi));
+    syncTripScheduleUi();
     let journeyCompact=false;
     let lastJourneyScrollY=window.scrollY;
     const syncJourneyCompact=()=>{const currentY=Math.max(0,window.scrollY);const next=currentY>72&&currentY>=lastJourneyScrollY;if(next!==journeyCompact){journeyCompact=next;journeyHeader?.classList.toggle('compact',next);}lastJourneyScrollY=currentY;};

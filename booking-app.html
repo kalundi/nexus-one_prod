@@ -716,6 +716,19 @@
             <option value="MEDICAID">Maryland Medicaid</option>
           </select>
         </div>
+        <div class="field" id="insuranceCarrierField" hidden>
+          <label for="insuranceCarrier">Private insurance provider</label>
+          <select id="insuranceCarrier" name="insuranceCarrier">
+            <option value="">Select insurance provider</option>
+            <option value="Aetna">Aetna</option><option value="CareFirst BlueCross BlueShield">CareFirst BlueCross BlueShield</option>
+            <option value="Cigna Healthcare">Cigna Healthcare</option><option value="UnitedHealthcare">UnitedHealthcare</option>
+            <option value="Kaiser Permanente">Kaiser Permanente</option><option value="Humana">Humana</option>
+            <option value="Anthem Blue Cross Blue Shield">Anthem Blue Cross Blue Shield</option><option value="Johns Hopkins Health Plans">Johns Hopkins Health Plans</option>
+            <option value="Priority Partners">Priority Partners</option><option value="Wellpoint / Amerigroup">Wellpoint / Amerigroup</option>
+            <option value="TRICARE">TRICARE</option><option value="Other">Other / provider not listed</option>
+          </select>
+          <small class="subtle">Coverage and transportation benefits will be verified before confirmation.</small>
+        </div>
         <div class="field">
           <label for="notes">Notes (optional)</label>
           <textarea id="notes" name="notes" placeholder="Gate code, mobility info, or pickup instructions"></textarea>
@@ -790,6 +803,21 @@ Destination: -</p>
         </div>
         <input id="service" name="service" type="hidden" value="">
 
+        <div class="field" style="margin-top:12px">
+          <label for="tripType">Trip schedule</label>
+          <select id="tripType" name="tripType"><option value="ONE_WAY">One-way ride</option><option value="ROUND_TRIP">Round trip</option><option value="RECURRING">Recurring rides</option></select>
+        </div>
+        <div id="roundTripFields" class="metaRow" hidden>
+          <div class="field"><label for="returnTripDate">Return date</label><input id="returnTripDate" name="returnTripDate" type="date"></div>
+          <div class="field"><label for="returnTripTime">Return pickup time</label><input id="returnTripTime" name="returnTripTime" type="time"></div>
+        </div>
+        <div id="recurringRideFields" hidden>
+          <fieldset class="guidanceQuestion"><legend>Repeat on</legend><div class="accessibilityControls" id="recurrenceDays">
+            <label><input type="checkbox" name="recurrenceDay" value="MON"> Mon</label><label><input type="checkbox" name="recurrenceDay" value="TUE"> Tue</label><label><input type="checkbox" name="recurrenceDay" value="WED"> Wed</label><label><input type="checkbox" name="recurrenceDay" value="THU"> Thu</label><label><input type="checkbox" name="recurrenceDay" value="FRI"> Fri</label><label><input type="checkbox" name="recurrenceDay" value="SAT"> Sat</label><label><input type="checkbox" name="recurrenceDay" value="SUN"> Sun</label>
+          </div></fieldset>
+          <div class="field"><label for="recurrenceEndDate">Repeat through</label><input id="recurrenceEndDate" name="recurrenceEndDate" type="date"><small class="subtle">Recurring schedules can be requested for up to 12 weeks.</small></div>
+        </div>
+
         <div class="metaRow" style="margin-top:12px">
           <div class="field">
             <label for="tripDate">Date</label>
@@ -812,7 +840,7 @@ Destination: -</p>
           <div class="line"><b>Distance</b><span id="estMiles">-</span></div>
           <div class="line"><b>ETA</b><span id="estDuration">-</span></div>
           <div class="line"><b>Subtotal</b><span id="estSubtotal">-</span></div>
-          <div class="line"><b>Tax</b><span id="estTax">-</span></div>
+          <div class="line"><b>Card Processing Fee (3%)</b><span id="estTax">-</span></div>
           <div class="line" id="estMemberSavingsRow" hidden><b>Member Savings (5%)</b><span id="estMemberSavings">-</span></div>
           <div class="line total"><b>Fare Estimate</b><span id="estFare">-</span></div>
         </div>
@@ -944,7 +972,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=32"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-  <script src="./booking-app.js?v=20260816-scroll-aware-progress"></script>
+  <script src="./booking-app.js?v=20260816-trip-schedules"></script>
 </body>
 </html>
 
