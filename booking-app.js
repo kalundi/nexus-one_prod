@@ -2635,12 +2635,13 @@
       }
       const requiresDeposit = data.requiresOnlinePayment === true && data.depositRequired === true;
       const pendingApproval = data.pendingApproval === true;
+      const coverageNotAvailable = data.coverageNotAvailable === true;
       const bookingStatus = String(data.booking?.status || '').toUpperCase().replaceAll('-', '_');
       const isPending = requiresDeposit || pendingApproval || data.persisted === false || r.status === 202 || bookingStatus === 'PENDING' || bookingStatus === 'PENDING_PAYMENT' || bookingStatus === 'PENDING_APPROVAL';
-      const outcomeText = requiresDeposit ? '25% deposit required to confirm booking' : pendingApproval ? 'Booking Pending Approval' : isPending ? 'Booking Pending' : 'Booking Confirmed';
+      const outcomeText = coverageNotAvailable ? 'Medicare not generally covered — self-pay required' : requiresDeposit ? '25% deposit required to confirm booking' : pendingApproval ? 'Booking Pending Approval' : isPending ? 'Booking Pending' : 'Booking Confirmed';
       const popupMessage = confirmationMessage || `Booking created. Reference: ${ref}`;
       window.NexusTripPopup?.show({
-        title: requiresDeposit ? 'Deposit required' : (pendingApproval ? 'Pending approval' : (isPending ? 'Trip request received' : 'Trip booked successfully')),
+        title: coverageNotAvailable ? 'Self-pay required' : (requiresDeposit ? 'Deposit required' : (pendingApproval ? 'Pending approval' : (isPending ? 'Trip request received' : 'Trip booked successfully'))),
         message: popupMessage,
         detail: isPending
           ? (requiresDeposit ? 'Pay the 25% deposit below to reserve and confirm your ride.' : pendingApproval ? 'Coverage must be verified before this booking is confirmed.' : 'Dispatch will confirm and finalize your trip shortly.')

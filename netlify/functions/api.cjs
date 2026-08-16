@@ -2243,7 +2243,7 @@ async function handler(event){
   else if(actorRole==='PATIENT'||actorRole==='RIDER') bookingSource='PATIENT';
   else if(actorRole==='ADMIN'||actorRole==='BILLING') bookingSource='STAFF';
   bookingSource=normalizeBookingSource(bookingSource);
-  const paymentPolicy=bookingPaymentPolicy({authenticated:Boolean(bookingActor),bookingSource,payerType:b.payerType});
+  const paymentPolicy=bookingPaymentPolicy({authenticated:Boolean(bookingActor),bookingSource,payerType:b.payerType,service:b.service});
   const initialStatus=paymentPolicy.requiresDeposit?'PENDING_PAYMENT':paymentPolicy.requiresApproval?'PENDING_APPROVAL':'SUBMITTED';
 
   const baseNotes=clean(b.notes)||'';
@@ -2262,9 +2262,9 @@ async function handler(event){
 
    const ref=reference();
    const fare=Number(b.estimatedFare||0);
-   const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,created_at,updated_at)
-  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare]);
-   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,initialStatus,statusLabel(initialStatus),paymentPolicy.requiresDeposit?'Awaiting required 25% deposit':paymentPolicy.requiresApproval?'Awaiting payer eligibility approval':'Online transportation request received',bookingActor?.display_name||bookingSource||'PUBLIC']);
+   const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,created_at,updated_at)
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null]);
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,initialStatus,statusLabel(initialStatus),paymentPolicy.coverageMessage||(paymentPolicy.requiresDeposit?'Awaiting required 25% deposit':paymentPolicy.requiresApproval?'Awaiting payer eligibility approval':'Online transportation request received'),bookingActor?.display_name||bookingSource||'PUBLIC']);
   await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource,requestedByRole,appointmentTime:appointmentTime||null,pickupTimeEstimate:pickupTimeEstimate||null,referralIncentiveEligible:bookingSource==='DRIVER_REFERRAL'});
   const mappedBooking=mapBooking(r.rows[0]);
   const booking={...mappedBooking,appointmentTime,pickupTime:pickupTimeEstimate||mappedBooking.time,requestedByRole,requestedByUser:clean(b.requestedByUser||bookingActor?.email||'')};
@@ -2292,12 +2292,12 @@ async function handler(event){
 
   if(paymentPolicy.requiresDeposit){
    const teamsNotification=await sendBookingTeamsAlert(booking,'New Trip Awaiting Deposit','Deposit Required');
-   return json(201,{booking,requiresOnlinePayment:true,depositRequired:true,clientMessage:`Ride request created. Pay the 25% deposit to confirm booking ${ref}.`,notifications:{teams:teamsNotification}});
+   return json(201,{booking,requiresOnlinePayment:true,depositRequired:true,coverageNotAvailable:paymentPolicy.coverageNotAvailable,coverageStatus:paymentPolicy.coverageStatus,clientMessage:paymentPolicy.coverageNotAvailable?`${paymentPolicy.coverageMessage} Pay the 25% self-pay deposit to confirm booking ${ref}.`:`Ride request created. Pay the 25% deposit to confirm booking ${ref}.`,notifications:{teams:teamsNotification}});
   }
 
   if(paymentPolicy.requiresApproval){
    const teamsNotification=await sendBookingTeamsAlert(booking,'New Trip Pending Payer Approval','Approval Required');
-   return json(202,{booking,requiresOnlinePayment:false,pendingApproval:true,clientMessage:`Booking ${ref} is pending approval while ${paymentPolicy.payerType.replace('_',' ')} coverage is verified.`,notifications:{teams:teamsNotification}});
+   return json(202,{booking,requiresOnlinePayment:false,pendingApproval:true,coverageStatus:paymentPolicy.coverageStatus,clientMessage:`Booking ${ref} is pending approval. ${paymentPolicy.coverageMessage}`,notifications:{teams:teamsNotification}});
   }
 
   notifications=await notifyBooking(booking);
@@ -2417,7 +2417,7 @@ async function handler(event){
   if(p.join('/')==='payments/stripe/checkout'&&method==='POST'){
    const b=parseBody(event);required(b,['bookingReference']);
    const paymentMode=['deposit','full'].includes(b.paymentMode)?b.paymentMode:'full';
-   const r=await query('SELECT reference,email,estimated_fare,payment_status,booking_source FROM bookings WHERE reference=$1',[b.bookingReference]);
+   const r=await query('SELECT reference,email,estimated_fare,payment_status,booking_source,coverage_status FROM bookings WHERE reference=$1',[b.bookingReference]);
    if(!r.rows[0])return json(404,{error:'Booking not found'});
    const totalFare=Number(b.amount||r.rows[0].estimated_fare||0);
    const chargeAmount=paymentMode==='deposit'?Math.round(totalFare*0.25*100):Math.round(totalFare*100);
@@ -2425,7 +2425,7 @@ async function handler(event){
    const depositAmount=paymentMode==='deposit'?chargeAmount/100:totalFare;
    const balanceDue=paymentMode==='deposit'?Math.max(0,totalFare-depositAmount):0;
    const session=await createStripeCheckoutSession(chargeAmount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined,paymentMode});
-   await query('UPDATE bookings SET stripe_checkout_session_id=$2,payment_status=$3,deposit_amount=$4,balance_due=$5,updated_at=now() WHERE reference=$1',[r.rows[0].reference,session.id,'PENDING',depositAmount,balanceDue]);
+   await query("UPDATE bookings SET stripe_checkout_session_id=$2,payment_status=$3,deposit_amount=$4,balance_due=$5,payer_type=CASE WHEN coverage_status='NOT_COVERED_STANDARD' THEN 'SELF_PAY' ELSE payer_type END,coverage_status=CASE WHEN coverage_status='NOT_COVERED_STANDARD' THEN 'SELF_PAY' ELSE coverage_status END,updated_at=now() WHERE reference=$1",[r.rows[0].reference,session.id,'PENDING',depositAmount,balanceDue]);
    return json(200,{provider:'stripe',url:session.url,sessionId:session.id,amount:chargeAmount,paymentMode});
   }
   if(p.join('/')==='payments/stripe/webhook'&&method==='POST'){
@@ -4159,6 +4159,8 @@ function mapBooking(b){
   estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,
   paymentStatus:b.payment_status||'UNPAID',
   payerType:b.payer_type||'SELF_PAY',
+  coverageStatus:b.coverage_status||null,
+  coverageMessage:b.coverage_message||null,
   requiresDeposit:Boolean(b.requires_deposit),
   bookingSource:b.booking_source||'CUSTOMER',
   submitterEntity:b.submitter_entity||null,
