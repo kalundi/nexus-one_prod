@@ -54,6 +54,11 @@
   const nextStepGuide = $('nextStepGuide');
   const nextStepText = $('nextStepText');
   const nextStepAction = $('nextStepAction');
+  const journeyHeader = $('journeyHeader');
+  const journeyCurrent = $('journeyCurrent');
+  const journeyNext = $('journeyNext');
+  const journeySegments = $('journeySegments');
+  const journeyHeaderAction = $('journeyHeaderAction');
   const rideTypeSummary = $('rideTypeSummary');
   const appointmentTimeInput = $('appointmentTime');
   const bookingLoginSummary = $('bookingLoginSummary');
@@ -195,6 +200,8 @@
   let fareEstimateSignature = '';
   let confirmedFareSignature = '';
   let lastPromptedFareSignature = '';
+  let draftSaveTimer = null;
+  const bookingDraftToken = (()=>{try{const existing=sessionStorage.getItem('nexusBookingDraftToken');if(existing)return existing;const created=crypto.randomUUID();sessionStorage.setItem('nexusBookingDraftToken',created);return created;}catch{return `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;}})();
   let destinationConfirmed = false;
   let riderDetailsConfirmed = false;
   let activeManagedBooking = null;
@@ -915,12 +922,65 @@
     const rideComplete=Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&appointmentTimeInput?.value&&$('tripTime')?.value);
     if(riderDetailsConfirmed&&destinationConfirmed&&rideComplete){targetId='fareSummarySection';focusId='reviewFareBtn';message=fareEstimateSignature?'Review and confirm the fare estimate.':'Wait for the route and fare estimate, then review it.';}
     if(fareEstimateSignature&&confirmedFareSignature===fareEstimateSignature){targetId='submitBtn';focusId='submitBtn';message='Fare confirmed. Book the ride when you are ready.';}
-    if(bookingSubmitted){nextStepGuide.hidden=true;return;}
+    if(bookingSubmitted){
+      nextStepGuide.hidden=true;
+      updateJourneyHeader('paymentSection','paymentSection');
+      if(journeyCurrent)journeyCurrent.textContent='Confirmation';
+      if(journeyNext)journeyNext.textContent='Ride details sent';
+      if(journeyHeaderAction)journeyHeaderAction.hidden=true;
+      return;
+    }
     nextStepGuide.hidden=false;
     nextStepText.textContent=message;
     nextStepAction.dataset.target=targetId;
     nextStepAction.dataset.focus=focusId;
     nextStepAction.textContent=targetId==='submitBtn'?'Book ride':'Go';
+    updateJourneyHeader(targetId,focusId);
+  }
+
+  function updateJourneyHeader(targetId,focusId){
+    if(!journeyHeader||!journeyCurrent||!journeyNext)return;
+    const routeReady=riderDetailsConfirmed&&destinationConfirmed;
+    const rideReady=routeReady&&Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&appointmentTimeInput?.value&&$('tripTime')?.value);
+    const reviewReady=Boolean(fareEstimateSignature&&confirmedFareSignature===fareEstimateSignature);
+    let step=1;
+    if(riderDetailsConfirmed)step=2;
+    if(routeReady)step=3;
+    if(rideReady)step=4;
+    if(reviewReady||bookingSubmitted)step=5;
+    const labels=['Rider','Route','Ride needs','Review','Payment & confirmation'];
+    journeyCurrent.textContent=labels[step-1];
+    journeyNext.textContent=step<5?labels[step]:'Finish booking';
+    journeyHeader.setAttribute('aria-valuenow',String(step));
+    journeyHeader.setAttribute('aria-valuetext',`Step ${step} of 5: ${labels[step-1]}`);
+    if(journeyHeaderAction)journeyHeaderAction.hidden=false;
+    Array.from(journeySegments?.children||[]).forEach((segment,index)=>{segment.classList.toggle('complete',index<step-1);segment.classList.toggle('current',index===step-1);});
+    if(journeyHeaderAction){journeyHeaderAction.dataset.target=targetId;journeyHeaderAction.dataset.focus=focusId;journeyHeaderAction.textContent=step===5?'Continue to booking ↓':`Continue to ${labels[step].toLowerCase()} ↓`;}
+  }
+
+  function currentDraftStep(){
+    if(!riderDetailsConfirmed)return 'RIDER';
+    if(!destinationConfirmed)return 'ROUTE';
+    if(!normalizeService($('service')?.value)||!$('tripDate')?.value||!appointmentTimeInput?.value)return 'RIDE';
+    if(!fareEstimateSignature||confirmedFareSignature!==fareEstimateSignature)return 'REVIEW';
+    return 'PAYMENT';
+  }
+
+  async function saveBookingDraft(){
+    if(bookingSubmitted)return;
+    const phone=formatPhone(String($('phone')?.value||''));
+    if(phone.replace(/\D/g,'').length!==10)return;
+    await fetch('/api/booking-drafts',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({draftToken:bookingDraftToken,name:String($('name')?.value||'').trim(),phone,email:String($('email')?.value||'').trim(),currentStep:currentDraftStep()})}).catch(()=>{});
+  }
+
+  function scheduleBookingDraftSave(){
+    if(draftSaveTimer)clearTimeout(draftSaveTimer);
+    draftSaveTimer=setTimeout(saveBookingDraft,900);
+  }
+
+  function completeBookingDraft(){
+    if(draftSaveTimer)clearTimeout(draftSaveTimer);
+    return fetch(`/api/booking-drafts/${encodeURIComponent(bookingDraftToken)}/complete`,{method:'POST',headers:{'content-type':'application/json'},body:'{}'}).catch(()=>{});
   }
 
   function buildFareEstimateSignature(){
@@ -2299,6 +2359,7 @@
     renderFareEstimateBreakdown(breakdown, miles, durationText || '-', durationMinutes, trafficDurationMinutes);
     setStatus('Route and fare estimate updated.', 'ok');
     syncSectionProgressUi();
+    saveBookingDraft();
     promptFareConfirmation();
     return estimateState;
   }
@@ -2332,6 +2393,14 @@
         revealSectionForAction(targetId,focusId);
       }
     });
+    journeyHeaderAction?.addEventListener('click',()=>{
+      const targetId=journeyHeaderAction.dataset.target||nextStepAction?.dataset.target||'riderDetailsSection';
+      const focusId=journeyHeaderAction.dataset.focus||nextStepAction?.dataset.focus||'name';
+      if(targetId==='submitBtn'){submitBtn?.scrollIntoView({behavior:'smooth',block:'center'});submitBtn?.focus();}
+      else revealSectionForAction(targetId,focusId);
+    });
+    form.addEventListener('input',scheduleBookingDraftSave);
+    form.addEventListener('change',scheduleBookingDraftSave);
     coreActionsBound = true;
   }
 
@@ -2742,6 +2811,7 @@
       });
       showPaymentOptions(ref, Number(data.booking?.estimatedFare ?? payload.estimatedFare ?? 0), data.requiresOnlinePayment !== false);
       bookingSubmitted = true;
+      completeBookingDraft();
       if(submitBtn) submitBtn.textContent = 'Book My Ride';
       syncSectionProgressUi();
       setBookingOutcome(outcomeText, isPending ? 'pending' : 'confirmed');
@@ -3135,6 +3205,13 @@
 
     window.addEventListener('beforeunload', () => {
       if(telemetryTimer) clearInterval(telemetryTimer);
+      if(!bookingSubmitted){
+        const phone=formatPhone(String($('phone')?.value||''));
+        if(phone.replace(/\D/g,'').length===10){
+          const payload=JSON.stringify({draftToken:bookingDraftToken,name:String($('name')?.value||'').trim(),phone,email:String($('email')?.value||'').trim(),currentStep:currentDraftStep()});
+          try{navigator.sendBeacon('/api/booking-drafts',new Blob([payload],{type:'application/json'}));}catch{}
+        }
+      }
     });
   }
 

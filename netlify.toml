@@ -18,6 +18,10 @@
 [functions.ride-reminders]
   schedule = "*/15 * * * *"
 
+# Remind customers five minutes after an unfinished booking becomes inactive.
+[functions.booking-draft-reminders]
+  schedule = "* * * * *"
+
 # Scheduled function: refresh fuel index weekly (Monday 6:00 AM UTC)
 [functions.fuel-index-refresh]
   schedule = "0 6 * * 1"

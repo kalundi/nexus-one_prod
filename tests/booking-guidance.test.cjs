@@ -19,6 +19,12 @@ test('booking provides an accessible next-step guide', () => {
   assert.match(js, /function updateNextStepGuide\(\)/);
 });
 
+test('header shows current and next stages across five booking steps', () => {
+  assert.match(html, /id="journeyHeader"[^>]*role="progressbar"/);
+  assert.match(html, /aria-valuemax="5"/);
+  assert.match(js, /const labels=\['Rider','Route','Ride needs','Review','Payment & confirmation'\]/);
+});
+
 test('type of ride remains visible instead of progressive-hidden', () => {
   assert.match(html, /<section class="section" id="rideTypeSection">/);
   assert.doesNotMatch(html, /<section class="section sectionProgressive" id="rideTypeSection">/);
