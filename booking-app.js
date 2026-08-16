@@ -864,7 +864,7 @@
           paySquareBtn.hidden = true;
           payStripeBtn.disabled = true;
           paySquareBtn.disabled = true;
-          setPaymentMessage('Submit booking to enable Stripe checkout.');
+          setPaymentMessage('Complete your booking to continue to payment.');
         }
       }else if(!hasBookingReference){
         paymentSection.hidden = true;
@@ -1648,7 +1648,7 @@
     }
     const resolvedProvider = resolvePaymentProvider(provider);
     if(!resolvedProvider){
-      setPaymentMessage('Payment checkout is unavailable because no provider is configured.', true);
+      setPaymentMessage('Online payment is temporarily unavailable. Please call us at (888) 760-4990 for help.', true);
       return;
     }
     const mode = ['deposit','full'].includes(paymentMode) ? paymentMode : 'full';
@@ -1758,12 +1758,12 @@
     const tripTitle = destinationConfirmed ? 'Route confirmed' : 'Route preview';
 
     telemetryMapEl.innerHTML = `
-      <div class="telemetryFallbackMap" aria-label="Live telemetry map fallback">
+      <div class="telemetryFallbackMap" aria-label="Nexus Route Pulse map">
         <div class="telemetryFallbackOverlay">
-          <span class="telemetryFallbackBadge">${usingLocalMock ? 'Live (demo map)' : 'Live telemetry map'}</span>
-          <span class="telemetryFallbackBadge">${points.length} nearby units</span>
+          <span class="telemetryFallbackBadge">Nexus Route Pulse</span>
+          <span class="telemetryFallbackBadge">${points.length ? 'Service nearby' : 'Route preview'}</span>
         </div>
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Fleet map view">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Planned ride map">
           <defs>
             <pattern id="telemetryGrid" width="8" height="8" patternUnits="userSpaceOnUse">
               <path d="M 8 0 L 0 0 0 8" fill="none" stroke="rgba(27,62,83,.12)" stroke-width="0.5"/>
@@ -1796,7 +1796,7 @@
     }
     if(telemetryStatus){
       telemetryStatus.hidden = false;
-      telemetryStatus.textContent = `${usingLocalMock ? 'Live (local demo)' : 'Live'}: ${vehicles.length} vehicles • updated ${new Date().toLocaleTimeString()}`;
+      telemetryStatus.textContent = `Route Pulse updated ${new Date().toLocaleTimeString()}`;
     }
     updateTelemetrySpotlight();
   }
@@ -2282,7 +2282,7 @@
         const fallbackDurationMinutes = Math.max(15, Math.round((fallbackMiles / 25) * 60));
         const fallbackBreakdown = calculateFareBreakdown(service, fallbackMiles, tripDate, fareTime, { durationMinutes: 0, trafficDurationMinutes: 0 });
         renderFareEstimateBreakdown(fallbackBreakdown, fallbackMiles, `Estimated locally (~${fallbackDurationMinutes} min)`, fallbackDurationMinutes, fallbackDurationMinutes);
-        setStatus('Route estimated locally because Google Maps is unavailable.', 'ok');
+        setStatus('Your route and fare were estimated using the available location information.', 'ok');
         syncSectionProgressUi();
         promptFareConfirmation();
         return estimateState;
@@ -2290,7 +2290,7 @@
       markDestinationUnconfirmed();
       const fallbackBreakdown = calculateFareBreakdown(service, 0, tripDate, fareTime, { durationMinutes: 0, trafficDurationMinutes: 0 });
       renderFareEstimateBreakdown(fallbackBreakdown, 0, '-', 0, 0);
-      setStatus(`Route estimate unavailable (${err.message}). You can still submit booking.`, 'err');
+      setStatus('We could not calculate this route. Check the addresses or call (888) 760-4990 for booking help.', 'err');
       syncSectionProgressUi();
       return estimateState;
     }
@@ -2539,7 +2539,7 @@
       }
       if(telemetryStatus){
         telemetryStatus.hidden = false;
-        telemetryStatus.textContent = `${usingLocalMock ? 'Live (local demo)' : 'Live'}: ${vehicles.length} vehicles • updated ${new Date(data.generatedAt || Date.now()).toLocaleTimeString()}`;
+        telemetryStatus.textContent = `Route Pulse updated ${new Date(data.generatedAt || Date.now()).toLocaleTimeString()}`;
       }
       if(telemetryList) telemetryList.innerHTML = '';
       const activeIds = new Set();
@@ -2582,7 +2582,7 @@
       }
       if(telemetryStatus){
         telemetryStatus.hidden = false;
-        telemetryStatus.textContent = `Telemetry unavailable: ${err.message}`;
+        telemetryStatus.textContent = 'Route Pulse is temporarily unavailable. You can continue booking your ride.';
       }
       const routePoints = await resolveFallbackRoutePoints();
       renderTelemetryFallback([], false, routePoints);
@@ -2618,7 +2618,7 @@
         });
       }
     }catch(err){
-      telemetryStatus.textContent = `Live map failed to load: ${err.message}`;
+      telemetryStatus.textContent = 'The route map is temporarily unavailable. You can continue booking your ride.';
     }
   }
 

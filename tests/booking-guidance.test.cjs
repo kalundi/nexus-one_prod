@@ -23,3 +23,9 @@ test('type of ride remains visible instead of progressive-hidden', () => {
   assert.match(html, /<section class="section" id="rideTypeSection">/);
   assert.doesNotMatch(html, /<section class="section sectionProgressive" id="rideTypeSection">/);
 });
+
+test('customer page does not expose internal API wording', () => {
+  assert.doesNotMatch(html, /submits directly to/i);
+  assert.doesNotMatch(html, /\/api\/bookings/i);
+  assert.doesNotMatch(html, /dispatch buffer/i);
+});

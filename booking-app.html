@@ -691,7 +691,6 @@
           <button type="button" class="primary" id="confirmRiderBtn">Confirm Details</button>
         </div>
         <div class="msg" id="statusMsg"></div>
-        <p class="subtle">This app submits directly to <strong>/api/bookings</strong>.</p>
       </section>
 
       <section class="section sectionProgressive" id="pickupDropoffSection">
@@ -774,7 +773,7 @@ Destination: -</p>
             <input id="tripTime" name="tripTime" type="time" placeholder="Auto-calculated from appointment and route" readonly required>
           </div>
         </div>
-        <p class="subtle" style="margin-top:0">Pickup time estimate is calculated from appointment time plus route travel estimate and dispatch buffer.</p>
+        <p class="subtle" style="margin-top:0">We calculate a recommended pickup time so the rider can arrive before the appointment.</p>
 
         <div class="estimate" aria-live="polite">
           <div class="line"><b>Distance</b><span id="estMiles">-</span></div>
@@ -784,7 +783,7 @@ Destination: -</p>
           <div class="line" id="estMemberSavingsRow" hidden><b>Member Savings (5%)</b><span id="estMemberSavings">-</span></div>
           <div class="line total"><b>Fare Estimate</b><span id="estFare">-</span></div>
         </div>
-        <p class="subtle" id="rateSourceLabel">Estimate uses current service rate profile.</p>
+        <p class="subtle" id="rateSourceLabel">Your estimate is based on the selected ride, distance, and travel time.</p>
         <p class="memberNote" id="memberDiscountNote">Unlock 5% savings on every ride when you sign in or sign up.</p>
       </section>
 
@@ -832,17 +831,17 @@ Destination: -</p>
             </div>
             <div class="telemetryIdentityCard">
               <small>Driver</small>
-              <strong id="telemetryDriverName">Dispatch assigning your driver</strong>
+              <strong id="telemetryDriverName">Driver details will appear when assigned</strong>
             </div>
           </div>
           <p class="telemetryMission" id="telemetryMission">Nexus coordinates each journey so visibility and support stay accessible from request through arrival.</p>
         </div>
-        <div id="telemetryMap" class="telemetryMap" role="img" aria-label="Live map of nearby fleet"></div>
+        <div id="telemetryMap" class="telemetryMap" role="img" aria-label="Nexus Route Pulse map showing the planned ride"></div>
         <div class="telemetryControls">
-          <label><input type="checkbox" id="focusMyRouteOnly"> Focus on my route only</label>
-          <small class="subtle" style="margin:0">Blur other network vehicles</small>
+          <label><input type="checkbox" id="focusMyRouteOnly"> Show only my route</label>
+          <small class="subtle" style="margin:0">Keep the map focused on this ride</small>
         </div>
-        <p class="subtle" id="telemetryStatus" hidden>Loading live telemetry...</p>
+        <p class="subtle" id="telemetryStatus" hidden>Preparing Nexus Route Pulse...</p>
         <p class="subtle" id="telemetryRouteHint" style="margin-top:8px">Route preview will appear after pickup and destination are set.</p>
         <div class="telemetryList" id="telemetryList" hidden></div>
       </section>
@@ -899,7 +898,7 @@ Destination: -</p>
   <script src="./nexus-core.js"></script>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=32"></script>
-  <script src="./booking-app.js?v=20260816-equity-guidance"></script>
+  <script src="./booking-app.js?v=20260816-customer-language"></script>
 </body>
 </html>
 
