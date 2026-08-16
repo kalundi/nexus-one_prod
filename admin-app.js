@@ -1146,7 +1146,8 @@ function renderSocialPreviewRows(items=[]){
     const postId=String(item.postId||'--');
     const pillar=String(item.pillar||'--');
     const status=String(item.status||'--');
-    const text=String(item.payload?.text||item.response?.error||item.response?.reason||item.reason||'').replaceAll('<','&lt;').replaceAll('>','&gt;');
+    const diagnostic=String(item.response?.error||item.response?.reason||item.reason||'').trim();
+    const text=String((status==='skipped'||status==='failed')&&diagnostic?diagnostic:(item.payload?.text||diagnostic||'')).replaceAll('<','&lt;').replaceAll('>','&gt;');
     return `<tr>
       <td>${channel}</td>
       <td>${postId}</td>
@@ -1170,7 +1171,7 @@ function renderSocialHistoryRows(rows=[]){
     const postId=String(row.post_id||'--');
     const status=String(row.status||'--');
     const mode=row.dry_run?'Dry run':'Live';
-    const error=String(row.error_message||'').replaceAll('<','&lt;').replaceAll('>','&gt;');
+    const error=String(row.error_message||row.response?.error||row.response?.reason||'').replaceAll('<','&lt;').replaceAll('>','&gt;');
     const tone=status==='published'?'green':status==='failed'?'red':'blue';
     return `<tr data-created-at="${row.created_at||''}">
       <td>${createdAt}</td>
@@ -1207,7 +1208,8 @@ async function loadSocialPreview(){
   const btn=document.getElementById('socialPreviewBtn');
   if(btn){btn.disabled=true;btn.textContent='Loading...';}
   try{
-    const qs=`channels=${encodeURIComponent(channels.join(','))}`;
+    const postId=String(document.getElementById('socialForcePostId')?.value||'').trim();
+    const qs=`channels=${encodeURIComponent(channels.join(','))}&postId=${encodeURIComponent(postId)}`;
     const res=await fetch(`/api/admin/social/preview?${qs}`,{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
     const data=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error||'Failed to load social preview');
@@ -1234,14 +1236,18 @@ async function runSocialPublish(){
     const res=await fetch('/api/admin/social/publish',{
       method:'POST',
       headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},
-      body:JSON.stringify({channels:channels.join(','),dryRun,postId})
+      body:JSON.stringify({channels:channels.join(','),dryRun,postId,forcedPostId:postId})
     });
     const data=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error||'Failed to run social publish');
     const items=Array.isArray(data.report?.results)?data.report.results:[];
     renderSocialPreviewRows(items);
     const publishedCount=items.filter((item)=>String(item.status||'')==='published').length;
-    socialMsg(dryRun?`Dry run complete for ${channels.join(', ')}.`:`Publish run complete. ${publishedCount} channel(s) published.`, 'ok');
+    const skippedOrFailed=items.filter((item)=>['skipped','failed'].includes(String(item.status||''))).length;
+    socialMsg(
+      dryRun?`Dry run complete for ${channels.join(', ')}.`:`Publish run complete. ${publishedCount} published; ${skippedOrFailed} skipped or failed.`,
+      !dryRun&&skippedOrFailed?'err':'ok'
+    );
     loadSocialHistory().catch((err)=>console.error(err));
   }catch(error){
     socialMsg(error.message,'err');

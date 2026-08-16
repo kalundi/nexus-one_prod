@@ -2146,7 +2146,8 @@ async function handler(event){
   if(p[0]==='admin'&&p[1]==='social'&&p[2]==='preview'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
    const channels=parseChannels(event.queryStringParameters?.channels||process.env.SOCIAL_AUTOMATION_CHANNELS||'');
-   const preview=await previewSocialSelection({channels});
+   const forcedPostId=clean(event.queryStringParameters?.postId||event.queryStringParameters?.forcedPostId||'');
+   const preview=await previewSocialSelection({channels,forcedPostId});
    return json(200,{preview});
   }
   if(p[0]==='admin'&&p[1]==='social'&&p[2]==='publish'&&method==='POST'){
@@ -2154,7 +2155,7 @@ async function handler(event){
    const body=parseBody(event);
    const channels=parseChannels(body.channels||event.queryStringParameters?.channels||process.env.SOCIAL_AUTOMATION_CHANNELS||'');
    const dryRun=isDryRunValue(body.dryRun, isDryRunValue(process.env.SOCIAL_AUTOMATION_DRY_RUN,true));
-   const forcedPostId=clean(body.postId||'');
+   const forcedPostId=clean(body.postId||body.forcedPostId||'');
    const report=await runSocialPublish({channels,dryRun,forcedPostId});
    return json(200,{report});
   }

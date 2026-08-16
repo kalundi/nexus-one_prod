@@ -63,14 +63,23 @@ async function writeHistory({runDate,channel,postId,status,dryRun,payload,respon
  );
 }
 
-async function previewSocialSelection({channels=[]}={}){
+async function previewSocialSelection({channels=[],forcedPostId=''}={}){
  await ensureTables();
  const feed=await loadEvergreenFeed();
  const baseUrl=siteBase();
  const selected=[];
  for(const channel of channels){
   const recent=await readRecentHistory(channel);
-  const nextPost=choosePostForChannel(feed.posts,channel,recent);
+  const requestedPost=forcedPostId?feed.posts.find(post=>post.id===forcedPostId):null;
+  if(forcedPostId&&!requestedPost){
+   selected.push({channel,status:'skipped',postId:forcedPostId,reason:'forced_post_not_found'});
+   continue;
+  }
+  if(requestedPost&&!requestedPost.channels.includes(channel)){
+   selected.push({channel,status:'skipped',postId:forcedPostId,pillar:requestedPost.pillar,reason:'forced_post_not_eligible_for_channel'});
+   continue;
+  }
+  const nextPost=requestedPost||choosePostForChannel(feed.posts,channel,recent);
   if(!nextPost){
    selected.push({channel,status:'skipped',reason:'no_eligible_post'});
    continue;
