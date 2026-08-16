@@ -3190,7 +3190,8 @@
     bindAccessibilityControls();
     bindRideGuidance();
     let journeyCompact=false;
-    const syncJourneyCompact=()=>{const next=window.scrollY>72;if(next===journeyCompact)return;journeyCompact=next;journeyHeader?.classList.toggle('compact',next);};
+    let lastJourneyScrollY=window.scrollY;
+    const syncJourneyCompact=()=>{const currentY=Math.max(0,window.scrollY);const next=currentY>72&&currentY>=lastJourneyScrollY;if(next!==journeyCompact){journeyCompact=next;journeyHeader?.classList.toggle('compact',next);}lastJourneyScrollY=currentY;};
     window.addEventListener('scroll',syncJourneyCompact,{passive:true});
     syncJourneyCompact();
     const requestedService = getRequestedServiceFromUrl();
