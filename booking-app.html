@@ -518,8 +518,9 @@
     @media (prefers-reduced-motion:reduce){.nextStepArrow{animation:none}.sectionProgressive.unlocked{animation:none}*{scroll-behavior:auto!important}}
     @media (max-width:480px){.nextStepGuide{align-items:flex-start;flex-wrap:wrap}.nextStepGuide button{margin-left:50px}}
     @media (min-width:780px){
-      .phone{max-width:760px;padding-bottom:178px}
-      .bottomBar{position:fixed;border-top:1px solid var(--line);background:#fff;box-shadow:0 -10px 24px rgba(15,23,42,.1);padding:10px 12px;bottom:64px}
+      .phone{max-width:760px;padding-bottom:178px;border-left:1px solid #c8d8e6;border-right:1px solid #c8d8e6;background:rgba(255,255,255,.42);box-shadow:0 0 36px rgba(15,23,42,.08)}
+      .bottomBar{position:fixed;left:50%;right:auto;width:min(760px,100%);transform:translateX(-50%);border-top:1px solid var(--line);border-left:1px solid #c8d8e6;border-right:1px solid #c8d8e6;background:#fff;box-shadow:0 -10px 24px rgba(15,23,42,.1);padding:10px 12px;bottom:64px}
+      .appTabBar{left:50%;right:auto;width:min(760px,100%);transform:translateX(-50%);border-left:1px solid #c8d8e6;border-right:1px solid #c8d8e6}
       .bottomInner{max-width:760px}
       .serviceChips{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
