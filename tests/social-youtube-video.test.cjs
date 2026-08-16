@@ -9,7 +9,7 @@ test('forced wheelchair post is eligible for YouTube and resolves the deployed v
  assert.ok(post);
  assert.ok(post.channels.includes('youtube'));
  const payload=buildPublishPayload(post,feed,'youtube','https://nexusmt.com');
- assert.equal(payload.videoUrl,'https://nexusmt.com/assets/nexus-booking-app-walkthrough-v4-narrated.mp4');
+ assert.equal(payload.videoUrl,'https://nexusmt.com/assets/nexus-booking-app-walkthrough-v5-narrated.mp4');
  assert.match(payload.title,/Wheelchair transportation/i);
 });
 
@@ -17,5 +17,5 @@ test('default YouTube short also resolves the deployed video',async()=>{
  const feed=await loadEvergreenFeed();
  const post=feed.posts.find(item=>item.id==='shorts-hook-001');
  const payload=buildPublishPayload(post,feed,'youtube','https://nexusmt.com');
- assert.equal(payload.videoUrl,'https://nexusmt.com/assets/nexus-booking-app-walkthrough-v4-narrated.mp4');
+ assert.equal(payload.videoUrl,'https://nexusmt.com/assets/nexus-booking-app-walkthrough-v5-narrated.mp4');
 });

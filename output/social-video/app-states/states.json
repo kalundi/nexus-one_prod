@@ -1,58 +1,122 @@
 [
   {
-    "file": "01-rider-empty.png",
+    "file": "01-login.png",
+    "title": "CHOOSE GUEST OR SIGN IN",
+    "caption": "Book as a guest, or sign in to save 5%.",
+    "voice": "Book as a guest, or sign in or create an account to save five percent.",
+    "target": {
+      "x": 149,
+      "y": 380
+    }
+  },
+  {
+    "file": "02-rider-empty.png",
+    "title": "ENTER RIDER DETAILS",
+    "caption": "Enter the passenger information.",
+    "voice": "Enter the passenger name, phone number, and email.",
     "target": {
       "x": 270,
-      "y": 424
+      "y": 659
     }
   },
   {
-    "file": "02-rider-filled.png",
+    "file": "03-rider-filled.png",
+    "title": "CONFIRM THE RIDER",
+    "caption": "Confirm to unlock the next section.",
+    "voice": "Select Confirm Details to unlock the pickup and destination section.",
     "target": {
       "x": 136,
-      "y": 758
+      "y": 804
     }
   },
   {
-    "file": "03-route-empty.png",
+    "file": "04-route-empty.png",
+    "title": "ADD PICKUP + DESTINATION",
+    "caption": "Enter each address or add multiple stops.",
+    "voice": "Enter the pickup address and destination. You can also add multiple stops.",
     "target": {
       "x": 270,
       "y": 762
     }
   },
   {
-    "file": "04-route-filled.png",
+    "file": "05-route-filled.png",
+    "title": "CONFIRM THE ROUTE",
+    "caption": "Confirm every required stop.",
+    "voice": "Select Confirm Details after every required stop is entered.",
     "target": {
       "x": 136,
       "y": 850
     }
   },
   {
-    "file": "05-ride-type.png",
+    "file": "06-ride-type.png",
+    "title": "CHOOSE THE RIDE TYPE",
+    "caption": "Select the transportation support needed.",
+    "voice": "Choose the ride type and transportation support the passenger needs.",
     "target": {
       "x": 270,
       "y": 501
     }
   },
   {
-    "file": "06-ride-filled.png",
+    "file": "07-ride-filled.png",
+    "title": "SET DATE + APPOINTMENT",
+    "caption": "Pickup time and fare update automatically.",
+    "voice": "Set the trip date and appointment time. Nexus calculates the pickup estimate.",
     "target": {
       "x": 373,
       "y": 653
     }
   },
   {
-    "file": "07-ready-to-book.png",
+    "file": "08-telemetry.png",
+    "title": "REVIEW ROUTE VISIBILITY",
+    "caption": "Preview the route and live fleet visibility.",
+    "voice": "Review the route preview and live fleet visibility for the ride.",
+    "target": {
+      "x": 270,
+      "y": 638
+    }
+  },
+  {
+    "file": "09-fare.png",
+    "title": "REVIEW THE FARE",
+    "caption": "Check distance, ETA, and estimated fare.",
+    "voice": "Review the distance, estimated arrival time, and fare before booking.",
+    "target": {
+      "x": 270,
+      "y": 1011
+    }
+  },
+  {
+    "file": "10-ready-to-book.png",
+    "title": "BOOK MY RIDE",
+    "caption": "Submit the completed ride request.",
+    "voice": "When every section is complete, select Book My Ride to submit the request.",
     "target": {
       "x": 390,
       "y": 925
     }
   },
   {
-    "file": "08-confirmed.png",
+    "file": "11-confirmed.png",
+    "title": "BOOKING CONFIRMED",
+    "caption": "Save the reference number for updates.",
+    "voice": "The booking is confirmed. Save the reference number for ride updates.",
     "target": {
       "x": 270,
       "y": 926
+    }
+  },
+  {
+    "file": "12-payment.png",
+    "title": "CHOOSE PAYMENT",
+    "caption": "Pay a 25% deposit or pay the fare in full.",
+    "voice": "Choose to pay a twenty five percent deposit, or pay the estimated fare in full.",
+    "target": {
+      "x": 270,
+      "y": 668
     }
   }
 ]
