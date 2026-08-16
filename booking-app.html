@@ -256,6 +256,17 @@
     }
     .chip:hover{transform:translateY(-1px);box-shadow:0 10px 20px rgba(8,17,31,.08)}
     .chip.active{background:#fbe2e2;border-color:#d61f1f;color:#7f1010;box-shadow:0 12px 24px rgba(214,31,31,.12)}
+    .serviceChips{grid-template-columns:1fr}
+    .serviceCard{position:relative;display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:start;text-align:left;min-height:104px;padding:14px}
+    .serviceCardIcon{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#e7f5fb;color:#075985;font-size:23px}
+    .serviceCardCopy{display:grid;gap:3px}.serviceCardName{font:800 var(--text-md)/1.2 Sora,sans-serif}.serviceCardDescription{font:600 var(--text-sm)/1.4 'Nunito Sans',sans-serif;color:#476476}.serviceCardBest{font:800 var(--text-xs)/1.35 Sora,sans-serif;color:#0a6b99}
+    .serviceSelectedMark{position:absolute;right:10px;top:10px;border-radius:999px;padding:3px 7px;background:#7f1010;color:#fff;font:800 10px Sora,sans-serif;opacity:0}.serviceCard.active .serviceSelectedMark{opacity:1}
+    .rideTypeHeading{display:flex;align-items:center;justify-content:space-between;gap:10px}.rideTypeHeading h2{margin:0}.helpChooseBtn{padding:9px 11px;font-size:12px;white-space:nowrap}
+    .accessibilityBar{margin:12px 12px 0;padding:10px;border:1px solid #b9d5e5;border-radius:14px;background:#f4fbff}.accessibilityBar strong{display:block;margin-bottom:7px;font:800 12px Sora,sans-serif;color:#10324a}.accessibilityControls{display:flex;gap:7px;flex-wrap:wrap}.accessibilityControls button{padding:8px 10px;border:1px solid #9bbdce;background:#fff;color:#163e55;font-size:12px}.accessibilityControls button[aria-pressed="true"]{background:#0b3954;color:#fff;border-color:#0b3954}
+    body.accessLargeText{--text-xs:14px;--text-sm:16px;--text-md:18px;--text-lg:22px;font-size:118%}
+    body.accessHighContrast{--ink:#000;--muted:#17202a;--line:#000;background:#fff;color:#000}body.accessHighContrast .phone,body.accessHighContrast .section,body.accessHighContrast .accessibilityBar{background:#fff;border-color:#000}body.accessHighContrast button,body.accessHighContrast input,body.accessHighContrast select,body.accessHighContrast textarea{border:2px solid #000}body.accessHighContrast :focus-visible{outline:4px solid #ffbf00!important;outline-offset:3px}
+    body.accessReducedMotion *,body.accessReducedMotion *::before,body.accessReducedMotion *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
+    .guidanceDialog{border:0;border-radius:18px;padding:0;max-width:520px;width:calc(100% - 28px);box-shadow:0 24px 70px rgba(15,23,42,.34)}.guidanceDialog::backdrop{background:rgba(8,47,73,.7)}.guidanceBody{padding:22px;display:grid;gap:14px}.guidanceBody h2,.guidanceBody p{margin:0}.guidanceQuestion{border:1px solid #c9dce8;border-radius:12px;padding:12px}.guidanceQuestion legend{font:800 14px Sora,sans-serif;padding:0 5px}.guidanceOptions{display:grid;gap:7px;margin-top:7px}.guidanceOptions label{display:flex;align-items:center;gap:8px;font:600 14px 'Nunito Sans',sans-serif}.guidanceResult{padding:13px;border-radius:12px;background:#eaf8f1;border:1px solid #a9dec5}.guidanceResult[hidden]{display:none}.guidanceActions{display:flex;gap:8px;flex-wrap:wrap}.guidanceActions button{flex:1 1 150px}
     .metaRow{display:flex;gap:10px}
     .metaRow .field{flex:1}
     .estimate{
@@ -508,6 +519,7 @@
       .phone{max-width:760px;padding-bottom:26px}
       .bottomBar{position:static;border:none;background:transparent;box-shadow:none;padding:0}
       .bottomInner{max-width:760px}
+      .serviceChips{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
     @media (max-width:420px){
       .top{padding:18px 14px 16px}
@@ -546,6 +558,17 @@
         <button type="button" class="journeyHeaderButton" id="journeyHeaderAction">Continue to rider details ↓</button>
       </div>
     </header>
+
+    <aside class="accessibilityBar" aria-label="Accessibility preferences">
+      <strong>Make this page easier to use</strong>
+      <div class="accessibilityControls">
+        <button type="button" id="largeTextToggle" aria-pressed="false">Larger text</button>
+        <button type="button" id="highContrastToggle" aria-pressed="false">High contrast</button>
+        <button type="button" id="reduceMotionToggle" aria-pressed="false">Reduce motion</button>
+        <button type="button" id="readNextStepBtn" aria-pressed="false">Read next step</button>
+      </div>
+      <span id="accessibilityStatus" class="srOnly" aria-live="polite"></span>
+    </aside>
 
     <form id="bookingForm" novalidate>
       <div class="completedSectionsToggle" id="completedSectionsToggleWrap">
@@ -756,17 +779,17 @@ Destination: -</p>
       </section>
 
       <section class="section" id="rideTypeSection">
-        <h2>Type of Ride</h2>
+        <div class="rideTypeHeading"><h2>Type of Ride</h2><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help Me Choose</button></div>
         <p class="subtle">Choose the option that best supports the rider’s mobility and care needs. All available customer services remain visible here.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
         <div class="serviceChips" id="serviceChips" role="radiogroup" aria-label="Service type">
-          <button class="chip" type="button" data-service="ambulatory">Ambulatory</button>
+          <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardIcon" aria-hidden="true">🚶</span><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span><span class="serviceCardBest">Best for: walking riders</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip" type="button" data-service="facility_transfer">IFT Routine</button>
           <button class="chip" type="button" data-service="facility_transfer_critical">IFT High-Acuity</button>
-          <button class="chip" type="button" data-service="wheelchair">Wheelchair</button>
-          <button class="chip" type="button" data-service="stretcher">Stretcher</button>
+          <button class="chip serviceCard" type="button" data-service="wheelchair"><span class="serviceCardIcon" aria-hidden="true">♿</span><span class="serviceCardCopy"><span class="serviceCardName">Wheelchair</span><span class="serviceCardDescription">Accessible vehicle and securement for riders remaining in a wheelchair.</span><span class="serviceCardBest">Best for: wheelchair users</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="stretcher"><span class="serviceCardIcon" aria-hidden="true">▰</span><span class="serviceCardCopy"><span class="serviceCardName">Stretcher</span><span class="serviceCardDescription">For riders who must travel lying down; needs may require review.</span><span class="serviceCardBest">Best for: non-ambulatory transport</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip" type="button" data-service="broda">Broda</button>
-          <button class="chip" type="button" data-service="bariatric">Bariatric</button>
+          <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardIcon" aria-hidden="true">↔</span><span class="serviceCardCopy"><span class="serviceCardName">Additional Capacity</span><span class="serviceCardDescription">Additional space, capacity, or specialized mobility support.</span><span class="serviceCardBest">Best for: riders needing more space</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip" type="button" data-service="bls">BLS</button>
           <button class="chip" type="button" data-service="als1">ALS 1</button>
           <button class="chip" type="button" data-service="als2">ALS 2</button>
@@ -862,6 +885,18 @@ Destination: -</p>
         <div class="telemetryList" id="telemetryList" hidden></div>
       </section>
 
+      <dialog class="guidanceDialog" id="rideGuidanceDialog" aria-labelledby="rideGuidanceTitle">
+        <div class="guidanceBody" id="rideGuidanceForm">
+          <h2 id="rideGuidanceTitle">Find the right ride type</h2>
+          <p class="subtle">Answer a few mobility questions. This aid does not make a clinical determination.</p>
+          <fieldset class="guidanceQuestion"><legend>Will the rider remain in a wheelchair?</legend><div class="guidanceOptions"><label><input type="radio" name="remainsInWheelchair" value="yes"> Yes</label><label><input type="radio" name="remainsInWheelchair" value="no" checked> No</label></div></fieldset>
+          <fieldset class="guidanceQuestion"><legend>Must the rider travel lying down?</legend><div class="guidanceOptions"><label><input type="radio" name="lyingDown" value="yes"> Yes</label><label><input type="radio" name="lyingDown" value="no" checked> No</label></div></fieldset>
+          <fieldset class="guidanceQuestion"><legend>Does the rider need additional space or capacity?</legend><div class="guidanceOptions"><label><input type="radio" name="extraSpace" value="yes"> Yes</label><label><input type="radio" name="extraSpace" value="no" checked> No</label></div></fieldset>
+          <div class="guidanceResult" id="rideGuidanceResult" hidden aria-live="polite"><strong id="rideGuidanceRecommendation"></strong><p id="rideGuidanceReason"></p></div>
+          <div class="guidanceActions"><button type="button" class="primary" id="getRideRecommendationBtn">Show recommendation</button><button type="button" class="primary" id="useRideRecommendationBtn" hidden>Use this ride type</button><button type="button" class="ghost" id="closeRideGuidanceBtn">Review other options</button></div>
+        </div>
+      </dialog>
+
       <dialog id="fareConfirmDialog" class="fareDialog" aria-labelledby="fareConfirmTitle">
         <div class="fareDialogBody">
           <h2 id="fareConfirmTitle">Confirm Fare Estimate</h2>
@@ -914,7 +949,8 @@ Destination: -</p>
   <script src="./nexus-core.js"></script>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=32"></script>
-  <script src="./booking-app.js?v=20260816-journey-reminder"></script>
+  <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
+  <script src="./booking-app.js?v=20260816-accessibility-guidance"></script>
 </body>
 </html>
 

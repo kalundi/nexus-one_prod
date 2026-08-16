@@ -114,6 +114,12 @@
   const manageRescheduleBtn = $('manageRescheduleBtn');
   const manageCancelBtn = $('manageCancelBtn');
   const manageTripMessage = $('manageTripMessage');
+  const rideGuidanceDialog = $('rideGuidanceDialog');
+  const rideGuidanceForm = $('rideGuidanceForm');
+  const helpChooseRideBtn = $('helpChooseRideBtn');
+  const getRideRecommendationBtn = $('getRideRecommendationBtn');
+  const useRideRecommendationBtn = $('useRideRecommendationBtn');
+  let recommendedRideService = '';
 
   const FALLBACK_PRICING = {
     wheelchair:{label:'Wheelchair Transportation',base:95,includedMiles:10,perMile:4.25,waitPer15:25},
@@ -2575,6 +2581,46 @@
     });
   }
 
+  function bindAccessibilityControls(){
+    const settings = [
+      ['largeTextToggle','accessLargeText','nexusAccessLargeText'],
+      ['highContrastToggle','accessHighContrast','nexusAccessHighContrast'],
+      ['reduceMotionToggle','accessReducedMotion','nexusAccessReducedMotion']
+    ];
+    settings.forEach(([id,className,key]) => {
+      const button=$(id); if(!button) return;
+      let enabled=false; try{enabled=localStorage.getItem(key)==='true';}catch{}
+      document.body.classList.toggle(className,enabled); button.setAttribute('aria-pressed',String(enabled));
+      button.addEventListener('click',()=>{enabled=!document.body.classList.contains(className);document.body.classList.toggle(className,enabled);button.setAttribute('aria-pressed',String(enabled));try{localStorage.setItem(key,String(enabled));}catch{} const status=$('accessibilityStatus');if(status)status.textContent=`${button.textContent} ${enabled?'on':'off'}.`;});
+    });
+    const readButton=$('readNextStepBtn');
+    if(readButton) readButton.addEventListener('click',()=>{
+      if(!('speechSynthesis' in window)) return;
+      if(window.speechSynthesis.speaking){window.speechSynthesis.cancel();readButton.textContent='Read next step';readButton.setAttribute('aria-pressed','false');return;}
+      const message=new SpeechSynthesisUtterance(`Next step. ${String(nextStepText?.textContent||'Continue completing the booking form.')}`);
+      message.onend=()=>{readButton.textContent='Read next step';readButton.setAttribute('aria-pressed','false');};
+      readButton.textContent='Stop reading';readButton.setAttribute('aria-pressed','true');window.speechSynthesis.speak(message);
+    });
+  }
+
+  function bindRideGuidance(){
+    if(!rideGuidanceDialog || !rideGuidanceForm) return;
+    helpChooseRideBtn?.addEventListener('click',()=>rideGuidanceDialog.showModal());
+    getRideRecommendationBtn?.addEventListener('click',()=>{
+      const answers={};
+      rideGuidanceForm.querySelectorAll('input[type="radio"]:checked').forEach((input)=>{answers[input.name]=input.value;});
+      const recommendation=window.NexusServiceGuidance?.recommendRideType(answers);
+      if(!recommendation) return;
+      recommendedRideService=recommendation.service;
+      const label=serviceChips.querySelector(`[data-service="${recommendation.service}"] .serviceCardName`)?.textContent || recommendation.service;
+      $('rideGuidanceRecommendation').textContent=`Recommended: ${label}`;
+      $('rideGuidanceReason').textContent=`Why it may fit: ${recommendation.reason}`;
+      $('rideGuidanceResult').hidden=false; useRideRecommendationBtn.hidden=false;
+    });
+    useRideRecommendationBtn?.addEventListener('click',()=>{if(!recommendedRideService)return;selectService(recommendedRideService);rideGuidanceDialog.close();serviceChips.querySelector(`[data-service="${recommendedRideService}"]`)?.focus();});
+    $('closeRideGuidanceBtn')?.addEventListener('click',()=>rideGuidanceDialog.close());
+  }
+
   function telemetryIcon(){
     return {
       path: google.maps.SymbolPath.CIRCLE,
@@ -3141,6 +3187,8 @@
     if(riderDetailsSection) riderDetailsSection.classList.add('sectionCollapsed');
 
     bindServiceChips();
+    bindAccessibilityControls();
+    bindRideGuidance();
     const requestedService = getRequestedServiceFromUrl();
     selectService(requestedService || $('service').value);
     if(isAdminUser){
