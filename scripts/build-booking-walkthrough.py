@@ -35,7 +35,7 @@ for index,state in enumerate(states):
         draw.text(((W-(cbox[2]-cbox[0]))/2,917),cap,font=caption_font,fill='white')
         canvas.save(frame_dir/f'frame-{index*frames_per_step+phase:04d}.jpg',quality=91)
 
-ffmpeg=imageio_ffmpeg.get_ffmpeg_exe(); video=out/'nexus-booking-flow.mp4'
+ffmpeg=imageio_ffmpeg.get_ffmpeg_exe(); video=root/'assets'/'nexus-booking-app-walkthrough-v3.mp4'
 subprocess.run([ffmpeg,'-y','-framerate',str(FPS),'-i',str(frame_dir/'frame-%04d.jpg'),'-frames:v',str(len(states)*frames_per_step),'-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',str(video)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 sheet=Image.new('RGB',(1080,960),'white')
 for i in range(8):
