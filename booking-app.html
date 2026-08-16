@@ -53,12 +53,14 @@
         radial-gradient(circle at 8% 20%,rgba(255,255,255,.08) 0,transparent 28%),
         linear-gradient(140deg,#07142c,#0b1d47 48%,#d61f1f 120%);
       color:#fff;
-      border-radius:20px;
-      padding:20px 16px 18px;
-      box-shadow:0 14px 34px rgba(7,42,63,.26);
-      margin-bottom:14px;
+      border-radius:16px 16px 0 0;
+      padding:8px 48px 8px 12px;
+      box-shadow:0 8px 20px rgba(7,42,63,.18);
+      margin-bottom:0;
       overflow:hidden;
       display:grid;
+      grid-template-columns:auto 1fr;
+      align-items:center;
       gap:10px;
       justify-items:center;
     }
@@ -79,8 +81,8 @@
     .topAuthAction:active{transform:translateY(0)}
     .brandLink{color:inherit;text-decoration:none;cursor:pointer}
     .brandLink:focus-visible{outline:3px solid rgba(255,255,255,.35);outline-offset:4px;border-radius:16px}
-    .brandLockup{display:flex;align-items:center;justify-content:center;min-height:44px;max-width:100%;padding-right:0}
-    .brandLogo{display:block;width:min(198px,46vw);height:auto;object-fit:contain;object-position:center;filter:drop-shadow(0 10px 22px rgba(7,20,44,.18))}
+    .brandLockup{display:flex;align-items:center;justify-content:flex-start;min-height:32px;max-width:100%;padding-right:0}
+    .brandLogo{display:block;width:min(132px,36vw);height:auto;object-fit:contain;object-position:center;filter:drop-shadow(0 6px 12px rgba(7,20,44,.16))}
     .pill{
       display:inline-flex;
       padding:5px 10px;
@@ -92,16 +94,13 @@
     }
     .top h1{
       margin:0;
-      font:800 clamp(28px,7vw,40px)/1.02 Sora,sans-serif;
+      font:800 clamp(17px,3.5vw,22px)/1 Sora,sans-serif;
       letter-spacing:-.03em;
-      text-align:center;
+      text-align:right;
     }
-    .journeyHeader{width:100%;margin-top:4px;padding:13px;border:1px solid rgba(255,255,255,.22);border-radius:16px;background:rgba(255,255,255,.1);backdrop-filter:blur(10px)}
-    .journeyHeaderRow{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;text-align:left}
-    .journeyHeaderLabel small{display:block;color:#bae6fd;font:800 9px/1.1 Sora,sans-serif;letter-spacing:.1em;text-transform:uppercase}.journeyHeaderLabel strong{display:block;margin-top:3px;color:#fff;font:800 12px/1.2 Sora,sans-serif}.journeyHeaderLabel.next{text-align:right}
-    .journeyHeaderArrow{color:#fff;font:900 18px/1 Sora,sans-serif}
-    .journeySegments{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:11px}.journeySegment{height:5px;border-radius:99px;background:rgba(255,255,255,.24)}.journeySegment.complete,.journeySegment.current{background:#7dd3fc}.journeySegment.current{box-shadow:0 0 0 2px rgba(125,211,252,.22)}
-    .journeyHeaderButton{width:100%;margin-top:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.26);background:rgba(255,255,255,.12);color:#fff;font:800 11px Sora,sans-serif;box-shadow:none}
+    .journeyHeader{position:sticky;top:0;z-index:60;width:100%;height:48px;padding:6px 10px;border-bottom:2px solid #d7263d;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.12);transition:height .15s ease,padding .15s ease}
+    .journeySteps{height:100%;display:flex;align-items:center;justify-content:center;gap:5px}.journeyStep{min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 8px;border:1px solid #d7dee5;border-radius:999px;background:#f5f6f7;color:#536170;font:800 10px/1 Sora,sans-serif;transition:padding .15s ease,gap .15s ease,background .15s ease}.journeyStepIcon{font-size:13px}.journeyStepNumber{display:none}.journeyStep.current{border:2px solid #d7263d;color:#9f1328;background:#fff}.journeyStep.complete{border-color:#d7263d;background:#d7263d;color:#fff}.journeyStep.complete .journeyStepIcon{font-size:0}.journeyStep.complete .journeyStepIcon::after{content:'✓';font-size:13px}.journeyConnector{flex:1 1 16px;max-width:34px;height:1px;background:#ccd4dc}.journeyHeaderButton{display:none}
+    .journeyHeader.compact{height:32px;padding:3px 10px;box-shadow:0 4px 12px rgba(15,23,42,.18)}.journeyHeader.compact .journeyStep{padding:3px 6px;gap:2px}.journeyHeader.compact .journeyStepLabel{width:0;opacity:0;overflow:hidden}.journeyHeader.compact .journeyStepNumber{display:inline}.journeyHeader.compact .journeyConnector{max-width:22px}
     .topNoteWrap{position:absolute;top:12px;right:12px}
     .topNoteToggle{display:grid;place-items:center;width:30px;height:30px;border-radius:999px;border:1px solid rgba(255,255,255,.34);background:rgba(255,255,255,.12);color:#fff;font:900 16px/1 Sora,sans-serif;cursor:pointer;backdrop-filter:blur(8px);box-shadow:0 8px 18px rgba(7,20,44,.16)}
     .topNoteToggle::-webkit-details-marker{display:none}
@@ -521,8 +520,9 @@
       .bottomInner{max-width:760px}
       .serviceChips{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
+    @media (max-width:600px){.journeyHeader{height:40px;padding:4px 7px}.journeyStep{padding:4px 7px}.journeyStepLabel{display:none}.journeyStepNumber{display:inline}.journeyConnector{max-width:20px}}
     @media (max-width:420px){
-      .top{padding:18px 14px 16px}
+      .top{padding:7px 44px 7px 10px}
       .authGrid{grid-template-columns:1fr}
       .authGrid.loginCredentials{grid-template-columns:1fr 1fr}
     }
@@ -530,8 +530,8 @@
       .authGrid.loginCredentials,.metaRow,.rateGrid{grid-template-columns:1fr}
       .topAuthAction{min-width:112px;padding:10px 11px;font-size:12px}
       .brandLockup{display:flex;max-width:100%}
-      .brandLogo{width:min(176px,54vw)}
-      .top h1{max-width:8ch}
+      .brandLogo{width:min(116px,38vw)}
+      .top h1{max-width:none;font-size:16px}
     }
   </style>
 </head>
@@ -548,16 +548,18 @@
         <img class="brandLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit">
       </a>
       <h1>Book a Ride</h1>
-      <div class="journeyHeader" id="journeyHeader" role="progressbar" aria-label="Booking progress" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1">
-        <div class="journeyHeaderRow">
-          <span class="journeyHeaderLabel"><small>Current</small><strong id="journeyCurrent">Rider</strong></span>
-          <span class="journeyHeaderArrow" aria-hidden="true">→</span>
-          <span class="journeyHeaderLabel next"><small>Next</small><strong id="journeyNext">Route</strong></span>
-        </div>
-        <div class="journeySegments" id="journeySegments" aria-hidden="true"><span class="journeySegment current"></span><span class="journeySegment"></span><span class="journeySegment"></span><span class="journeySegment"></span><span class="journeySegment"></span></div>
-        <button type="button" class="journeyHeaderButton" id="journeyHeaderAction">Continue to rider details ↓</button>
-      </div>
     </header>
+    <nav class="journeyHeader" id="journeyHeader" role="progressbar" aria-label="Booking progress" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1">
+      <span class="srOnly">Current: <strong id="journeyCurrent">Rider</strong>. Next: <strong id="journeyNext">Route</strong>.</span>
+      <div class="journeySteps" id="journeySegments" aria-hidden="true">
+        <span class="journeyStep current"><span class="journeyStepIcon">👤</span><span class="journeyStepNumber">1</span><span class="journeyStepLabel">Rider</span></span><span class="journeyConnector"></span>
+        <span class="journeyStep"><span class="journeyStepIcon">⌖</span><span class="journeyStepNumber">2</span><span class="journeyStepLabel">Route</span></span><span class="journeyConnector"></span>
+        <span class="journeyStep"><span class="journeyStepIcon">♿</span><span class="journeyStepNumber">3</span><span class="journeyStepLabel">Ride</span></span><span class="journeyConnector"></span>
+        <span class="journeyStep"><span class="journeyStepIcon">✓</span><span class="journeyStepNumber">4</span><span class="journeyStepLabel">Review</span></span><span class="journeyConnector"></span>
+        <span class="journeyStep"><span class="journeyStepIcon">💳</span><span class="journeyStepNumber">5</span><span class="journeyStepLabel">Payment</span></span>
+      </div>
+      <button type="button" class="journeyHeaderButton" id="journeyHeaderAction">Continue</button>
+    </nav>
 
     <aside class="accessibilityBar" aria-label="Accessibility preferences">
       <strong>Make this page easier to use</strong>
@@ -950,7 +952,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=32"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-  <script src="./booking-app.js?v=20260816-accessibility-guidance"></script>
+  <script src="./booking-app.js?v=20260816-compact-progress"></script>
 </body>
 </html>
 

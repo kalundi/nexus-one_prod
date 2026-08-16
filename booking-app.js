@@ -960,7 +960,7 @@
     journeyHeader.setAttribute('aria-valuenow',String(step));
     journeyHeader.setAttribute('aria-valuetext',`Step ${step} of 5: ${labels[step-1]}`);
     if(journeyHeaderAction)journeyHeaderAction.hidden=false;
-    Array.from(journeySegments?.children||[]).forEach((segment,index)=>{segment.classList.toggle('complete',index<step-1);segment.classList.toggle('current',index===step-1);});
+    Array.from(journeySegments?.querySelectorAll('.journeyStep')||[]).forEach((segment,index)=>{segment.classList.toggle('complete',index<step-1);segment.classList.toggle('current',index===step-1);});
     if(journeyHeaderAction){journeyHeaderAction.dataset.target=targetId;journeyHeaderAction.dataset.focus=focusId;journeyHeaderAction.textContent=step===5?'Continue to booking ↓':`Continue to ${labels[step].toLowerCase()} ↓`;}
   }
 
@@ -3189,6 +3189,10 @@
     bindServiceChips();
     bindAccessibilityControls();
     bindRideGuidance();
+    let journeyCompact=false;
+    const syncJourneyCompact=()=>{const next=window.scrollY>72;if(next===journeyCompact)return;journeyCompact=next;journeyHeader?.classList.toggle('compact',next);};
+    window.addEventListener('scroll',syncJourneyCompact,{passive:true});
+    syncJourneyCompact();
     const requestedService = getRequestedServiceFromUrl();
     selectService(requestedService || $('service').value);
     if(isAdminUser){
