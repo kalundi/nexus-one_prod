@@ -123,6 +123,14 @@
   const returnTripTime = $('returnTripTime');
   const recurringRideFields = $('recurringRideFields');
   const recurrenceEndDate = $('recurrenceEndDate');
+  const manifestTabPanel = $('manifestTabPanel');
+  const contactTabPanel = $('contactTabPanel');
+  const signedInManifest = $('signedInManifest');
+  const guestManifestLookup = $('guestManifestLookup');
+  const tripManifestList = $('tripManifestList');
+  const guestManifestResult = $('guestManifestResult');
+  let manifestTrips = [];
+  let manifestRange = 'today';
   const rideGuidanceDialog = $('rideGuidanceDialog');
   const rideGuidanceForm = $('rideGuidanceForm');
   const helpChooseRideBtn = $('helpChooseRideBtn');
@@ -2619,6 +2627,66 @@
     return true;
   }
 
+  function switchAppTab(tabName){
+    const tab=['book','manifest','contact'].includes(tabName)?tabName:'book';
+    document.body.dataset.activeTab=tab;
+    form.hidden=tab!=='book';
+    if(journeyHeader)journeyHeader.hidden=tab!=='book';
+    if(manifestTabPanel)manifestTabPanel.hidden=tab!=='manifest';
+    if(contactTabPanel)contactTabPanel.hidden=tab!=='contact';
+    document.querySelectorAll('[data-app-tab]').forEach((button)=>{const active=button.dataset.appTab===tab;button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});
+    if(tab==='manifest')loadTripManifest();
+    window.scrollTo({top:0,behavior:document.body.classList.contains('accessReducedMotion')?'auto':'smooth'});
+    if(tab!=='book'){const panel=tab==='manifest'?manifestTabPanel:contactTabPanel;window.setTimeout(()=>panel?.focus({preventScroll:true}),160);}
+  }
+
+  function tripMatchesRange(booking,range){
+    const value=new Date(`${booking?.date||''}T12:00:00`);if(Number.isNaN(value.getTime()))return false;
+    const now=new Date();const dateKey=(date)=>`${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    if(range==='today')return dateKey(value)===dateKey(now);
+    if(range==='week'){const start=new Date(now);start.setHours(0,0,0,0);start.setDate(now.getDate()-now.getDay());const end=new Date(start);end.setDate(start.getDate()+7);return value>=start&&value<end;}
+    if(range==='month')return value.getFullYear()===now.getFullYear()&&value.getMonth()===now.getMonth();
+    return value.getFullYear()===now.getFullYear();
+  }
+
+  function renderManifestCard(booking){
+    const card=document.createElement('article');card.className='tripManifestCard';
+    const title=document.createElement('h3');title.textContent=`${booking?.date||'Date pending'} · ${booking?.reference||booking?.id||'Trip'}`;
+    const status=document.createElement('span');status.className='tripStatusPill';status.textContent=booking?.statusLabel||booking?.status||'Pending';
+    const route=document.createElement('p');route.className='tripManifestMeta';route.textContent=[booking?.pickup,booking?.destination].filter(Boolean).join(' → ')||'Route pending';
+    const time=document.createElement('p');time.className='tripManifestMeta';time.textContent=`Pickup: ${booking?.time||'-'} · ${String(booking?.service||'Ride').replaceAll('_',' ')}`;
+    const reuse=document.createElement('button');reuse.type='button';reuse.className='ghost reuseRouteBtn';reuse.textContent='Book this route again';reuse.addEventListener('click',()=>reuseTripRoute(booking));
+    card.append(title,status,route,time,reuse);return card;
+  }
+
+  function renderSignedInManifest(){
+    if(!tripManifestList)return;tripManifestList.replaceChildren();
+    const filtered=manifestTrips.filter((trip)=>tripMatchesRange(trip,manifestRange));
+    if(!filtered.length){const empty=document.createElement('p');empty.className='subtle';empty.textContent=`No trips found for this ${manifestRange}.`;tripManifestList.append(empty);return;}
+    filtered.forEach((trip)=>tripManifestList.append(renderManifestCard(trip)));
+  }
+
+  async function loadTripManifest(){
+    const signedIn=Boolean(token());if(signedInManifest)signedInManifest.hidden=!signedIn;if(guestManifestLookup)guestManifestLookup.hidden=signedIn;
+    if(!signedIn)return;
+    if(tripManifestList){tripManifestList.replaceChildren();const loading=document.createElement('p');loading.className='subtle';loading.textContent='Loading your trips…';tripManifestList.append(loading);}
+    try{const r=await fetch('/api/portal/trips',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Unable to load trips');manifestTrips=Array.isArray(data.trips)?data.trips:[];renderSignedInManifest();}catch(err){if(tripManifestList){tripManifestList.replaceChildren();const error=document.createElement('p');error.className='subtle';error.textContent=String(err.message||'Unable to load trips');tripManifestList.append(error);}}
+  }
+
+  function reuseTripRoute(booking){
+    if($('pickup'))$('pickup').value=String(booking?.pickup||'');if($('destination'))$('destination').value=String(booking?.destination||'');
+    const service=normalizeService(booking?.service);if(service&&allowedServicesForRole(currentUserRole).has(service))selectService(service);
+    if(currentUser){if($('name')&&!$('name').value)$('name').value=String(currentUser.name||currentUser.display_name||'');if($('email')&&!$('email').value)$('email').value=String(currentUser.email||'');if($('phone')&&!$('phone').value)$('phone').value=formatPhone(String(currentUser.phone||''));riderDetailsConfirmed=Boolean($('name')?.value&&$('phone')?.value);}
+    markDestinationUnconfirmed();expandedSections.add('pickupDropoffSection');switchAppTab('book');syncSectionProgressUi();revealSectionForAction('pickupDropoffSection','confirmPickupDropoffBtn');
+  }
+
+  async function lookupGuestManifest(){
+    const reference=String($('manifestReference')?.value||'').trim();const phone=formatPhone(String($('manifestPhone')?.value||''));const message=$('manifestLookupMessage');
+    if(!reference||!phone){if(message)message.textContent='Enter the booking reference and phone number.';return;}
+    if(message)message.textContent='Finding your trip…';if(guestManifestResult)guestManifestResult.replaceChildren();
+    try{const r=await fetch(`/api/bookings/${encodeURIComponent(reference)}?phone=${encodeURIComponent(phone)}`,{cache:'no-store'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Trip not found');if(guestManifestResult)guestManifestResult.append(renderManifestCard(data.booking));if(message)message.textContent='Trip found.';}catch(err){if(message)message.textContent=String(err.message||'Unable to find trip.');}
+  }
+
   function bindAccessibilityControls(){
     const settings = [
       ['largeTextToggle','accessLargeText','nexusAccessLargeText'],
@@ -3252,6 +3320,11 @@
     [returnTripDate,returnTripTime,recurrenceEndDate].forEach((input)=>input?.addEventListener('change',syncSectionProgressUi));
     document.querySelectorAll('input[name="recurrenceDay"]').forEach((input)=>input.addEventListener('change',syncSectionProgressUi));
     syncTripScheduleUi();
+    document.querySelectorAll('[data-app-tab]').forEach((button)=>button.addEventListener('click',()=>switchAppTab(button.dataset.appTab)));
+    document.querySelectorAll('[data-manifest-range]').forEach((button)=>button.addEventListener('click',()=>{manifestRange=button.dataset.manifestRange||'today';document.querySelectorAll('[data-manifest-range]').forEach((item)=>item.classList.toggle('active',item===button));renderSignedInManifest();}));
+    $('manifestLookupBtn')?.addEventListener('click',lookupGuestManifest);
+    $('manifestPhone')?.addEventListener('blur',()=>{$('manifestPhone').value=formatPhone($('manifestPhone').value);});
+    switchAppTab('book');
     let journeyCompact=false;
     let lastJourneyScrollY=window.scrollY;
     const syncJourneyCompact=()=>{const currentY=Math.max(0,window.scrollY);const next=currentY>72&&currentY>=lastJourneyScrollY;if(next!==journeyCompact){journeyCompact=next;journeyHeader?.classList.toggle('compact',next);}lastJourneyScrollY=currentY;};
