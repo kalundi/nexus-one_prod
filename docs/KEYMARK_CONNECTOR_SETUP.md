@@ -7,6 +7,22 @@ KeyMark uses a vendor-neutral appointment model internally. Do not commit creden
 - `KEYMARK_INTEGRATION_API_KEY`: high-entropy credential used by approved inbound interface engines.
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`: required for consent-verified SMS and voice outreach.
 - `KEYMARK_PAYER_ENDPOINT`, `KEYMARK_PAYER_TOKEN`: reserved for the selected eligibility clearinghouse. KeyMark does not transmit payer requests until both are configured and the member-identifier handling design is approved.
+- `KEYMARK_JWT_PRIVATE_KEY`: private signing key used by the FHIR connection record through `privateKeyEnvVar`. Store it only as a protected environment variable.
+- `KEYMARK_JWT_PUBLIC_KEY`: matching PEM public key published through the JWKS endpoint.
+- `KEYMARK_JWT_KEY_ID`: stable identifier included in both the published JWK and signed JWT header.
+
+## Epic public JWK Set URL
+
+KeyMark exposes `GET /.well-known/keymark-jwks.json` without application authentication so Epic can verify backend-service client assertions. The endpoint publishes public verification material only and returns `503` until configured.
+
+Use separate deployments and key pairs for each Epic environment:
+
+- Non-Production JWK Set URL: `https://<staging-domain>/.well-known/keymark-jwks.json`
+- Production JWK Set URL: `https://<production-domain>/.well-known/keymark-jwks.json`
+
+Generate an RSA key pair outside the repository, put the private and public PEM values in the appropriate deployment's protected environment variables, and use a unique `KEYMARK_JWT_KEY_ID` such as `keymark-staging-2026-01`. Multiline PEM values may use literal newlines or escaped `\\n` characters.
+
+For rotation without interruption, set `KEYMARK_JWKS_JSON` to a public-only JWK Set containing both the current and next public keys. It takes precedence over `KEYMARK_JWT_PUBLIC_KEY`. Begin signing with the new private key and matching `KEYMARK_JWT_KEY_ID` only after Epic can retrieve both keys; remove the old public key after the transition window.
 
 ## Inbound FHIR R4
 

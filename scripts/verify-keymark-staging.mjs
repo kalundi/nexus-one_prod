@@ -9,6 +9,8 @@ const requiredFiles = [
   'netlify/functions/_shared/keymark-connectors.cjs',
   'netlify/functions/_shared/keymark-fhir-client.cjs',
   'netlify/functions/_shared/keymark-outreach.cjs',
+  'netlify/functions/_shared/keymark-jwks.cjs',
+  'netlify/functions/keymark-jwks.cjs',
   'netlify/functions/keymark-fhir-sync.cjs',
   'netlify/functions/keymark-outreach.cjs'
 ];
@@ -26,6 +28,7 @@ const build = await readFile('scripts/build-static.mjs', 'utf8');
 if (!netlify.includes('from = "/keymark"') || !netlify.includes('to = "/keymark.html"')) failures.push('Missing /keymark redirect.');
 if (!netlify.includes('[functions.keymark-outreach]')) failures.push('Missing KeyMark outreach schedule.');
 if (!netlify.includes('[functions.keymark-fhir-sync]')) failures.push('Missing KeyMark FHIR schedule.');
+if (!netlify.includes('from = "/.well-known/keymark-jwks.json"')) failures.push('Missing public KeyMark JWKS redirect.');
 if (!authGuard.includes("'/keymark.html'")) failures.push('KeyMark is not protected by auth-guard.');
 if (!api.includes("if(p[0]==='keymark')")) failures.push('KeyMark API routes are not registered.');
 if (!build.includes("'netlify'")) failures.push('Build script deployment exclusions changed unexpectedly.');

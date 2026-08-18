@@ -48,6 +48,12 @@
   schedule = "*/10 * * * *"
 
 [[redirects]]
+  from = "/.well-known/keymark-jwks.json"
+  to = "/.netlify/functions/keymark-jwks"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
