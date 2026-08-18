@@ -6,7 +6,7 @@
     "voice": "Book as a guest, or sign in or create an account to save five percent.",
     "target": {
       "x": 149,
-      "y": 380
+      "y": 516
     }
   },
   {
@@ -16,7 +16,7 @@
     "voice": "Enter the passenger name, phone number, and email.",
     "target": {
       "x": 270,
-      "y": 659
+      "y": 574
     }
   },
   {
@@ -26,7 +26,7 @@
     "voice": "Select Confirm Details to unlock the pickup and destination section.",
     "target": {
       "x": 136,
-      "y": 804
+      "y": 644
     }
   },
   {
@@ -46,7 +46,7 @@
     "voice": "Select Confirm Details after every required stop is entered.",
     "target": {
       "x": 136,
-      "y": 850
+      "y": 664
     }
   },
   {
@@ -56,7 +56,7 @@
     "voice": "Choose the ride type and transportation support the passenger needs.",
     "target": {
       "x": 270,
-      "y": 501
+      "y": 355
     }
   },
   {
@@ -66,7 +66,7 @@
     "voice": "Set the trip date and appointment time. Nexus calculates the pickup estimate.",
     "target": {
       "x": 373,
-      "y": 653
+      "y": 762
     }
   },
   {
@@ -86,37 +86,47 @@
     "voice": "Review the distance, estimated arrival time, and fare before booking.",
     "target": {
       "x": 270,
-      "y": 1011
+      "y": 956
     }
   },
   {
-    "file": "10-ready-to-book.png",
+    "file": "10-confirm-fare.png",
+    "title": "CONFIRM THE FARE",
+    "caption": "Review the estimate, then confirm the rate.",
+    "voice": "Review the estimated rate, then select Confirm Rate to continue.",
+    "target": {
+      "x": 368,
+      "y": 574
+    }
+  },
+  {
+    "file": "11-ready-to-book.png",
     "title": "BOOK MY RIDE",
     "caption": "Submit the completed ride request.",
     "voice": "When every section is complete, select Book My Ride to submit the request.",
     "target": {
       "x": 390,
-      "y": 925
+      "y": 861
     }
   },
   {
-    "file": "11-confirmed.png",
+    "file": "12-confirmed.png",
     "title": "BOOKING CONFIRMED",
     "caption": "Save the reference number for updates.",
     "voice": "The booking is confirmed. Save the reference number for ride updates.",
     "target": {
       "x": 270,
-      "y": 926
+      "y": 862
     }
   },
   {
-    "file": "12-payment.png",
+    "file": "13-payment.png",
     "title": "CHOOSE PAYMENT",
     "caption": "Pay a 25% deposit or pay the fare in full.",
     "voice": "Choose to pay a twenty five percent deposit, or pay the estimated fare in full.",
     "target": {
       "x": 270,
-      "y": 668
+      "y": 674
     }
   }
 ]

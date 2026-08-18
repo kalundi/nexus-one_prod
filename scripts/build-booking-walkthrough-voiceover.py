@@ -6,7 +6,7 @@ import edge_tts
 import imageio_ffmpeg
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "output" / "social-video" / "voice-segments-v5"
+OUT = ROOT / "output" / "social-video" / "voice-segments-v6"
 OUT.mkdir(parents=True, exist_ok=True)
 STATES = json.loads((ROOT / "output" / "social-video" / "app-states" / "states.json").read_text())
 STEP_SECONDS = 5.2
@@ -29,8 +29,8 @@ async def main():
     filters.append(f"{''.join(labels)}concat=n={len(STATES)}:v=0:a=1[voice]")
 
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-    silent = ROOT / "assets" / "nexus-booking-app-walkthrough-v5-silent.mp4"
-    narrated = ROOT / "assets" / "nexus-booking-app-walkthrough-v5-narrated.mp4"
+    silent = ROOT / "assets" / "nexus-booking-app-walkthrough-v6-silent.mp4"
+    narrated = ROOT / "assets" / "nexus-booking-app-walkthrough-v6-narrated.mp4"
     subprocess.run([
         ffmpeg, "-y", "-i", str(silent), *inputs,
         "-filter_complex", ";".join(filters), "-map", "0:v", "-map", "[voice]",

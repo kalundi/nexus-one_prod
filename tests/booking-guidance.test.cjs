@@ -28,6 +28,13 @@ test('header shows current and next stages across five booking steps', () => {
 test('type of ride remains visible instead of progressive-hidden', () => {
   assert.match(html, /<section class="section" id="rideTypeSection">/);
   assert.doesNotMatch(html, /<section class="section sectionProgressive" id="rideTypeSection">/);
+  assert.doesNotMatch(js, /AUTO_COLLAPSIBLE_SECTION_IDS\s*=\s*\[[^\]]*'rideTypeSection'/);
+  assert.match(js, /sectionId !== 'rideTypeSection'/);
+});
+
+test('sticky journey header uses hysteresis instead of scroll direction', () => {
+  assert.match(js, /const next=journeyCompact\?currentY>48:currentY>88/);
+  assert.doesNotMatch(js, /currentY>=lastJourneyScrollY/);
 });
 
 test('customer page does not expose internal API wording', () => {

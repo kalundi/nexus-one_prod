@@ -238,7 +238,7 @@
   let manageActionsBound = false;
   const PRIVILEGED_SERVICE_ROLES = new Set(['ADMIN','DISPATCHER','FACILITY','DRIVER']);
   const CUSTOMER_ALLOWED_SERVICES = new Set(['ambulatory','wheelchair','stretcher','bariatric']);
-  const AUTO_COLLAPSIBLE_SECTION_IDS = ['pickupDropoffSection', 'rideTypeSection'];
+  const AUTO_COLLAPSIBLE_SECTION_IDS = ['pickupDropoffSection'];
   const PROGRESSIVE_SECTIONS_ORDER = ['riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'telemetrySection', 'fareSummarySection'];
   const FINAL_HIDDEN_SECTION_IDS = ['bookingLoginSection', 'riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'rateSettingsSection', 'fareSummarySection'];
   const finalVisibleSectionIds = new Set(['telemetrySection', 'paymentSection']);
@@ -907,7 +907,7 @@
       const section = $(sectionId);
       if(!section) return;
       const isComplete = Object.prototype.hasOwnProperty.call(progress, sectionId) ? Boolean(progress[sectionId]) : true;
-      const shouldHide = bookingSubmitted ? true : finalView && isComplete;
+      const shouldHide = bookingSubmitted ? true : finalView && isComplete && sectionId !== 'rideTypeSection';
       section.classList.toggle('sectionHiddenInFinal', shouldHide);
     });
 
@@ -1086,7 +1086,6 @@
       if(!field) return;
       ['change', 'input', 'blur'].forEach((eventName) => {
         field.addEventListener(eventName, () => {
-          if(id === 'tripDate' || id === 'appointmentTime' || id === 'tripTime') expandedSections.delete('rideTypeSection');
           if(id === 'appointmentTime') applyPickupEstimateFromAppointment();
           if(id === 'name' || id === 'phone' || id === 'email' || id === 'notes'){
             riderDetailsInitiallyCollapsed.delete('riderDetailsSection');
@@ -3326,8 +3325,14 @@
     $('manifestPhone')?.addEventListener('blur',()=>{$('manifestPhone').value=formatPhone($('manifestPhone').value);});
     switchAppTab('book');
     let journeyCompact=false;
-    let lastJourneyScrollY=window.scrollY;
-    const syncJourneyCompact=()=>{const currentY=Math.max(0,window.scrollY);const next=currentY>72&&currentY>=lastJourneyScrollY;if(next!==journeyCompact){journeyCompact=next;journeyHeader?.classList.toggle('compact',next);}lastJourneyScrollY=currentY;};
+    const syncJourneyCompact=()=>{
+      const currentY=Math.max(0,window.scrollY);
+      const next=journeyCompact?currentY>48:currentY>88;
+      if(next!==journeyCompact){
+        journeyCompact=next;
+        journeyHeader?.classList.toggle('compact',next);
+      }
+    };
     window.addEventListener('scroll',syncJourneyCompact,{passive:true});
     syncJourneyCompact();
     const requestedService = getRequestedServiceFromUrl();
