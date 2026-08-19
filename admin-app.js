@@ -390,19 +390,40 @@ document.getElementById('refreshUsers').addEventListener('click',loadUsers);
 
 document.getElementById('grantDocumentAccess')?.addEventListener('click',async()=>{
   const email=document.getElementById('documentFacilityEmail').value.trim();
+  const documentKey=document.getElementById('documentGrantKey').value;
   const hours=Number(document.getElementById('documentGrantHours').value||0);
   const msg=document.getElementById('documentGrantMsg');
-  if(!email||hours<1){showMsg(msg,'Enter a facility manager email and a valid access period.','err');return;}
+  if(!email||!documentKey||hours<1){showMsg(msg,'Select a document, then enter a facility manager email and valid access period.','err');return;}
   const button=document.getElementById('grantDocumentAccess');
   button.disabled=true;button.textContent='Granting...';
   try{
-    const response=await fetch('/api/admin/document-grants',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({email,documentKey:'transportation-rates',hours})});
+    const response=await fetch('/api/admin/document-grants',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({email,documentKey,hours})});
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(data.error||'Unable to grant document access');
-    showMsg(msg,`Access granted through ${new Date(data.grant.expiresAt).toLocaleString()}.`,'ok');
+    showMsg(msg,`Access granted through ${new Date(data.grant.expiresAt).toLocaleString()}.`,'ok');loadDocumentGrants();
   }catch(error){showMsg(msg,error.message,'err');}
   finally{button.disabled=false;button.textContent='Grant temporary access';}
 });
+
+async function loadSecureDocumentOptions(){
+  const select=document.getElementById('documentGrantKey');if(!select)return;
+  try{
+    const response=await fetch('/api/admin/secure-documents',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'Unable to load documents');
+    select.innerHTML=(data.documents||[]).map(document=>`<option value="${document.key}">${document.title}</option>`).join('')||'<option value="">No documents configured</option>';
+  }catch(error){select.innerHTML='<option value="">Documents unavailable</option>';}
+}
+async function loadDocumentGrants(){
+  const rows=document.getElementById('documentGrantRows');if(!rows)return;
+  try{
+    const response=await fetch('/api/admin/document-grants',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'}),data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'Unable to load grants');
+    rows.innerHTML=(data.grants||[]).map(grant=>`<tr><td>${grant.name||grant.email}<br><small>${grant.email}</small></td><td>${grant.documentTitle}</td><td>${new Date(grant.expiresAt).toLocaleString()}</td><td><span class="pill ${grant.active?'green':'muted'}">${grant.active?'Active':grant.revokedAt?'Revoked':'Expired'}</span></td><td>${grant.active?`<button class="button compact" data-revoke-document-grant="${grant.id}">Revoke</button>`:'--'}</td></tr>`).join('')||'<tr><td colspan="5">No document grants yet.</td></tr>';
+    rows.querySelectorAll('[data-revoke-document-grant]').forEach(button=>button.addEventListener('click',async()=>{if(!confirm('Revoke this document access now?'))return;button.disabled=true;const result=await fetch(`/api/admin/document-grants/${encodeURIComponent(button.dataset.revokeDocumentGrant)}`,{method:'PATCH',headers:{authorization:`Bearer ${token()}`}});if(!result.ok)alert('Unable to revoke access');loadDocumentGrants();}));
+  }catch(error){rows.innerHTML=`<tr><td colspan="5">${error.message}</td></tr>`;}
+}
+window.addEventListener('nexus:authorized',()=>{if(userRole()==='ADMIN'){loadSecureDocumentOptions();loadDocumentGrants();}},{once:true});
 
 // Reset standard non-production accounts
 document.getElementById('resetCredentialsBtn')?.addEventListener('click',async()=>{
