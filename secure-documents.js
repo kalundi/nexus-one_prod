@@ -1,7 +1,7 @@
 (function(){
   const token=()=>sessionStorage.getItem('nexusAccessToken')||'';
   const money=value=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(value)||0);
-  let pricing={},documents=[],activeDocument=null,activeImageUrl='';
+  let pricing={},documents=[],activeDocument=null;
   const safeExternal=href=>/^https:\/\//i.test(href);
   function calculate(){
     const rate=pricing[document.getElementById('calcService')?.value];if(!rate)return;
@@ -37,9 +37,10 @@
     activeDocument=selected;
     const response=await fetch(`/api/secure-documents/${encodeURIComponent(selected.key)}/image`,{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
     if(!response.ok)throw new Error('Document access expired');
-    if(activeImageUrl)URL.revokeObjectURL(activeImageUrl);
-    activeImageUrl=URL.createObjectURL(await response.blob());
-    const image=document.getElementById('documentImage');image.src=activeImageUrl;image.alt=selected.title;
+    const imageBlob=await response.blob();
+    if(imageBlob.type!=='image/png'||imageBlob.size<1000)throw new Error('Protected document image is invalid');
+    const imageDataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('Unable to decode protected document'));reader.readAsDataURL(imageBlob)});
+    const image=document.getElementById('documentImage');image.src=imageDataUrl;image.alt=selected.title;
     document.getElementById('protectedPage').setAttribute('aria-label',`${selected.title} secure viewer`);
     document.getElementById('documentOverlay').innerHTML=buildCalculator(selected.calculator)+buildHotspots(selected.links);
     bindCalculator(selected.calculator);renderActionLinks(selected.links);
@@ -60,6 +61,5 @@
   document.addEventListener('contextmenu',event=>event.preventDefault());
   document.addEventListener('dragstart',event=>event.preventDefault());
   document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&['s','p','c','a','u'].includes(event.key.toLowerCase()))event.preventDefault();});
-  window.addEventListener('beforeunload',()=>{if(activeImageUrl)URL.revokeObjectURL(activeImageUrl)});
   window.addEventListener('nexus:authorized',load,{once:true});
 })();
