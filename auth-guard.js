@@ -2,7 +2,7 @@
   // Protect portal pages until the server verifies the active session.
   const policy={
     '/facility.html':['FACILITY','DISPATCHER','ADMIN'],
-    '/secure-documents.html':['FACILITY'],
+    '/secure-documents.html':['FACILITY','ADMIN'],
     '/dispatch.html':['DISPATCHER','ADMIN'],
     '/driver-app.html':['DRIVER','DISPATCHER','ADMIN'],
     '/fleet.html':['DISPATCHER','ADMIN'],

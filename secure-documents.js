@@ -28,7 +28,7 @@
       if(pricing.wheelchair)service.value='wheelchair';
       ['calcService','calcMiles','calcWait','calcPremium'].forEach(id=>document.getElementById(id).addEventListener('input',calculate));
       calculate();
-      document.getElementById('accessStatus').textContent=`Approved until ${new Date(access.expiresAt).toLocaleString()}`;
+      document.getElementById('accessStatus').textContent=access.adminPreview?'Administrator preview access':`Approved until ${new Date(access.expiresAt).toLocaleString()}`;
       document.getElementById('documentPanel').hidden=false;
     }catch(error){document.getElementById('accessStatus').textContent='No active document authorization';document.getElementById('accessDenied').hidden=false;}
   }

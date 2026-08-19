@@ -2230,18 +2230,22 @@ async function handler(event){
    return json(201,{grant:{id:grant.id,documentKey:grant.document_key,expiresAt:grant.expires_at}});
   }
   if(p[0]==='secure-documents'&&method==='GET'&&p.length===1){
-   const me=await requireUser(bearer(event),['FACILITY']);
+   const me=await requireUser(bearer(event),['FACILITY','ADMIN']);
+   if(me.role==='ADMIN'){
+    await audit('SECURE_DOCUMENT','catalog','ADMIN_PREVIEWED',{by:me.email});
+    return json(200,{documents:[{key:'transportation-rates',title:'Nexus Transportation Rates',expiresAt:null,adminPreview:true}]});
+   }
    const result=await query(`SELECT document_key,expires_at FROM secure_document_grants
      WHERE user_id=$1 AND revoked_at IS NULL AND expires_at>now() ORDER BY expires_at DESC`,[me.id]);
    await audit('SECURE_DOCUMENT','catalog','VIEWED',{by:me.email,count:result.rowCount});
    return json(200,{documents:result.rows.map(row=>({key:row.document_key,title:'Nexus Transportation Rates',expiresAt:row.expires_at}))});
   }
   if(p[0]==='secure-documents'&&p[1]==='transportation-rates'&&p[2]==='image'&&method==='GET'){
-   const me=await requireUser(bearer(event),['FACILITY']);
-   const grant=await query(`SELECT id FROM secure_document_grants WHERE user_id=$1 AND document_key='transportation-rates' AND revoked_at IS NULL AND expires_at>now() ORDER BY expires_at DESC LIMIT 1`,[me.id]);
+   const me=await requireUser(bearer(event),['FACILITY','ADMIN']);
+   const grant=me.role==='ADMIN'?{rows:[{id:'admin-preview'}]}:await query(`SELECT id FROM secure_document_grants WHERE user_id=$1 AND document_key='transportation-rates' AND revoked_at IS NULL AND expires_at>now() ORDER BY expires_at DESC LIMIT 1`,[me.id]);
    if(!grant.rows[0])return json(403,{error:'Document access is not active or has expired'});
    const image=fs.readFileSync(path.join(__dirname,'_private-documents','transportation-rates.png'));
-   await audit('SECURE_DOCUMENT',String(grant.rows[0].id),'PAGE_VIEWED',{by:me.email,documentKey:'transportation-rates'});
+   await audit('SECURE_DOCUMENT',String(grant.rows[0].id),me.role==='ADMIN'?'ADMIN_PAGE_PREVIEWED':'PAGE_VIEWED',{by:me.email,documentKey:'transportation-rates'});
    return {statusCode:200,isBase64Encoded:true,headers:{'content-type':'image/png','cache-control':'private, no-store, max-age=0','content-disposition':'inline','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; frame-ancestors 'self'"},body:image.toString('base64')};
   }
   if(p[0]==='admin'&&p[1]==='settings'&&method==='GET'){
