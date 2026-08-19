@@ -11,7 +11,7 @@ let currentSettings=null;
 const ADMIN_DASHBOARD_SECTIONS=['userSection','pricingSection','manageTripSection','adminTripsSection','settingsSection','costAnalyzerSection','socialSection','auditSection'];
 const ADMIN_DASHBOARD_LABELS={
   userSection:'User management',
-  pricingSection:'Pricing manager',
+  pricingSection:'Nexus Pricing Manager',
   manageTripSection:'Manage trip',
   adminTripsSection:'Trips oversight',
   settingsSection:'Organization settings',

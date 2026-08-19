@@ -160,9 +160,9 @@
     fuelEfficiencyMpg: 10,
     fuelOperationalBufferPct: 20,
     fuelLastUpdatedAt: null,
-    afterHoursSurchargePct: 0,
-    weekendSurchargePct: 0,
-    holidaySurchargePct: 10,
+    afterHoursSurchargePct: 30,
+    weekendSurchargePct: 30,
+    holidaySurchargePct: 30,
     taxRatePct: 0,
     cancellationFee: 30,
     cancellationWindowHours: 24,
@@ -177,16 +177,16 @@
     trafficOverageFeePerHour: 0,
     trafficOverageGraceMinutes: 0,
     servicePolicies: {
-      wheelchair:{cancellationFee:40,noShowFee:60,trafficOverageFeePerHour:25,returnMilesInclusionPct:100,afterHoursSurchargePct:0,weekendSurchargePct:0,holidaySurchargePct:10},
-      ambulatory:{cancellationFee:35,noShowFee:50,trafficOverageFeePerHour:20,returnMilesInclusionPct:100,afterHoursSurchargePct:0,weekendSurchargePct:0,holidaySurchargePct:10},
-      facility_transfer:{cancellationFee:85,noShowFee:115,trafficOverageFeePerHour:42,returnMilesInclusionPct:100,afterHoursSurchargePct:5,weekendSurchargePct:3,holidaySurchargePct:12},
-      facility_transfer_critical:{cancellationFee:180,noShowFee:240,trafficOverageFeePerHour:75,returnMilesInclusionPct:100,afterHoursSurchargePct:8,weekendSurchargePct:5,holidaySurchargePct:15},
-      broda:{cancellationFee:75,noShowFee:95,trafficOverageFeePerHour:35,returnMilesInclusionPct:100,afterHoursSurchargePct:0,weekendSurchargePct:0,holidaySurchargePct:10},
-      stretcher:{cancellationFee:120,noShowFee:150,trafficOverageFeePerHour:50,returnMilesInclusionPct:100,afterHoursSurchargePct:0,weekendSurchargePct:0,holidaySurchargePct:10},
-      bariatric:{cancellationFee:160,noShowFee:200,trafficOverageFeePerHour:65,returnMilesInclusionPct:100,afterHoursSurchargePct:0,weekendSurchargePct:0,holidaySurchargePct:10},
-      bls:{cancellationFee:200,noShowFee:260,trafficOverageFeePerHour:85,returnMilesInclusionPct:100,afterHoursSurchargePct:0,weekendSurchargePct:0,holidaySurchargePct:10},
-      als1:{cancellationFee:250,noShowFee:325,trafficOverageFeePerHour:95,returnMilesInclusionPct:100,afterHoursSurchargePct:0,weekendSurchargePct:0,holidaySurchargePct:10},
-      als2:{cancellationFee:300,noShowFee:390,trafficOverageFeePerHour:110,returnMilesInclusionPct:100,afterHoursSurchargePct:0,weekendSurchargePct:0,holidaySurchargePct:10}
+      wheelchair:{cancellationFee:40,noShowFee:60,trafficOverageFeePerHour:25,returnMilesInclusionPct:100,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30},
+      ambulatory:{cancellationFee:35,noShowFee:50,trafficOverageFeePerHour:20,returnMilesInclusionPct:100,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30},
+      facility_transfer:{cancellationFee:85,noShowFee:115,trafficOverageFeePerHour:42,returnMilesInclusionPct:100,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30},
+      facility_transfer_critical:{cancellationFee:180,noShowFee:240,trafficOverageFeePerHour:75,returnMilesInclusionPct:100,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30},
+      broda:{cancellationFee:75,noShowFee:95,trafficOverageFeePerHour:35,returnMilesInclusionPct:100,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30},
+      stretcher:{cancellationFee:120,noShowFee:150,trafficOverageFeePerHour:50,returnMilesInclusionPct:100,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30},
+      bariatric:{cancellationFee:160,noShowFee:200,trafficOverageFeePerHour:65,returnMilesInclusionPct:100,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30},
+      bls:{cancellationFee:200,noShowFee:260,trafficOverageFeePerHour:85,returnMilesInclusionPct:100,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30},
+      als1:{cancellationFee:250,noShowFee:325,trafficOverageFeePerHour:95,returnMilesInclusionPct:100,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30},
+      als2:{cancellationFee:300,noShowFee:390,trafficOverageFeePerHour:110,returnMilesInclusionPct:100,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30}
     }
   };
   const DEFAULT_YARD_ADDRESS = '22505 Gateway Center Dr, Clarksburg MD 20871';
@@ -1400,13 +1400,28 @@
     return holidays.some((h) => sameCalendarDate(h, d));
   }
 
-  function isAfterHoursTime(timeStr){
-    const parts = String(timeStr || '00:00').split(':');
-    const hour = Number(parts[0]);
-    const minute = Number(parts[1] || 0);
-    if(!Number.isFinite(hour) || !Number.isFinite(minute)) return true;
-    const totalMinutes = (hour * 60) + minute;
-    return totalMinutes < (7 * 60) || totalMinutes > (19 * 60);
+  function getTripWindow(dateStr, timeStr, durationMinutes = 0){
+    const dateParts = String(dateStr || '').split('-').map(Number);
+    const timeParts = String(timeStr || '').split(':').map(Number);
+    const validDate = dateParts.length === 3 && dateParts.every(Number.isFinite);
+    const validTime = timeParts.length >= 2 && timeParts.slice(0,2).every(Number.isFinite);
+    const start = validDate && validTime
+      ? new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1], 0, 0)
+      : new Date(NaN);
+    const end = new Date(start.getTime() + (Math.max(0, Number(durationMinutes) || 0) * 60000));
+    return { start, end };
+  }
+
+  function getPremiumRateReason(dateStr, timeStr, durationMinutes = 0){
+    const {start,end}=getTripWindow(dateStr,timeStr,durationMinutes);
+    if(!Number.isFinite(start.getTime())) return 'after-hours';
+    for(let cursor=new Date(start.getFullYear(),start.getMonth(),start.getDate());cursor<=end;cursor.setDate(cursor.getDate()+1)){
+      if(cursor.getDay()===0||cursor.getDay()===6) return 'weekend';
+      if(isFederalHoliday(cursor)) return 'holiday';
+    }
+    const opens=new Date(start.getFullYear(),start.getMonth(),start.getDate(),7,0,0,0);
+    const closes=new Date(start.getFullYear(),start.getMonth(),start.getDate(),19,0,0,0);
+    return start<opens||end>closes?'after-hours':'';
   }
 
   function calculateFareBreakdown(service, miles, dateStr, timeStr, routeMetrics = {}){
@@ -1433,15 +1448,8 @@
       subtotal += (overageMinutes / 60) * trafficRate;
     }
 
-    const tripDate = new Date(dateStr || new Date());
-    const day = tripDate.getDay();
-    const isWeekend = day === 0 || day === 6;
-    const isHoliday = isFederalHoliday(tripDate);
-    const isAfterHours = isAfterHoursTime(timeStr);
-
-    if(isHoliday) subtotal += subtotal * (Number((policy.holidaySurchargePct ?? fareRules.holidaySurchargePct) ?? 0) / 100);
-    if(isWeekend) subtotal += subtotal * (Number((policy.weekendSurchargePct ?? fareRules.weekendSurchargePct) ?? 0) / 100);
-    if(isAfterHours) subtotal += subtotal * (Number((policy.afterHoursSurchargePct ?? fareRules.afterHoursSurchargePct) ?? 0) / 100);
+    const premiumRateReason=getPremiumRateReason(dateStr,timeStr,scheduledMinutes);
+    if(premiumRateReason) subtotal *= 1.30;
 
     const normalizedSubtotal = Math.max(Number(fareRules.minimumFare || 0), subtotal);
     const taxRatePct = CARD_PROCESSING_FEE_PCT;
@@ -1450,7 +1458,9 @@
       subtotal: normalizedSubtotal,
       taxAmount,
       total: normalizedSubtotal + taxAmount,
-      taxRatePct
+      taxRatePct,
+      premiumRatePct: premiumRateReason ? 30 : 0,
+      premiumRateReason
     };
   }
 
