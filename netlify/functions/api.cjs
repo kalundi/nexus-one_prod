@@ -17,6 +17,7 @@ const {parseChannels,isDryRunValue,previewSocialSelection,runSocialPublish}=requ
 const {mapFhirAppointment,parseHl7,verifyIntegrationRequest,payloadDigest}=require('./_shared/keymark-connectors.cjs');
 const {testConnection:testKeymarkFhirConnection}=require('./_shared/keymark-fhir-client.cjs');
 const {bookingPaymentPolicy,requiresFullPaymentBeforeBoarding}=require('./_shared/payment-policy.cjs');
+const {getSecureDocument,listSecureDocuments}=require('./_shared/secure-document-registry.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_APPROVAL:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -2218,34 +2219,54 @@ async function handler(event){
   if(p[0]==='admin'&&p[1]==='document-grants'&&method==='POST'){
    const me=await requireUser(bearer(event),['ADMIN']);
    const body=parseBody(event);required(body,['email','documentKey','hours']);
-   if(clean(body.documentKey)!=='transportation-rates')return json(400,{error:'Unknown document'});
+   const document=getSecureDocument(body.documentKey);
+   if(!document)return json(400,{error:'Unknown document'});
    const hours=Math.min(720,Math.max(1,Number(body.hours)||0));
    const target=await query("SELECT id,email,scope_id FROM users WHERE lower(email)=lower($1) AND role='FACILITY' AND active=true LIMIT 1",[clean(body.email)]);
    if(!target.rows[0])return json(404,{error:'Active facility manager account not found'});
    const result=await query(`INSERT INTO secure_document_grants(user_id,facility_scope_id,document_key,granted_by,expires_at)
      VALUES($1,$2,$3,$4,now()+($5::text||' hours')::interval)
-     RETURNING id,document_key,expires_at`,[target.rows[0].id,target.rows[0].scope_id||null,'transportation-rates',me.id,String(hours)]);
+     RETURNING id,document_key,expires_at`,[target.rows[0].id,target.rows[0].scope_id||null,document.key,me.id,String(hours)]);
    const grant=result.rows[0];
    await audit('SECURE_DOCUMENT',String(grant.id),'ACCESS_GRANTED',{targetEmail:target.rows[0].email,documentKey:grant.document_key,expiresAt:grant.expires_at,by:me.email});
    return json(201,{grant:{id:grant.id,documentKey:grant.document_key,expiresAt:grant.expires_at}});
+  }
+  if(p[0]==='admin'&&p[1]==='document-grants'&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN']);
+   const result=await query(`SELECT g.id,g.document_key,g.expires_at,g.revoked_at,g.created_at,u.email,u.display_name,u.scope_id
+     FROM secure_document_grants g JOIN users u ON u.id=g.user_id ORDER BY g.created_at DESC LIMIT 250`);
+   return json(200,{grants:result.rows.map(row=>({id:row.id,documentKey:row.document_key,documentTitle:getSecureDocument(row.document_key)?.title||row.document_key,email:row.email,name:row.display_name,facilityScopeId:row.scope_id,expiresAt:row.expires_at,revokedAt:row.revoked_at,createdAt:row.created_at,active:!row.revoked_at&&new Date(row.expires_at)>new Date()}))});
+  }
+  if(p[0]==='admin'&&p[1]==='document-grants'&&p[2]&&method==='PATCH'){
+   const me=await requireUser(bearer(event),['ADMIN']);
+   const result=await query('UPDATE secure_document_grants SET revoked_at=COALESCE(revoked_at,now()) WHERE id=$1 RETURNING id,document_key,revoked_at',[decodeURIComponent(p[2])]);
+   if(!result.rows[0])return json(404,{error:'Document grant not found'});
+   await audit('SECURE_DOCUMENT',String(result.rows[0].id),'ACCESS_REVOKED',{documentKey:result.rows[0].document_key,by:me.email});
+   return json(200,{revoked:true,grant:result.rows[0]});
+  }
+  if(p[0]==='admin'&&p[1]==='secure-documents'&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN']);
+   return json(200,{documents:listSecureDocuments().map(({links,calculator,...document})=>document)});
   }
   if(p[0]==='secure-documents'&&method==='GET'&&p.length===1){
    const me=await requireUser(bearer(event),['FACILITY','ADMIN']);
    if(me.role==='ADMIN'){
     await audit('SECURE_DOCUMENT','catalog','ADMIN_PREVIEWED',{by:me.email});
-    return json(200,{documents:[{key:'transportation-rates',title:'Nexus Transportation Rates',expiresAt:null,adminPreview:true}]});
+    return json(200,{documents:listSecureDocuments().map(document=>({...document,expiresAt:null,adminPreview:true}))});
    }
-   const result=await query(`SELECT document_key,expires_at FROM secure_document_grants
-     WHERE user_id=$1 AND revoked_at IS NULL AND expires_at>now() ORDER BY expires_at DESC`,[me.id]);
+   const result=await query(`SELECT DISTINCT ON (document_key) document_key,expires_at FROM secure_document_grants
+     WHERE user_id=$1 AND revoked_at IS NULL AND expires_at>now() ORDER BY document_key,expires_at DESC`,[me.id]);
    await audit('SECURE_DOCUMENT','catalog','VIEWED',{by:me.email,count:result.rowCount});
-   return json(200,{documents:result.rows.map(row=>({key:row.document_key,title:'Nexus Transportation Rates',expiresAt:row.expires_at}))});
+   return json(200,{documents:result.rows.map(row=>{const document=getSecureDocument(row.document_key);return document?{...document,expiresAt:row.expires_at}:null}).filter(Boolean)});
   }
-  if(p[0]==='secure-documents'&&p[1]==='transportation-rates'&&p[2]==='image'&&method==='GET'){
+  if(p[0]==='secure-documents'&&p[1]&&p[2]==='image'&&method==='GET'){
    const me=await requireUser(bearer(event),['FACILITY','ADMIN']);
-   const grant=me.role==='ADMIN'?{rows:[{id:'admin-preview'}]}:await query(`SELECT id FROM secure_document_grants WHERE user_id=$1 AND document_key='transportation-rates' AND revoked_at IS NULL AND expires_at>now() ORDER BY expires_at DESC LIMIT 1`,[me.id]);
+   const document=getSecureDocument(decodeURIComponent(p[1]));
+   if(!document)return json(404,{error:'Document not found'});
+   const grant=me.role==='ADMIN'?{rows:[{id:'admin-preview'}]}:await query(`SELECT id FROM secure_document_grants WHERE user_id=$1 AND document_key=$2 AND revoked_at IS NULL AND expires_at>now() ORDER BY expires_at DESC LIMIT 1`,[me.id,document.key]);
    if(!grant.rows[0])return json(403,{error:'Document access is not active or has expired'});
-   const image=fs.readFileSync(path.join(__dirname,'_private-documents','transportation-rates.png'));
-   await audit('SECURE_DOCUMENT',String(grant.rows[0].id),me.role==='ADMIN'?'ADMIN_PAGE_PREVIEWED':'PAGE_VIEWED',{by:me.email,documentKey:'transportation-rates'});
+   const image=fs.readFileSync(path.join(__dirname,'_private-documents',document.asset));
+   await audit('SECURE_DOCUMENT',String(grant.rows[0].id),me.role==='ADMIN'?'ADMIN_PAGE_PREVIEWED':'PAGE_VIEWED',{by:me.email,documentKey:document.key});
    return {statusCode:200,isBase64Encoded:true,headers:{'content-type':'image/png','cache-control':'private, no-store, max-age=0','content-disposition':'inline','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; frame-ancestors 'self'"},body:image.toString('base64')};
   }
   if(p[0]==='admin'&&p[1]==='settings'&&method==='GET'){
