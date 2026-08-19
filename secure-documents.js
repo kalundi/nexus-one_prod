@@ -45,7 +45,7 @@
     const response=await fetch(`/api/secure-documents/${encodeURIComponent(selected.key)}/image`,{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
     if(!response.ok)throw new Error('Document access expired');
     const imageBlob=await response.blob();
-    if(imageBlob.type!=='image/png'||imageBlob.size<1000)throw new Error('Protected document image is invalid');
+    if(!['image/png','image/jpeg'].includes(imageBlob.type)||imageBlob.size<1000)throw new Error('Protected document image is invalid');
     const imageDataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('Unable to decode protected document'));reader.readAsDataURL(imageBlob)});
     const image=document.getElementById('documentImage');image.src=imageDataUrl;image.alt=selected.title;
     document.getElementById('protectedPage').setAttribute('aria-label',`${selected.title} secure viewer`);

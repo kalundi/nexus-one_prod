@@ -24,6 +24,22 @@ const envEnabled=name=>Boolean(process.env[name]);
 const clean=v=>String(v??'').trim();
 const DEMO_SOURCES=new Set(['DEMO','LOCAL','MOCK','TEST']);
 const required=(body,fields)=>{for(const f of fields)if(!clean(body[f]))throw Object.assign(new Error(`${f} is required`),{statusCode:400})};
+const secureDocumentSlug=value=>clean(value).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,56)||'document';
+async function listUploadedSecureDocuments(){
+ const result=await query(`SELECT document_key,title,description,original_name,mime_type,file_size,created_at
+   FROM secure_documents WHERE active=true ORDER BY created_at DESC`).catch(error=>{
+    if(error?.code==='42P01')return {rows:[]};
+    throw error;
+   });
+ return result.rows.map(row=>({key:row.document_key,title:row.title,description:row.description||'',originalName:row.original_name,mimeType:row.mime_type,fileSize:Number(row.file_size)||0,createdAt:row.created_at,uploaded:true,links:[],calculator:null}));
+}
+async function listAllSecureDocuments(){return [...listSecureDocuments(),...await listUploadedSecureDocuments()]}
+async function findSecureDocument(key){
+ const builtIn=getSecureDocument(key);if(builtIn)return {...builtIn,uploaded:false};
+ const result=await query(`SELECT document_key,title,description,original_name,mime_type,file_size,created_at
+   FROM secure_documents WHERE document_key=$1 AND active=true LIMIT 1`,[clean(key)]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
+ const row=result.rows[0];return row?{key:row.document_key,title:row.title,description:row.description||'',originalName:row.original_name,mimeType:row.mime_type,fileSize:Number(row.file_size)||0,createdAt:row.created_at,uploaded:true,links:[],calculator:null}:null;
+}
 const reference=()=>`NMT-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${crypto.randomInt(1000,9999)}`;
 const TEMP_PASSWORD_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
 function generateTempPassword(length=14){
@@ -2219,7 +2235,7 @@ async function handler(event){
   if(p[0]==='admin'&&p[1]==='document-grants'&&method==='POST'){
    const me=await requireUser(bearer(event),['ADMIN']);
    const body=parseBody(event);required(body,['email','documentKey','hours']);
-   const document=getSecureDocument(body.documentKey);
+   const document=await findSecureDocument(body.documentKey);
    if(!document)return json(400,{error:'Unknown document'});
    const hours=Math.min(720,Math.max(1,Number(body.hours)||0));
    const target=await query("SELECT id,email,scope_id FROM users WHERE lower(email)=lower($1) AND role='FACILITY' AND active=true LIMIT 1",[clean(body.email)]);
@@ -2235,7 +2251,8 @@ async function handler(event){
    await requireUser(bearer(event),['ADMIN']);
    const result=await query(`SELECT g.id,g.document_key,g.expires_at,g.revoked_at,g.created_at,u.email,u.display_name,u.scope_id
      FROM secure_document_grants g JOIN users u ON u.id=g.user_id ORDER BY g.created_at DESC LIMIT 250`);
-   return json(200,{grants:result.rows.map(row=>({id:row.id,documentKey:row.document_key,documentTitle:getSecureDocument(row.document_key)?.title||row.document_key,email:row.email,name:row.display_name,facilityScopeId:row.scope_id,expiresAt:row.expires_at,revokedAt:row.revoked_at,createdAt:row.created_at,active:!row.revoked_at&&new Date(row.expires_at)>new Date()}))});
+   const titles=new Map((await listAllSecureDocuments()).map(document=>[document.key,document.title]));
+   return json(200,{grants:result.rows.map(row=>({id:row.id,documentKey:row.document_key,documentTitle:titles.get(row.document_key)||row.document_key,email:row.email,name:row.display_name,facilityScopeId:row.scope_id,expiresAt:row.expires_at,revokedAt:row.revoked_at,createdAt:row.created_at,active:!row.revoked_at&&new Date(row.expires_at)>new Date()}))});
   }
   if(p[0]==='admin'&&p[1]==='document-grants'&&p[2]&&method==='PATCH'){
    const me=await requireUser(bearer(event),['ADMIN']);
@@ -2244,30 +2261,50 @@ async function handler(event){
    await audit('SECURE_DOCUMENT',String(result.rows[0].id),'ACCESS_REVOKED',{documentKey:result.rows[0].document_key,by:me.email});
    return json(200,{revoked:true,grant:result.rows[0]});
   }
+  if(p[0]==='admin'&&p[1]==='secure-documents'&&method==='POST'){
+   const me=await requireUser(bearer(event),['ADMIN']);
+   const body=parseBody(event);required(body,['title','fileName','mimeType','dataBase64']);
+   const mimeType=clean(body.mimeType).toLowerCase();
+   if(!['image/png','image/jpeg'].includes(mimeType))return json(400,{error:'Upload a PNG or JPG document display image'});
+   let fileData;try{fileData=Buffer.from(clean(body.dataBase64),'base64')}catch{return json(400,{error:'The uploaded document could not be decoded'})}
+   if(!fileData.length||fileData.length>4*1024*1024)return json(400,{error:'Document image must be between 1 byte and 4 MB'});
+   const validSignature=mimeType==='image/png'?fileData.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])):fileData[0]===255&&fileData[1]===216&&fileData[2]===255;
+   if(!validSignature)return json(400,{error:'File contents do not match the selected image type'});
+   const key=`${secureDocumentSlug(body.title)}-${crypto.randomBytes(3).toString('hex')}`;
+   const result=await query(`INSERT INTO secure_documents(document_key,title,description,original_name,mime_type,file_size,file_data,created_by)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING document_key,title,description,original_name,mime_type,file_size,created_at`,
+     [key,clean(body.title).slice(0,160),clean(body.description).slice(0,500),clean(body.fileName).slice(0,255),mimeType,fileData.length,fileData,me.id]);
+   const row=result.rows[0];await audit('SECURE_DOCUMENT',key,'DOCUMENT_UPLOADED',{title:row.title,fileName:row.original_name,fileSize:row.file_size,by:me.email});
+   return json(201,{document:{key:row.document_key,title:row.title,description:row.description,originalName:row.original_name,mimeType:row.mime_type,fileSize:row.file_size,createdAt:row.created_at,uploaded:true}});
+  }
   if(p[0]==='admin'&&p[1]==='secure-documents'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
-   return json(200,{documents:listSecureDocuments().map(({links,calculator,...document})=>document)});
+   return json(200,{documents:(await listAllSecureDocuments()).map(({links,calculator,...document})=>document)});
   }
   if(p[0]==='secure-documents'&&method==='GET'&&p.length===1){
    const me=await requireUser(bearer(event),['FACILITY','ADMIN']);
    if(me.role==='ADMIN'){
     await audit('SECURE_DOCUMENT','catalog','ADMIN_PREVIEWED',{by:me.email});
-    return json(200,{documents:listSecureDocuments().map(document=>({...document,expiresAt:null,adminPreview:true}))});
+    return json(200,{documents:(await listAllSecureDocuments()).map(document=>({...document,expiresAt:null,adminPreview:true}))});
    }
    const result=await query(`SELECT DISTINCT ON (document_key) document_key,expires_at FROM secure_document_grants
      WHERE user_id=$1 AND revoked_at IS NULL AND expires_at>now() ORDER BY document_key,expires_at DESC`,[me.id]);
    await audit('SECURE_DOCUMENT','catalog','VIEWED',{by:me.email,count:result.rowCount});
-   return json(200,{documents:result.rows.map(row=>{const document=getSecureDocument(row.document_key);return document?{...document,expiresAt:row.expires_at}:null}).filter(Boolean)});
+   const documents=await Promise.all(result.rows.map(async row=>{const document=await findSecureDocument(row.document_key);return document?{...document,expiresAt:row.expires_at}:null}));
+   return json(200,{documents:documents.filter(Boolean)});
   }
   if(p[0]==='secure-documents'&&p[1]&&p[2]==='image'&&method==='GET'){
    const me=await requireUser(bearer(event),['FACILITY','ADMIN']);
-   const document=getSecureDocument(decodeURIComponent(p[1]));
+   const document=await findSecureDocument(decodeURIComponent(p[1]));
    if(!document)return json(404,{error:'Document not found'});
    const grant=me.role==='ADMIN'?{rows:[{id:'admin-preview'}]}:await query(`SELECT id FROM secure_document_grants WHERE user_id=$1 AND document_key=$2 AND revoked_at IS NULL AND expires_at>now() ORDER BY expires_at DESC LIMIT 1`,[me.id,document.key]);
    if(!grant.rows[0])return json(403,{error:'Document access is not active or has expired'});
-   const image=fs.readFileSync(path.join(__dirname,'_private-documents',document.asset));
+   const stored=document.uploaded?await query('SELECT file_data,mime_type FROM secure_documents WHERE document_key=$1 AND active=true LIMIT 1',[document.key]):null;
+   const image=document.uploaded?stored.rows[0]?.file_data:fs.readFileSync(path.join(__dirname,'_private-documents',document.asset));
+   if(!image)return json(404,{error:'Document file not found'});
+   const mimeType=document.uploaded?stored.rows[0].mime_type:'image/png';
    await audit('SECURE_DOCUMENT',String(grant.rows[0].id),me.role==='ADMIN'?'ADMIN_PAGE_PREVIEWED':'PAGE_VIEWED',{by:me.email,documentKey:document.key});
-   return {statusCode:200,isBase64Encoded:true,headers:{'content-type':'image/png','cache-control':'private, no-store, max-age=0','content-disposition':'inline','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; frame-ancestors 'self'"},body:image.toString('base64')};
+   return {statusCode:200,isBase64Encoded:true,headers:{'content-type':mimeType,'cache-control':'private, no-store, max-age=0','content-disposition':'inline','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; frame-ancestors 'self'"},body:image.toString('base64')};
   }
   if(p[0]==='admin'&&p[1]==='settings'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN','DISPATCHER']);
