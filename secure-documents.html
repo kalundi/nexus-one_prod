@@ -16,12 +16,21 @@
   <a class="skip" href="#main">Skip to main content</a>
   <header class="top globalTop facilityWorldHeader"><div class="shell nav globalNav facilityWorldNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="secureDocumentNav" class="links globalLinks facilityWorldLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/booking-app.html">Book a Ride</a><a href="/livecare.html">Track a Ride</a><a href="/facility.html">Facility Portal</a><a aria-current="page" href="/secure-documents.html">Secure Documents</a></nav><div class="globalActions facilityWorldActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18886395766"><small>Call Nexus</small><strong>(888) 639-5766</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true">&rarr;</span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="secureDocumentNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header>
   <main class="shell secureDocs" id="main">
-    <section class="card secureIntro"><div><div class="eyebrow">Temporary authorized access</div><h1>Secure documents</h1><p id="accessStatus">Verifying document authorization...</p></div><span class="status blue">View only</span></section>
+    <section class="secureIntro"><div><div class="eyebrow">Nexus document vault</div><h1>Your secure document library</h1><p>Review resources shared with your facility in one private, view-only workspace.</p></div><div class="vaultStatus"><span class="vaultStatusIcon" aria-hidden="true">&#128274;</span><span><strong>Protected access</strong><small id="accessStatus">Verifying authorization...</small></span></div></section>
     <section id="documentPanel" hidden>
-      <div class="secureNotice" role="note">Confidential facility material. Access is logged and expires automatically. Printing, saving, selection, and context menus are disabled as deterrents. Screenshots cannot be technically prevented on the open web.</div>
-      <label class="documentChooser" id="documentChooser" hidden>Approved document<select id="documentSelect"></select></label>
-      <div class="protectedPage" id="protectedPage" aria-label="Secure document viewer"><div class="documentCanvas" id="documentCanvas"><img id="documentImage" alt=""><div class="viewerShield" aria-hidden="true"></div><div id="documentOverlay"></div></div></div>
-      <section class="card" id="documentActions" hidden><h2>Document links</h2><div class="liveLinks" id="liveLinks"></div></section>
+      <div class="repositoryLayout">
+        <aside class="repositorySidebar" aria-label="Approved document library">
+          <div class="libraryHeading"><div><span class="sectionLabel">Library</span><h2>Approved documents</h2></div><span class="documentCount" id="documentCount">0</span></div>
+          <div class="documentLibrary" id="documentLibrary"></div>
+          <div class="accessSummary"><span class="accessSummaryIcon" aria-hidden="true">&#10003;</span><div><strong>View-only access</strong><p id="repositoryAccessSummary">Your authorization is active.</p></div></div>
+          <a class="requestDocument" href="mailto:contact@nexusmt.com?subject=Secure%20Document%20Access%20Request">Request another document <span aria-hidden="true">&rarr;</span></a>
+        </aside>
+        <div class="repositoryViewer">
+          <header class="viewerHeader"><div class="documentIdentity"><span class="documentIcon" aria-hidden="true">PDF</span><div><span class="sectionLabel">Currently viewing</span><h2 id="activeDocumentTitle">Secure document</h2><p id="activeDocumentDescription"></p></div></div><div class="viewerMeta"><span>View only</span><span id="activeDocumentAccess">Authorized</span></div></header>
+          <div class="secureNotice" role="note"><span aria-hidden="true">&#128737;</span><span><strong>Confidential facility material.</strong> Access is logged and expires automatically. Printing, saving, selection, and context menus are disabled as deterrents. Screenshots cannot be technically prevented on the open web.</span></div>
+          <div class="protectedPage" id="protectedPage" aria-label="Secure document viewer"><div class="documentCanvas" id="documentCanvas"><img id="documentImage" alt=""><div class="viewerShield" aria-hidden="true"></div><div id="documentOverlay"></div></div></div>
+        </div>
+      </div>
     </section>
     <section id="accessDenied" class="card" hidden><h2>Document unavailable</h2><p>Your access has expired or has not yet been approved. Contact Nexus to request temporary access.</p><a class="button" href="mailto:contact@nexusmt.com?subject=Secure%20Document%20Access%20Request">Request access</a></section>
   </main>

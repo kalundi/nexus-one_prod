@@ -27,10 +27,17 @@
     ['calcService','calcMiles','calcWait','calcPremium'].forEach(id=>document.getElementById(id)?.addEventListener('input',calculate));
     calculate();
   }
-  function renderActionLinks(links=[]){
-    const section=document.getElementById('documentActions'),list=document.getElementById('liveLinks');
-    section.hidden=!links.length;
-    list.innerHTML=links.map(link=>`<a href="${link.href}" ${safeExternal(link.href)?'target="_blank" rel="noopener"':''}>${link.label}</a>`).join('');
+  function renderLibrary(){
+    const library=document.getElementById('documentLibrary');
+    document.getElementById('documentCount').textContent=documents.length;
+    library.innerHTML='';
+    documents.forEach(item=>{
+      const button=document.createElement('button');button.type='button';button.className='libraryDocument';button.dataset.documentKey=item.key;
+      const accessLabel=item.adminPreview?'Administrator preview':item.expiresAt?`Expires ${new Date(item.expiresAt).toLocaleDateString()}`:'Authorized';
+      button.innerHTML=`<span class="libraryFileIcon" aria-hidden="true">PDF</span><span><strong></strong><small></small></span><span class="libraryArrow" aria-hidden="true">&rsaquo;</span>`;
+      button.querySelector('strong').textContent=item.title;button.querySelector('small').textContent=accessLabel;
+      button.addEventListener('click',()=>displayDocument(item.key).catch(showUnavailable));library.appendChild(button);
+    });
   }
   async function displayDocument(key){
     const selected=documents.find(document=>document.key===key);if(!selected)return;
@@ -43,17 +50,21 @@
     const image=document.getElementById('documentImage');image.src=imageDataUrl;image.alt=selected.title;
     document.getElementById('protectedPage').setAttribute('aria-label',`${selected.title} secure viewer`);
     document.getElementById('documentOverlay').innerHTML=buildCalculator(selected.calculator)+buildHotspots(selected.links);
-    bindCalculator(selected.calculator);renderActionLinks(selected.links);
-    document.getElementById('accessStatus').textContent=selected.adminPreview?`Administrator preview: ${selected.title}`:`${selected.title} approved until ${new Date(selected.expiresAt).toLocaleString()}`;
+    bindCalculator(selected.calculator);
+    const accessLabel=selected.adminPreview?'Administrator preview':selected.expiresAt?`Authorized until ${new Date(selected.expiresAt).toLocaleString()}`:'Authorized access';
+    document.getElementById('accessStatus').textContent=accessLabel;
+    document.getElementById('activeDocumentTitle').textContent=selected.title;
+    document.getElementById('activeDocumentDescription').textContent=selected.description||'A secure Nexus Medical Transit resource.';
+    document.getElementById('activeDocumentAccess').textContent=selected.adminPreview?'Admin preview':'Access active';
+    document.getElementById('repositoryAccessSummary').textContent=accessLabel;
+    document.querySelectorAll('.libraryDocument').forEach(button=>{const active=button.dataset.documentKey===selected.key;button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','true');else button.removeAttribute('aria-current')});
   }
   async function load(){
     try{
       const [catalogResponse,settingsResponse]=await Promise.all([fetch('/api/secure-documents',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'}),fetch('/api/settings/public',{cache:'no-store'})]);
       const catalog=await catalogResponse.json().catch(()=>({}));if(!catalogResponse.ok||!catalog.documents?.length)throw new Error('No active document grant');
       pricing=(await settingsResponse.json()).pricing||{};documents=catalog.documents;
-      const chooser=document.getElementById('documentChooser'),select=document.getElementById('documentSelect');
-      select.innerHTML=documents.map(document=>`<option value="${document.key}">${document.title}</option>`).join('');
-      chooser.hidden=documents.length<2;select.addEventListener('change',()=>displayDocument(select.value).catch(showUnavailable));
+      renderLibrary();
       await displayDocument(documents[0].key);document.getElementById('documentPanel').hidden=false;
     }catch(error){showUnavailable();}
   }
