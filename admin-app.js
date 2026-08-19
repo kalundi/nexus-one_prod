@@ -388,6 +388,22 @@ async function loadUsers(){
 
 document.getElementById('refreshUsers').addEventListener('click',loadUsers);
 
+document.getElementById('grantDocumentAccess')?.addEventListener('click',async()=>{
+  const email=document.getElementById('documentFacilityEmail').value.trim();
+  const hours=Number(document.getElementById('documentGrantHours').value||0);
+  const msg=document.getElementById('documentGrantMsg');
+  if(!email||hours<1){showMsg(msg,'Enter a facility manager email and a valid access period.','err');return;}
+  const button=document.getElementById('grantDocumentAccess');
+  button.disabled=true;button.textContent='Granting...';
+  try{
+    const response=await fetch('/api/admin/document-grants',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({email,documentKey:'transportation-rates',hours})});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'Unable to grant document access');
+    showMsg(msg,`Access granted through ${new Date(data.grant.expiresAt).toLocaleString()}.`,'ok');
+  }catch(error){showMsg(msg,error.message,'err');}
+  finally{button.disabled=false;button.textContent='Grant temporary access';}
+});
+
 // Reset standard non-production accounts
 document.getElementById('resetCredentialsBtn')?.addEventListener('click',async()=>{
   const btn=document.getElementById('resetCredentialsBtn');

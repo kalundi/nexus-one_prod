@@ -8,6 +8,16 @@
   const facility=window.NexusFacility;
   if(!facility) return;
 
+  const quickActions=document.querySelector('.stackActions');
+  if(quickActions&&!quickActions.querySelector('[data-secure-documents-link]')){
+    const secureLink=document.createElement('a');
+    secureLink.className='button secondary';
+    secureLink.href='/secure-documents.html';
+    secureLink.dataset.secureDocumentsLink='true';
+    secureLink.textContent='Secure documents';
+    quickActions.appendChild(secureLink);
+  }
+
   function facilityTrips(){
     const profile=facility.getProfile();
     return trips().filter(t=>!t.facilityId||t.facilityId===profile.id||String(t.facility||'').toLowerCase().includes(profile.name.toLowerCase().split(' ')[0]));

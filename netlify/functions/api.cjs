@@ -1,4 +1,6 @@
 const crypto=require('crypto');
+const fs=require('fs');
+const path=require('path');
 const {query,getPool}=require('./_shared/db.cjs');
 const {json,parseBody,bearer,routePath}=require('./_shared/http.cjs');
 const {digest,safeUser,requireUser,audit}=require('./_shared/auth.cjs');
@@ -271,16 +273,16 @@ async function createBookingFromBrokerRequest(requestBody,requestRow){
 }
 
 const DEFAULT_PRICING={
- wheelchair:{label:'Wheelchair Transportation',base:95,includedMiles:10,perMile:4.25,waitPer15:25},
- ambulatory:{label:'Ambulatory Transportation',base:65,includedMiles:5,perMile:3.25,waitPer15:20},
- facility_transfer:{label:'Facility-to-Facility Transfer (Routine IFT)',base:165,includedMiles:8,perMile:5.25,waitPer15:35},
- facility_transfer_critical:{label:'Facility-to-Facility Transfer (High-Acuity IFT)',base:340,includedMiles:8,perMile:8.75,waitPer15:50},
- broda:{label:'Broda Chair Transportation',base:145,includedMiles:10,perMile:5.25,waitPer15:25},
- stretcher:{label:'Stretcher Transportation',base:260,includedMiles:10,perMile:7.5,waitPer15:35},
- bariatric:{label:'Bariatric Transportation',base:385,includedMiles:10,perMile:9.5,waitPer15:45},
- bls:{label:'BLS Ambulance',base:725,includedMiles:0,perMile:17.5,waitPer15:55},
- als1:{label:'ALS I Ambulance',base:925,includedMiles:0,perMile:20,waitPer15:65},
- als2:{label:'ALS II Ambulance',base:1350,includedMiles:0,perMile:23,waitPer15:75}
+ wheelchair:{label:'Wheelchair Transportation',base:98,includedMiles:8,perMile:4.1,waitPer15:18.75},
+ ambulatory:{label:'Ambulatory Transportation',base:75,includedMiles:5,perMile:3.55,waitPer15:12.5},
+ facility_transfer:{label:'Facility-to-Facility Transfer (Routine IFT)',base:165,includedMiles:8,perMile:5.25,waitPer15:30},
+ facility_transfer_critical:{label:'Facility-to-Facility Transfer (High-Acuity IFT)',base:340,includedMiles:8,perMile:8.75,waitPer15:45},
+ broda:{label:'Broda Chair Transportation',base:165,includedMiles:8,perMile:5.5,waitPer15:25},
+ stretcher:{label:'Stretcher Transportation',base:455,includedMiles:8,perMile:7.95,waitPer15:36.25},
+ bariatric:{label:'Bariatric Transportation',base:430,includedMiles:8,perMile:9.95,waitPer15:45},
+ bls:{label:'BLS Ambulance',base:1125,includedMiles:0,perMile:18.5,waitPer15:50},
+ als1:{label:'ALS I Ambulance',base:1395,includedMiles:0,perMile:21.5,waitPer15:62.5},
+ als2:{label:'ALS II Ambulance',base:1450,includedMiles:0,perMile:24.5,waitPer15:75}
 };
 
 const DEFAULT_SERVICE_POLICIES={
@@ -2212,6 +2214,35 @@ async function handler(event){
   if(p[0]==='settings'&&p[1]==='public'&&method==='GET'){
    const settings=await readPlatformSettings();
    return json(200,{pricing:settings.pricing,fareRules:settings.fareRules,activeServices:settings.activeServices,organization:settings.organization});
+  }
+  if(p[0]==='admin'&&p[1]==='document-grants'&&method==='POST'){
+   const me=await requireUser(bearer(event),['ADMIN']);
+   const body=parseBody(event);required(body,['email','documentKey','hours']);
+   if(clean(body.documentKey)!=='transportation-rates')return json(400,{error:'Unknown document'});
+   const hours=Math.min(720,Math.max(1,Number(body.hours)||0));
+   const target=await query("SELECT id,email,scope_id FROM users WHERE lower(email)=lower($1) AND role='FACILITY' AND active=true LIMIT 1",[clean(body.email)]);
+   if(!target.rows[0])return json(404,{error:'Active facility manager account not found'});
+   const result=await query(`INSERT INTO secure_document_grants(user_id,facility_scope_id,document_key,granted_by,expires_at)
+     VALUES($1,$2,$3,$4,now()+($5::text||' hours')::interval)
+     RETURNING id,document_key,expires_at`,[target.rows[0].id,target.rows[0].scope_id||null,'transportation-rates',me.id,String(hours)]);
+   const grant=result.rows[0];
+   await audit('SECURE_DOCUMENT',String(grant.id),'ACCESS_GRANTED',{targetEmail:target.rows[0].email,documentKey:grant.document_key,expiresAt:grant.expires_at,by:me.email});
+   return json(201,{grant:{id:grant.id,documentKey:grant.document_key,expiresAt:grant.expires_at}});
+  }
+  if(p[0]==='secure-documents'&&method==='GET'&&p.length===1){
+   const me=await requireUser(bearer(event),['FACILITY']);
+   const result=await query(`SELECT document_key,expires_at FROM secure_document_grants
+     WHERE user_id=$1 AND revoked_at IS NULL AND expires_at>now() ORDER BY expires_at DESC`,[me.id]);
+   await audit('SECURE_DOCUMENT','catalog','VIEWED',{by:me.email,count:result.rowCount});
+   return json(200,{documents:result.rows.map(row=>({key:row.document_key,title:'Nexus Transportation Rates',expiresAt:row.expires_at}))});
+  }
+  if(p[0]==='secure-documents'&&p[1]==='transportation-rates'&&p[2]==='image'&&method==='GET'){
+   const me=await requireUser(bearer(event),['FACILITY']);
+   const grant=await query(`SELECT id FROM secure_document_grants WHERE user_id=$1 AND document_key='transportation-rates' AND revoked_at IS NULL AND expires_at>now() ORDER BY expires_at DESC LIMIT 1`,[me.id]);
+   if(!grant.rows[0])return json(403,{error:'Document access is not active or has expired'});
+   const image=fs.readFileSync(path.join(__dirname,'_private-documents','transportation-rates.png'));
+   await audit('SECURE_DOCUMENT',String(grant.rows[0].id),'PAGE_VIEWED',{by:me.email,documentKey:'transportation-rates'});
+   return {statusCode:200,isBase64Encoded:true,headers:{'content-type':'image/png','cache-control':'private, no-store, max-age=0','content-disposition':'inline','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; frame-ancestors 'self'"},body:image.toString('base64')};
   }
   if(p[0]==='admin'&&p[1]==='settings'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN','DISPATCHER']);

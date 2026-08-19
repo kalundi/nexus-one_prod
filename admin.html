@@ -278,6 +278,20 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       </div>
     </details>
 
+    <details class="userModuleCard" id="documentAccessModule" data-user-module>
+      <summary><div class="userModuleTitle"><strong>Secure document access</strong><small>Grant a facility manager time-limited, view-only access.</small></div><span class="userModuleCaret" aria-hidden="true">&gt;</span></summary>
+      <div class="userModuleBody"><div class="createUserForm" style="margin:0">
+        <h3>Approve a document request</h3>
+        <p style="color:var(--muted)">Access is account-specific, expires automatically, is audited, and does not expose the source PDF.</p>
+        <div class="formRow triple">
+          <div class="formField"><label for="documentFacilityEmail">Facility manager email *</label><input id="documentFacilityEmail" type="email" placeholder="manager@facility.org"></div>
+          <div class="formField"><label for="documentGrantHours">Access period (hours) *</label><input id="documentGrantHours" type="number" min="1" max="720" value="24"></div>
+          <div class="formField" style="align-self:end"><button class="button primary" id="grantDocumentAccess" type="button" style="width:100%">Grant temporary access</button></div>
+        </div>
+        <div id="documentGrantMsg" hidden></div>
+      </div></div>
+    </details>
+
     <details class="userModuleCard" id="userDirectoryModule" data-user-module>
       <summary>
         <div class="userModuleTitle"><strong>User details</strong><small>Monitor role assignments, active status, and account-level actions.</small></div>
