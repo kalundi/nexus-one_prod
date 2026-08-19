@@ -12,7 +12,7 @@
   <script src="./i18n.js" defer></script>
   <script src="./auth-guard.js"></script>
 </head>
-<body data-backoffice-workspace="true" data-bo-title="Secure facility documents" data-bo-copy="Review temporarily authorized Nexus documents and customer-specific resources.">
+<body>
   <a class="skip" href="#main">Skip to main content</a>
   <header class="top globalTop facilityWorldHeader"><div class="shell nav globalNav facilityWorldNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="secureDocumentNav" class="links globalLinks facilityWorldLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Track a Ride</a><a href="/facility.html">Facility Portal</a><a aria-current="page" href="/secure-documents.html">Secure Documents</a></nav><div class="globalActions facilityWorldActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18886395766"><small>Call Nexus</small><strong>(888) 639-5766</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true">&rarr;</span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="secureDocumentNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header>
   <main class="shell secureDocs" id="main">
@@ -38,7 +38,6 @@
   <div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">&#9855;</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div>
   <script>(function(){const toggle=document.querySelector('.mobileNavToggle'),nav=document.getElementById('secureDocumentNav');toggle?.addEventListener('click',()=>{const open=!nav.classList.contains('open');nav.classList.toggle('open',open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'Close navigation':'Open navigation')});nav?.addEventListener('click',()=>{nav.classList.remove('open');toggle?.setAttribute('aria-expanded','false')})})();</script>
   <script src="./platform.js?v=32"></script>
-  <script src="./backoffice-workspace.js"></script>
   <script src="./secure-documents.js"></script>
 </body>
 </html>
