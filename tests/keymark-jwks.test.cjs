@@ -19,7 +19,7 @@ test('builds a public verification-only JWKS from a PEM public key', () => {
 test('derives a compact ES384 public JWKS from the configured private key', () => {
   const { privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-384' });
   const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
-  const jwk = jwksFromEnvironment({ KEYMARK_JWT_PRIVATE_KEY: pem, KEYMARK_JWT_KEY_ID: 'keymark-prod-2026-08' }).keys[0];
+  const jwk = jwksFromEnvironment({ KEYMARK_JWT_PRIVATE_KEY: pem, KEYMARK_JWT_KEY_ID: 'test-es384-key' }).keys[0];
   assert.equal(jwk.kty, 'EC');
   assert.equal(jwk.crv, 'P-384');
   assert.equal(jwk.alg, 'ES384');
