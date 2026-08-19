@@ -4,10 +4,13 @@ const clean = value => String(value ?? '').trim();
 
 function normalizeJwk(jwk, fallbackKid) {
   if (!jwk || typeof jwk !== 'object' || Array.isArray(jwk)) throw new Error('KeyMark JWKS contains an invalid key');
-  if (jwk.kty !== 'RSA' || !jwk.n || !jwk.e) throw new Error('KeyMark JWKS keys must be RSA public keys');
+  const isRsa = jwk.kty === 'RSA' && jwk.n && jwk.e;
+  const isEc = jwk.kty === 'EC' && jwk.crv === 'P-384' && jwk.x && jwk.y;
+  if (!isRsa && !isEc) throw new Error('KeyMark JWKS keys must be RSA or P-384 EC public keys');
   const kid = clean(jwk.kid || fallbackKid);
   if (!kid) throw new Error('KEYMARK_JWT_KEY_ID is required for every published key');
-  return { ...jwk, kid, use: 'sig', alg: clean(jwk.alg) || 'RS384', key_ops: ['verify'] };
+  const { d, p, q, dp, dq, qi, ...publicJwk } = jwk;
+  return { ...publicJwk, kid, use: 'sig', alg: clean(jwk.alg) || (isEc ? 'ES384' : 'RS384'), key_ops: ['verify'] };
 }
 
 function jwksFromEnvironment(env = process.env) {
@@ -21,10 +24,10 @@ function jwksFromEnvironment(env = process.env) {
     return { keys };
   }
 
-  const publicKey = clean(env.KEYMARK_JWT_PUBLIC_KEY).replace(/\\n/g, '\n');
-  if (!publicKey) throw new Error('KEYMARK_JWT_PUBLIC_KEY or KEYMARK_JWKS_JSON is required');
+  const publicKey = clean(env.KEYMARK_JWT_PUBLIC_KEY || env.KEYMARK_JWT_PRIVATE_KEY).replace(/\\n/g, '\n');
+  if (!publicKey) throw new Error('KEYMARK_JWT_PRIVATE_KEY, KEYMARK_JWT_PUBLIC_KEY, or KEYMARK_JWKS_JSON is required');
   let jwk;
-  try { jwk = crypto.createPublicKey(publicKey).export({ format: 'jwk' }); } catch { throw new Error('KEYMARK_JWT_PUBLIC_KEY must be a valid PEM public key'); }
+  try { jwk = crypto.createPublicKey(publicKey).export({ format: 'jwk' }); } catch { throw new Error('KeyMark JWT key must be a valid PEM key'); }
   return { keys: [normalizeJwk(jwk, env.KEYMARK_JWT_KEY_ID)] };
 }
 

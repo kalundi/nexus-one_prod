@@ -7,8 +7,8 @@ KeyMark uses a vendor-neutral appointment model internally. Do not commit creden
 - `KEYMARK_INTEGRATION_API_KEY`: high-entropy credential used by approved inbound interface engines.
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`: required for consent-verified SMS and voice outreach.
 - `KEYMARK_PAYER_ENDPOINT`, `KEYMARK_PAYER_TOKEN`: reserved for the selected eligibility clearinghouse. KeyMark does not transmit payer requests until both are configured and the member-identifier handling design is approved.
-- `KEYMARK_JWT_PRIVATE_KEY`: private signing key used by the FHIR connection record through `privateKeyEnvVar`. Store it only as a protected environment variable.
-- `KEYMARK_JWT_PUBLIC_KEY`: matching PEM public key published through the JWKS endpoint.
+- `KEYMARK_JWT_PRIVATE_KEY`: P-384 private signing key used by the FHIR connection record through `privateKeyEnvVar`. The JWKS endpoint derives and publishes only its public coordinates. Store it only as a protected environment variable.
+- `KEYMARK_JWT_PUBLIC_KEY`: optional matching PEM public key. Omit it on Netlify to conserve the AWS Lambda 4 KB environment-variable allowance.
 - `KEYMARK_JWT_KEY_ID`: stable identifier included in both the published JWK and signed JWT header.
 
 ## Epic public JWK Set URL
@@ -20,7 +20,7 @@ Use separate deployments and key pairs for each Epic environment:
 - Non-Production JWK Set URL: `https://<staging-domain>/.well-known/keymark-jwks.json`
 - Production JWK Set URL: `https://<production-domain>/.well-known/keymark-jwks.json`
 
-Generate an RSA key pair outside the repository, put the private and public PEM values in the appropriate deployment's protected environment variables, and use a unique `KEYMARK_JWT_KEY_ID` such as `keymark-staging-2026-01`. Multiline PEM values may use literal newlines or escaped `\\n` characters.
+Generate a P-384/ES384 key pair outside the repository, put only the private PEM in the deployment's protected `KEYMARK_JWT_PRIVATE_KEY` environment variable, and use a unique `KEYMARK_JWT_KEY_ID` such as `keymark-staging-2026-01`. Multiline PEM values may use literal newlines or escaped `\\n` characters. The compact EC key avoids Netlify/AWS Lambda's 4 KB total environment-variable limit.
 
 For rotation without interruption, set `KEYMARK_JWKS_JSON` to a public-only JWK Set containing both the current and next public keys. It takes precedence over `KEYMARK_JWT_PUBLIC_KEY`. Begin signing with the new private key and matching `KEYMARK_JWT_KEY_ID` only after Epic can retrieve both keys; remove the old public key after the transition window.
 

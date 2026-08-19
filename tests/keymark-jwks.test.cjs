@@ -16,6 +16,16 @@ test('builds a public verification-only JWKS from a PEM public key', () => {
   assert.equal('d' in jwks.keys[0], false);
 });
 
+test('derives a compact ES384 public JWKS from the configured private key', () => {
+  const { privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-384' });
+  const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const jwk = jwksFromEnvironment({ KEYMARK_JWT_PRIVATE_KEY: pem, KEYMARK_JWT_KEY_ID: 'keymark-prod-2026-08' }).keys[0];
+  assert.equal(jwk.kty, 'EC');
+  assert.equal(jwk.crv, 'P-384');
+  assert.equal(jwk.alg, 'ES384');
+  assert.equal('d' in jwk, false);
+});
+
 test('supports multiple public keys for rotation and rejects duplicate key IDs', () => {
   const key = kid => ({ kty: 'RSA', n: Buffer.from(`modulus-${kid}`).toString('base64url'), e: 'AQAB', kid });
   assert.equal(jwksFromEnvironment({ KEYMARK_JWKS_JSON: JSON.stringify({ keys: [key('current'), key('next')] }) }).keys.length, 2);

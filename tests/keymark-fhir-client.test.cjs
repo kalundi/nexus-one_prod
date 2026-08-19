@@ -20,6 +20,13 @@ test('private-key OAuth assertion is short-lived and correctly signed',()=>{
  assert.equal(crypto.verify('RSA-SHA384',Buffer.from(`${parts[0]}.${parts[1]}`),publicKey,Buffer.from(parts[2],'base64url')),true);
 });
 
+test('ES384 OAuth assertion uses the compact JOSE signature format',()=>{
+ const {privateKey,publicKey}=crypto.generateKeyPairSync('ec',{namedCurve:'P-384'});
+ const jwt=clientAssertion({clientId:'keymark-client',tokenUrl:'https://ehr.example.com/oauth2/token',privateKey:privateKey.export({type:'pkcs8',format:'pem'}),algorithm:'ES384'}),parts=jwt.split('.');
+ const header=JSON.parse(Buffer.from(parts[0],'base64url'));assert.equal(header.alg,'ES384');assert.equal(Buffer.from(parts[2],'base64url').length,96);
+ assert.equal(crypto.verify('sha384',Buffer.from(`${parts[0]}.${parts[1]}`),{key:publicKey,dsaEncoding:'ieee-p1363'},Buffer.from(parts[2],'base64url')),true);
+});
+
 test('connection activation requires Appointment in the CapabilityStatement',async()=>{
  const previousFetch=global.fetch,previousSecret=process.env.KEYMARK_TEST_CLIENT_SECRET;process.env.KEYMARK_TEST_CLIENT_SECRET='sandbox-secret';let call=0;
  global.fetch=async()=>{call++;return call===1?{ok:true,json:async()=>({access_token:'sandbox-token'})}:{ok:true,json:async()=>({resourceType:'CapabilityStatement',fhirVersion:'4.0.1',software:{name:'Sandbox EHR'},rest:[{resource:[{type:'Patient'},{type:'Appointment'}]}]})}};
