@@ -2,6 +2,7 @@
 (function(){const t=document.querySelector('.mobileNavToggle'),l=document.querySelector('.globalLinks');if(t)t.addEventListener('click',()=>{const e=t.getAttribute('aria-expanded')==='true';t.setAttribute('aria-expanded',!e);l.classList.toggle('open')})})();
 
 const token=()=>sessionStorage.getItem('nexusAccessToken');
+const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
 const userRole=()=>{
   try{return String(JSON.parse(sessionStorage.getItem('nexusUser')||'{}').role||window.NexusAuthorizedUser?.role||'').toUpperCase();}
   catch{return String(window.NexusAuthorizedUser?.role||'').toUpperCase();}
@@ -411,9 +412,29 @@ async function loadSecureDocumentOptions(){
     const response=await fetch('/api/admin/secure-documents',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(data.error||'Unable to load documents');
-    select.innerHTML=(data.documents||[]).map(document=>`<option value="${document.key}">${document.title}</option>`).join('')||'<option value="">No documents configured</option>';
-  }catch(error){select.innerHTML='<option value="">Documents unavailable</option>';}
+    select.innerHTML=(data.documents||[]).map(document=>`<option value="${escapeHtml(document.key)}">${escapeHtml(document.title)}</option>`).join('')||'<option value="">No documents configured</option>';
+    const rows=document.getElementById('secureDocumentRows');
+    if(rows)rows.innerHTML=(data.documents||[]).map(document=>`<tr><td><strong>${escapeHtml(document.title)}</strong><br><small>${escapeHtml(document.description||'No description')}</small></td><td>${escapeHtml(document.originalName||'Nexus managed asset')}${document.fileSize?`<br><small>${(Number(document.fileSize)/1048576).toFixed(2)} MB</small>`:''}</td><td>${document.createdAt?escapeHtml(new Date(document.createdAt).toLocaleString()):'Published with site'}</td><td><span class="pill ${document.uploaded?'green':'muted'}">${document.uploaded?'Admin upload':'Built in'}</span></td></tr>`).join('')||'<tr><td colspan="4">No documents configured.</td></tr>';
+  }catch(error){select.innerHTML='<option value="">Documents unavailable</option>';const rows=document.getElementById('secureDocumentRows');if(rows)rows.innerHTML=`<tr><td colspan="4">${error.message}</td></tr>`;}
 }
+document.getElementById('uploadSecureDocument')?.addEventListener('click',async()=>{
+  const title=document.getElementById('secureDocumentTitle').value.trim();
+  const description=document.getElementById('secureDocumentDescription').value.trim();
+  const file=document.getElementById('secureDocumentFile').files?.[0];
+  const button=document.getElementById('uploadSecureDocument'),msg=document.getElementById('secureDocumentUploadMsg');
+  if(!title||!file){showMsg(msg,'Enter a title and choose a PNG or JPG document image.','err');return;}
+  if(!['image/png','image/jpeg'].includes(file.type)){showMsg(msg,'The secure viewer accepts PNG or JPG display files.','err');return;}
+  if(file.size>4*1024*1024){showMsg(msg,'The document image must be 4 MB or smaller.','err');return;}
+  button.disabled=true;button.textContent='Adding document...';
+  try{
+    const dataBase64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');reader.onerror=()=>reject(new Error('Unable to read the selected file'));reader.readAsDataURL(file)});
+    const response=await fetch('/api/admin/secure-documents',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({title,description,fileName:file.name,mimeType:file.type,dataBase64})});
+    const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Unable to add document');
+    document.getElementById('secureDocumentTitle').value='';document.getElementById('secureDocumentDescription').value='';document.getElementById('secureDocumentFile').value='';
+    showMsg(msg,`${data.document.title} was added to the secure repository and is ready to grant.`,'ok');await loadSecureDocumentOptions();
+  }catch(error){showMsg(msg,error.message,'err');}
+  finally{button.disabled=false;button.textContent='Add to repository';}
+});
 async function loadDocumentGrants(){
   const rows=document.getElementById('documentGrantRows');if(!rows)return;
   try{
