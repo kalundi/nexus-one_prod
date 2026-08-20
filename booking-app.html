@@ -566,22 +566,57 @@
       .brandLogo{width:min(92px,30vw)}
       .top h1{max-width:none;font-size:15px;gap:7px}
     }
+
+    /* Nexus Executive Mobility design system */
+    :root{--bg:#f3f6f8;--sheet:#fff;--ink:#0b172a;--muted:#526579;--line:#d8e1e8;--brand:#c92032;--brand-2:#9f1725;--brand-3:#087f8c;--err:#b4232f}
+    body{background:#f3f6f8;color:#0b172a}
+    .phone{background:#f7f9fb}
+    .top{background:#081a2c;background-image:none;border-radius:14px 14px 0 0;box-shadow:0 12px 30px rgba(8,26,44,.18)}
+    .brandLogo{animation:none!important;filter:none}
+    .topTagline{color:#cbd6df;font-weight:600;letter-spacing:.02em}
+    .journeyHeader{border-bottom:1px solid #d8e1e8;box-shadow:0 5px 16px rgba(8,26,44,.07)}
+    .journeyStep{border:1px solid #d8e1e8;border-radius:8px;background:#fff;color:#526579}
+    .journeyStep.current{border:1px solid #c92032;background:#fff;color:#a81728;box-shadow:inset 0 -2px #c92032}
+    .journeyStep.complete{border-color:#087f8c;background:#087f8c;color:#fff}
+    .journeyConnector{background:#d8e1e8}
+    .journeyStepIcon{display:grid;place-items:center}.journeyStepIcon svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+    .section{border-radius:12px;border-color:#d8e1e8;box-shadow:0 8px 24px rgba(8,26,44,.06);backdrop-filter:none}
+    .section:hover{box-shadow:0 10px 28px rgba(8,26,44,.08)}
+    .nextStepGuide{border:1px solid #d8e1e8;border-left:4px solid #c92032;border-radius:10px;background:#fff;box-shadow:0 8px 22px rgba(8,26,44,.07)}
+    .nextStepArrow{background:#081a2c;animation:none}.nextStepArrow svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    .nextStepCopy small{color:#8a1725}
+    .accessibilityBar{background:#fff;border-color:#d8e1e8;border-radius:10px}
+    .accessibilityControls button,.authPanelToggle{border-radius:8px}
+    button{border-radius:9px}
+    .primary{background:#081a2c;box-shadow:none}
+    #submitBtn{background:#c92032;box-shadow:0 8px 20px rgba(201,32,50,.20)}
+    #submitBtn:not(:disabled):hover{background:#aa1929}
+    .ghost{background:#eef2f5;color:#24384a}
+    .field input,.field textarea,.field select{border-color:#c7d2dc;border-radius:8px;background:#fff}
+    .field input:focus,.field textarea:focus,.field select:focus{border-color:#087f8c;box-shadow:0 0 0 3px rgba(8,127,140,.12)}
+    .chip{border-radius:10px}.chip.active{background:#fff5f6;border-color:#c92032;color:#7f1521;box-shadow:inset 0 0 0 1px #c92032}
+    .serviceCardIcon{border-radius:8px;background:#eef4f6;color:#14364b}.serviceCardIcon svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .serviceSelectedMark{background:#c92032}
+    .bottomBar{box-shadow:0 -8px 22px rgba(8,26,44,.08)}
+    .appTabBar{box-shadow:0 -5px 18px rgba(8,26,44,.07)}.appTabBar button{border-radius:8px}.appTabBar button.active{background:#fff1f2;color:#a81728}.appTabBar svg{display:block;width:20px;height:20px;margin:0 auto 3px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+    .authOptional{background:#fff}.authBadge{background:#e8f3f4;color:#066b75}
+    .bookingNudge{border-radius:12px;border-color:#a9d7dc;background:rgba(255,255,255,.98)}.bookingNudgeIcon{background:#081a2c}
   </style>
 </head>
 <body>
   <main class="phone">
     <header class="top">
       <h1><span>Book</span><a class="brandLockup brandLink" href="/" aria-label="Nexus Medical Transit home"><img class="brandLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"></a><span>Ride</span></h1>
-      <p class="topTagline">Secure scheduling · Clear pricing · Live trip visibility</p>
+      <p class="topTagline">Secure booking · Progress saved automatically · Live trip visibility</p>
     </header>
     <nav class="journeyHeader" id="journeyHeader" role="progressbar" aria-label="Booking progress" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1">
       <span class="srOnly">Current: <strong id="journeyCurrent">Rider</strong>. Next: <strong id="journeyNext">Route</strong>.</span>
       <div class="journeySteps" id="journeySegments" aria-hidden="true">
-        <span class="journeyStep current"><span class="journeyStepIcon">👤</span><span class="journeyStepNumber">1</span><span class="journeyStepLabel">Rider</span></span><span class="journeyConnector"></span>
-        <span class="journeyStep"><span class="journeyStepIcon">⌖</span><span class="journeyStepNumber">2</span><span class="journeyStepLabel">Route</span></span><span class="journeyConnector"></span>
-        <span class="journeyStep"><span class="journeyStepIcon">♿</span><span class="journeyStepNumber">3</span><span class="journeyStepLabel">Ride</span></span><span class="journeyConnector"></span>
-        <span class="journeyStep"><span class="journeyStepIcon">✓</span><span class="journeyStepNumber">4</span><span class="journeyStepLabel">Review</span></span><span class="journeyConnector"></span>
-        <span class="journeyStep"><span class="journeyStepIcon">💳</span><span class="journeyStepNumber">5</span><span class="journeyStepLabel">Payment</span></span>
+        <span class="journeyStep current"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="journeyStepNumber">1</span><span class="journeyStepLabel">Rider</span></span><span class="journeyConnector"></span>
+        <span class="journeyStep"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></span><span class="journeyStepNumber">2</span><span class="journeyStepLabel">Route</span></span><span class="journeyConnector"></span>
+        <span class="journeyStep"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><circle cx="8" cy="17" r="4"/><circle cx="9" cy="5" r="2"/><path d="M9 8v5h5l3 5M9 11h4"/></svg></span><span class="journeyStepNumber">3</span><span class="journeyStepLabel">Ride</span></span><span class="journeyConnector"></span>
+        <span class="journeyStep"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></span><span class="journeyStepNumber">4</span><span class="journeyStepLabel">Review</span></span><span class="journeyConnector"></span>
+        <span class="journeyStep"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/></svg></span><span class="journeyStepNumber">5</span><span class="journeyStepLabel">Payment</span></span>
       </div>
       <button type="button" class="journeyHeaderButton" id="journeyHeaderAction">Continue</button>
     </nav>
@@ -602,7 +637,7 @@
         <button type="button" class="ghost" id="toggleCompletedSectionsBtn">Show completed sections</button>
       </div>
       <aside class="nextStepGuide" id="nextStepGuide" aria-live="polite">
-        <span class="nextStepArrow" aria-hidden="true">↓</span>
+        <span class="nextStepArrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4v16M6 14l6 6 6-6"/></svg></span>
         <span class="nextStepCopy"><small>Next step</small><strong id="nextStepText">Enter the rider’s details.</strong></span>
         <button type="button" class="ghost" id="nextStepAction">Go</button>
       </aside>
@@ -823,13 +858,13 @@ Destination: -</p>
         <p class="subtle">Choose the option that best supports the rider’s mobility and care needs. All available customer services remain visible here.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
         <div class="serviceChips" id="serviceChips" role="radiogroup" aria-label="Service type">
-          <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardIcon" aria-hidden="true">🚶</span><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span><span class="serviceCardBest">Best for: walking riders</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="4" r="2"/><path d="m10 22 1-7-3-3 2-5 4 3 3 1M11 15l5 7"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span><span class="serviceCardBest">Best for: walking riders</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip" type="button" data-service="facility_transfer">IFT Routine</button>
           <button class="chip" type="button" data-service="facility_transfer_critical">IFT High-Acuity</button>
-          <button class="chip serviceCard" type="button" data-service="wheelchair"><span class="serviceCardIcon" aria-hidden="true">♿</span><span class="serviceCardCopy"><span class="serviceCardName">Wheelchair</span><span class="serviceCardDescription">Accessible vehicle and securement for riders remaining in a wheelchair.</span><span class="serviceCardBest">Best for: wheelchair users</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard" type="button" data-service="stretcher"><span class="serviceCardIcon" aria-hidden="true">▰</span><span class="serviceCardCopy"><span class="serviceCardName">Stretcher</span><span class="serviceCardDescription">For riders who must travel lying down; needs may require review.</span><span class="serviceCardBest">Best for: non-ambulatory transport</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="wheelchair"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="17" r="4"/><circle cx="9" cy="5" r="2"/><path d="M9 8v5h5l3 5M9 11h4"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Wheelchair</span><span class="serviceCardDescription">Accessible vehicle and securement for riders remaining in a wheelchair.</span><span class="serviceCardBest">Best for: wheelchair users</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="stretcher"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 15h18M5 15v3M19 15v3M5 11h14a2 2 0 0 1 2 2v2H3v-2a2 2 0 0 1 2-2Z"/><circle cx="7" cy="8" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Stretcher</span><span class="serviceCardDescription">For riders who must travel lying down; needs may require review.</span><span class="serviceCardBest">Best for: non-ambulatory transport</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip" type="button" data-service="broda">Broda</button>
-          <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardIcon" aria-hidden="true">↔</span><span class="serviceCardCopy"><span class="serviceCardName">Additional Capacity</span><span class="serviceCardDescription">Additional space, capacity, or specialized mobility support.</span><span class="serviceCardBest">Best for: riders needing more space</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Additional Capacity</span><span class="serviceCardDescription">Additional space, capacity, or specialized mobility support.</span><span class="serviceCardBest">Best for: riders needing more space</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip" type="button" data-service="bls">BLS</button>
           <button class="chip" type="button" data-service="als1">ALS 1</button>
           <button class="chip" type="button" data-service="als2">ALS 2</button>
@@ -1032,12 +1067,12 @@ Destination: -</p>
     </section>
 
     <aside class="bookingNudge" id="bookingNudge" role="status" aria-live="polite" hidden>
-      <span class="bookingNudgeIcon" aria-hidden="true">↗</span>
+      <span class="bookingNudgeIcon" aria-hidden="true">→</span>
       <span class="bookingNudgeCopy"><strong>Your ride request is still in progress.</strong><span>Finish the remaining steps so Nexus can review your transportation request.</span></span>
       <span class="bookingNudgeActions"><button type="button" class="primary" id="bookingNudgeContinue">Continue booking</button><button type="button" class="bookingNudgeDismiss" id="bookingNudgeDismiss" aria-label="Dismiss reminder">×</button></span>
     </aside>
 
-    <nav class="appTabBar" aria-label="Booking app navigation"><button type="button" class="active" id="bookTabButton" data-app-tab="book" aria-current="page"><span aria-hidden="true">＋</span>Book a Ride</button><button type="button" id="manifestTabButton" data-app-tab="manifest"><span aria-hidden="true">▤</span>Trip Manifest</button><button type="button" id="contactTabButton" data-app-tab="contact"><span aria-hidden="true">☎</span>Contact</button></nav>
+    <nav class="appTabBar" aria-label="Booking app navigation"><button type="button" class="active" id="bookTabButton" data-app-tab="book" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Book a Ride</button><button type="button" id="manifestTabButton" data-app-tab="manifest"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Trip Manifest</button><button type="button" id="contactTabButton" data-app-tab="contact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8c1.6 3.2 3.4 5 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.2c1.1.4 2.3.6 3.6.6v3.5a1 1 0 0 1-1 1C10.7 20.1 3.9 13.3 3.9 5a1 1 0 0 1 1-1h3.5c0 1.3.2 2.5.6 3.6a1 1 0 0 1-.2 1l-2.2 2.2Z"/></svg>Contact</button></nav>
   </main>
   <script src="./nexus-core.js"></script>
   <script src="./nexus-availability.js" defer></script>
