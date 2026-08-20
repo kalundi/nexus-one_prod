@@ -50,6 +50,22 @@
 [functions.keymark-fhir-sync]
   schedule = "*/10 * * * *"
 
+# Legacy and campaign domains. Keep these host-specific redirects before all
+# path rewrites so every request reaches the intended canonical destination.
+[[redirects]]
+  from = "/*"
+  to = "https://nexusmt.com/booking-app.html"
+  status = 301
+  force = true
+  conditions = {Host = ["mynexusride.com", "www.mynexusride.com"]}
+
+[[redirects]]
+  from = "/*"
+  to = "https://nexusmt.com/"
+  status = 301
+  force = true
+  conditions = {Host = ["nexusmedicaltransit.com", "www.nexusmedicaltransit.com"]}
+
 [[redirects]]
   from = "/.well-known/keymark-jwks.json"
   to = "/.netlify/functions/keymark-jwks"
