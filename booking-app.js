@@ -2666,6 +2666,36 @@
     if(tab==='manifest')loadTripManifest();
     window.scrollTo({top:0,behavior:document.body.classList.contains('accessReducedMotion')?'auto':'smooth'});
     if(tab!=='book'){const panel=tab==='manifest'?manifestTabPanel:contactTabPanel;window.setTimeout(()=>panel?.focus({preventScroll:true}),160);}
+    window.requestAnimationFrame(syncAdaptiveBottomDock);
+  }
+
+  let adaptiveDockFrame=0;
+  function syncAdaptiveBottomDock(){
+    window.cancelAnimationFrame(adaptiveDockFrame);
+    adaptiveDockFrame=window.requestAnimationFrame(()=>{
+      const phone=document.querySelector('.phone');
+      const bottomBar=document.querySelector('.bottomBar');
+      const tabBar=document.querySelector('.appTabBar');
+      if(!phone||!tabBar)return;
+      const tab=document.body.dataset.activeTab||'book';
+      const activeContent=tab==='manifest'?manifestTabPanel:(tab==='contact'?contactTabPanel:form);
+      if(!activeContent)return;
+      const bottomBarHeight=tab==='book'&&bottomBar?bottomBar.offsetHeight:0;
+      const inlineBarHeight=phone.classList.contains('adaptiveInlineDock')&&tab==='book'?bottomBarHeight:0;
+      const contentBottom=activeContent.offsetTop+activeContent.offsetHeight-inlineBarHeight;
+      const requiredHeight=contentBottom+bottomBarHeight+tabBar.offsetHeight+16;
+      phone.classList.toggle('adaptiveInlineDock',requiredHeight<window.innerHeight);
+    });
+  }
+
+  function installAdaptiveBottomDock(){
+    const phone=document.querySelector('.phone');
+    if(!phone)return;
+    const observer=new ResizeObserver(syncAdaptiveBottomDock);
+    [form,manifestTabPanel,contactTabPanel].forEach((element)=>element&&observer.observe(element));
+    window.addEventListener('resize',syncAdaptiveBottomDock,{passive:true});
+    window.visualViewport?.addEventListener('resize',syncAdaptiveBottomDock,{passive:true});
+    syncAdaptiveBottomDock();
   }
 
   function tripMatchesRange(booking,range){
@@ -3355,6 +3385,7 @@
     $('manifestLookupBtn')?.addEventListener('click',lookupGuestManifest);
     $('manifestPhone')?.addEventListener('blur',()=>{$('manifestPhone').value=formatPhone($('manifestPhone').value);});
     switchAppTab('book');
+    installAdaptiveBottomDock();
     let journeyCompact=false;
     const syncJourneyCompact=()=>{
       const currentY=Math.max(0,window.scrollY);
