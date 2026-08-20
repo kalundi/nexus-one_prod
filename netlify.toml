@@ -53,18 +53,28 @@
 # Legacy and campaign domains. Keep these host-specific redirects before all
 # path rewrites so every request reaches the intended canonical destination.
 [[redirects]]
-  from = "/*"
+  from = "https://mynexusride.com/*"
   to = "https://nexusmt.com/booking-app.html"
   status = 301
   force = true
-  conditions = {Host = ["mynexusride.com", "www.mynexusride.com"]}
 
 [[redirects]]
-  from = "/*"
+  from = "https://www.mynexusride.com/*"
+  to = "https://nexusmt.com/booking-app.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://nexusmedicaltransit.com/*"
   to = "https://nexusmt.com/"
   status = 301
   force = true
-  conditions = {Host = ["nexusmedicaltransit.com", "www.nexusmedicaltransit.com"]}
+
+[[redirects]]
+  from = "https://www.nexusmedicaltransit.com/*"
+  to = "https://nexusmt.com/"
+  status = 301
+  force = true
 
 [[redirects]]
   from = "/.well-known/keymark-jwks.json"
