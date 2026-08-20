@@ -2986,6 +2986,10 @@
       });
       showPaymentOptions(ref, Number(data.booking?.estimatedFare ?? payload.estimatedFare ?? 0), data.requiresOnlinePayment !== false);
       bookingSubmitted = true;
+      window.nexusTrack?.('booking_complete',{
+        service_type:String(payload.service||'unspecified'),
+        booking_status:isPending?'pending':'confirmed'
+      });
       completeBookingDraft();
       if(submitBtn) submitBtn.textContent = 'Book My Ride';
       syncSectionProgressUi();

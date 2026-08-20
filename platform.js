@@ -1,3 +1,17 @@
+const nexusAnalyticsPages=new Set([
+  '/accessibility.html','/about-nexus-medical-transit.html','/booking-app.html',
+  '/career-application.html','/careers.html','/contact-service-areas.html',
+  '/dialysis-transportation.html','/hospital-discharge-transportation.html',
+  '/livecare.html','/maryland-medical-transportation.html',
+  '/northern-virginia-medical-transportation.html','/stretcher-transportation.html',
+  '/washington-dc-medical-transportation.html','/wheelchair-transportation.html'
+]);
+const nexusAnalyticsPath=location.pathname.endsWith('.html')?location.pathname:`${location.pathname}.html`;
+if(nexusAnalyticsPages.has(nexusAnalyticsPath)){
+  const nexusAnalyticsScript=document.createElement('script');
+  nexusAnalyticsScript.src='/nexus-analytics.js';
+  document.head.appendChild(nexusAnalyticsScript);
+}
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 (function(){
   const POPUP_ID='nexusGlobalTripPopup';
