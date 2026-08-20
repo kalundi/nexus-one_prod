@@ -54,6 +54,9 @@
   const nextStepGuide = $('nextStepGuide');
   const nextStepText = $('nextStepText');
   const nextStepAction = $('nextStepAction');
+  const bookingNudge = $('bookingNudge');
+  const bookingNudgeContinue = $('bookingNudgeContinue');
+  const bookingNudgeDismiss = $('bookingNudgeDismiss');
   const journeyHeader = $('journeyHeader');
   const journeyCurrent = $('journeyCurrent');
   const journeyNext = $('journeyNext');
@@ -224,6 +227,7 @@
   let confirmedFareSignature = '';
   let lastPromptedFareSignature = '';
   let draftSaveTimer = null;
+  let bookingNudgeTimer = null;
   const bookingDraftToken = (()=>{try{const existing=sessionStorage.getItem('nexusBookingDraftToken');if(existing)return existing;const created=crypto.randomUUID();sessionStorage.setItem('nexusBookingDraftToken',created);return created;}catch{return `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;}})();
   let destinationConfirmed = false;
   let riderDetailsConfirmed = false;
@@ -1000,6 +1004,37 @@
   function scheduleBookingDraftSave(){
     if(draftSaveTimer)clearTimeout(draftSaveTimer);
     draftSaveTimer=setTimeout(saveBookingDraft,900);
+  }
+
+  function bookingHasStarted(){
+    return ['name','phone','email','pickup','destination'].some((id)=>String($(id)?.value||'').trim());
+  }
+
+  function hideBookingNudge(){
+    if(bookingNudgeTimer)clearTimeout(bookingNudgeTimer);
+    bookingNudgeTimer=null;
+    if(bookingNudge)bookingNudge.hidden=true;
+  }
+
+  function scheduleBookingNudge(){
+    hideBookingNudge();
+    if(bookingSubmitted||!bookingHasStarted()||sessionStorage.getItem('nexusBookingNudgeDismissed')==='1')return;
+    bookingNudgeTimer=setTimeout(()=>{
+      if(!bookingSubmitted&&bookingHasStarted()&&!document.hidden&&document.body.dataset.activeTab==='book')bookingNudge.hidden=false;
+    },90000);
+  }
+
+  function bindBookingNudge(){
+    bookingNudgeContinue?.addEventListener('click',()=>{
+      hideBookingNudge();
+      nextStepAction?.click();
+      scheduleBookingNudge();
+    });
+    bookingNudgeDismiss?.addEventListener('click',()=>{
+      hideBookingNudge();
+      sessionStorage.setItem('nexusBookingNudgeDismissed','1');
+    });
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)scheduleBookingNudge();});
   }
 
   function completeBookingDraft(){
@@ -2440,6 +2475,8 @@
     });
     form.addEventListener('input',scheduleBookingDraftSave);
     form.addEventListener('change',scheduleBookingDraftSave);
+    form.addEventListener('input',scheduleBookingNudge);
+    form.addEventListener('change',scheduleBookingNudge);
     coreActionsBound = true;
   }
 
@@ -3035,6 +3072,7 @@
       });
       showPaymentOptions(ref, Number(data.booking?.estimatedFare ?? payload.estimatedFare ?? 0), data.requiresOnlinePayment !== false);
       bookingSubmitted = true;
+      hideBookingNudge();
       window.nexusTrack?.('booking_complete',{
         service_type:String(payload.service||'unspecified'),
         booking_status:isPending?'pending':'confirmed'
@@ -3370,6 +3408,7 @@
     await resolveUserAccess();
     applyAuthUi();
     bindServiceChips();
+    bindBookingNudge();
     bindAccessibilityControls();
     bindRideGuidance();
     const syncInsuranceCarrierUi=()=>{const isPrivateInsurance=String(payerType?.value||'').toUpperCase()==='INSURANCE';if(insuranceCarrierField)insuranceCarrierField.hidden=!isPrivateInsurance;if(insuranceCarrier){insuranceCarrier.required=isPrivateInsurance;if(!isPrivateInsurance)insuranceCarrier.value='';}riderDetailsConfirmed=false;};

@@ -505,6 +505,7 @@
     .phone.adaptiveInlineDock .bottomBar,.phone.adaptiveInlineDock .appTabBar{position:static;left:auto;right:auto;bottom:auto;width:100%;transform:none}
     .phone.adaptiveInlineDock .bottomBar{margin-top:8px;border:1px solid var(--line);border-radius:16px 16px 0 0}
     .phone.adaptiveInlineDock .appTabBar{border:1px solid #c8d8e6;border-radius:0 0 16px 16px;box-shadow:0 12px 28px rgba(15,23,42,.10)}
+    .bookingNudge{position:fixed;left:50%;bottom:150px;z-index:85;width:min(560px,calc(100% - 28px));transform:translateX(-50%);padding:14px;border:1px solid #8fd7ef;border-radius:16px;background:rgba(244,252,255,.97);box-shadow:0 20px 50px rgba(8,47,73,.20);backdrop-filter:blur(14px);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px}.bookingNudge[hidden]{display:none}.bookingNudgeIcon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#0a6b99;color:#fff;font-size:20px}.bookingNudgeCopy strong,.bookingNudgeCopy span{display:block}.bookingNudgeCopy strong{font:800 14px/1.3 Sora,sans-serif;color:#10324a}.bookingNudgeCopy span{margin-top:3px;color:#4f6879;font-size:12px}.bookingNudgeActions{display:flex;align-items:center;gap:6px}.bookingNudgeActions button{padding:8px 10px;font-size:11px}.bookingNudgeDismiss{border:0;background:transparent;color:#52677c;font-size:18px!important;padding:7px!important}@media(max-width:520px){.bookingNudge{grid-template-columns:auto 1fr;bottom:142px}.bookingNudgeActions{grid-column:1/-1;justify-content:flex-end}.bookingNudgeIcon{width:36px;height:36px}}
     body[data-active-tab="manifest"] .bottomBar,body[data-active-tab="contact"] .bottomBar{display:none}
     .inlineBtns{display:flex;justify-content:space-between;gap:8px;align-items:center}
     .inlineBtns .topAuthAction{flex:0 0 auto}
@@ -1029,6 +1030,12 @@ Destination: -</p>
         <a class="bluesky" href="https://bsky.app/profile/nexusmt.bsky.social" target="_blank" rel="noopener noreferrer" aria-label="Nexus Medical Transit on Bluesky"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11.7c-1.6-2.8-5.1-5.1-7.4-6.2C3.4 5 3 5.7 3 6.8c0 2.2 1.4 6.7 3.3 8.5 1 1 2.2 1.3 3.1.3.8-.8 1.2-1.9 1.6-2.9.4 1 .8 2.1 1.6 2.9.9 1 2.1.7 3.1-.3C17.6 13.5 19 9 19 6.8c0-1.1-.4-1.8-1.6-1.3-2.3 1.1-5.8 3.4-7.4 6.2z"/></svg><span>Bluesky</span></a>
       </div></section>
     </section>
+
+    <aside class="bookingNudge" id="bookingNudge" role="status" aria-live="polite" hidden>
+      <span class="bookingNudgeIcon" aria-hidden="true">↗</span>
+      <span class="bookingNudgeCopy"><strong>Your ride request is still in progress.</strong><span>Finish the remaining steps so Nexus can review your transportation request.</span></span>
+      <span class="bookingNudgeActions"><button type="button" class="primary" id="bookingNudgeContinue">Continue booking</button><button type="button" class="bookingNudgeDismiss" id="bookingNudgeDismiss" aria-label="Dismiss reminder">×</button></span>
+    </aside>
 
     <nav class="appTabBar" aria-label="Booking app navigation"><button type="button" class="active" id="bookTabButton" data-app-tab="book" aria-current="page"><span aria-hidden="true">＋</span>Book a Ride</button><button type="button" id="manifestTabButton" data-app-tab="manifest"><span aria-hidden="true">▤</span>Trip Manifest</button><button type="button" id="contactTabButton" data-app-tab="contact"><span aria-hidden="true">☎</span>Contact</button></nav>
   </main>
