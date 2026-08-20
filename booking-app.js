@@ -243,7 +243,7 @@
   const FINAL_HIDDEN_SECTION_IDS = ['bookingLoginSection', 'riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'rateSettingsSection', 'fareSummarySection'];
   const finalVisibleSectionIds = new Set(['telemetrySection', 'paymentSection']);
   const expandedSections = new Set();
-  const riderDetailsInitiallyCollapsed = new Set(['riderDetailsSection']);
+  const riderDetailsInitiallyCollapsed = new Set();
   const LOCATION_STATE_CODE = 'MD';
   const MARYLAND_SUFFIX = 'maryland';
   const DEFAULT_MARYLAND_SUGGESTIONS = [
@@ -2445,6 +2445,15 @@
 
   function bindAuthActions(){
     if(authActionsBound) return;
+    const authSection=$('bookingLoginSection');
+    const authPanelToggle=$('toggleAuthPanelBtn');
+    authPanelToggle?.addEventListener('click',()=>{
+      const opening=authSection?.classList.contains('authCollapsed');
+      authSection?.classList.toggle('authCollapsed',!opening);
+      authPanelToggle.setAttribute('aria-expanded',String(Boolean(opening)));
+      authPanelToggle.textContent=opening?'Hide account options':'Sign in or save 5%';
+      if(opening)loginEmail?.focus();
+    });
     const toggleSignupPanel = () => {
       if(!signUpPanel) return;
       const opening = signUpPanel.hidden;
@@ -2457,7 +2466,17 @@
         if(signupEmail && !signupEmail.value) signupEmail.value = String(loginEmail?.value || '').trim();
       }
     };
-    if(authActionBtn) authActionBtn.addEventListener('click', handleAuthAction);
+    if(authActionBtn) authActionBtn.addEventListener('click',()=>{
+      if(!currentUser && authSection?.classList.contains('authCollapsed')){
+        authSection.classList.remove('authCollapsed');
+        authPanelToggle?.setAttribute('aria-expanded','true');
+        if(authPanelToggle)authPanelToggle.textContent='Hide account options';
+        authSection.scrollIntoView({behavior:'smooth',block:'start'});
+        window.setTimeout(()=>loginEmail?.focus(),250);
+        return;
+      }
+      handleAuthAction();
+    });
     if(loginPassword) loginPassword.addEventListener('keydown', (event) => {
       if(event.key === 'Enter'){
         event.preventDefault();
@@ -3320,8 +3339,6 @@
     await initAddressAutocomplete();
     await resolveUserAccess();
     applyAuthUi();
-    if(riderDetailsSection) riderDetailsSection.classList.add('sectionCollapsed');
-
     bindServiceChips();
     bindAccessibilityControls();
     bindRideGuidance();

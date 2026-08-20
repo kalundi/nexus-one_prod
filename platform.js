@@ -401,7 +401,7 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 (function(){
 	const STYLE_ID='nexusFocusDeckStyle';
 	const ITEM_SELECTOR='.card, .section, .driverCard, .analyticsTile';
-	const CONTAINER_SELECTOR='form#bookingForm, #dashView .padded, #inspectionView .padded, #manifestView .padded, #tripView .padded, #milesView .padded, #endView .padded, #changePasswordView .padded';
+	const CONTAINER_SELECTOR='#dashView .padded, #inspectionView .padded, #manifestView .padded, #tripView .padded, #milesView .padded, #endView .padded, #changePasswordView .padded';
 	const containers=new WeakSet();
 
 	function ensureStyle(){
