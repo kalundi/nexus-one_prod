@@ -21,4 +21,6 @@ test('scheduled reminder sends only once per phone number',()=>{
  assert.match(reminder,/DISTINCT ON \(regexp_replace\(phone/);
  assert.match(reminder,/reminder_sent_at=now\(\)/);
  assert.match(reminder,/Reply STOP to opt out/);
+ assert.match(reminder,/Reply HELP for help/);
+ assert.match(reminder,/data rates may apply/i);
 });

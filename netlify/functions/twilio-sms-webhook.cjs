@@ -1,5 +1,7 @@
 const {classifySmsKeyword,recordSmsPreference,verifyTwilioSignature}=require('./_shared/sms-consent.cjs');
 
+const OPT_IN_MESSAGE='Nexus Medical Transit: You are subscribed to transactional booking and ride updates. Message frequency varies. Msg & data rates may apply. Reply HELP for help or STOP to opt out.';
+const HELP_MESSAGE='Nexus Medical Transit: For help with booking or ride texts, call (888) 760-4990 or email contact@nexusmt.com. Msg & data rates may apply. Reply STOP to opt out.';
 const xml=body=>({statusCode:200,headers:{'content-type':'text/xml; charset=utf-8','cache-control':'no-store'},body:`<?xml version="1.0" encoding="UTF-8"?><Response>${body||''}</Response>`});
 const escapeXml=value=>String(value||'').replace(/[<>&"']/g,char=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[char]));
 function parseParams(event){const raw=event.isBase64Encoded?Buffer.from(event.body||'','base64').toString('utf8'):String(event.body||'');return Object.fromEntries(new URLSearchParams(raw))}
@@ -13,6 +15,10 @@ exports.handler=async event=>{
  const action=classifySmsKeyword(params.Body,params.OptOutType);
  if(action==='STOP')await recordSmsPreference(params.From,'OPTED_OUT',{source:'TWILIO_WEBHOOK',providerMessageId:params.MessageSid||null,keyword:String(params.Body||'STOP').trim().toUpperCase()});
  if(action==='START')await recordSmsPreference(params.From,'OPTED_IN',{source:'TWILIO_WEBHOOK',providerMessageId:params.MessageSid||null,keyword:String(params.Body||'START').trim().toUpperCase()});
- if(action==='HELP'&&!params.OptOutType)return xml(`<Message>${escapeXml('Nexus Medical Transit support: call (888) 760-4990. Reply STOP to stop texts.')}</Message>`);
+ if(action==='START'&&!params.OptOutType)return xml(`<Message>${escapeXml(OPT_IN_MESSAGE)}</Message>`);
+ if(action==='HELP'&&!params.OptOutType)return xml(`<Message>${escapeXml(HELP_MESSAGE)}</Message>`);
  return xml('');
 };
+
+module.exports.OPT_IN_MESSAGE=OPT_IN_MESSAGE;
+module.exports.HELP_MESSAGE=HELP_MESSAGE;
