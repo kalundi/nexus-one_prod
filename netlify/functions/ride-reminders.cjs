@@ -2,23 +2,10 @@
 // Schedule is configured in netlify.toml
 
 const {query} = require('./_shared/db.cjs');
+const {sendSms} = require('./_shared/sms-consent.cjs');
 
 const envEnabled = name => Boolean(process.env[name]);
 const siteBase = () => String(process.env.SITE_URL || process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://nexusmt.com').replace(/\/$/, '');
-
-async function sendSms(to, body) {
-  if (!envEnabled('TWILIO_ACCOUNT_SID') || !envEnabled('TWILIO_AUTH_TOKEN') || !envEnabled('TWILIO_PHONE_NUMBER') || !to) return {status: 'skipped'};
-  const form = new URLSearchParams({To: to, From: process.env.TWILIO_PHONE_NUMBER, Body: body});
-  const auth = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
-  const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`, {
-    method: 'POST',
-    headers: {authorization: `Basic ${auth}`, 'content-type': 'application/x-www-form-urlencoded'},
-    body: form
-  });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.message || 'Twilio request failed');
-  return {status: 'sent', id: data.sid};
-}
 
 async function sendEmail(to, subject, html) {
   if (!envEnabled('SENDGRID_API_KEY') || !envEnabled('SENDGRID_FROM_EMAIL') || !to) return {status: 'skipped'};

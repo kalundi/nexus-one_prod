@@ -88,6 +88,12 @@
   status = 200
   force = true
 
+[[redirects]]
+  from = "/webhooks/twilio/sms"
+  to = "/.netlify/functions/twilio-sms-webhook"
+  status = 200
+  force = true
+
 # Explicit page redirects — must come BEFORE the catch-all so /fleet loads fleet.html (not React index)
 [[redirects]]
   from = "/livecare"
