@@ -172,6 +172,26 @@
   status = 200
 
 [[redirects]]
+  from = "/legal"
+  to = "/legal.html"
+  status = 200
+
+[[redirects]]
+  from = "/privacy"
+  to = "/legal.html#privacy"
+  status = 302
+
+[[redirects]]
+  from = "/terms"
+  to = "/legal.html#terms"
+  status = 302
+
+[[redirects]]
+  from = "/hipaa"
+  to = "/legal.html#hipaa"
+  status = 302
+
+[[redirects]]
   from = "/careers"
   to = "/careers.html"
   status = 200

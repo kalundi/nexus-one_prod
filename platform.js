@@ -1,5 +1,5 @@
 const nexusAnalyticsPages=new Set([
-  '/accessibility.html','/about-nexus-medical-transit.html','/booking-app.html',
+		'/accessibility.html','/about-nexus-medical-transit.html',
   '/career-application.html','/careers.html','/contact-service-areas.html',
   '/dialysis-transportation.html','/hospital-discharge-transportation.html',
   '/livecare.html','/maryland-medical-transportation.html',
@@ -305,6 +305,10 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 			+     '<a href="/contact-service-areas.html">Contact and Areas</a>'
 			+     '<a href="/careers.html">Careers</a>'
 			+     '<a href="/livecare.html">Livecare</a>'
+			+     '<a href="/legal.html#privacy">Privacy</a>'
+			+     '<a href="/legal.html#terms">Terms</a>'
+			+     '<a href="/legal.html#hipaa">HIPAA &amp; PHI</a>'
+			+     '<a href="/accessibility.html">Accessibility</a>'
 			+   '</div>'
 			+ '</div>'
 			+ '<div>'
