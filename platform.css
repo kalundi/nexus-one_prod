@@ -1153,3 +1153,16 @@ body.boFocusMode .boModuleSection.focusVisible{display:block;min-height:calc(100
 .nexusBackHero.is-section-active{opacity:1!important;visibility:visible!important;pointer-events:auto!important;transform:translateY(0)!important}
 .nexusBackHero:hover,.nexusBackHero:focus-visible{background:#073657!important;color:#fff!important;transform:translateY(-2px)!important}
 @media(max-width:620px){.nexusBackHero{right:14px!important;bottom:14px!important;width:42px!important;height:42px!important}}
+
+/* Build 047: centered desktop navigation frame */
+@media(min-width:1041px){
+ .topbar .shell.nav{
+  width:min(1240px,calc(100% - 48px))!important;
+  height:84px!important;
+  min-height:84px!important;
+  padding-inline:0!important;
+ }
+ .topbar .nexusLogo{width:170px!important;max-height:54px!important}
+ .topbar #primary-navigation{margin-left:14px!important}
+ .topbar .navRight{margin-left:auto!important}
+}
