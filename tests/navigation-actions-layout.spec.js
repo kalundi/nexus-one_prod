@@ -15,7 +15,7 @@ async function mountHeaderFixture(page, portal = false) {
   const actionsClass=portal?'globalActions nexusSharedActions':'navRight nexusSharedActions';
   await page.goto('/health');
   const css=fs.readFileSync('platform.css','utf8');
-  await page.setContent(`<style>${css}</style><div id="root"><header class="${headerClass}"><div class="${navClass}"><div class="${actionsClass}"><label class="nexusLanguageControl headerLanguage nexusCompactLanguage"><span class="sr">Language</span><select data-nexus-language aria-label="Language"><option value="en-US" selected>English (US)</option><option value="en-GB">English (UK)</option><option value="fr">Français</option><option value="es">Español</option></select></label><a class="call globalPhone nexusSharedCall" href="tel:+18886395766"><span aria-hidden="true">☎</span><span><small>Call Nexus</small><b>(888) 639-5766</b></span></a></div></div></header></div>`);
+  await page.setContent(`<style>${css}</style><div id="root"><header class="${headerClass}"><div class="${navClass}"><div class="${actionsClass}"><label class="nexusLanguageControl headerLanguageGlobal headerLanguage nexusCompactLanguage"><span class="sr">Language</span><select data-nexus-language aria-label="Language"><option value="en-US" selected>English (US)</option><option value="en-GB">English (UK)</option><option value="fr">Français</option><option value="es">Español</option></select></label><a class="call globalPhone nexusSharedCall" href="tel:+18886395766"><span aria-hidden="true">☎</span><span><small>Call Nexus</small><b>(888) 639-5766</b></span></a></div></div></header></div>`);
   await page.evaluate(fs.readFileSync('platform.js','utf8'));
 }
 
@@ -59,6 +59,8 @@ async function expectHeaderActionsToFit(page, path, viewport, fixture = null) {
   expect(result.textFits, `${path} ${viewport.width}px language text is clipped: ${JSON.stringify(result)}`).toBeTruthy();
   expect(result.language.left).toBeGreaterThanOrEqual(0);
   expect(result.language.right).toBeLessThanOrEqual(result.viewportWidth + 0.5);
+  expect(result.select.left, `${path} ${viewport.width}px native language control escaped left: ${JSON.stringify(result)}`).toBeGreaterThanOrEqual(result.language.left - 0.5);
+  expect(result.select.right, `${path} ${viewport.width}px native language control escaped right: ${JSON.stringify(result)}`).toBeLessThanOrEqual(result.language.right + 0.5);
   if (result.callVisible) {
     const separatedHorizontally = result.language.right + 4 <= result.call.left || result.call.right + 4 <= result.language.left;
     const separatedVertically = result.language.bottom + 4 <= result.call.top || result.call.bottom + 4 <= result.language.top;

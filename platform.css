@@ -1379,6 +1379,13 @@ header .nexusCompactLanguage,
  overflow:visible!important;
  visibility:visible!important;
 }
+header .nexusLanguageControl.headerLanguageGlobal,
+header .nexusLanguageControl.headerLanguage,
+#root .topbar .nexusLanguageControl.nexusCompactLanguage{
+ position:relative!important;
+ right:auto!important;
+ bottom:auto!important;
+}
 header .nexusLanguageControl:before,
 header .headerLanguage:before,
 header .nexusCompactLanguage:before{
@@ -1415,6 +1422,16 @@ header .nexusCompactLanguage select,
  padding:0!important;
  opacity:0!important;
  cursor:pointer!important;
+}
+header .nexusLanguageControl.headerLanguageGlobal select,
+header .nexusLanguageControl.headerLanguage select,
+#root .topbar .nexusLanguageControl.nexusCompactLanguage select{
+ position:absolute!important;
+ inset:0!important;
+ width:100%!important;
+ min-width:100%!important;
+ max-width:100%!important;
+ height:100%!important;
 }
 header nav,
 header .links,

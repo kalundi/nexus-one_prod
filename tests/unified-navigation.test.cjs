@@ -59,7 +59,7 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
 });
 test('homepage requests the current unclipped navigation stylesheet',()=>{
  const homepage=read('__deploy_temp/index.html');
- assert.match(homepage,/platform\.css\?v=60/);
+ assert.match(homepage,/platform\.css\?v=61/);
  assert.match(homepage,/platform\.js\?v=59/);
 });
 
@@ -74,7 +74,7 @@ test('every platform navigation requests the same current stylesheet',()=>{
  visit(root);
  const platformPages=htmlFiles.filter(file=>/platform\.css/.test(fs.readFileSync(file,'utf8')));
  assert.ok(platformPages.length>20);
- platformPages.forEach(file=>assert.doesNotMatch(fs.readFileSync(file,'utf8'),/platform\.css(?!\?v=60)/,path.relative(root,file)));
+ platformPages.forEach(file=>assert.doesNotMatch(fs.readFileSync(file,'utf8'),/platform\.css(?!\?v=61)/,path.relative(root,file)));
 });
 test('homepage sections receive a return-to-hero control',()=>{
  const js=read('platform.js');
