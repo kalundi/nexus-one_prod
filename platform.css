@@ -1201,3 +1201,18 @@ body.boFocusMode .boModuleSection.focusVisible{display:block;min-height:calc(100
 #root .hero .serviceStrip>button>svg:last-child{color:#0284c7!important;stroke-width:2.5!important}
 #root .hero .serviceStrip>button:hover b,
 #root .hero .serviceStrip>button:focus-visible b{color:#9f1239!important}
+
+/* Build 051: target the service strip's actual rendered title path */
+#root .serviceStrip>button p>b{
+ display:block!important;
+ color:#b42318!important;
+ font-family:Manrope,sans-serif!important;
+ font-size:18px!important;
+ font-weight:900!important;
+ line-height:1.15!important;
+ opacity:1!important;
+ -webkit-text-fill-color:#b42318!important;
+}
+#root .serviceStrip>button p>small{color:#334e68!important;opacity:1!important}
+#root .serviceStrip>button:hover p>b,
+#root .serviceStrip>button:focus-visible p>b{color:#075985!important;-webkit-text-fill-color:#075985!important}
