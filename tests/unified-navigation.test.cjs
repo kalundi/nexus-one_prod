@@ -72,4 +72,8 @@ test('patient sign up creates only a PATIENT account with consent',()=>{
  assert.match(api,/password_hash,phone,role,active/);
  assert.match(api,/regexp_replace\(phone/);
  assert.match(js,/name="phone" type="tel"/);
+ assert.match(js,/function configureSignupTermsGate/);
+ assert.match(js,/window\.open\(termsLink\.href,'nexusTermsReview'\)/);
+ assert.match(js,/Date\.now\(\)-startedAt/);
+ assert.match(js,/submit\.disabled=!\(reviewComplete&&consent\.checked\)/);
 });
