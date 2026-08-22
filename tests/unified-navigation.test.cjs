@@ -11,6 +11,12 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(js,/className='nexusHomeGroup'/);
  assert.match(js,/textContent='Sign Up'/);
  assert.match(js,/Sign In/);
+ assert.match(js,/\.globalActions,\.navRight/);
+ assert.match(js,/nexusMenuDismiss/);
+ assert.match(js,/if\(!group\.contains\(event\.target\)\)group\.removeAttribute\('open'\)/);
+ assert.match(css,/\.topbar #primary-navigation\{display:flex/);
+ assert.match(css,/\.topbar \.navRight>\.livecareLink\{display:none!important\}/);
+ assert.match(css,/#root \.heroGrid\{min-height:560px!important;padding-top:34px!important/);
  assert.match(css,/\.nexusCompactLanguage select\{min-width:54px/);
  assert.match(css,/\.globalNav,\.nav\{min-height:68px/);
 });
