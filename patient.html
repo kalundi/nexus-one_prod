@@ -444,7 +444,11 @@ a{text-decoration:none;color:var(--blue)}
             <label class="field">Email<input name="email" type="email" placeholder="name@example.com"></label>
             <label class="field">Mobility<select name="mobility"><option>Wheelchair</option><option>Ambulatory</option><option>Broda</option><option>Stretcher</option><option>Bariatric</option></select></label>
             <label class="field">Preferred language<input name="language" placeholder="English, Spanish, etc."></label>
+            <label class="field">Preferred updates<select name="communication"><option value="SMS">Text message</option><option value="VOICE">Phone call</option><option value="EMAIL">Email</option></select></label>
             <label class="field">Default pickup<input name="pickup" placeholder="Home, facility, or usual pickup"></label>
+            <label class="field checkField"><input name="remainsInWheelchair" type="checkbox"> I remain in my wheelchair during transport</label>
+            <label class="field checkField"><input name="transferAssistance" type="checkbox"> I need transfer or boarding assistance</label>
+            <label class="field checkField"><input name="oxygenRequired" type="checkbox"> I travel with oxygen</label>
             <label class="field wide">Transportation notes<textarea name="notes" rows="3" placeholder="Add any mobility or ride instructions"></textarea></label>
           </div>
           <button class="button" type="submit" style="margin-top:10px">Save profile</button>

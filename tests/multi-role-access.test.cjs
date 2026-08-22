@@ -14,6 +14,8 @@ test('public signup requests a selected role while preserving immediate patient 
  assert.match(api,/requestedRole!==\'PATIENT\'/);
  assert.match(api,/VALUES\(\$1,\$2,'PENDING'\)/);
  assert.match(api,/active_role,expires_at/);
+ assert.match(api,/await ensureMultiRoleSchema\(\)/);
+ assert.match(api,/verifyPassword\(password,String\(u\.password_hash/);
 });
 
 test('only approved roles can become the active session role',()=>{

@@ -76,6 +76,9 @@ test('patient sign up creates only a PATIENT account with consent',()=>{
  assert.match(js,/window\.open\(termsLink\.href,'nexusTermsReview'\)/);
  assert.match(js,/status\.textContent='Open Terms & Conditions'/);
  assert.match(js,/status\.addEventListener\('click',openTerms\)/);
+ assert.match(js,/window\.NexusOpenLogin/);
+ assert.match(js,/className='nexusInlineSignIn'/);
+ assert.match(js,/function nexusPremiumLogin/);
  assert.match(js,/Date\.now\(\)-startedAt/);
  assert.match(js,/submit\.disabled=!\(reviewComplete&&consent\.checked\)/);
 });

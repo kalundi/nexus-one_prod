@@ -11,6 +11,7 @@
   document.body.appendChild(node);node.querySelector('.nexusLoginClose').addEventListener('click',()=>node.close());node.addEventListener('click',e=>{if(e.target===node)node.close()});
   node.querySelector('form').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,error=node.querySelector('.nexusLoginError'),button=form.querySelector('[type=submit]');error.textContent='';button.disabled=true;button.textContent='Logging in…';try{const response=await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:form.email.value.trim(),password:form.password.value})});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Login failed');sessionStorage.setItem(TOKEN,data.token);sessionStorage.setItem(USER,JSON.stringify(data.user));const requested=new URLSearchParams(location.search).get('redirect');location.assign(requested||routeFor(data.user?.role))}catch(err){error.textContent=err.message}finally{button.disabled=false;button.textContent='Log in securely'}});return node;
  }
+ window.NexusOpenLogin=()=>dialog().showModal();
  async function user(){const token=sessionStorage.getItem(TOKEN);if(!token)return null;try{const response=await fetch('/api/auth/me',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(!response.ok)throw new Error('expired');const data=await response.json();sessionStorage.setItem(USER,JSON.stringify(data.user));return data.user}catch{clear();return null}}
  function addRoleSwitcher(wrap,current){const roles=[...new Set(current?.roles||[current?.role])].filter(Boolean);if(roles.length<2)return;const menu=wrap.querySelector('.nexusAccountMenu');if(!menu)return;const group=document.createElement('div');group.className='nexusRoleSwitcher';const title=document.createElement('small');title.textContent='Switch experience';group.appendChild(title);roles.forEach(role=>{const button=document.createElement('button');button.type='button';button.textContent=role===current.role?`${role} (current)`:role;button.disabled=role===current.role;button.addEventListener('click',async()=>{const response=await fetch('/api/auth/switch-role',{method:'POST',headers:{authorization:`Bearer ${sessionStorage.getItem(TOKEN)||''}`,'content-type':'application/json'},body:JSON.stringify({role})});const data=await response.json().catch(()=>({}));if(!response.ok)return alert(data.error||'Unable to switch role');sessionStorage.setItem(USER,JSON.stringify(data.user));location.assign(routeFor(data.user.role))});group.appendChild(button)});menu.prepend(group)}
  function mount(current){
@@ -21,6 +22,13 @@
  }
  async function boot(){const current=await user();let attempts=0;const attach=()=>{if(mount(current))return;if(attempts++<40)setTimeout(attach,100)};attach();if(new URLSearchParams(location.search).get('login')==='1')setTimeout(()=>dialog().showModal(),200)}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
+
+// Upgrade the shared sign-in dialog to match the secure account experience.
+(function nexusPremiumLogin(){
+ function enhance(node){if(!node||node.dataset.premiumReady)return;node.dataset.premiumReady='1';node.classList.add('nexusPremiumDialog');node.setAttribute('aria-labelledby','nexusLoginTitle');const heading=node.querySelector('h2');if(heading){heading.id='nexusLoginTitle';heading.textContent='Welcome back'}const lead=node.querySelector('.nexusLoginHead p');if(lead){lead.className='nexusDialogLead';lead.textContent='Sign in once, then open or switch between every approved Nexus experience.'}const head=node.querySelector('.nexusLoginHead');if(head&&!node.querySelector('.nexusDialogTrust'))head.after(Object.assign(document.createElement('div'),{className:'nexusDialogTrust',innerHTML:'<strong>One secure identity</strong><span>Your active role controls what you can see and do. Only administrator-approved workforce roles appear in your account.</span>'}));const email=node.querySelector('input[name="email"]'),password=node.querySelector('input[name="password"]');if(email)email.placeholder='you@example.com';if(password)password.placeholder='Enter your password';const submit=node.querySelector('[type="submit"]');if(submit)submit.textContent='Sign in securely'}
+ const observer=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{if(node.nodeType===1){if(node.id==='nexusLoginDialog')enhance(node);node.querySelectorAll?.('#nexusLoginDialog').forEach(enhance)}})));
+ observer.observe(document.documentElement,{childList:true,subtree:true});enhance(document.getElementById('nexusLoginDialog'));
 })();
 
 // Compact, consistent navigation and public patient registration.
@@ -51,6 +59,8 @@
   };
   status.addEventListener('click',openTerms);termsLink.addEventListener('click',openTerms);
   consent.addEventListener('change',()=>{submit.disabled=!(reviewComplete&&consent.checked)});
+  const footnote=dialog.querySelector('.nexusDialogFootnote'),signInText=footnote?.querySelector('strong');
+  if(footnote&&signInText){const signIn=document.createElement('button');signIn.type='button';signIn.className='nexusInlineSignIn';signIn.textContent='Sign In';signIn.addEventListener('click',()=>{dialog.close();window.NexusOpenLogin?.()});signInText.replaceWith(signIn)}
  }
  const signupTermsObserver=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{if(node.nodeType===1){if(node.id==='nexusSignupDialog')configureSignupTermsGate(node);node.querySelectorAll?.('#nexusSignupDialog').forEach(configureSignupTermsGate)}})));
  signupTermsObserver.observe(document.documentElement,{childList:true,subtree:true});

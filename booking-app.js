@@ -1006,6 +1006,27 @@
     draftSaveTimer=setTimeout(saveBookingDraft,900);
   }
 
+  async function applyPatientTransportationPreferences(){
+    if(String(currentUserRole||'').toUpperCase()!=='PATIENT'||!token())return;
+    try{
+      const response=await fetch('/api/patient/preferences',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
+      if(!response.ok)return;
+      const data=await response.json(),preferences=data.preferences||{},mobility=String(preferences.mobilityType||'AMBULATORY').toLowerCase();
+      const service=mobility==='broda'?'wheelchair':mobility;
+      if(CUSTOMER_ALLOWED_SERVICES.has(service))selectService(service);
+      if($('pickup')&&!String($('pickup').value||'').trim()&&preferences.defaultPickup)$('pickup').value=preferences.defaultPickup;
+      const needLines=[];
+      if(preferences.remainsInWheelchair)needLines.push('Rider remains in wheelchair during transport.');
+      if(preferences.transferAssistance)needLines.push('Transfer or boarding assistance requested.');
+      if(preferences.oxygenRequired)needLines.push('Rider travels with oxygen.');
+      if(preferences.accessibilityNotes)needLines.push(String(preferences.accessibilityNotes));
+      if($('notes')&&!String($('notes').value||'').trim()&&needLines.length)$('notes').value=needLines.join(' ');
+      const wheelchairAnswer=document.querySelector(`input[name="remainsInWheelchair"][value="${preferences.remainsInWheelchair?'yes':'no'}"]`);if(wheelchairAnswer)wheelchairAnswer.checked=true;
+      setLoginMessage(`Your ${mobility.replace('_',' ')} transportation preferences were applied. You can change them for this ride.`);
+      syncSectionProgressUi();
+    }catch{}
+  }
+
   function bookingHasStarted(){
     return ['name','phone','email','pickup','destination'].some((id)=>String($(id)?.value||'').trim());
   }
@@ -3119,6 +3140,7 @@
       currentUserRole = String(data?.user?.role || 'CUSTOMER').toUpperCase();
       isAdminUser = currentUserRole === 'ADMIN';
       applyRiderDetailsFromAuthUser();
+      await applyPatientTransportationPreferences();
       syncRiderIdentityMode();
       syncSectionProgressUi();
     }catch{

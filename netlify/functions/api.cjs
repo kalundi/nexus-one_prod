@@ -24,6 +24,38 @@ const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_APPROVAL:
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
 const clean=v=>String(v??'').trim();
+let multiRoleSchemaPromise=null;
+function ensureMultiRoleSchema(){
+ if(multiRoleSchemaPromise)return multiRoleSchemaPromise;
+ multiRoleSchemaPromise=(async()=>{
+  await query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS active_role text');
+  await query(`CREATE TABLE IF NOT EXISTS user_role_requests (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   role text NOT NULL CHECK (role IN ('PATIENT','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN')),
+   status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED')),
+   requested_at timestamptz NOT NULL DEFAULT now(),reviewed_at timestamptz,reviewed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+   scope_id text,notes text,UNIQUE(user_id,role))`);
+  await query('CREATE INDEX IF NOT EXISTS idx_user_role_requests_status ON user_role_requests(status,requested_at DESC)');
+  await query('CREATE INDEX IF NOT EXISTS idx_user_role_requests_user ON user_role_requests(user_id,status)');
+  await query('ALTER TABLE user_role_requests ENABLE ROW LEVEL SECURITY');
+  await query('REVOKE ALL ON TABLE user_role_requests FROM anon, authenticated').catch(()=>{});
+ })().catch(error=>{multiRoleSchemaPromise=null;throw error});
+ return multiRoleSchemaPromise;
+}
+let patientPreferencesSchemaPromise=null;
+function ensurePatientPreferencesSchema(){
+ if(patientPreferencesSchemaPromise)return patientPreferencesSchemaPromise;
+ patientPreferencesSchemaPromise=query(`CREATE TABLE IF NOT EXISTS patient_transport_preferences (
+  user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  mobility_type text NOT NULL DEFAULT 'AMBULATORY' CHECK (mobility_type IN ('AMBULATORY','WHEELCHAIR','BRODA','STRETCHER','BARIATRIC')),
+  remains_in_wheelchair boolean NOT NULL DEFAULT false,transfer_assistance boolean NOT NULL DEFAULT false,oxygen_required boolean NOT NULL DEFAULT false,
+  preferred_language text,communication_preference text NOT NULL DEFAULT 'SMS' CHECK (communication_preference IN ('SMS','VOICE','EMAIL')),
+  default_pickup text,accessibility_notes text,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now())`)
+  .then(()=>query('ALTER TABLE patient_transport_preferences ENABLE ROW LEVEL SECURITY'))
+  .then(()=>query('REVOKE ALL ON TABLE patient_transport_preferences FROM anon, authenticated').catch(()=>{}))
+  .catch(error=>{patientPreferencesSchemaPromise=null;throw error});
+ return patientPreferencesSchemaPromise;
+}
 const DEMO_SOURCES=new Set(['DEMO','LOCAL','MOCK','TEST']);
 const required=(body,fields)=>{for(const f of fields)if(!clean(body[f]))throw Object.assign(new Error(`${f} is required`),{statusCode:400})};
 const secureDocumentSlug=value=>clean(value).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,56)||'document';
@@ -2752,6 +2784,7 @@ async function handler(event){
    return json(200,{ok:true,message:'Password saved'});
   }
   if(p[0]==='auth'&&p[1]==='register'&&method==='POST'){
+   await ensureMultiRoleSchema();
    const b=parseBody(event),displayName=clean(b.displayName),email=clean(b.email).toLowerCase(),password=String(b.password||''),phoneDigits=normalizeE164(b.phone),requestedRole=String(b.role||'PATIENT').toUpperCase();
    const publicRoles=['PATIENT','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN'];
    if(!publicRoles.includes(requestedRole))return json(400,{error:'Select a valid account role'});
@@ -2760,23 +2793,40 @@ async function handler(event){
    if(!phoneDigits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});
    if(password.length<12)return json(400,{error:'Password must be at least 12 characters'});
    if(b.acceptTerms!==true)return json(400,{error:'Accept the Terms and Privacy Notice to create an account'});
-   const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1',[email]);
-   if(existing.rows[0])return json(409,{error:'An account already exists for this email. Use Sign In or reset your password.'});
-   const created=await query(`INSERT INTO users(email,display_name,password_hash,phone,role,active) VALUES($1,$2,$3,$4,'PATIENT',true) RETURNING *`,[email,displayName,hashPassword(password),phoneDigits]);
-   const u=created.rows[0],token=crypto.randomBytes(32).toString('base64url');
+   const existing=await query('SELECT * FROM users WHERE lower(email)=lower($1) LIMIT 1',[email]);
+   let u=existing.rows[0]||null;
+   if(u&&!verifyPassword(password,String(u.password_hash||'')))return json(409,{error:'An account already exists for this email. Use Sign In or reset your password.'});
+   if(!u){const created=await query(`INSERT INTO users(email,display_name,password_hash,phone,role,active) VALUES($1,$2,$3,$4,'PATIENT',true) RETURNING *`,[email,displayName,hashPassword(password),phoneDigits]);u=created.rows[0]}
+   const token=crypto.randomBytes(32).toString('base64url');
    await query(`INSERT INTO user_role_requests(user_id,role,status,reviewed_at) VALUES($1,'PATIENT','APPROVED',now()) ON CONFLICT(user_id,role) DO NOTHING`,[u.id]);
    if(requestedRole!=='PATIENT')await query(`INSERT INTO user_role_requests(user_id,role,status) VALUES($1,$2,'PENDING') ON CONFLICT(user_id,role) DO UPDATE SET status='PENDING',requested_at=now(),reviewed_at=null,reviewed_by=null`,[u.id,requestedRole]);
    await query(`INSERT INTO sessions(token_digest,user_id,active_role,expires_at,ip_address,user_agent) VALUES($1,$2,'PATIENT',now()+interval '8 hours',$3,$4)`,[digest(token),u.id,event.headers['x-forwarded-for']||null,event.headers['user-agent']||null]);
-   u.available_roles=['PATIENT'];
+   u.role='PATIENT';u.scope_id=null;u.available_roles=['PATIENT'];
    await audit('USER',String(u.id),'ACCOUNT_REGISTERED',{requestedRole,status:requestedRole==='PATIENT'?'APPROVED':'PENDING'});
    return json(201,{token,user:safeUser(u),roleRequest:requestedRole==='PATIENT'?null:{role:requestedRole,status:'PENDING'},message:requestedRole==='PATIENT'?'Your patient account is ready.':`Your ${requestedRole.toLowerCase()} access request is awaiting administrator verification. Patient access is available now.`});
   }
   if(p[0]==='auth'&&p[1]==='switch-role'&&method==='POST'){
+   await ensureMultiRoleSchema();
    const token=bearer(event),u=await requireUser(token),b=parseBody(event),nextRole=String(b.role||'').toUpperCase();
    if(!u.available_roles?.includes(nextRole))return json(403,{error:'That role is not approved for this account'});
    await query('UPDATE sessions SET active_role=$2 WHERE token_digest=$1 AND revoked_at IS NULL',[digest(token),nextRole]);
    const refreshed=await requireUser(token);await audit('USER',String(u.id),'ROLE_SWITCHED',{from:u.role,to:nextRole});
    return json(200,{user:safeUser(refreshed)});
+  }
+  if(p[0]==='patient'&&p[1]==='preferences'&&method==='GET'){
+   const u=await requireUser(bearer(event),['PATIENT']);await ensurePatientPreferencesSchema();
+   const result=await query('SELECT * FROM patient_transport_preferences WHERE user_id=$1 LIMIT 1',[u.id]),row=result.rows[0]||{};
+   return json(200,{preferences:{mobilityType:row.mobility_type||'AMBULATORY',remainsInWheelchair:!!row.remains_in_wheelchair,transferAssistance:!!row.transfer_assistance,oxygenRequired:!!row.oxygen_required,preferredLanguage:row.preferred_language||'',communicationPreference:row.communication_preference||'SMS',defaultPickup:row.default_pickup||'',accessibilityNotes:row.accessibility_notes||''}});
+  }
+  if(p[0]==='patient'&&p[1]==='preferences'&&method==='PATCH'){
+   const u=await requireUser(bearer(event),['PATIENT']),b=parseBody(event);await ensurePatientPreferencesSchema();
+   const mobilityType=String(b.mobilityType||'AMBULATORY').toUpperCase(),communicationPreference=String(b.communicationPreference||'SMS').toUpperCase();
+   if(!['AMBULATORY','WHEELCHAIR','BRODA','STRETCHER','BARIATRIC'].includes(mobilityType))return json(400,{error:'Select a valid mobility type'});
+   if(!['SMS','VOICE','EMAIL'].includes(communicationPreference))return json(400,{error:'Select a valid communication preference'});
+   const result=await query(`INSERT INTO patient_transport_preferences(user_id,mobility_type,remains_in_wheelchair,transfer_assistance,oxygen_required,preferred_language,communication_preference,default_pickup,accessibility_notes,updated_at)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,now()) ON CONFLICT(user_id) DO UPDATE SET mobility_type=EXCLUDED.mobility_type,remains_in_wheelchair=EXCLUDED.remains_in_wheelchair,transfer_assistance=EXCLUDED.transfer_assistance,oxygen_required=EXCLUDED.oxygen_required,preferred_language=EXCLUDED.preferred_language,communication_preference=EXCLUDED.communication_preference,default_pickup=EXCLUDED.default_pickup,accessibility_notes=EXCLUDED.accessibility_notes,updated_at=now() RETURNING *`,[u.id,mobilityType,b.remainsInWheelchair===true,b.transferAssistance===true,b.oxygenRequired===true,clean(b.preferredLanguage)||null,communicationPreference,clean(b.defaultPickup)||null,clean(b.accessibilityNotes)||null]);
+   await audit('PATIENT_PREFERENCES',String(u.id),'UPDATED',{mobilityType,communicationPreference});
+   return json(200,{preferences:result.rows[0],message:'Your transportation preferences will be used as defaults for future rides.'});
   }
   if(p[0]==='auth'&&p[1]==='login'&&method==='POST'){
    try{
@@ -3659,6 +3709,7 @@ async function handler(event){
   }
   // Admin: list users
   if(p[0]==='admin'&&p[1]==='role-requests'&&method==='GET'){
+   await ensureMultiRoleSchema();
    await requireUser(bearer(event),['ADMIN']);
    const result=await query(`SELECT rr.id,rr.role,rr.status,rr.requested_at,rr.reviewed_at,rr.scope_id,u.id AS user_id,u.email,u.display_name,u.phone
      FROM user_role_requests rr JOIN users u ON u.id=rr.user_id
@@ -3666,6 +3717,7 @@ async function handler(event){
    return json(200,{requests:result.rows.map(row=>({id:row.id,userId:row.user_id,email:row.email,name:row.display_name,phone:row.phone,role:row.role,status:row.status,scopeId:row.scope_id,requestedAt:row.requested_at,reviewedAt:row.reviewed_at}))});
   }
   if(p[0]==='admin'&&p[1]==='role-requests'&&p[2]&&method==='POST'){
+   await ensureMultiRoleSchema();
    const me=await requireUser(bearer(event),['ADMIN']),requestId=decodeURIComponent(p[2]),b=parseBody(event),decision=String(b.decision||'').toUpperCase();
    if(!['APPROVED','REJECTED'].includes(decision))return json(400,{error:'Decision must be APPROVED or REJECTED'});
    const found=await query(`SELECT rr.*,u.email FROM user_role_requests rr JOIN users u ON u.id=rr.user_id WHERE rr.id=$1 LIMIT 1`,[requestId]);
