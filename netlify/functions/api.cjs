@@ -1497,6 +1497,27 @@ function voiceRouteUrl(path,query=''){
  const base=`${siteBase()}/api/voice/${path}`;
  return query?`${base}?${query}`:base;
 }
+function callbackTokenHash(token){return crypto.createHash('sha256').update(String(token||'')).digest('hex')}
+async function createTwilioVoiceCall({to,from,url,statusCallback}){
+ if(!process.env.TWILIO_ACCOUNT_SID||!process.env.TWILIO_AUTH_TOKEN)throw Object.assign(new Error('Twilio calling is not configured'),{statusCode:503});
+ const form=new URLSearchParams({To:to,From:from,Url:url,Method:'POST'});
+ if(statusCallback){
+  form.set('StatusCallback',statusCallback);
+  form.set('StatusCallbackMethod','POST');
+  form.append('StatusCallbackEvent','initiated');
+  form.append('StatusCallbackEvent','ringing');
+  form.append('StatusCallbackEvent','answered');
+  form.append('StatusCallbackEvent','completed');
+ }
+ const auth=Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+ const response=await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Calls.json`,{method:'POST',headers:{authorization:`Basic ${auth}`,'content-type':'application/x-www-form-urlencoded'},body:form});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw Object.assign(new Error(data.message||`Twilio call failed (${response.status})`),{statusCode:502});
+ return data;
+}
+function callbackConnectTwiml(customerPhone,callerId,config){
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Connecting you to the caller through the Nexus business line.',config)}\n  <Dial callerId="${xmlEscape(callerId)}" timeout="30">\n    <Number>${xmlEscape(customerPhone)}</Number>\n  </Dial>\n</Response>`;
+}
 function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary',region=''}){
  const actionParams=new URLSearchParams({attempt:String(attempt||'primary')});
  if(region)actionParams.set('region',String(region));
@@ -1923,10 +1944,61 @@ async function handler(event){
    }
    return json(404,{error:'Unknown KeyMark endpoint'});
   }
+  if(p[0]==='dispatch'&&p[1]==='calls'&&!p[2]&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN','DISPATCHER']);
+   const limit=Math.min(100,Math.max(1,Number(event.queryStringParameters?.limit)||40));
+   const result=await query(`SELECT id,caller_phone,called_number,call_status,callback_twilio_sid,callback_requested_at,created_at,updated_at
+    FROM dispatch_voice_calls ORDER BY created_at DESC LIMIT $1`,[limit]);
+   return json(200,{businessNumber:formatPhoneDisplay(getVoiceConfig().callerId),calls:result.rows.map(row=>({id:row.id,callerPhone:formatPhoneDisplay(row.caller_phone),calledNumber:formatPhoneDisplay(row.called_number),status:row.call_status,callbackRequestedAt:row.callback_requested_at,createdAt:row.created_at,updatedAt:row.updated_at}))});
+  }
+  if(p[0]==='dispatch'&&p[1]==='calls'&&p[2]&&p[3]==='callback'&&method==='POST'){
+   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);
+   const config=getVoiceConfig();
+   const dispatcherPhone=toE164(config.primaryDispatch);
+   if(!dispatcherPhone)return json(409,{error:'Configure DISPATCH_PRIMARY_NUMBER before placing callbacks'});
+   const found=await query('SELECT id,caller_phone FROM dispatch_voice_calls WHERE id=$1 LIMIT 1',[p[2]]);
+   if(!found.rows[0])return json(404,{error:'Call record not found'});
+   const customerPhone=toE164(found.rows[0].caller_phone);
+   if(!customerPhone)return json(409,{error:'This call does not have a callback number'});
+   const token=crypto.randomBytes(32).toString('base64url');
+   const tokenHash=callbackTokenHash(token);
+   await query(`UPDATE dispatch_voice_calls SET callback_token_hash=$2,callback_requested_by=$3,callback_requested_at=now(),call_status='CALLBACK_REQUESTED',updated_at=now() WHERE id=$1`,[p[2],tokenHash,u.id]);
+   try{
+    const voiceUrl=voiceRouteUrl('callback-connect',new URLSearchParams({token}).toString());
+    const statusUrl=voiceRouteUrl('callback-status',new URLSearchParams({token}).toString());
+    const call=await createTwilioVoiceCall({to:dispatcherPhone,from:toE164(config.callerId),url:voiceUrl,statusCallback:statusUrl});
+    await query(`UPDATE dispatch_voice_calls SET callback_twilio_sid=$2,call_status='CALLBACK_RINGING',updated_at=now() WHERE id=$1`,[p[2],call.sid||null]);
+    await audit('DISPATCH_CALL',String(p[2]),'CALLBACK_REQUESTED',{actorId:u.id,twilioCallSid:call.sid||null});
+    return json(202,{ok:true,status:'CALLBACK_RINGING',message:'Twilio is ringing the dispatch line. Answer to connect the caller.'});
+   }catch(error){
+    await query(`UPDATE dispatch_voice_calls SET callback_token_hash=null,call_status='CALLBACK_FAILED',updated_at=now() WHERE id=$1`,[p[2]]).catch(()=>{});
+    throw error;
+   }
+  }
+  if(p[0]==='voice'&&p[1]==='callback-connect'&&method==='POST'){
+   const token=clean(event.queryStringParameters?.token);
+   if(!token)return xmlResponse(403,'<?xml version="1.0" encoding="UTF-8"?><Response><Hangup /></Response>');
+   const found=await query(`SELECT id,caller_phone FROM dispatch_voice_calls WHERE callback_token_hash=$1 AND callback_requested_at>now()-interval '15 minutes' LIMIT 1`,[callbackTokenHash(token)]);
+   if(!found.rows[0])return xmlResponse(403,'<?xml version="1.0" encoding="UTF-8"?><Response><Hangup /></Response>');
+   const config=getVoiceConfig();
+   await query(`UPDATE dispatch_voice_calls SET callback_token_hash=null,callback_connected_at=now(),call_status='CALLBACK_CONNECTING',updated_at=now() WHERE id=$1`,[found.rows[0].id]);
+   return xmlResponse(200,callbackConnectTwiml(toE164(found.rows[0].caller_phone),toE164(config.callerId),config));
+  }
+  if(p[0]==='voice'&&p[1]==='callback-status'&&method==='POST'){
+   const token=clean(event.queryStringParameters?.token);
+   const params=parseWebhookBody(event);
+   const status=clean(params.CallStatus||params.callStatus).toUpperCase();
+   if(token&&status)await query(`UPDATE dispatch_voice_calls SET call_status=$2,updated_at=now() WHERE callback_token_hash=$1 OR callback_twilio_sid=$3`,[callbackTokenHash(token),`CALLBACK_${status}`,clean(params.CallSid||params.callSid)]).catch(()=>{});
+   return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?><Response />');
+  }
   if(p[0]==='voice'&&p[1]==='incoming-call'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();
     const params=parseWebhookBody(event);
     const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
+   const calledNumber=clean(params.To||params.to||event.queryStringParameters?.To||event.queryStringParameters?.to||config.callerId);
+   const callSid=clean(params.CallSid||params.callSid||'');
+   if(callerFrom)await query(`INSERT INTO dispatch_voice_calls(twilio_call_sid,direction,caller_phone,called_number,call_status)
+    VALUES(NULLIF($1,''),'INBOUND',$2,$3,'RECEIVED') ON CONFLICT(twilio_call_sid) DO UPDATE SET call_status='RECEIVED',updated_at=now()`,[callSid,toE164(callerFrom),toE164(calledNumber)]).catch(error=>console.error('Unable to record inbound voice call',error.message));
    const openNow=isBusinessHoursOpen(config);
    if(!openNow&&config.afterHoursVoicemail){
     const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;

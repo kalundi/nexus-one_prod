@@ -56,6 +56,11 @@
 .dashSignal.normal{background:#ecfdf3;border-color:#abefc6;color:#067647}
 .dashSignal.warn{background:#fffaeb;border-color:#fedf89;color:#b54708}
 .dashSignal.alert{background:#fef3f2;border-color:#fecdca;color:#b42318}
+.dispatchCallList{display:grid;gap:10px;margin-top:16px}
+.dispatchCallRow{display:grid;grid-template-columns:minmax(180px,1fr) minmax(150px,.7fr) auto;gap:14px;align-items:center;padding:14px;border:1px solid #d7e3f0;border-radius:14px;background:#fff}
+.dispatchCallNumber{font-size:17px;font-weight:800;color:#0b2239}
+.dispatchCallMeta{font-size:12px;color:#5f7388;margin-top:4px}
+@media(max-width:700px){.dispatchCallRow{grid-template-columns:1fr}.dispatchCallRow .button{width:100%}}
 .dispatchFocusToolbar{display:none;align-items:center;gap:12px;padding:12px 14px;border:1px solid #d7e3f0;border-radius:14px;background:#f8fbff;margin:8px 0 14px}
 .dispatchFocusToolbar strong{font-size:15px;color:#123550}
 body.dispatchDashboardMode .dispatchSection{display:none}
@@ -236,6 +241,12 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
       <small>Prioritize likely delays and demand spikes.</small>
       <span class="dashSignal normal" data-signal-for="aiSection">Insights</span>
     </button>
+    <button type="button" class="dispatchDashboardTile" data-section-target="dispatchCallsSection">
+      <span class="tileLabel">Communications</span>
+      <strong>Incoming calls + callbacks</strong>
+      <small>Return calls through the Nexus business line.</small>
+      <span class="dashSignal normal" data-signal-for="dispatchCallsSection">Ready</span>
+    </button>
   </div>
 </section>
 <div class="dispatchFocusToolbar" id="dispatchFocusToolbar" aria-live="polite">
@@ -245,6 +256,14 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
     <strong id="dispatchFocusTitle">Dispatch</strong>
   </div>
 </div>
+<section id="dispatchCallsSection" class="card dispatchSection" style="margin-top:20px">
+  <div class="toolbar">
+    <div><div class="eyebrow">Nexus calling</div><h2>Incoming calls</h2><p style="margin:6px 0 0;color:var(--muted)">Callbacks originate through Twilio using <strong>(888) 639-5766</strong>. The dispatch line rings first; answer it to connect the caller.</p></div>
+    <button id="dispatchCallsRefresh" class="button secondary" type="button">Refresh Calls</button>
+  </div>
+  <div id="dispatchCallsMessage" class="subtle" role="status" aria-live="polite">Open Communications to load recent calls.</div>
+  <div id="dispatchCallList" class="dispatchCallList"></div>
+</section>
 <section id="dispatchIntakeSection" class="card dispatchSection" style="margin-top:20px">
   <div class="toolbar"><div><div class="eyebrow">Dispatch intake hub</div><h2>Broker, customer and facility request intake</h2><p style="margin:6px 0 0;color:var(--muted)">Modernized intake with service-aware rates, return-trip wait-time logic and shared dispatch standards.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="dispatchIntakeToggle" class="button secondary" type="button" aria-expanded="false" aria-controls="dispatchIntakeBody">Show Intake Hub</button></div></div>
   <div id="dispatchIntakeBody" hidden>
@@ -1027,7 +1046,55 @@ document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); e
 })();
 
 (function(){
+  const list=document.getElementById('dispatchCallList');
+  const message=document.getElementById('dispatchCallsMessage');
+  const refresh=document.getElementById('dispatchCallsRefresh');
+  if(!list||!message||!refresh) return;
+  const escapeHtml=(value)=>String(value??'').replace(/[&<>"']/g,(char)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const formatWhen=(value)=>{
+    const date=new Date(value);
+    return Number.isNaN(date.getTime())?'Unknown time':date.toLocaleString([], {dateStyle:'medium',timeStyle:'short'});
+  };
+  const callback=async(id,button)=>{
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    button.disabled=true;
+    button.textContent='Calling dispatch…';
+    try{
+      const response=await fetch(`/api/dispatch/calls/${encodeURIComponent(id)}/callback`,{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'}});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(data.error||'Unable to start callback');
+      message.textContent=data.message||'Twilio is ringing the dispatch line. Answer to connect the caller.';
+      button.textContent='Dispatch line ringing';
+      setTimeout(()=>window.loadDispatchCalls(),2500);
+    }catch(error){
+      message.textContent=error.message||'Unable to start callback.';
+      button.disabled=false;
+      button.textContent='Call Back';
+    }
+  };
+  window.loadDispatchCalls=async()=>{
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    refresh.disabled=true;
+    message.textContent='Loading recent calls…';
+    try{
+      const response=await fetch('/api/dispatch/calls?limit=40',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(data.error||'Unable to load calls');
+      const calls=Array.isArray(data.calls)?data.calls:[];
+      list.innerHTML=calls.length?calls.map((call)=>`<article class="dispatchCallRow"><div><div class="dispatchCallNumber">${escapeHtml(call.callerPhone||'Unknown caller')}</div><div class="dispatchCallMeta">Received ${escapeHtml(formatWhen(call.createdAt))}</div></div><div><span class="status blue">${escapeHtml(String(call.status||'RECEIVED').replaceAll('_',' '))}</span>${call.callbackRequestedAt?`<div class="dispatchCallMeta">Callback requested ${escapeHtml(formatWhen(call.callbackRequestedAt))}</div>`:''}</div><button class="button" type="button" data-call-back="${escapeHtml(call.id)}">Call Back</button></article>`).join(''):'<p class="subtle">No incoming calls have been recorded yet.</p>';
+      list.querySelectorAll('[data-call-back]').forEach((button)=>button.addEventListener('click',()=>callback(button.dataset.callBack,button)));
+      message.textContent=`${calls.length} recent call${calls.length===1?'':'s'} · outbound caller ID ${data.businessNumber||'(888) 639-5766'}`;
+    }catch(error){
+      list.innerHTML='';
+      message.textContent=error.message||'Unable to load calls.';
+    }finally{refresh.disabled=false;}
+  };
+  refresh.addEventListener('click',window.loadDispatchCalls);
+})();
+
+(function(){
   const sectionLabels={
+    dispatchCallsSection:'Nexus Calling',
     dispatchIntakeSection:'Dispatch Intake Hub',
     tripBoard:'Trip Management',
     driverStatusSection:'Driver and Fleet Status',
@@ -1070,6 +1137,9 @@ document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); e
 
     if(active>0||completed>0) setSignal('aiSection','normal','Insights active');
     else setSignal('aiSection','warn','Awaiting trip data');
+
+    const callCount=document.querySelectorAll('#dispatchCallList .dispatchCallRow').length;
+    setSignal('dispatchCallsSection','normal',callCount?`${callCount} recent`:'Ready');
 
     const summary=document.getElementById('dispatchDashboardSummary');
     if(summary){
@@ -1121,6 +1191,7 @@ document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); e
     setActiveTile(sectionId);
     if(sectionId==='dispatchIntakeSection') ensureExpanded('dispatchIntakeToggle');
     if(sectionId==='tripBoard') ensureExpanded('tripBoardToggle');
+    if(sectionId==='dispatchCallsSection'&&typeof window.loadDispatchCalls==='function') window.loadDispatchCalls();
     target.scrollIntoView({behavior:'smooth',block:'start'});
   };
 
