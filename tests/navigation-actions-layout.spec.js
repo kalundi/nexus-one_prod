@@ -49,6 +49,8 @@ async function expectHeaderActionsToFit(page, path, viewport, fixture = null) {
       language: rect(language),
       select: rect(select),
       selectedText,
+      height: language.getBoundingClientRect().height,
+      radius: getComputedStyle(language).borderRadius,
       textFits: textWidth + horizontalSpace <= language.getBoundingClientRect().width,
       callVisible: visible(call),
       call: visible(call) ? rect(call) : null
@@ -56,6 +58,8 @@ async function expectHeaderActionsToFit(page, path, viewport, fixture = null) {
   });
 
   expect(result.selectedText.length).toBeGreaterThan(0);
+  expect(result.height).toBe(38);
+  expect(result.radius).toBe('999px');
   expect(result.textFits, `${path} ${viewport.width}px language text is clipped: ${JSON.stringify(result)}`).toBeTruthy();
   expect(result.language.left).toBeGreaterThanOrEqual(0);
   expect(result.language.right).toBeLessThanOrEqual(result.viewportWidth + 0.5);
@@ -79,6 +83,25 @@ for (const viewport of viewports) {
 test('shared portal header actions fit without overlap', async ({ page }) => {
   for (const viewport of viewports) {
     await expectHeaderActionsToFit(page, '/livecare.html', viewport, 'portal');
+  }
+});
+
+test('every legacy language-control class uses the homepage pill', async ({ page }) => {
+  const css = fs.readFileSync('platform.css', 'utf8');
+  const variants = [
+    'nexusLanguageControl headerLanguageGlobal',
+    'nexusLanguageControl headerLanguage nexusCompactLanguage',
+    'nexusLanguageControl nexusCompactLanguage'
+  ];
+  for (const languageClass of variants) {
+    await page.setContent(`<style>${css}</style><div id="root"><header class="top globalTop"><div class="globalActions"><label class="${languageClass}" data-language-label="English (US)"><select data-nexus-language><option>English (US)</option></select></label></div></header></div>`);
+    const style = await page.locator('header [data-nexus-language]').evaluate(select => {
+      const wrapper = select.closest('.nexusLanguageControl,.headerLanguage');
+      const computed = getComputedStyle(wrapper);
+      const box = wrapper.getBoundingClientRect();
+      return { width: box.width, height: box.height, radius: computed.borderRadius, background: computed.backgroundColor };
+    });
+    expect(style).toEqual({ width: 140, height: 38, radius: '999px', background: 'rgb(255, 255, 255)' });
   }
 });
 
