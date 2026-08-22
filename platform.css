@@ -1280,3 +1280,39 @@ header .headerLanguage select{
  header .nexusCompactLanguage select,
  header .headerLanguage select{width:112px!important;min-width:112px!important;max-width:112px!important;padding-right:24px!important}
 }
+
+/* Build 054: align Home dropdown hover surfaces with their labels */
+header .nexusHomeMenu a{
+ position:relative!important;
+ box-sizing:border-box!important;
+ width:100%!important;
+ min-height:42px!important;
+ margin:0!important;
+ padding:10px 12px!important;
+ display:flex!important;
+ align-items:center!important;
+ justify-content:flex-start!important;
+ border:0!important;
+ border-radius:9px!important;
+ line-height:1.2!important;
+ background:transparent!important;
+}
+header .nexusHomeMenu a:before,
+header .nexusHomeMenu a:after{
+ content:none!important;
+ display:none!important;
+ border:0!important;
+}
+header .nexusHomeMenu a:hover,
+header .nexusHomeMenu a:focus-visible{
+ background:#e8f3f9!important;
+ color:#075985!important;
+ box-shadow:inset 3px 0 0 #0284c7!important;
+ transform:none!important;
+}
+header .nexusHomeGroup summary{
+ box-sizing:border-box!important;
+ align-items:center!important;
+ justify-content:center!important;
+ line-height:1.2!important;
+}

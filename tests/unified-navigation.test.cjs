@@ -38,6 +38,9 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(css,/never truncate the selected language/);
  assert.match(css,/flex:0 0 142px!important/);
  assert.match(css,/width:128px!important/);
+ assert.match(css,/align Home dropdown hover surfaces with their labels/);
+ assert.match(css,/header \.nexusHomeMenu a:after/);
+ assert.match(css,/box-shadow:inset 3px 0 0 #0284c7!important/);
 });
 
 test('homepage sections receive a return-to-hero control',()=>{
