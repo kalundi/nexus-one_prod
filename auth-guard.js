@@ -35,7 +35,7 @@
   }
 
   const token=sessionStorage.getItem('nexusAccessToken');
-  const loginUrl='/livecare.html?redirect='+encodeURIComponent(pathname);
+  const loginUrl='/?login=1&redirect='+encodeURIComponent(pathname);
   let settled=false;
 
   const clearSession=()=>{
@@ -132,7 +132,7 @@
           console.error('[AUTH-GUARD] Logout request failed:',error);
         }finally{
           clearSession();
-          location.replace('/livecare.html');
+          location.replace('/');
         }
       });
     }

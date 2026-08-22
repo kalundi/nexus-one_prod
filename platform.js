@@ -1,3 +1,27 @@
+// Unified account control: one login in the navigation, visible session identity everywhere.
+(function(){
+ const TOKEN='nexusAccessToken',USER='nexusUser';
+ const parse=value=>{try{return JSON.parse(value)}catch{return null}};
+ const routeFor=role=>({ADMIN:'/admin.html',DISPATCHER:'/dispatch.html',DRIVER:'/driver-app.html',FACILITY:'/facility.html',BILLING:'/billing.html',QA:'/qa.html',EXECUTIVE:'/executive.html',PATIENT:'/livecare.html'}[String(role||'').toUpperCase()]||'/livecare.html');
+ const initials=value=>String(value||'N').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();
+ const clear=()=>{sessionStorage.removeItem(TOKEN);sessionStorage.removeItem(USER)};
+ function dialog(){
+  let node=document.getElementById('nexusLoginDialog');if(node)return node;
+  node=document.createElement('dialog');node.id='nexusLoginDialog';node.className='nexusLoginDialog';node.innerHTML=`<div class="nexusLoginCard"><div class="nexusLoginHead"><div><span class="eyebrow">Secure Nexus access</span><h2>Log in</h2><p style="margin:0;color:#667085">Use the account issued by Nexus Medical Transit.</p></div><button class="nexusLoginClose" type="button" aria-label="Close login">×</button></div><form class="nexusLoginForm"><label>Email or account number<input name="email" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Log in securely</button><p class="nexusLoginError" role="alert" aria-live="polite"></p><a href="/set-password.html" style="font-size:13px;color:#0b5d91">Set or reset password</a></form></div>`;
+  document.body.appendChild(node);node.querySelector('.nexusLoginClose').addEventListener('click',()=>node.close());node.addEventListener('click',e=>{if(e.target===node)node.close()});
+  node.querySelector('form').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,error=node.querySelector('.nexusLoginError'),button=form.querySelector('[type=submit]');error.textContent='';button.disabled=true;button.textContent='Logging in…';try{const response=await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:form.email.value.trim(),password:form.password.value})});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Login failed');sessionStorage.setItem(TOKEN,data.token);sessionStorage.setItem(USER,JSON.stringify(data.user));const requested=new URLSearchParams(location.search).get('redirect');location.assign(requested||routeFor(data.user?.role))}catch(err){error.textContent=err.message}finally{button.disabled=false;button.textContent='Log in securely'}});return node;
+ }
+ async function user(){const token=sessionStorage.getItem(TOKEN);if(!token)return null;try{const response=await fetch('/api/auth/me',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(!response.ok)throw new Error('expired');const data=await response.json();sessionStorage.setItem(USER,JSON.stringify(data.user));return data.user}catch{clear();return null}}
+ function mount(current){
+  const host=document.querySelector('.globalActions')||document.querySelector('header .globalNav')||document.querySelector('header nav')?.parentElement||document.querySelector('header');if(!host)return false;document.getElementById('nexusAccountMount')?.remove();const wrap=document.createElement('div');wrap.id='nexusAccountMount';wrap.className='nexusAccountMount';
+  if(!current){wrap.innerHTML='<button class="nexusAccountButton" type="button"><span class="nexusAccountAvatar">N</span><span class="nexusAccountText">Log in<small>Secure access</small></span></button>';wrap.querySelector('button').addEventListener('click',()=>dialog().showModal())}
+  else{const name=current.displayName||current.name||current.email||'Nexus user',role=String(current.role||'Member').toUpperCase();wrap.innerHTML=`<button class="nexusAccountButton" type="button" aria-expanded="false"><span class="nexusAccountAvatar"></span><span class="nexusAccountText"></span></button><div class="nexusAccountMenu" hidden><a href="${routeFor(role)}">Open my workspace</a><button type="button" data-nexus-logout>Sign out</button></div>`;wrap.querySelector('.nexusAccountAvatar').textContent=initials(name);const label=wrap.querySelector('.nexusAccountText');label.textContent=name;const small=document.createElement('small');small.textContent=role;label.appendChild(small);const button=wrap.querySelector('.nexusAccountButton'),menu=wrap.querySelector('.nexusAccountMenu');button.addEventListener('click',()=>{menu.hidden=!menu.hidden;button.setAttribute('aria-expanded',String(!menu.hidden))});wrap.querySelector('[data-nexus-logout]').addEventListener('click',async()=>{try{await fetch('/api/auth/logout',{method:'POST',headers:{authorization:`Bearer ${sessionStorage.getItem(TOKEN)||''}`}})}catch{}clear();location.assign('/')})}
+  const cta=host.querySelector('.navCta');if(cta)host.insertBefore(wrap,cta);else host.appendChild(wrap);return true;
+ }
+ async function boot(){const current=await user();let attempts=0;const attach=()=>{if(mount(current))return;if(attempts++<40)setTimeout(attach,100)};attach();if(new URLSearchParams(location.search).get('login')==='1')setTimeout(()=>dialog().showModal(),200)}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
+
 const nexusAnalyticsPages=new Set([
 		'/accessibility.html','/about-nexus-medical-transit.html',
   '/career-application.html','/careers.html','/contact-service-areas.html',
@@ -522,7 +546,7 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
       sessionStorage.removeItem(TOKEN_KEY);
       sessionStorage.removeItem('nexusUser');
       const redirect = encodeURIComponent(location.pathname + location.search);
-      location.href = '/livecare.html?redirect=' + redirect + '&reason=timeout';
+      location.href = '/?login=1&redirect=' + redirect + '&reason=timeout';
     }
   }, CHECK_MS);
 }());
