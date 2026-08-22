@@ -8,6 +8,7 @@ const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 test('public signup requests a selected role while preserving immediate patient access',()=>{
  const api=read('netlify/functions/api.cjs'),client=read('platform.js');
  assert.match(client,/name="role" required/);
+ assert.equal((client.match(/name="role" required/g)||[]).length,1);
  assert.match(client,/role:form\.role\.value/);
  assert.match(api,/requestedRole=String\(b\.role\|\|'PATIENT'\)/);
  assert.match(api,/requestedRole!==\'PATIENT\'/);
