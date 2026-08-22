@@ -1178,3 +1178,14 @@ body.boFocusMode .boModuleSection.focusVisible{display:block;min-height:calc(100
   margin-right:auto!important;
  }
 }
+
+/* Build 049: navigation baseline and language breathing room */
+@media(min-width:1041px){
+ #root .topbar .shell.nav{height:94px!important;min-height:94px!important}
+ #root .topbar #primary-navigation{height:100%!important;align-items:center!important}
+ #root .topbar #primary-navigation>.nexusHomeGroup,
+ #root .topbar #primary-navigation>a{height:100%!important;display:flex!important;align-items:center!important}
+ #root .topbar .nexusHomeGroup summary{display:flex!important;align-items:center!important;min-height:44px!important;line-height:1!important}
+ #root .topbar #primary-navigation>a{line-height:1!important}
+ #root .topbar .nexusCompactLanguage select{width:62px!important;min-width:62px!important;padding-inline:6px!important}
+}
