@@ -1364,31 +1364,57 @@ header .nexusSharedActions .menuBtn,
 header .nexusSharedActions .mobileNavToggle{order:5!important}
 @media(max-width:1040px){header .nexusSharedActions .nexusSharedCall{display:none!important}}
 
-/* Build 057: keep every language and navigation label fully visible */
+/* Build 059: one measured header-action layout for every viewport */
 header .nexusLanguageControl,
 header .headerLanguage,
-header .nexusCompactLanguage{
- width:164px!important;
- min-width:164px!important;
- max-width:none!important;
- flex:0 0 164px!important;
+header .nexusCompactLanguage,
+#root .topbar .nexusCompactLanguage{
+ position:relative!important;
+ display:flex!important;
+ align-items:center!important;
+ width:140px!important;
+ min-width:140px!important;
+ max-width:140px!important;
+ flex:0 0 140px!important;
  overflow:visible!important;
  visibility:visible!important;
 }
+header .nexusLanguageControl:before,
+header .headerLanguage:before,
+header .nexusCompactLanguage:before{
+ content:attr(data-language-label)!important;
+ display:block!important;
+ padding:0 32px 0 10px!important;
+ color:#0f2744!important;
+ font:800 13px/1.25 Manrope,system-ui,sans-serif!important;
+ white-space:nowrap!important;
+ pointer-events:none!important;
+}
+header .nexusLanguageControl:after,
+header .headerLanguage:after,
+header .nexusCompactLanguage:after{
+ content:'⌄'!important;
+ position:absolute!important;
+ right:12px!important;
+ top:50%!important;
+ transform:translateY(-55%)!important;
+ color:#0f2744!important;
+ font:900 16px/1 system-ui,sans-serif!important;
+ pointer-events:none!important;
+}
 header .nexusLanguageControl select,
 header .headerLanguage select,
-header .nexusCompactLanguage select{
- display:block!important;
- box-sizing:border-box!important;
- width:150px!important;
- min-width:150px!important;
- max-width:none!important;
- padding:4px 34px 4px 10px!important;
- overflow:visible!important;
- text-overflow:clip!important;
- white-space:nowrap!important;
- font-size:14px!important;
- line-height:1.25!important;
+header .nexusCompactLanguage select,
+#root .topbar .nexusCompactLanguage select{
+ position:absolute!important;
+ inset:0!important;
+ width:100%!important;
+ min-width:100%!important;
+ max-width:100%!important;
+ height:100%!important;
+ padding:0!important;
+ opacity:0!important;
+ cursor:pointer!important;
 }
 header nav,
 header .links,
@@ -1396,50 +1422,9 @@ header .globalLinks,
 header .navRight,
 header .globalActions,
 header .nexusSharedActions{overflow:visible!important}
-header nav a,
-header nav button,
-header nav summary,
-header .navRight a,
-header .navRight button,
-header .globalActions a,
-header .globalActions button{
- max-width:none!important;
- overflow:visible!important;
- text-overflow:clip!important;
- white-space:nowrap!important;
-}
-@media(max-width:620px){
- header .nexusLanguageControl,
- header .headerLanguage,
- header .nexusCompactLanguage{width:150px!important;min-width:150px!important;flex-basis:150px!important}
- header .nexusLanguageControl select,
- header .headerLanguage select,
- header .nexusCompactLanguage select{width:136px!important;min-width:136px!important;padding-right:30px!important;font-size:13px!important}
- header .nexusSharedActions,
- header .navRight,
- header .globalActions{flex-wrap:wrap!important;row-gap:8px!important}
-}
-
-/* Build 058: full language text without crowding adjacent header actions */
-header .nexusLanguageControl,
-header .headerLanguage,
-header .nexusCompactLanguage,
-#root .topbar .nexusCompactLanguage{
- width:140px!important;
- min-width:140px!important;
- max-width:140px!important;
- flex:0 0 140px!important;
-}
-header .nexusLanguageControl select,
-header .headerLanguage select,
-header .nexusCompactLanguage select,
-#root .topbar .nexusCompactLanguage select{
- width:126px!important;
- min-width:126px!important;
- max-width:126px!important;
- padding:4px 25px 4px 8px!important;
- font-size:13px!important;
-}
+header .nexusSharedActions,
+header .navRight,
+header .globalActions{column-gap:12px!important}
 header .nexusSharedCall,
 header .globalPhone,
 header .call{
@@ -1451,12 +1436,7 @@ header .nexusSharedCall b,
 header .globalPhone strong,
 header .call b{white-space:nowrap!important;overflow:visible!important;text-overflow:clip!important}
 @media(max-width:620px){
- header .nexusLanguageControl,
- header .headerLanguage,
- header .nexusCompactLanguage,
- #root .topbar .nexusCompactLanguage{width:132px!important;min-width:132px!important;max-width:132px!important;flex-basis:132px!important}
- header .nexusLanguageControl select,
- header .headerLanguage select,
- header .nexusCompactLanguage select,
- #root .topbar .nexusCompactLanguage select{width:118px!important;min-width:118px!important;max-width:118px!important;padding-right:23px!important}
+ header .nexusSharedActions,
+ header .navRight,
+ header .globalActions{flex-wrap:wrap!important;row-gap:8px!important}
 }

@@ -38,12 +38,11 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(css,/never truncate the selected language/);
  assert.match(css,/flex:0 0 142px!important/);
  assert.match(css,/width:128px!important/);
- assert.match(css,/Build 057: keep every language and navigation label fully visible/);
- assert.match(css,/width:150px!important;\s*min-width:150px!important/);
- assert.match(css,/header nav a,[\s\S]*text-overflow:clip!important/);
- assert.match(css,/Build 058: full language text without crowding adjacent header actions/);
- assert.match(css,/#root \.topbar \.nexusCompactLanguage select\{[\s\S]*width:126px!important/);
+ assert.match(css,/Build 059: one measured header-action layout for every viewport/);
+ assert.match(css,/content:attr\(data-language-label\)!important/);
+ assert.match(css,/#root \.topbar \.nexusCompactLanguage\{[\s\S]*width:140px!important/);
  assert.match(css,/header \.nexusSharedCall,[\s\S]*min-width:max-content!important/);
+ assert.match(js,/function nexusStableHeaderLanguage/);
  assert.match(css,/align Home dropdown hover surfaces with their labels/);
  assert.match(css,/header \.nexusHomeMenu a:after/);
  assert.match(css,/box-shadow:inset 3px 0 0 #0284c7!important/);
@@ -60,7 +59,8 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
 });
 test('homepage requests the current unclipped navigation stylesheet',()=>{
  const homepage=read('__deploy_temp/index.html');
- assert.match(homepage,/platform\.css\?v=58/);
+ assert.match(homepage,/platform\.css\?v=59/);
+ assert.match(homepage,/platform\.js\?v=59/);
 });
 
 test('every platform navigation requests the same current stylesheet',()=>{
@@ -74,7 +74,7 @@ test('every platform navigation requests the same current stylesheet',()=>{
  visit(root);
  const platformPages=htmlFiles.filter(file=>/platform\.css/.test(fs.readFileSync(file,'utf8')));
  assert.ok(platformPages.length>20);
- platformPages.forEach(file=>assert.doesNotMatch(fs.readFileSync(file,'utf8'),/platform\.css(?!\?v=58)/,path.relative(root,file)));
+ platformPages.forEach(file=>assert.doesNotMatch(fs.readFileSync(file,'utf8'),/platform\.css(?!\?v=59)/,path.relative(root,file)));
 });
 test('homepage sections receive a return-to-hero control',()=>{
  const js=read('platform.js');

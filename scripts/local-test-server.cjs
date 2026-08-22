@@ -351,7 +351,9 @@ function createServer() {
       const fs = require('fs');
       const path = require('path');
       const workspaceRoot = path.resolve(__dirname, '..');
-      const filePath = pathname === '/' ? path.join(workspaceRoot, 'index.html') : path.join(workspaceRoot, pathname.replace(/^\//, ''));
+      const filePath = pathname === '/'
+        ? path.join(workspaceRoot, '__deploy_temp', 'index.html')
+        : path.join(workspaceRoot, pathname.replace(/^\//, ''));
       const isStaticAsset = /\.(html|js|css|png|jpg|jpeg|gif|svg|ico|json|txt|md)$/.test(pathname);
       if (isStaticAsset && fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath);

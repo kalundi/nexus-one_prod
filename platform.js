@@ -24,6 +24,22 @@
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 
+// Keep React and static headers on the same compact, readable language labels.
+(function nexusStableHeaderLanguage(){
+ const labels={'en-US':'English (US)','en-GB':'English (UK)',fr:'Français',es:'Español'};
+ function sync(root=document){
+  root.querySelectorAll?.('header [data-nexus-language]').forEach(select=>{
+   const wrap=select.closest('.nexusLanguageControl,.headerLanguage');
+   if(wrap)wrap.dataset.languageLabel=labels[String(select.value||'').trim()]||'Language';
+  });
+ }
+ const observer=new MutationObserver(records=>{if(records.some(record=>record.addedNodes?.length))queueMicrotask(()=>sync())});
+ observer.observe(document.documentElement,{childList:true,subtree:true});
+ document.addEventListener('change',event=>{if(event.target?.matches?.('header [data-nexus-language]'))sync()});
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>sync(),{once:true});else sync();
+ setTimeout(()=>sync(),250);
+})();
+
 // Upgrade the shared sign-in dialog to match the secure account experience.
 (function nexusPremiumLogin(){
  function enhance(node){if(!node||node.dataset.premiumReady)return;node.dataset.premiumReady='1';node.classList.add('nexusPremiumDialog');node.setAttribute('aria-labelledby','nexusLoginTitle');const heading=node.querySelector('h2');if(heading){heading.id='nexusLoginTitle';heading.textContent='Welcome back'}const lead=node.querySelector('.nexusLoginHead p');if(lead){lead.className='nexusDialogLead';lead.textContent='Sign in once, then open or switch between every approved Nexus experience.'}const head=node.querySelector('.nexusLoginHead');if(head&&!node.querySelector('.nexusDialogTrust'))head.after(Object.assign(document.createElement('div'),{className:'nexusDialogTrust',innerHTML:'<strong>One secure identity</strong><span>Your active role controls what you can see and do. Only administrator-approved workforce roles appear in your account.</span>'}));const email=node.querySelector('input[name="email"]'),password=node.querySelector('input[name="password"]');if(email)email.placeholder='you@example.com';if(password)password.placeholder='Enter your password';const submit=node.querySelector('[type="submit"]');if(submit)submit.textContent='Sign in securely'}
