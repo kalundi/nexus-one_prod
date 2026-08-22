@@ -169,7 +169,8 @@ window.addEventListener('DOMContentLoaded', function () {
   const handle = panel && panel.querySelector('.statusDragHandle');
   if (!panel || !shell || !handle) return;
 
-  const storageKey = 'nexusLivecareStatusPanelPositionV3';
+  const storageKey = 'nexusLivecareStatusPanelPositionV4';
+  const safeInset = 10;
   let active = false;
   let startClientX = 0;
   let startClientY = 0;
@@ -185,15 +186,17 @@ window.addEventListener('DOMContentLoaded', function () {
 
   function bounds() {
     return {
-      maxLeft: Math.max(0, shell.clientWidth - panel.offsetWidth),
-      maxTop: Math.max(0, shell.clientHeight - panel.offsetHeight)
+      minLeft: safeInset,
+      minTop: safeInset,
+      maxLeft: Math.max(safeInset, shell.clientWidth - panel.offsetWidth - safeInset),
+      maxTop: Math.max(safeInset, shell.clientHeight - panel.offsetHeight - safeInset)
     };
   }
 
   function place(left, top, save) {
     const b = bounds();
-    const x = clamp(left, 0, b.maxLeft);
-    const y = clamp(top, 0, b.maxTop);
+    const x = clamp(left, b.minLeft, b.maxLeft);
+    const y = clamp(top, b.minTop, b.maxTop);
     panel.style.setProperty('position', 'absolute', 'important');
     panel.style.setProperty('left', x + 'px', 'important');
     panel.style.setProperty('top', y + 'px', 'important');
@@ -223,7 +226,7 @@ window.addEventListener('DOMContentLoaded', function () {
     if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
       place(saved.x * b.maxLeft, saved.y * b.maxTop, false);
     } else {
-      place(b.maxLeft - 10, b.maxTop / 2, false);
+      place(b.maxLeft, b.maxTop / 2, false);
     }
   }
 

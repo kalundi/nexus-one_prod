@@ -108,3 +108,12 @@ test('patient sign up creates only a PATIENT account with consent',()=>{
  assert.match(js,/submit\.disabled=!\(reviewComplete&&consent\.checked\)/);
 });
 
+test('Livecare draggable status rail is always inset from map edges',()=>{
+ const html=read('livecare.html');
+ assert.match(html,/nexusLivecareStatusPanelPositionV4/);
+ assert.match(html,/const safeInset = 10/);
+ assert.match(html,/minLeft: safeInset/);
+ assert.match(html,/shell\.clientWidth - panel\.offsetWidth - safeInset/);
+ assert.match(html,/clamp\(left, b\.minLeft, b\.maxLeft\)/);
+});
+
