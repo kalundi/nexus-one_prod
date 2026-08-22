@@ -7,8 +7,8 @@ const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 
 test('home page loads the unified account navigation',()=>{
  const home=read('__deploy_temp/index.html');
- assert.match(home,/platform\.css\?v=39/);
- assert.match(home,/platform\.js\?v=39/);
+ assert.match(home,/platform\.css\?v=40/);
+ assert.match(home,/platform\.js\?v=40/);
 });
 
 test('shared account control displays login or authenticated identity',()=>{

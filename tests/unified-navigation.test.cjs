@@ -25,6 +25,9 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(css,/#root \.hero \.shell\.serviceStrip/);
  assert.match(css,/height:94px!important;min-height:94px!important/);
  assert.match(css,/\.nexusCompactLanguage select\{width:62px!important;min-width:62px!important/);
+ assert.match(css,/high-contrast homepage service titles/);
+ assert.match(css,/serviceStrip>button b/);
+ assert.match(css,/color:#075985!important/);
 });
 
 test('homepage sections receive a return-to-hero control',()=>{

@@ -1189,3 +1189,15 @@ body.boFocusMode .boModuleSection.focusVisible{display:block;min-height:calc(100
  #root .topbar #primary-navigation>a{line-height:1!important}
  #root .topbar .nexusCompactLanguage select{width:62px!important;min-width:62px!important;padding-inline:6px!important}
 }
+
+/* Build 050: high-contrast homepage service titles */
+#root .hero .serviceStrip>button b,
+#root .hero .serviceStrip>button strong{
+ color:#075985!important;
+ font-weight:900!important;
+ letter-spacing:-.01em!important;
+}
+#root .hero .serviceStrip>button small{color:#405d73!important;font-weight:600!important}
+#root .hero .serviceStrip>button>svg:last-child{color:#0284c7!important;stroke-width:2.5!important}
+#root .hero .serviceStrip>button:hover b,
+#root .hero .serviceStrip>button:focus-visible b{color:#9f1239!important}
