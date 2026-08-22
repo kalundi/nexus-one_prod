@@ -21,6 +21,8 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(css,/\.globalNav,\.nav\{min-height:68px/);
  assert.match(css,/width:min\(1240px,calc\(100% - 48px\)\)!important/);
  assert.match(css,/height:84px!important/);
+ assert.match(css,/#root \.hero \.shell\.heroGrid/);
+ assert.match(css,/#root \.hero \.shell\.serviceStrip/);
 });
 
 test('homepage sections receive a return-to-hero control',()=>{

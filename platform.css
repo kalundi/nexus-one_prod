@@ -1166,3 +1166,15 @@ body.boFocusMode .boModuleSection.focusVisible{display:block;min-height:calc(100
  .topbar #primary-navigation{margin-left:14px!important}
  .topbar .navRight{margin-left:auto!important}
 }
+
+/* Build 048: one shared edge for navigation and homepage hero */
+@media(min-width:1041px){
+ #root .topbar .shell.nav,
+ #root .hero .shell.heroGrid,
+ #root .hero .shell.serviceStrip{
+  width:min(1240px,calc(100% - 48px))!important;
+  max-width:none!important;
+  margin-left:auto!important;
+  margin-right:auto!important;
+ }
+}
