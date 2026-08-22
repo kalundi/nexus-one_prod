@@ -1251,3 +1251,32 @@ body.boFocusMode .boModuleSection.focusVisible{display:block;min-height:calc(100
  }
 }
 @media(max-width:1040px){header .nexusHomeMenu{left:auto!important;transform:none!important}}
+
+/* Build 053: never truncate the selected language */
+header .nexusCompactLanguage,
+header .headerLanguage{
+ width:142px!important;
+ min-width:142px!important;
+ max-width:142px!important;
+ flex:0 0 142px!important;
+ padding-left:6px!important;
+ padding-right:6px!important;
+ overflow:visible!important;
+}
+header .nexusCompactLanguage select,
+header .headerLanguage select{
+ box-sizing:border-box!important;
+ width:128px!important;
+ min-width:128px!important;
+ max-width:128px!important;
+ padding:4px 28px 4px 8px!important;
+ overflow:visible!important;
+ text-overflow:clip!important;
+ white-space:nowrap!important;
+}
+@media(max-width:620px){
+ header .nexusCompactLanguage,
+ header .headerLanguage{width:126px!important;min-width:126px!important;max-width:126px!important;flex-basis:126px!important}
+ header .nexusCompactLanguage select,
+ header .headerLanguage select{width:112px!important;min-width:112px!important;max-width:112px!important;padding-right:24px!important}
+}

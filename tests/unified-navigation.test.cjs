@@ -35,6 +35,9 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(css,/header \.globalBrand \.logo/);
  assert.match(css,/width:195px!important/);
  assert.match(css,/transform:translateX\(-50%\)!important/);
+ assert.match(css,/never truncate the selected language/);
+ assert.match(css,/flex:0 0 142px!important/);
+ assert.match(css,/width:128px!important/);
 });
 
 test('homepage sections receive a return-to-hero control',()=>{
