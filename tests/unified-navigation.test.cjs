@@ -41,6 +41,12 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(css,/align Home dropdown hover surfaces with their labels/);
  assert.match(css,/header \.nexusHomeMenu a:after/);
  assert.match(css,/box-shadow:inset 3px 0 0 #0284c7!important/);
+ assert.match(js,/nexusHomeMenuStyleLock/);
+ assert.match(js,/lockHomeMenuStyles\(\);normalizeNav\(\)/);
+ assert.match(css,/hard-stop the main-nav underline inside the Home dropdown/);
+ assert.match(js,/function ensureCarouselRotation\(\)/);
+ assert.match(js,/Date\.now\(\)-changedAt>7000/);
+ assert.match(js,/roundControl\[aria-label="Next slide"\]/);
 });
 
 test('homepage sections receive a return-to-hero control',()=>{

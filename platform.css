@@ -1316,3 +1316,8 @@ header .nexusHomeGroup summary{
  justify-content:center!important;
  line-height:1.2!important;
 }
+
+/* Build 055: hard-stop the main-nav underline inside the Home dropdown */
+#primary-navigation .nexusHomeMenu>a:before,
+#primary-navigation .nexusHomeMenu>a:after{content:none!important;display:none!important;width:0!important;height:0!important}
+#primary-navigation .nexusHomeMenu>a:hover{border-bottom:0!important;outline:0!important}
