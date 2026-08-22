@@ -68,7 +68,7 @@ test('patient sign up creates only a PATIENT account with consent',()=>{
  assert.match(api,/p\[1\]==='register'/);
  assert.match(api,/b\.acceptTerms!==true/);
  assert.match(api,/password\.length<12/);
- assert.match(api,/phoneDigits\.length!==10/);
+ assert.match(api,/phoneDigits=normalizeE164/);
  assert.match(api,/password_hash,phone,role,active/);
  assert.match(api,/regexp_replace\(phone/);
  assert.match(js,/name="phone" type="tel"/);

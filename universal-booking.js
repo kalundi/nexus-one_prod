@@ -209,22 +209,9 @@
   function enhancePhoneField(input){
     if(state.phoneFields.has(input))return;
     state.phoneFields.add(input);
-    input.setAttribute('inputmode','numeric');
-    input.setAttribute('placeholder','(555) 123-4567');
-    input.addEventListener('input',e=>{
-      let val=e.target.value.replace(/\D/g,'');
-      if(val.length>10)val=val.slice(0,10);
-      if(val.length===0){e.target.value=''}
-      else if(val.length<=3){e.target.value=val}
-      else if(val.length<=6){e.target.value=val.slice(0,3)+'-'+val.slice(3)}
-      else{e.target.value=val.slice(0,3)+'-'+val.slice(3,6)+'-'+val.slice(6,10)}
-    });
-    input.addEventListener('blur',e=>{
-      const val=e.target.value.replace(/\D/g,'');
-      if(val.length===10){
-        e.target.value=val.slice(0,3)+'-'+val.slice(3,6)+'-'+val.slice(6);
-      }
-    });
+    input.setAttribute('inputmode','tel');
+    input.setAttribute('placeholder','+1 240 555 0101');
+    input.setAttribute('maxlength','24');
   }
   
   function enhanceEmailField(input){

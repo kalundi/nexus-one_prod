@@ -7,6 +7,7 @@ const {digest,safeUser,requireUser,audit}=require('./_shared/auth.cjs');
 const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestStatus}=require('./_shared/broker-auto-book.cjs');
 const {canAdvanceBookingForAvailability}=require('./_shared/dispatch-approval.cjs');
 const {buildEmailRecipients,buildSmsRecipients}=require('./_shared/notification-routing.cjs');
+const {normalizeE164}=require('./_shared/phone.cjs');
 const {resolveAssignedStatus}=require('./_shared/assignment-status.cjs');
 const {isDriverAssignableStatus, normalizeDriverAcceptanceStatus}=require('./_shared/driver-assignments.cjs');
 const {hashPassword, verifyPassword}=require('./_shared/password.cjs');
@@ -2398,8 +2399,8 @@ async function handler(event){
   }
   if(p[0]==='booking-drafts'&&method==='POST'&&p.length===1){
    const b=parseBody(event);required(b,['draftToken','phone']);
-   const digits=clean(b.phone).replace(/\D/g,'');
-   if(digits.length!==10)return json(400,{error:'Phone number must be 10 digits'});
+   const digits=normalizeE164(b.phone);
+   if(!digits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});
    const step=['RIDER','ROUTE','RIDE','REVIEW','PAYMENT'].includes(clean(b.currentStep).toUpperCase())?clean(b.currentStep).toUpperCase():'RIDER';
    await query(`INSERT INTO booking_drafts(draft_token,name,phone,email,current_step,last_activity_at,reminder_due_at,updated_at) VALUES($1,$2,$3,$4,$5,now(),now()+interval '5 minutes',now()) ON CONFLICT(draft_token) DO UPDATE SET name=EXCLUDED.name,phone=EXCLUDED.phone,email=EXCLUDED.email,current_step=EXCLUDED.current_step,last_activity_at=now(),reminder_due_at=CASE WHEN booking_drafts.reminder_sent_at IS NULL THEN now()+interval '5 minutes' ELSE booking_drafts.reminder_due_at END,updated_at=now() WHERE booking_drafts.completed_at IS NULL`,[clean(b.draftToken).slice(0,100),clean(b.name)||null,digits,clean(b.email)||null,step]);
    return json(202,{saved:true,reminderInMinutes:5});
@@ -2410,9 +2411,8 @@ async function handler(event){
   }
   if(p[0]==='bookings'&&method==='POST'&&p.length===1){
    const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
-   // Validate phone format: XXX-XXX-XXXX or 10 digits
-   const phoneDigits=String(b.phone||'').replace(/\D/g,'');
-   if(phoneDigits.length!==10)return json(400,{error:'Phone number must be 10 digits'});
+   const phoneDigits=normalizeE164(b.phone);
+   if(!phoneDigits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});
    // Validate email if provided
    if(b.email){const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;if(!emailPattern.test(b.email.trim()))return json(400,{error:'Please enter a valid email address'});}
    if(clean(b.payerType).toUpperCase()==='INSURANCE'&&!clean(b.insuranceCarrier))return json(400,{error:'Private insurance provider is required'});
@@ -2470,7 +2470,7 @@ async function handler(event){
    const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,trip_type,return_trip_date,return_trip_time,recurrence_days,recurrence_end_date,created_at,updated_at)
   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null,tripType,returnTripDate,returnTripTime,JSON.stringify(recurrenceDays),recurrenceEndDate]);
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,initialStatus,statusLabel(initialStatus),paymentPolicy.coverageMessage||(paymentPolicy.requiresDeposit?'Awaiting required 25% deposit':paymentPolicy.requiresApproval?'Awaiting payer eligibility approval':'Online transportation request received'),bookingActor?.display_name||bookingSource||'PUBLIC']);
-   await query("UPDATE booking_drafts SET completed_at=now(),updated_at=now() WHERE completed_at IS NULL AND regexp_replace(phone,'\\D','','g')=$1",[phoneDigits]).catch(()=>{});
+   await query("UPDATE booking_drafts SET completed_at=now(),updated_at=now() WHERE completed_at IS NULL AND regexp_replace(phone,'\\D','','g')=$1",[phoneDigits.replace(/\D/g,'')]).catch(()=>{});
   await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource,requestedByRole,appointmentTime:appointmentTime||null,pickupTimeEstimate:pickupTimeEstimate||null,referralIncentiveEligible:bookingSource==='DRIVER_REFERRAL'});
   const mappedBooking=mapBooking(r.rows[0]);
   const booking={...mappedBooking,appointmentTime,pickupTime:pickupTimeEstimate||mappedBooking.time,requestedByRole,requestedByUser:clean(b.requestedByUser||bookingActor?.email||'')};
@@ -2752,10 +2752,10 @@ async function handler(event){
    return json(200,{ok:true,message:'Password saved'});
   }
   if(p[0]==='auth'&&p[1]==='register'&&method==='POST'){
-   const b=parseBody(event),displayName=clean(b.displayName),email=clean(b.email).toLowerCase(),password=String(b.password||''),phoneDigits=String(b.phone||'').replace(/\D/g,'');
+   const b=parseBody(event),displayName=clean(b.displayName),email=clean(b.email).toLowerCase(),password=String(b.password||''),phoneDigits=normalizeE164(b.phone);
    if(displayName.length<2)return json(400,{error:'Your name is required'});
    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json(400,{error:'Enter a valid email address'});
-   if(phoneDigits.length!==10)return json(400,{error:'Enter a valid 10-digit phone number'});
+   if(!phoneDigits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});
    if(password.length<12)return json(400,{error:'Password must be at least 12 characters'});
    if(b.acceptTerms!==true)return json(400,{error:'Accept the Terms and Privacy Notice to create an account'});
    const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1',[email]);
@@ -2901,8 +2901,9 @@ async function handler(event){
      else if(u.role==='DRIVER'){sql+=' WHERE driver_scope_id=$1';params=[u.scope_id]}
      else if(u.role==='PATIENT'){
       const patientPhone=String(u.phone||'').replace(/\D/g,'');
-      sql+=patientPhone?` WHERE lower(email)=lower($1) OR regexp_replace(phone,'\\D','','g')=$2`:' WHERE lower(email)=lower($1)';
-      params=patientPhone?[u.email,patientPhone]:[u.email];
+      const phoneVariants=patientPhone.length===11&&patientPhone.startsWith('1')?[patientPhone,patientPhone.slice(1)]:[patientPhone];
+      sql+=patientPhone?` WHERE lower(email)=lower($1) OR regexp_replace(phone,'\\D','','g')=ANY($2::text[])`:' WHERE lower(email)=lower($1)';
+      params=patientPhone?[u.email,phoneVariants]:[u.email];
      }
      else if(!['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA'].includes(u.role))return json(403,{error:'Insufficient permission'});
      sql+=' ORDER BY trip_date DESC, trip_time DESC LIMIT 250';
@@ -3788,8 +3789,8 @@ async function handler(event){
     const b=parseBody(event);required(b,['email','phone','name','role']);
    const validRoles=['ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT'];
    if(!validRoles.includes(String(b.role).toUpperCase()))return json(400,{error:'Invalid role'});
-   const phoneDigits=String(b.phone||'').replace(/\D/g,'');
-   if(phoneDigits.length!==10)return json(400,{error:'Phone number must be 10 digits'});
+   const phoneDigits=normalizeE164(b.phone);
+   if(!phoneDigits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});
    const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1)',[b.email]);
    if(existing.rows[0])return json(409,{error:'A user with that email already exists'});
     const tempPassword=generateTempPassword(14);
@@ -4106,7 +4107,7 @@ async function handler(event){
    if(b.email){const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;if(!emailPattern.test(b.email.trim()))return json(400,{error:'Please enter a valid email address'});}
    if(b.alternateEmail){const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;if(!emailPattern.test(b.alternateEmail.trim()))return json(400,{error:'Please enter a valid alternate email address'});}
    // Validate alternate phone if provided
-   if(b.alternatePhone){const phoneDigits=String(b.alternatePhone||'').replace(/\D/g,'');if(phoneDigits.length!==10)return json(400,{error:'Alternate phone number must be 10 digits'});}
+   if(b.alternatePhone&&!normalizeE164(b.alternatePhone))return json(400,{error:'Enter the alternate phone with country code, such as +1 240 555 0101'});
    const updated=await query('UPDATE bookings SET name=$2,service=$3,pickup=$4,destination=$5,email=$6,alternate_phone=$7,alternate_email=$8,last_updated_by=\'passenger\',last_updated_at=now(),updated_at=now() WHERE reference=$1 RETURNING *',[ref,clean(b.name)||r.rows[0].name,clean(b.service)||r.rows[0].service,clean(b.pickup)||r.rows[0].pickup,clean(b.destination)||r.rows[0].destination,clean(b.email)||r.rows[0].email,clean(b.alternatePhone)||r.rows[0].alternate_phone||null,clean(b.alternateEmail)||r.rows[0].alternate_email||null]);
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),'Trip details updated by passenger','PASSENGER']);
    await audit('BOOKING',ref,'DETAILS_UPDATED',{updatedFields:Object.keys(b).filter(k=>['name','service','pickup','destination','email','alternatePhone','alternateEmail'].includes(k))});
