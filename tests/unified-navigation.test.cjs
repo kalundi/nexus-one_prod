@@ -64,9 +64,12 @@ test('homepage sections receive a return-to-hero control',()=>{
 });
 
 test('patient sign up creates only a PATIENT account with consent',()=>{
- const api=read('netlify/functions/api.cjs');
+ const api=read('netlify/functions/api.cjs'),js=read('platform.js');
  assert.match(api,/p\[1\]==='register'/);
  assert.match(api,/b\.acceptTerms!==true/);
  assert.match(api,/password\.length<12/);
- assert.match(api,/VALUES\(\$1,\$2,\$3,'PATIENT',true\)/);
+ assert.match(api,/phoneDigits\.length!==10/);
+ assert.match(api,/password_hash,phone,role,active/);
+ assert.match(api,/regexp_replace\(phone/);
+ assert.match(js,/name="phone" type="tel"/);
 });

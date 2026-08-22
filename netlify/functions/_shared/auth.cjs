@@ -2,7 +2,7 @@ const crypto=require('crypto');
 const {query}=require('./db.cjs');
 const {getFallbackSession}=require('./fallback-auth.cjs');
 const digest=v=>crypto.createHash('sha256').update(v).digest('hex');
-function safeUser(row){return {id:row.id,email:row.email,displayName:row.display_name,role:row.role,scopeId:row.scope_id||null,mustChangePassword:!!row.must_change_password}}
+function safeUser(row){return {id:row.id,email:row.email,phone:row.phone||'',displayName:row.display_name,role:row.role,scopeId:row.scope_id||null,mustChangePassword:!!row.must_change_password}}
 
 // Inactivity timeout: 1 hour for non-DRIVER roles, 12 hours for DRIVER
 const INACTIVITY_MS = {DRIVER: 12*60*60*1000, DEFAULT: 60*60*1000};

@@ -2752,14 +2752,15 @@ async function handler(event){
    return json(200,{ok:true,message:'Password saved'});
   }
   if(p[0]==='auth'&&p[1]==='register'&&method==='POST'){
-   const b=parseBody(event),displayName=clean(b.displayName),email=clean(b.email).toLowerCase(),password=String(b.password||'');
+   const b=parseBody(event),displayName=clean(b.displayName),email=clean(b.email).toLowerCase(),password=String(b.password||''),phoneDigits=String(b.phone||'').replace(/\D/g,'');
    if(displayName.length<2)return json(400,{error:'Your name is required'});
    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json(400,{error:'Enter a valid email address'});
+   if(phoneDigits.length!==10)return json(400,{error:'Enter a valid 10-digit phone number'});
    if(password.length<12)return json(400,{error:'Password must be at least 12 characters'});
    if(b.acceptTerms!==true)return json(400,{error:'Accept the Terms and Privacy Notice to create an account'});
    const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1',[email]);
    if(existing.rows[0])return json(409,{error:'An account already exists for this email. Use Sign In or reset your password.'});
-   const created=await query(`INSERT INTO users(email,display_name,password_hash,role,active) VALUES($1,$2,$3,'PATIENT',true) RETURNING *`,[email,displayName,hashPassword(password)]);
+   const created=await query(`INSERT INTO users(email,display_name,password_hash,phone,role,active) VALUES($1,$2,$3,$4,'PATIENT',true) RETURNING *`,[email,displayName,hashPassword(password),phoneDigits]);
    const u=created.rows[0],token=crypto.randomBytes(32).toString('base64url');
    await query(`INSERT INTO sessions(token_digest,user_id,expires_at,ip_address,user_agent) VALUES($1,$2,now()+interval '8 hours',$3,$4)`,[digest(token),u.id,event.headers['x-forwarded-for']||null,event.headers['user-agent']||null]);
    await audit('USER',String(u.id),'PATIENT_REGISTERED',{role:'PATIENT'});
@@ -2898,7 +2899,11 @@ async function handler(event){
      let sql='SELECT * FROM bookings',params=[];
      if(u.role==='FACILITY'){sql+=' WHERE facility_id=$1';params=[u.scope_id]}
      else if(u.role==='DRIVER'){sql+=' WHERE driver_scope_id=$1';params=[u.scope_id]}
-     else if(u.role==='PATIENT'){sql+=' WHERE lower(email)=lower($1)';params=[u.email]}
+     else if(u.role==='PATIENT'){
+      const patientPhone=String(u.phone||'').replace(/\D/g,'');
+      sql+=patientPhone?` WHERE lower(email)=lower($1) OR regexp_replace(phone,'\\D','','g')=$2`:' WHERE lower(email)=lower($1)';
+      params=patientPhone?[u.email,patientPhone]:[u.email];
+     }
      else if(!['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA'].includes(u.role))return json(403,{error:'Insufficient permission'});
      sql+=' ORDER BY trip_date DESC, trip_time DESC LIMIT 250';
      console.log('[TRIPS] Query:', sql, 'Params:', params, 'Role:', u.role);
