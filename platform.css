@@ -1216,3 +1216,38 @@ body.boFocusMode .boModuleSection.focusVisible{display:block;min-height:calc(100
 #root .serviceStrip>button p>small{color:#334e68!important;opacity:1!important}
 #root .serviceStrip>button:hover p>b,
 #root .serviceStrip>button:focus-visible p>b{color:#075985!important;-webkit-text-fill-color:#075985!important}
+
+/* Build 052: shared full-width language, larger logo, aligned Home menu */
+@media(min-width:1041px){
+ header .shell.nav,
+ header .globalNav{
+  width:min(1240px,calc(100% - 48px))!important;
+  max-width:none!important;
+  height:94px!important;
+  min-height:94px!important;
+  margin-left:auto!important;
+  margin-right:auto!important;
+  align-items:center!important;
+ }
+ header .nexusLogo,
+ header .globalBrand .logo,
+ header .brand .logo{width:195px!important;max-height:62px!important;object-fit:contain!important}
+ header .nexusCompactLanguage,
+ header .headerLanguage{flex:0 0 auto!important;overflow:visible!important}
+ header .nexusCompactLanguage select,
+ header .headerLanguage select{
+  width:108px!important;
+  min-width:108px!important;
+  padding:4px 9px!important;
+  text-overflow:clip!important;
+  overflow:visible!important;
+ }
+ header .nexusHomeGroup{height:100%!important;display:flex!important;align-items:center!important}
+ header .nexusHomeMenu{
+  left:50%!important;
+  top:calc(100% - 7px)!important;
+  transform:translateX(-50%)!important;
+  width:220px!important;
+ }
+}
+@media(max-width:1040px){header .nexusHomeMenu{left:auto!important;transform:none!important}}

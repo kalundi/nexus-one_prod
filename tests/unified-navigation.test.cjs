@@ -30,6 +30,11 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(css,/color:#075985!important/);
  assert.match(css,/#root \.serviceStrip>button p>b/);
  assert.match(css,/-webkit-text-fill-color:#b42318!important/);
+ assert.match(css,/header \.nexusCompactLanguage select/);
+ assert.match(css,/width:108px!important/);
+ assert.match(css,/header \.globalBrand \.logo/);
+ assert.match(css,/width:195px!important/);
+ assert.match(css,/transform:translateX\(-50%\)!important/);
 });
 
 test('homepage sections receive a return-to-hero control',()=>{
