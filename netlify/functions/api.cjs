@@ -2752,7 +2752,9 @@ async function handler(event){
    return json(200,{ok:true,message:'Password saved'});
   }
   if(p[0]==='auth'&&p[1]==='register'&&method==='POST'){
-   const b=parseBody(event),displayName=clean(b.displayName),email=clean(b.email).toLowerCase(),password=String(b.password||''),phoneDigits=normalizeE164(b.phone);
+   const b=parseBody(event),displayName=clean(b.displayName),email=clean(b.email).toLowerCase(),password=String(b.password||''),phoneDigits=normalizeE164(b.phone),requestedRole=String(b.role||'PATIENT').toUpperCase();
+   const publicRoles=['PATIENT','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN'];
+   if(!publicRoles.includes(requestedRole))return json(400,{error:'Select a valid account role'});
    if(displayName.length<2)return json(400,{error:'Your name is required'});
    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json(400,{error:'Enter a valid email address'});
    if(!phoneDigits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});
@@ -2762,9 +2764,19 @@ async function handler(event){
    if(existing.rows[0])return json(409,{error:'An account already exists for this email. Use Sign In or reset your password.'});
    const created=await query(`INSERT INTO users(email,display_name,password_hash,phone,role,active) VALUES($1,$2,$3,$4,'PATIENT',true) RETURNING *`,[email,displayName,hashPassword(password),phoneDigits]);
    const u=created.rows[0],token=crypto.randomBytes(32).toString('base64url');
-   await query(`INSERT INTO sessions(token_digest,user_id,expires_at,ip_address,user_agent) VALUES($1,$2,now()+interval '8 hours',$3,$4)`,[digest(token),u.id,event.headers['x-forwarded-for']||null,event.headers['user-agent']||null]);
-   await audit('USER',String(u.id),'PATIENT_REGISTERED',{role:'PATIENT'});
-   return json(201,{token,user:safeUser(u)});
+   await query(`INSERT INTO user_role_requests(user_id,role,status,reviewed_at) VALUES($1,'PATIENT','APPROVED',now()) ON CONFLICT(user_id,role) DO NOTHING`,[u.id]);
+   if(requestedRole!=='PATIENT')await query(`INSERT INTO user_role_requests(user_id,role,status) VALUES($1,$2,'PENDING') ON CONFLICT(user_id,role) DO UPDATE SET status='PENDING',requested_at=now(),reviewed_at=null,reviewed_by=null`,[u.id,requestedRole]);
+   await query(`INSERT INTO sessions(token_digest,user_id,active_role,expires_at,ip_address,user_agent) VALUES($1,$2,'PATIENT',now()+interval '8 hours',$3,$4)`,[digest(token),u.id,event.headers['x-forwarded-for']||null,event.headers['user-agent']||null]);
+   u.available_roles=['PATIENT'];
+   await audit('USER',String(u.id),'ACCOUNT_REGISTERED',{requestedRole,status:requestedRole==='PATIENT'?'APPROVED':'PENDING'});
+   return json(201,{token,user:safeUser(u),roleRequest:requestedRole==='PATIENT'?null:{role:requestedRole,status:'PENDING'},message:requestedRole==='PATIENT'?'Your patient account is ready.':`Your ${requestedRole.toLowerCase()} access request is awaiting administrator verification. Patient access is available now.`});
+  }
+  if(p[0]==='auth'&&p[1]==='switch-role'&&method==='POST'){
+   const token=bearer(event),u=await requireUser(token),b=parseBody(event),nextRole=String(b.role||'').toUpperCase();
+   if(!u.available_roles?.includes(nextRole))return json(403,{error:'That role is not approved for this account'});
+   await query('UPDATE sessions SET active_role=$2 WHERE token_digest=$1 AND revoked_at IS NULL',[digest(token),nextRole]);
+   const refreshed=await requireUser(token);await audit('USER',String(u.id),'ROLE_SWITCHED',{from:u.role,to:nextRole});
+   return json(200,{user:safeUser(refreshed)});
   }
   if(p[0]==='auth'&&p[1]==='login'&&method==='POST'){
    try{
@@ -2810,7 +2822,8 @@ async function handler(event){
        
        await audit('USER',String(u.id),'LOGIN',{role:u.role});
        console.log('[LOGIN] Audit logged');
-       return json(200,{token,user:safeUser(u)});
+       const sessionUser=await requireUser(token);
+       return json(200,{token,user:safeUser(sessionUser)});
      }catch(err){
        console.error('[LOGIN] Error:', err.message, err.stack);
        throw err;
@@ -3645,6 +3658,24 @@ async function handler(event){
    return json(200,{ok:true,results:result.results,created:result.created,updated:result.updated,message:`${result.results.length} accounts reset. All credentials restored.`});
   }
   // Admin: list users
+  if(p[0]==='admin'&&p[1]==='role-requests'&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN']);
+   const result=await query(`SELECT rr.id,rr.role,rr.status,rr.requested_at,rr.reviewed_at,rr.scope_id,u.id AS user_id,u.email,u.display_name,u.phone
+     FROM user_role_requests rr JOIN users u ON u.id=rr.user_id
+     WHERE rr.role<>'PATIENT' ORDER BY CASE rr.status WHEN 'PENDING' THEN 0 ELSE 1 END,rr.requested_at DESC LIMIT 250`);
+   return json(200,{requests:result.rows.map(row=>({id:row.id,userId:row.user_id,email:row.email,name:row.display_name,phone:row.phone,role:row.role,status:row.status,scopeId:row.scope_id,requestedAt:row.requested_at,reviewedAt:row.reviewed_at}))});
+  }
+  if(p[0]==='admin'&&p[1]==='role-requests'&&p[2]&&method==='POST'){
+   const me=await requireUser(bearer(event),['ADMIN']),requestId=decodeURIComponent(p[2]),b=parseBody(event),decision=String(b.decision||'').toUpperCase();
+   if(!['APPROVED','REJECTED'].includes(decision))return json(400,{error:'Decision must be APPROVED or REJECTED'});
+   const found=await query(`SELECT rr.*,u.email FROM user_role_requests rr JOIN users u ON u.id=rr.user_id WHERE rr.id=$1 LIMIT 1`,[requestId]);
+   const request=found.rows[0];if(!request)return json(404,{error:'Role request not found'});
+   const scopeId=clean(b.scopeId)||request.scope_id||null;
+   if(decision==='APPROVED'&&['DRIVER','FACILITY'].includes(request.role)&&!scopeId)return json(400,{error:`${request.role} approval requires a driver or facility scope ID`});
+   const updated=await query(`UPDATE user_role_requests SET status=$2,scope_id=$3,reviewed_at=now(),reviewed_by=$4,notes=$5 WHERE id=$1 RETURNING *`,[requestId,decision,scopeId,me.id,clean(b.notes)||null]);
+   await audit('USER_ROLE',requestId,decision,{userId:request.user_id,email:request.email,role:request.role,scopeId,by:me.email});
+   return json(200,{request:updated.rows[0]});
+  }
   if(p[0]==='admin'&&p[1]==='users'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone text').catch(()=>{});

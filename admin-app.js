@@ -1517,6 +1517,19 @@ async function advanceAdminTrip(reference){
 // Helpers
 function showMsg(el,text,type){el.textContent=text;el.className='msgBox '+(type||'ok');el.hidden=false;if(type==='ok')setTimeout(()=>{el.hidden=true},5000);}
 
+async function loadRoleRequests(){
+ const body=document.getElementById('roleRequestRows');if(!body)return;
+ const response=await fetch('/api/admin/role-requests',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'}),data=await response.json().catch(()=>({}));
+ if(!response.ok){body.innerHTML=`<tr><td colspan="5">${data.error||'Unable to load requests'}</td></tr>`;return}
+ body.innerHTML=(data.requests||[]).map(request=>`<tr><td><strong>${request.name||'—'}</strong><br><small>${request.email||''}<br>${request.phone||''}</small></td><td>${request.role}</td><td>${request.status}</td><td>${request.requestedAt?new Date(request.requestedAt).toLocaleString():'—'}</td><td>${request.status==='PENDING'?`<button class="button" data-role-approve="${request.id}" data-role="${request.role}">Approve</button> <button class="button secondary" data-role-reject="${request.id}">Reject</button>`:'Reviewed'}</td></tr>`).join('')||'<tr><td colspan="5">No role requests found.</td></tr>';
+}
+async function decideRoleRequest(id,decision,role){
+ let scopeId='';if(decision==='APPROVED'&&['DRIVER','FACILITY'].includes(role))scopeId=prompt(`Enter the ${role.toLowerCase()} scope ID required for this account:`,'')||'';
+ if(decision==='APPROVED'&&['DRIVER','FACILITY'].includes(role)&&!scopeId)return;
+ const response=await fetch(`/api/admin/role-requests/${encodeURIComponent(id)}`,{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({decision,scopeId})}),data=await response.json().catch(()=>({}));
+ if(!response.ok)return alert(data.error||'Unable to review request');showToast(`Role request ${decision.toLowerCase()}.`);loadRoleRequests();
+}
+
 let toastTimer=null;
 function showToast(text,type='ok'){
   const el=document.getElementById('adminToast');
@@ -1555,6 +1568,7 @@ document.querySelectorAll('.socialChannel').forEach((el)=>el.addEventListener('c
 document.getElementById('costAnalyzerLoadBtn')?.addEventListener('click',()=>{runCostAnalyzer().catch((err)=>console.error(err));});
 document.getElementById('costAnalyzerExportBtn')?.addEventListener('click',()=>{exportCostAnalyzerCsv().catch((err)=>console.error(err));});
 document.getElementById('costAnalyzerSendBtn')?.addEventListener('click',()=>{sendCostAnalyzerReport().catch((err)=>console.error(err));});
+document.getElementById('roleRequestRows')?.addEventListener('click',event=>{const approve=event.target.closest('[data-role-approve]'),reject=event.target.closest('[data-role-reject]');if(approve)decideRoleRequest(approve.dataset.roleApprove,'APPROVED',approve.dataset.role);if(reject)decideRoleRequest(reject.dataset.roleReject,'REJECTED','')});
 
 initAdminDashboardWorkspace();
 initUserSectionDashboard();
@@ -1565,6 +1579,7 @@ window.addEventListener('nexus:authorized',async()=>{
   syncDashboardTilesWithVisibility();
   if(userRole()==='ADMIN'){
     loadUsers();
+    loadRoleRequests().catch((err)=>console.error(err));
     loadAudit();
     loadDriverSchedule().catch((err)=>console.error(err));
     loadAdminTrips().catch((err)=>console.error(err));
@@ -1580,6 +1595,7 @@ if(window.NexusAuthorizedUser){
   syncDashboardTilesWithVisibility();
   if(userRole()==='ADMIN'){
     loadUsers();
+    loadRoleRequests().catch((err)=>console.error(err));
     loadAudit();
     loadDriverSchedule().catch((err)=>console.error(err));
     loadAdminTrips().catch((err)=>console.error(err));

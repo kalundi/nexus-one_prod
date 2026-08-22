@@ -210,6 +210,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
   <div id="resetCredentialsMsg" hidden style="margin-bottom:14px;padding:12px 16px;border-radius:10px;font-size:14px"></div>
   <div class="userModuleDashboard" id="userModuleDashboard" aria-label="User operations workspace">
     <button class="userModuleChip" type="button" data-user-module-open="createUserModule"><strong>User management</strong><small>Create credentials and onboard secure access.</small></button>
+    <button class="userModuleChip" type="button" data-user-module-open="roleRequestsModule"><strong>Access requests</strong><small>Verify and approve requested workforce roles.</small></button>
     <button class="userModuleChip" type="button" data-user-module-open="documentAccessModule"><strong>Secure documents</strong><small>Upload documents and grant customer access.</small></button>
     <button class="userModuleChip" type="button" data-user-module-open="driverSchedulePanel"><strong>Driver schedules</strong><small>Configure recurring shifts and load schedules.</small></button>
     <button class="userModuleChip" type="button" data-user-module-open="userDirectoryModule"><strong>User details</strong><small>Review active users, status, and access actions.</small></button>
@@ -236,6 +237,11 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
           <div id="createUserMsg" hidden></div>
         </div>
       </div>
+    </details>
+
+    <details class="userModuleCard" id="roleRequestsModule" data-user-module>
+      <summary><div class="userModuleTitle"><strong>Role access requests</strong><small>Approve only after confirming the person, organization, and required scope.</small></div><span class="userModuleCaret" aria-hidden="true">&gt;</span></summary>
+      <div class="userModuleBody"><div class="tableWrap"><table class="table"><thead><tr><th>Applicant</th><th>Requested role</th><th>Status</th><th>Requested</th><th>Action</th></tr></thead><tbody id="roleRequestRows"><tr><td colspan="5">Loading access requests…</td></tr></tbody></table></div></div>
     </details>
 
     <details class="userModuleCard" id="driverSchedulePanel" data-user-module>
