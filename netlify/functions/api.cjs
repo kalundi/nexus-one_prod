@@ -2751,6 +2751,20 @@ async function handler(event){
    }
    return json(200,{ok:true,message:'Password saved'});
   }
+  if(p[0]==='auth'&&p[1]==='register'&&method==='POST'){
+   const b=parseBody(event),displayName=clean(b.displayName),email=clean(b.email).toLowerCase(),password=String(b.password||'');
+   if(displayName.length<2)return json(400,{error:'Your name is required'});
+   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json(400,{error:'Enter a valid email address'});
+   if(password.length<12)return json(400,{error:'Password must be at least 12 characters'});
+   if(b.acceptTerms!==true)return json(400,{error:'Accept the Terms and Privacy Notice to create an account'});
+   const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1',[email]);
+   if(existing.rows[0])return json(409,{error:'An account already exists for this email. Use Sign In or reset your password.'});
+   const created=await query(`INSERT INTO users(email,display_name,password_hash,role,active) VALUES($1,$2,$3,'PATIENT',true) RETURNING *`,[email,displayName,hashPassword(password)]);
+   const u=created.rows[0],token=crypto.randomBytes(32).toString('base64url');
+   await query(`INSERT INTO sessions(token_digest,user_id,expires_at,ip_address,user_agent) VALUES($1,$2,now()+interval '8 hours',$3,$4)`,[digest(token),u.id,event.headers['x-forwarded-for']||null,event.headers['user-agent']||null]);
+   await audit('USER',String(u.id),'PATIENT_REGISTERED',{role:'PATIENT'});
+   return json(201,{token,user:safeUser(u)});
+  }
   if(p[0]==='auth'&&p[1]==='login'&&method==='POST'){
    try{
      const b=parseBody(event);
