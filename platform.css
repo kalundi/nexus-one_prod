@@ -1122,3 +1122,34 @@ body.boFocusMode .boModuleSection.focusVisible{display:block;min-height:calc(100
 .topbar .shell.nav{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;height:72px!important;min-height:72px!important;gap:12px!important}.topbar #primary-navigation{display:flex;flex:0 0 auto;align-items:center;gap:8px;margin:0 auto 0 8px!important}.topbar #primary-navigation>.nexusHomeGroup,.topbar #primary-navigation>a{align-self:center;white-space:nowrap}.topbar #primary-navigation>a{padding:10px 8px!important;border:0!important}.topbar #primary-navigation>a:after{display:none!important}.topbar .navRight{display:flex;flex:0 0 auto;align-items:center;gap:8px;margin-left:0}.topbar .navRight>.livecareLink{display:none!important}.topbar .nexusAccountMount{display:flex;flex:0 0 auto;gap:7px}.topbar .nexusAccountButton,.topbar .nexusNavSignUp{white-space:nowrap}.topbar .nexusLogo{width:178px!important;max-height:54px!important}.topbar .nexusCompactLanguage{margin-left:0!important}.topbar+.hero,#root .hero{padding-top:0!important}.topbar+.hero .heroGrid,#root .heroGrid{min-height:560px!important;padding-top:34px!important;align-items:start!important}.nexusHomeGroup summary:after{content:'\2304'}.nexusBackHero:before{content:'\2191'}
 @media(max-width:1180px){.topbar .call{display:none!important}.topbar .navBookRide{padding:0 13px}.topbar .nexusLogo{width:160px!important}}
 @media(max-width:1040px){.topbar #primary-navigation{display:none!important;position:absolute;top:72px;left:0;right:0}.topbar #primary-navigation.open{display:flex!important;align-items:stretch!important;margin:0!important}.topbar .navRight{margin-left:auto}.topbar .nexusHomeGroup{width:100%}.topbar+.hero .heroGrid,#root .heroGrid{padding-top:28px!important}}
+
+/* Build 046: fitted desktop navigation and contextual section return */
+@media(min-width:1041px){
+ .topbar .shell.nav{width:min(1430px,calc(100% - 36px))!important;height:68px!important;min-height:68px!important;gap:7px!important}
+ .topbar .nexusLogo{width:158px!important;max-height:48px!important}
+ .topbar #primary-navigation{gap:3px!important;margin:0 0 0 8px!important}
+ .topbar #primary-navigation>a,.topbar .nexusHomeGroup summary{padding:8px 9px!important;font-size:13px!important}
+ .topbar .navRight{gap:6px!important;margin-left:auto!important}
+ .topbar .nexusCompactLanguage select{min-width:48px!important;width:48px!important}
+ .topbar .call{padding:7px 10px!important;gap:7px!important}
+ .topbar .call small{font-size:9px!important}.topbar .call strong{font-size:11px!important}
+ .topbar .navBookRide{min-height:50px!important;padding:10px 20px!important;font-size:16px!important}
+ .topbar .nexusAccountMount{gap:5px!important}
+ .topbar .nexusAccountButton{padding:6px 9px!important;gap:7px!important}
+ .topbar .nexusAccountAvatar{width:26px;height:26px}
+ .topbar .nexusAccountText{font-size:14px}.topbar .nexusAccountText small{font-size:8px}
+ .topbar .nexusNavSignUp{padding:7px 11px!important;font-size:14px}
+}
+.nexusBackHero{
+ position:fixed!important;right:22px!important;bottom:22px!important;z-index:90!important;
+ width:46px!important;height:46px!important;margin:0!important;padding:0!important;
+ display:grid!important;place-items:center!important;border:1px solid rgba(255,255,255,.72)!important;
+ border-radius:50%!important;background:#fff!important;color:#073657!important;
+ box-shadow:0 14px 34px rgba(2,24,44,.24)!important;text-decoration:none!important;
+ opacity:0!important;visibility:hidden!important;pointer-events:none!important;transform:translateY(10px)!important;
+ transition:opacity .18s ease,transform .18s ease,visibility .18s ease!important;
+}
+.nexusBackHero:before{content:'\2191'!important;font-size:24px!important;line-height:1!important}
+.nexusBackHero.is-section-active{opacity:1!important;visibility:visible!important;pointer-events:auto!important;transform:translateY(0)!important}
+.nexusBackHero:hover,.nexusBackHero:focus-visible{background:#073657!important;color:#fff!important;transform:translateY(-2px)!important}
+@media(max-width:620px){.nexusBackHero{right:14px!important;bottom:14px!important;width:42px!important;height:42px!important}}

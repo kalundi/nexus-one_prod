@@ -33,7 +33,18 @@
   const mount=document.getElementById('nexusAccountMount');if(mount&&!sessionStorage.getItem('nexusAccessToken')){const signIn=mount.querySelector('.nexusAccountButton');if(signIn){signIn.querySelector('.nexusAccountText')&&(signIn.querySelector('.nexusAccountText').childNodes[0].textContent='Sign In');signIn.setAttribute('aria-label','Sign In')}if(!document.getElementById('nexusNavSignUp')){const signup=document.createElement('button');signup.id='nexusNavSignUp';signup.className='nexusNavSignUp';signup.type='button';signup.textContent='Sign Up';signup.addEventListener('click',()=>signupDialog().showModal());mount.appendChild(signup)}}
   return true;
  }
- function addSectionReturns(){if(location.pathname!=='/'&&location.pathname!=='/index.html')return;const hero=document.querySelector('main section,section');if(hero&&!hero.id)hero.id='home-hero';sectionLinks.forEach(([,id])=>{const anchor=document.getElementById(id),section=anchor?.closest('section')||anchor;if(section&&!section.querySelector('.nexusBackHero')){const link=document.createElement('a');link.className='nexusBackHero';link.href='#home-hero';link.textContent='Back to top';section.appendChild(link)}})}
+ function addSectionReturns(){
+  if(location.pathname!=='/'&&location.pathname!=='/index.html')return;
+  const hero=document.getElementById('home')||document.querySelector('main section,section');
+  if(!hero)return;if(!hero.id)hero.id='home';
+  const sections=sectionLinks.map(([,id])=>{const anchor=document.getElementById(id);return anchor?.closest('section')||anchor}).filter(Boolean);
+  sections.forEach(section=>{if(!section.querySelector('.nexusBackHero')){const link=document.createElement('a');link.className='nexusBackHero';link.href='#'+hero.id;link.setAttribute('aria-label','Back to homepage hero');link.setAttribute('title','Back to top');section.appendChild(link)}});
+  if(!sections.length||document.documentElement.dataset.nexusSectionReturns)return;
+  document.documentElement.dataset.nexusSectionReturns='1';
+  const setActive=()=>{const focusY=window.innerHeight*.55;let active=null,best=Infinity;sections.forEach(section=>{const rect=section.getBoundingClientRect();if(rect.top<focusY&&rect.bottom>focusY){const distance=Math.abs((rect.top+rect.bottom)/2-focusY);if(distance<best){best=distance;active=section}}});sections.forEach(section=>section.querySelector('.nexusBackHero')?.classList.toggle('is-section-active',section===active))};
+  if('IntersectionObserver'in window){const observer=new IntersectionObserver(setActive,{threshold:[0,.15,.5],rootMargin:'-72px 0px -20% 0px'});sections.forEach(section=>observer.observe(section))}else window.addEventListener('scroll',setActive,{passive:true});
+  window.addEventListener('resize',setActive,{passive:true});setActive();
+ }
  if(!document.documentElement.dataset.nexusMenuDismiss){document.documentElement.dataset.nexusMenuDismiss='1';document.addEventListener('click',event=>{document.querySelectorAll('.nexusHomeGroup[open]').forEach(group=>{if(!group.contains(event.target))group.removeAttribute('open')})});document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelectorAll('.nexusHomeGroup[open]').forEach(group=>group.removeAttribute('open'))})}
  let tries=0;function sync(){normalizeNav();addSectionReturns();if(tries++<50)setTimeout(sync,120)}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
 })();

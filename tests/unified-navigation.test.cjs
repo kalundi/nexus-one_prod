@@ -24,8 +24,11 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
 test('homepage sections receive a return-to-hero control',()=>{
  const js=read('platform.js');
  assert.match(js,/className='nexusBackHero'/);
- assert.match(js,/link\.href='#home-hero'/);
- assert.match(js,/link\.textContent='Back to top'/);
+ assert.match(js,/document\.getElementById\('home'\)/);
+ assert.match(js,/link\.href='#'\+hero\.id/);
+ assert.match(js,/aria-label','Back to homepage hero'/);
+ assert.match(js,/IntersectionObserver/);
+ assert.match(js,/is-section-active/);
 });
 
 test('patient sign up creates only a PATIENT account with consent',()=>{
