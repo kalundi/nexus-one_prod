@@ -1440,3 +1440,37 @@ header .call b{white-space:nowrap!important;overflow:visible!important;text-over
  header .navRight,
  header .globalActions{flex-wrap:wrap!important;row-gap:8px!important}
 }
+
+/* Build 060: authenticated Livecare retains the complete page experience */
+body.livecare-focus-mode main#main{display:block!important}
+body.livecare-focus-mode .footer{display:block!important}
+body.livecare-focus-mode .livecareMapHero{
+ min-height:0!important;
+ padding-top:0!important;
+}
+body.livecare-focus-mode .livecareMapHero .livecareExperience{
+ width:min(1380px,calc(100% - 40px))!important;
+ max-width:1380px!important;
+ min-height:0!important;
+ height:auto!important;
+ border-radius:28px 28px 0 0!important;
+ box-shadow:0 34px 90px rgba(0,0,0,.24)!important;
+}
+body.livecare-focus-mode .livecareMapHero .livecareMapPanel,
+body.livecare-focus-mode .livecareMapHero .mapOnlyShell,
+body.livecare-focus-mode .livecareMapHero .mapOnlyShell .liveFleetMap{
+ height:auto!important;
+ min-height:640px!important;
+}
+@media(max-width:980px){
+ body.livecare-focus-mode .livecareMapHero .livecareExperience{width:min(760px,calc(100% - 28px))!important}
+ body.livecare-focus-mode .livecareMapHero .livecareMapPanel,
+ body.livecare-focus-mode .livecareMapHero .mapOnlyShell,
+ body.livecare-focus-mode .livecareMapHero .mapOnlyShell .liveFleetMap{min-height:560px!important}
+}
+@media(max-width:620px){
+ body.livecare-focus-mode .livecareMapHero .livecareExperience{width:100%!important;border-radius:0!important}
+ body.livecare-focus-mode .livecareMapHero .livecareMapPanel,
+ body.livecare-focus-mode .livecareMapHero .mapOnlyShell,
+ body.livecare-focus-mode .livecareMapHero .mapOnlyShell .liveFleetMap{min-height:500px!important}
+}

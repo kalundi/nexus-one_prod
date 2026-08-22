@@ -79,3 +79,20 @@ test('shared portal header actions fit without overlap', async ({ page }) => {
     await expectHeaderActionsToFit(page, '/livecare.html', viewport, 'portal');
   }
 });
+
+test('authenticated Livecare keeps map telemetry, content, and footer visible', async ({ page }) => {
+  await page.setViewportSize({width:1280,height:900});
+  const css=fs.readFileSync('platform.css','utf8');
+  await page.setContent(`<style>${css}</style><body class="livecare-focus-mode"><section class="livecareMapHero"><div class="livecareExperience"><div class="livecareMapPanel"><div class="mapTopBar"><div>Vehicle status</div><button class="mapRefresh">Refresh</button></div><div class="liveFleetMapShell mapOnlyShell"><div class="liveFleetMap"></div></div></div></div></section><main id="main">Patient transportation details</main><footer class="footer">Nexus footer</footer></body>`);
+  await expect(page.locator('main#main')).toBeVisible();
+  await expect(page.locator('footer.footer')).toBeVisible();
+  const geometry=await page.evaluate(()=>{
+    const map=document.querySelector('.livecareMapPanel').getBoundingClientRect();
+    const telemetry=document.querySelector('.mapTopBar>div').getBoundingClientRect();
+    return {mapLeft:map.left,mapRight:map.right,telemetryLeft:telemetry.left,telemetryRight:telemetry.right,viewport:document.documentElement.clientWidth};
+  });
+  expect(geometry.mapLeft).toBeGreaterThanOrEqual(0);
+  expect(geometry.mapRight).toBeLessThanOrEqual(geometry.viewport+.5);
+  expect(geometry.telemetryLeft).toBeGreaterThanOrEqual(geometry.mapLeft);
+  expect(geometry.telemetryRight).toBeLessThanOrEqual(geometry.mapRight);
+});
