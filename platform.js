@@ -24,6 +24,15 @@
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 
+// Load the patient rating and suggestion experience only on Livecare.
+if((location.pathname||'').toLowerCase().includes('livecare')&&!document.querySelector('script[data-nexus-feedback]')){
+ const feedbackScript=document.createElement('script');
+ feedbackScript.src='/livecare-feedback.js?v=1';
+ feedbackScript.defer=true;
+ feedbackScript.dataset.nexusFeedback='1';
+ document.head.appendChild(feedbackScript);
+}
+
 // Keep React and static headers on the same compact, readable language labels.
 (function nexusStableHeaderLanguage(){
  const labels={'en-US':'English (US)','en-GB':'English (UK)',fr:'Français',es:'Español'};

@@ -2429,6 +2429,21 @@ async function handler(event){
    const r=await query(`SELECT facility_code AS id,name,address,'facility' AS type FROM facilities WHERE active=true AND (name ILIKE $1 OR address ILIKE $1) ORDER BY CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END,name LIMIT 12`,[`%${q}%`,`${q}%`]);
    return json(200,{locations:r.rows});
   }
+  if(p[0]==='patient-feedback'&&method==='POST'&&p.length===1){
+   const b=parseBody(event);
+   if(clean(b.website))return json(202,{accepted:true});
+   const rating=Number(b.rating),category=clean(b.category).toUpperCase(),suggestion=clean(b.suggestion);
+   const allowedCategories=new Set(['DRIVER','TIMELINESS','COMMUNICATION','BOOKING','ACCESSIBILITY','LIVECARE','OTHER']);
+   if(!Number.isInteger(rating)||rating<1||rating>5)return json(400,{error:'Choose a rating from 1 to 5 stars.'});
+   if(!allowedCategories.has(category))return json(400,{error:'Choose what your feedback is about.'});
+   if(suggestion.length<10||suggestion.length>2000)return json(400,{error:'Suggestion must be between 10 and 2,000 characters.'});
+   const bookingReference=clean(b.bookingReference).toUpperCase().slice(0,40)||null;
+   let feedbackUser=null;
+   try{if(bearer(event))feedbackUser=await requireUser(bearer(event),['PATIENT'])}catch{}
+   const feedbackReference=`FB-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${crypto.randomInt(1000,9999)}`;
+   await query(`INSERT INTO patient_feedback(feedback_reference,user_id,booking_reference,rating,category,suggestion,contact_permission) VALUES($1,$2,$3,$4,$5,$6,$7)`,[feedbackReference,feedbackUser?.id||null,bookingReference,rating,category,suggestion,Boolean(b.contactPermission)]);
+   return json(201,{accepted:true,reference:feedbackReference});
+  }
   if(p[0]==='booking-drafts'&&method==='POST'&&p.length===1){
    const b=parseBody(event);required(b,['draftToken','phone']);
    const digits=normalizeE164(b.phone);
