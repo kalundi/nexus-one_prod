@@ -1501,3 +1501,25 @@ body.livecare-focus-mode .livecareMapHero .mapOnlyShell .liveFleetMap{
  body.livecare-focus-mode .livecareMapHero .mapOnlyShell,
  body.livecare-focus-mode .livecareMapHero .mapOnlyShell .liveFleetMap{min-height:500px!important}
 }
+
+/* Build 062: left-aligned section headers and section-scoped hero returns */
+#coverage .coverageGrid>div:last-child,
+#coverage .coverageGrid>div:last-child .eyebrow{
+ text-align:left!important;
+ justify-content:flex-start!important;
+}
+.nexusReturnSection{position:relative!important}
+.nexusReturnSection>.nexusBackHero{
+ position:absolute!important;
+ right:max(18px,calc((100% - 1180px)/2))!important;
+ bottom:18px!important;
+ opacity:1!important;
+ visibility:visible!important;
+ pointer-events:auto!important;
+ transform:none!important;
+}
+.nexusReturnSection>.nexusBackHero:hover,
+.nexusReturnSection>.nexusBackHero:focus-visible{transform:translateY(-2px)!important}
+@media(max-width:620px){
+ .nexusReturnSection>.nexusBackHero{right:14px!important;bottom:14px!important}
+}

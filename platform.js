@@ -95,7 +95,7 @@
   const hero=document.getElementById('home')||document.querySelector('main section,section');
   if(!hero)return;if(!hero.id)hero.id='home';
   const sections=sectionLinks.map(([,id])=>{const anchor=document.getElementById(id);return anchor?.closest('section')||anchor}).filter(Boolean);
-  sections.forEach(section=>{if(!section.querySelector('.nexusBackHero')){const link=document.createElement('a');link.className='nexusBackHero';link.href='#'+hero.id;link.setAttribute('aria-label','Back to homepage hero');link.setAttribute('title','Back to top');section.appendChild(link)}});
+  sections.forEach(section=>{section.classList.add('nexusReturnSection');if(!section.querySelector('.nexusBackHero')){const link=document.createElement('a');link.className='nexusBackHero';link.href='#'+hero.id;link.setAttribute('aria-label','Back to homepage hero');link.setAttribute('title','Back to top');section.appendChild(link)}});
   if(!sections.length||document.documentElement.dataset.nexusSectionReturns)return;
   document.documentElement.dataset.nexusSectionReturns='1';
   const setActive=()=>{const focusY=window.innerHeight*.55;let active=null,best=Infinity;sections.forEach(section=>{const rect=section.getBoundingClientRect();if(rect.top<focusY&&rect.bottom>focusY){const distance=Math.abs((rect.top+rect.bottom)/2-focusY);if(distance<best){best=distance;active=section}}});sections.forEach(section=>section.querySelector('.nexusBackHero')?.classList.toggle('is-section-active',section===active))};
