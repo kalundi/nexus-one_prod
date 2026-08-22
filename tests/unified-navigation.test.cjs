@@ -70,6 +70,8 @@ test('patient sign up creates only a PATIENT account with consent',()=>{
  assert.match(api,/password\.length<12/);
  assert.match(api,/phoneDigits=normalizeE164/);
  assert.match(api,/password_hash,phone,role,active/);
+ assert.match(api,/SELECT organization_id AS id FROM users WHERE organization_id IS NOT NULL/);
+ assert.match(api,/active,organization_id,identity_subject,created_at,updated_at/);
  assert.match(api,/regexp_replace\(phone/);
  assert.match(js,/name="phone" type="tel"/);
  assert.match(js,/function configureSignupTermsGate/);

@@ -2796,7 +2796,20 @@ async function handler(event){
    const existing=await query('SELECT * FROM users WHERE lower(email)=lower($1) LIMIT 1',[email]);
    let u=existing.rows[0]||null;
    if(u&&!verifyPassword(password,String(u.password_hash||'')))return json(409,{error:'An account already exists for this email. Use Sign In or reset your password.'});
-   if(!u){const created=await query(`INSERT INTO users(email,display_name,password_hash,phone,role,active) VALUES($1,$2,$3,$4,'PATIENT',true) RETURNING *`,[email,displayName,hashPassword(password),phoneDigits]);u=created.rows[0]}
+   if(!u){
+    const orgResult=await query(`SELECT organization_id AS id FROM users WHERE organization_id IS NOT NULL ORDER BY CASE WHEN role='ADMIN' THEN 0 ELSE 1 END,created_at ASC LIMIT 1`)
+     .catch(()=>({rows:[]}));
+    let orgId=orgResult.rows[0]?.id||null;
+    if(!orgId){
+     const fallbackOrg=await query('SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1').catch(()=>({rows:[]}));
+     orgId=fallbackOrg.rows[0]?.id||null;
+    }
+    if(!orgId)return json(503,{error:'Account registration is temporarily unavailable while organization setup is completed. Please contact Nexus support.'});
+    const created=await query(`INSERT INTO users(id,email,display_name,password_hash,phone,role,active,organization_id,identity_subject,created_at,updated_at)
+      VALUES($1,$2,$3,$4,$5,'PATIENT',true,$6,$7,now(),now()) RETURNING *`,
+     [crypto.randomUUID(),email,displayName,hashPassword(password),phoneDigits,orgId,crypto.randomUUID()]);
+    u=created.rows[0];
+   }
    const token=crypto.randomBytes(32).toString('base64url');
    await query(`INSERT INTO user_role_requests(user_id,role,status,reviewed_at) VALUES($1,'PATIENT','APPROVED',now()) ON CONFLICT(user_id,role) DO NOTHING`,[u.id]);
    if(requestedRole!=='PATIENT')await query(`INSERT INTO user_role_requests(user_id,role,status) VALUES($1,$2,'PENDING') ON CONFLICT(user_id,role) DO UPDATE SET status='PENDING',requested_at=now(),reviewed_at=null,reviewed_by=null`,[u.id,requestedRole]);
