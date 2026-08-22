@@ -56,6 +56,25 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(css,/header \.nexusSharedActions/);
 });
 
+test('homepage requests the current unclipped navigation stylesheet',()=>{
+ const homepage=read('__deploy_temp/index.html');
+ assert.match(homepage,/platform\.css\?v=57/);
+});
+
+test('every platform navigation requests the same current stylesheet',()=>{
+ const htmlFiles=[];
+ const visit=folder=>fs.readdirSync(folder,{withFileTypes:true}).forEach(entry=>{
+  if(['dist','node_modules','.git'].includes(entry.name))return;
+  const target=path.join(folder,entry.name);
+  if(entry.isDirectory())visit(target);
+  else if(entry.name.endsWith('.html'))htmlFiles.push(target);
+ });
+ visit(root);
+ const platformPages=htmlFiles.filter(file=>/platform\.css/.test(fs.readFileSync(file,'utf8')));
+ assert.ok(platformPages.length>20);
+ platformPages.forEach(file=>assert.doesNotMatch(fs.readFileSync(file,'utf8'),/platform\.css(?!\?v=57)/,path.relative(root,file)));
+});
+
 test('homepage sections receive a return-to-hero control',()=>{
  const js=read('platform.js');
  assert.match(js,/className='nexusBackHero'/);
