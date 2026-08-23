@@ -1,0 +1,92 @@
+/* Nexus responsive design system
+   Breakpoints: phone <= 760px, compact/tablet <= 1024px, wide > 1024px. */
+:root{
+  --nexus-shell-max:1200px;
+  --nexus-shell-gutter:clamp(16px,4vw,32px);
+  --nexus-section-space:clamp(48px,8vw,96px);
+  --nexus-card-gap:clamp(14px,2.5vw,24px);
+  --nexus-touch-target:44px;
+}
+
+html{overflow-x:clip;text-size-adjust:100%;-webkit-text-size-adjust:100%}
+body{min-width:0;overflow-wrap:anywhere}
+*,*::before,*::after{box-sizing:border-box}
+:where(main,section,article,aside,div,nav,header,footer,form,fieldset){min-width:0}
+img,svg,video,canvas,picture,iframe{max-width:100%}
+img,video{height:auto}
+iframe{border:0}
+
+:where(.shell,.container,.pageShell,.contentShell,.kmMain,.roleWorkspace,.facilityWorkspace){
+  width:min(calc(100% - (2 * var(--nexus-shell-gutter))),var(--nexus-shell-max));
+  margin-inline:auto;
+}
+
+:where(h1,.heroTitle){font-size:clamp(2.25rem,7vw,5rem);line-height:1.04}
+:where(h2,.sectionTitle){font-size:clamp(1.75rem,4.5vw,3.5rem);line-height:1.1}
+:where(h3){font-size:clamp(1.15rem,2.3vw,1.55rem)}
+:where(.section,.moduleMain,.roleWorkspace,.facilityWorkspace,.kmMain){padding-block:var(--nexus-section-space)}
+
+:where(button,[role="button"],input,select,textarea,.button,.primary,.secondary,.outline,.navCta,.navBookRide){max-width:100%}
+:where(button,[role="button"],.button,.primary,.secondary,.outline,.navCta,.navBookRide){min-height:var(--nexus-touch-target)}
+.mapRefresh{min-width:max-content!important;white-space:nowrap!important}
+:where(input:not([type="checkbox"]):not([type="radio"]),select,textarea){width:100%}
+
+:where(.tableWrap,.tableShell,.facilityTableWrap,.kmCard){max-width:100%}
+:where(.tableWrap,.tableShell,.facilityTableWrap){overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+:where(table,.table,.facilityTable){max-width:none}
+
+:where(dialog,.modal,.portalDialog,.nexusLoginCard){max-width:min(calc(100vw - 24px),760px);max-height:min(92dvh,900px);overflow:auto}
+
+/* Stable visual label over the native selector; prevents encoded option glyphs
+   from becoming the navigation label in legacy and generated pages. */
+header .nexusLanguageControl.headerLanguageGlobal,header .nexusLanguageControl.headerLanguage,header .nexusLanguageControl,header .headerLanguage,header .nexusCompactLanguage{position:relative!important;display:flex!important;align-items:center!important;overflow:visible!important}
+header :where(.nexusLanguageControl,.headerLanguage,.nexusCompactLanguage)::before{content:attr(data-language-label)!important;display:block!important;padding:0 32px 0 10px!important;color:#0f2744!important;font:800 13px/1.25 Manrope,system-ui,sans-serif!important;white-space:nowrap!important;pointer-events:none!important}
+header :where(.nexusLanguageControl,.headerLanguage,.nexusCompactLanguage):not([data-language-label])::before{content:'English (US)'!important}
+header :where(.nexusLanguageControl,.headerLanguage,.nexusCompactLanguage)::after{content:'⌄'!important;position:absolute!important;right:12px!important;top:50%!important;transform:translateY(-55%)!important;color:#0f2744!important;font:900 16px/1 system-ui,sans-serif!important;pointer-events:none!important}
+header :where(.nexusLanguageControl,.headerLanguage,.nexusCompactLanguage) select{position:absolute!important;inset:0!important;width:100%!important;min-width:100%!important;max-width:100%!important;height:100%!important;opacity:0!important;cursor:pointer!important}
+
+@media(max-width:1024px){
+  :root{--nexus-shell-gutter:clamp(14px,3vw,24px)}
+  :where(.heroGrid,.split,.coverageGrid,.qualityGrid,.facilityDashboardGrid,.roleDashboardGrid,.kmGrid){grid-template-columns:1fr!important}
+  :where(.cols4,.cols3,.services,.roleCards,.facilityKpis,.kmMetrics){grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  :where(.sectionHeader,.facilityWorkspaceHeader,.kmToolbar){flex-wrap:wrap}
+  :where(.sectionHeader>*,.facilityWorkspaceHeader>*,.kmToolbar>*){max-width:100%}
+}
+
+@media(max-width:760px){
+  :root{--nexus-shell-gutter:14px;--nexus-section-space:clamp(38px,12vw,64px);--nexus-card-gap:14px}
+  body{font-size:clamp(15px,4.2vw,17px)}
+  :where(.cols4,.cols3,.cols2,.services,.roleCards,.facilityKpis,.kmMetrics,.patientResourceGrid,.portalGrid,.previewStats,.formGrid,.kmGrid,.build4Grid){grid-template-columns:1fr!important}
+  :where(.grid,.heroActions,.toolbar,.facilityWorkspaceActions,.kmToolbar>div:last-child){gap:var(--nexus-card-gap)}
+  :where(.heroActions,.toolbar,.facilityWorkspaceActions,.kmToolbar>div:last-child){display:grid!important;grid-template-columns:1fr!important;width:100%}
+  :where(.heroActions>*,.toolbar>*,.facilityWorkspaceActions>*,.kmToolbar>div:last-child>*){width:100%}
+  :where(.card,.panel,.service,.patientResource,.kmCard){padding:clamp(16px,5vw,22px)}
+  :where(.sectionHeader,.statusHeader,.panelHeader,.facilityPanelHeader,.kmToolbar){display:grid!important;grid-template-columns:1fr!important;align-items:start!important;gap:12px!important}
+  :where(.tableWrap,.tableShell,.facilityTableWrap){margin-inline:calc(-1 * var(--nexus-shell-gutter));padding-inline:var(--nexus-shell-gutter);scroll-padding-inline:var(--nexus-shell-gutter)}
+  :where(table,.table,.facilityTable){min-width:680px}
+  :where(.previewTable,.previewRow){min-width:0}
+  :where(dialog,.modal,.portalDialog,.nexusLoginCard){width:calc(100vw - 20px);max-width:calc(100vw - 20px);padding:clamp(16px,5vw,22px)}
+  :where(.access,.nexusLanguageControl:not(header *)){right:max(10px,env(safe-area-inset-right));max-width:calc(100vw - 20px)}
+  :where(.fixed,.stickyActionBar){max-width:100vw}
+  #root .topbar .nav{display:grid!important;grid-template-columns:140px minmax(0,1fr) 44px!important;height:auto!important;min-height:0!important;gap:10px!important;padding-block:10px!important}
+  #root .topbar .brand{grid-column:1 / 3!important;grid-row:1!important;justify-self:start!important}
+  #root .topbar .navRight{display:contents!important}
+  #root .topbar .navRight>.call,#root .topbar .navRight>.livecareLink{display:none!important}
+  #root .topbar .navRight>.menuBtn{display:grid!important;grid-column:3!important;grid-row:1!important;justify-self:end!important;margin:0!important}
+  #root .topbar .navRight>.headerLanguage{grid-column:1!important;grid-row:2!important;width:min(140px,100%)!important;min-width:0!important;justify-self:start!important}
+  #root .topbar .navRight>.navBookRide{grid-column:2 / 4!important;grid-row:2!important;width:min(160px,100%)!important;min-width:0!important;max-width:160px!important;justify-self:end!important;padding-inline:14px!important;font-size:0!important}
+  #root .topbar .navRight>.navBookRide span{font-size:0!important}
+  #root .topbar .navRight>.navBookRide span::after{content:'Book'!important;font-size:13px!important;font-weight:900!important}
+  #root .topbar #primary-navigation{grid-column:1 / 4!important;grid-row:3!important;width:100%!important}
+}
+
+@media(max-width:380px){
+  :root{--nexus-shell-gutter:10px}
+  :where(.card,.panel,.service,.patientResource,.kmCard){padding:15px}
+  :where(table,.table,.facilityTable){min-width:620px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
