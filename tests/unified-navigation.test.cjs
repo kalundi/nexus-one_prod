@@ -53,7 +53,9 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(js,/Date\.now\(\)-changedAt>7000/);
  assert.match(js,/roundControl\[aria-label="Next slide"\]/);
  assert.match(js,/function ensureSharedHeaderActions\(\)/);
- assert.match(js,/\[language,call,book,account,menu\]/);
+ assert.match(js,/\[language,call,book,account\]/);
+ assert.match(js,/function arrangeAdaptiveMobileHeader\(\)/);
+ assert.match(js,/nav\.appendChild\(account\)/);
  assert.match(css,/identical right-side header actions site-wide/);
  assert.match(css,/header \.nexusSharedActions/);
 });

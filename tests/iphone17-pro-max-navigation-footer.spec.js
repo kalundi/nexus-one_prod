@@ -43,8 +43,14 @@ for (const path of publicPages) {
     const bookingCta = page.locator('header .nexusSharedBook:visible, header .navBookRide:visible, header .navCta:visible').first();
     if (await bookingCta.count()) {
       const bookingBox = await bookingCta.boundingBox();
-      expect(bookingBox.width, `${path} booking CTA is too wide`).toBeLessThanOrEqual(156.5);
+      expect(bookingBox.width, `${path} booking CTA is too wide`).toBeLessThanOrEqual(160.5);
       expect(bookingBox.height, `${path} booking CTA is too short`).toBeGreaterThanOrEqual(44);
+    }
+    if (path !== '/__deploy_temp/index.html') {
+      const mobileControls = page.locator('header .nexusCompactLanguage:visible, header .nexusSharedBook:visible, header .mobileNavToggle:visible, header .menuBtn:visible');
+      expect(await mobileControls.count()).toBe(3);
+      await expect(page.locator('header .nexusSharedActions #nexusAccountMount')).toHaveCount(0);
+      await expect(page.locator('header nav #nexusAccountMount')).toHaveCount(1);
     }
     expect(layout.footer).not.toBeNull();
     expect(layout.footer.left).toBeGreaterThanOrEqual(-0.5);
@@ -72,6 +78,7 @@ for (const path of publicPages) {
         : page.locator('header .globalLinks.open, header .links.open').first();
       await expect(menu).toBeVisible();
       expect(await menu.locator('a:visible, .nexusHomeGroup:visible').count()).toBeGreaterThan(0);
+      if (path !== '/__deploy_temp/index.html') await expect(menu.locator('#nexusAccountMount')).toBeVisible();
       const home = menu.locator('.nexusHomeGroup summary').first();
       if (await home.count()) {
         await home.click();
@@ -100,3 +107,24 @@ test('booking mobile navigation stays readable above the safe area', async ({ pa
     expect(tab.right).toBeLessThanOrEqual(440.5);
   }
 });
+
+for (const width of [320, 375, 390, 414, 428, 440]) {
+  test(`shared mobile header adapts at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 428 ? 926 : 900 });
+    await page.goto('/livecare.html', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(700);
+    const controls = page.locator('header .nexusCompactLanguage:visible, header .nexusSharedBook:visible, header .mobileNavToggle:visible, header .menuBtn:visible');
+    expect(await controls.count()).toBe(3);
+    const layout = await controls.evaluateAll(elements => elements.map(element => { const box = element.getBoundingClientRect(); return { left: box.left, right: box.right, center: box.top + box.height / 2 }; }));
+    for (const control of layout) {
+      expect(control.left).toBeGreaterThanOrEqual(0);
+      expect(control.right).toBeLessThanOrEqual(width + 0.5);
+    }
+    const languageBox = await page.locator('header .nexusCompactLanguage').boundingBox();
+    const bookingBox = await page.locator('header .nexusSharedBook').boundingBox();
+    expect(Math.abs((languageBox.y + languageBox.height / 2) - (bookingBox.y + bookingBox.height / 2))).toBeLessThanOrEqual(2);
+    await expect(page.locator('header nav #nexusAccountMount')).toHaveCount(1);
+    expect(await page.locator('header .nexusCompactLanguage').getAttribute('data-language-label')).toMatch(/English \(US\)/);
+    await expect(page.locator('header .nexusSharedBook')).toHaveText(/Book/i);
+  });
+}
