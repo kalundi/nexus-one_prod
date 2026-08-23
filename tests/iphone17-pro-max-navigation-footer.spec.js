@@ -30,15 +30,22 @@ for (const path of publicPages) {
         header: rect(header),
         footer: rect(footer),
         footerLinks,
+        overflowers: Array.from(document.querySelectorAll('body *')).map(element => ({element,box:element.getBoundingClientRect()})).filter(item => item.box.right > document.documentElement.clientWidth + 1 || item.box.left < -1).slice(0,8).map(item => ({tag:item.element.tagName,className:item.element.className?.toString?.() || '',left:item.box.left,right:item.box.right})),
         logoVisible: visible(header?.querySelector('img')),
         toggleVisible: visible(header?.querySelector('.menuBtn,.mobileNavToggle'))
       };
     });
-    expect(layout.scrollWidth, `${path} has horizontal overflow`).toBeLessThanOrEqual(layout.viewport + 1);
+    expect(layout.scrollWidth, `${path} has horizontal overflow: ${JSON.stringify(layout.overflowers)}`).toBeLessThanOrEqual(layout.viewport + 1);
     expect(layout.header).not.toBeNull();
     expect(layout.header.left).toBeGreaterThanOrEqual(-0.5);
     expect(layout.header.right).toBeLessThanOrEqual(440.5);
     expect(layout.logoVisible).toBeTruthy();
+    const bookingCta = page.locator('header .nexusSharedBook:visible, header .navBookRide:visible, header .navCta:visible').first();
+    if (await bookingCta.count()) {
+      const bookingBox = await bookingCta.boundingBox();
+      expect(bookingBox.width, `${path} booking CTA is too wide`).toBeLessThanOrEqual(156.5);
+      expect(bookingBox.height, `${path} booking CTA is too short`).toBeGreaterThanOrEqual(44);
+    }
     expect(layout.footer).not.toBeNull();
     expect(layout.footer.left).toBeGreaterThanOrEqual(-0.5);
     expect(layout.footer.right).toBeLessThanOrEqual(440.5);
