@@ -74,9 +74,10 @@ header :where(.nexusLanguageControl,.headerLanguage,.nexusCompactLanguage) selec
   #root .topbar .navRight>.call,#root .topbar .navRight>.livecareLink{display:none!important}
   #root .topbar .navRight>.menuBtn{display:grid!important;grid-column:3!important;grid-row:1!important;justify-self:end!important;margin:0!important}
   #root .topbar .navRight>.headerLanguage{grid-column:1!important;grid-row:2!important;width:min(140px,100%)!important;min-width:0!important;justify-self:start!important}
-  #root .topbar .navRight>.navBookRide{grid-column:2 / 4!important;grid-row:2!important;width:min(160px,100%)!important;min-width:0!important;max-width:160px!important;justify-self:end!important;padding-inline:14px!important;font-size:0!important}
-  #root .topbar .navRight>.navBookRide span{font-size:0!important}
-  #root .topbar .navRight>.navBookRide span::after{content:'Book'!important;font-size:13px!important;font-weight:900!important}
+  #root .topbar .navRight>.navBookRide{grid-column:2 / 4!important;grid-row:2!important;width:min(160px,100%)!important;min-width:0!important;max-width:160px!important;justify-self:end!important;padding-inline:14px!important;font-size:13px!important}
+  #root .topbar .navRight>.navBookRide::after,#root .topbar .navRight>.navBookRide span::after{content:none!important;display:none!important}
+  #root .topbar .navRight>.navBookRide span{font-size:13px!important;font-weight:900!important}
+  #root .topbar .navRight>.navBookRide svg{display:none!important}
   #root .topbar #primary-navigation{grid-column:1 / 4!important;grid-row:3!important;width:100%!important}
 }
 

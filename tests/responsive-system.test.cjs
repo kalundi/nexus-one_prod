@@ -22,7 +22,7 @@ test('every browser page uses the shared responsive system and viewport',()=>{
  files.forEach(file=>{
   const source=fs.readFileSync(file,'utf8'),name=path.relative(root,file);
   assert.match(source,/<meta\s+name=["']viewport["'][^>]*content=["'][^"']*width=device-width[^"']*initial-scale=1/i,`${name} needs the standard viewport`);
-  assert.match(source,/<link\s+rel=["']stylesheet["']\s+href=["']\/responsive\.css\?v=1["']>/i,`${name} needs responsive.css`);
+  assert.match(source,/<link\s+rel=["']stylesheet["']\s+href=["']\/responsive\.css\?v=2["']>/i,`${name} needs responsive.css`);
  });
 });
 

@@ -35,3 +35,21 @@ for(const width of [320,375,390,414,428,440]){
   }
  });
 }
+
+test('homepage mobile booking CTA has one visual label',async({page})=>{
+ await page.setViewportSize({width:320,height:800});
+ await page.goto('/__deploy_temp/index.html',{waitUntil:'domcontentloaded'});
+ await page.waitForTimeout(700);
+ const cta=page.locator('header .navBookRide').first();
+ await expect(cta).toBeVisible();
+ const label=await cta.evaluate(element=>({
+  text:element.textContent.replace(/\s+/g,' ').trim(),
+  after:getComputedStyle(element,'::after').content,
+  spanAfter:getComputedStyle(element.querySelector('span'),'::after').content,
+  spanSize:parseFloat(getComputedStyle(element.querySelector('span')).fontSize)
+ }));
+ expect(label.text).toBe('Book a Ride');
+ expect(['none','normal','""']).toContain(label.after);
+ expect(['none','normal','""']).toContain(label.spanAfter);
+ expect(label.spanSize).toBeGreaterThan(0);
+});
