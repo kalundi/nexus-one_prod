@@ -119,6 +119,9 @@
       white-space:nowrap;
     }
     .topTagline{margin:0;color:#dceaf5;font:700 11px/1.3 Sora,sans-serif;letter-spacing:.04em;text-align:center}
+    .patientDefaultsBanner{margin:12px 0;padding:16px;border:1px solid #a9d7dc;border-left:5px solid #087f8c;border-radius:12px;background:linear-gradient(135deg,#f0fbfa,#fff);box-shadow:0 8px 22px rgba(8,26,44,.07)}
+    .patientDefaultsHead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.patientDefaultsHead h2{margin:4px 0 5px;font:800 18px/1.2 Sora,sans-serif;color:#10324a}.patientDefaultsHead p{margin:0;color:#526579;font-size:13px}.patientDefaultsBadge{flex:0 0 auto;padding:5px 9px;border-radius:999px;background:#d9f3ee;color:#076b61;font:800 10px/1 Sora,sans-serif;letter-spacing:.07em;text-transform:uppercase}.patientDefaultsList{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.patientDefaultsList span{padding:7px 10px;border:1px solid #cce3e3;border-radius:999px;background:#fff;color:#174456;font:800 11px/1.2 Sora,sans-serif}.patientDefaultsActions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:13px}.patientDefaultsActions small{color:#526579}.patientDefaultsActions a{color:#087f8c;font:800 12px Sora,sans-serif;text-underline-offset:3px}
+    @media(max-width:520px){.patientDefaultsHead,.patientDefaultsActions{display:grid}.patientDefaultsBadge{justify-self:start}.patientDefaultsList span{width:100%;border-radius:9px}}
     .journeyHeader{position:sticky;top:0;z-index:60;width:100%;height:48px;padding:6px 10px;border-bottom:2px solid #d7263d;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.12);transition:height .15s ease,padding .15s ease}
     .journeySteps{height:100%;display:flex;align-items:center;justify-content:center;gap:5px}.journeyStep{min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 8px;border:1px solid #d7dee5;border-radius:999px;background:#f5f6f7;color:#536170;font:800 10px/1 Sora,sans-serif;transition:padding .15s ease,gap .15s ease,background .15s ease}.journeyStepIcon{font-size:13px}.journeyStepNumber{display:none}.journeyStep.current{border:2px solid #d7263d;color:#9f1328;background:#fff}.journeyStep.complete{border-color:#d7263d;background:#d7263d;color:#fff}.journeyStep.complete .journeyStepIcon{font-size:0}.journeyStep.complete .journeyStepIcon::after{content:'✓';font-size:13px}.journeyConnector{flex:1 1 16px;max-width:34px;height:1px;background:#ccd4dc}.journeyHeaderButton{display:none}
     .journeyHeader.compact{height:32px;padding:3px 10px;box-shadow:0 4px 12px rgba(15,23,42,.18)}.journeyHeader.compact .journeyStep{padding:3px 6px;gap:2px}.journeyHeader.compact .journeyStepLabel{width:0;opacity:0;overflow:hidden}.journeyHeader.compact .journeyStepNumber{display:inline}.journeyHeader.compact .journeyConnector{max-width:22px}
@@ -621,6 +624,12 @@
       <button type="button" class="journeyHeaderButton" id="journeyHeaderAction">Continue</button>
     </nav>
 
+    <aside class="patientDefaultsBanner" id="patientDefaultsBanner" hidden aria-labelledby="patientDefaultsTitle">
+      <div class="patientDefaultsHead"><div><span class="patientDefaultsBadge">Patient profile active</span><h2 id="patientDefaultsTitle">Your transportation preferences are ready</h2><p id="patientDefaultsSummary">We will apply your saved needs as defaults for this ride.</p></div><span class="patientDefaultsBadge" id="patientDefaultsRole">Patient</span></div>
+      <div class="patientDefaultsList" id="patientDefaultsList" aria-label="Applied patient preferences"></div>
+      <div class="patientDefaultsActions"><small>You can change any selection for this ride without changing your saved profile.</small><a href="/patient.html#transportation-preferences">Manage saved preferences</a></div>
+    </aside>
+
     <aside class="accessibilityBar" aria-label="Accessibility preferences">
       <strong>Accessibility</strong>
       <div class="accessibilityControls">
@@ -853,7 +862,7 @@ Destination: -</p>
         </div>
       </section>
 
-      <section class="section sectionProgressive" id="rideTypeSection">
+      <section class="section" id="rideTypeSection">
         <div class="rideTypeHeading"><h2>Type of Ride</h2><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help Me Choose</button></div>
         <p class="subtle">Choose the option that best supports the rider’s mobility and care needs. All available customer services remain visible here.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
@@ -1076,9 +1085,9 @@ Destination: -</p>
   </main>
   <script src="./nexus-core.js"></script>
   <script src="./nexus-availability.js" defer></script>
-  <script src="./platform.js?v=61"></script>
+  <script src="./platform.js?v=62"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-  <script src="./booking-app.js?v=20260816-customer-tabs"></script>
+  <script src="./booking-app.js?v=20260823-patient-customization"></script>
 </body>
 </html>
 

@@ -20,7 +20,7 @@
   else{const name=current.displayName||current.name||current.email||'Nexus user',role=String(current.role||'Member').toUpperCase();wrap.innerHTML=`<button class="nexusAccountButton" type="button" aria-expanded="false"><span class="nexusAccountAvatar"></span><span class="nexusAccountText"></span></button><div class="nexusAccountMenu" hidden><a href="${routeFor(role)}">Open my workspace</a><button type="button" data-nexus-logout>Sign out</button></div>`;wrap.querySelector('.nexusAccountAvatar').textContent=initials(name);const label=wrap.querySelector('.nexusAccountText');label.textContent=name;const small=document.createElement('small');small.textContent=role;label.appendChild(small);const button=wrap.querySelector('.nexusAccountButton'),menu=wrap.querySelector('.nexusAccountMenu');button.addEventListener('click',()=>{menu.hidden=!menu.hidden;button.setAttribute('aria-expanded',String(!menu.hidden))});wrap.querySelector('[data-nexus-logout]').addEventListener('click',async()=>{try{await fetch('/api/auth/logout',{method:'POST',headers:{authorization:`Bearer ${sessionStorage.getItem(TOKEN)||''}`}})}catch{}clear();location.assign('/')})}
   addRoleSwitcher(wrap,current);const cta=host.querySelector('.navCta,.menuBtn');if(cta)host.insertBefore(wrap,cta);else host.appendChild(wrap);return true;
  }
- async function boot(){const current=await user();let attempts=0;const attach=()=>{if(mount(current))return;if(attempts++<40)setTimeout(attach,100)};attach();if(new URLSearchParams(location.search).get('login')==='1')setTimeout(()=>dialog().showModal(),200)}
+ async function boot(){if(document.getElementById('bookingForm')||/\/booking-app(?:\.html)?$/i.test(location.pathname))return;const current=await user();let attempts=0;const attach=()=>{if(mount(current))return;if(attempts++<40)setTimeout(attach,100)};attach();if(new URLSearchParams(location.search).get('login')==='1')setTimeout(()=>dialog().showModal(),200)}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 
@@ -112,7 +112,7 @@ if((location.pathname||'').toLowerCase().includes('livecare')&&!document.querySe
   window.addEventListener('resize',setActive,{passive:true});setActive();
  }
  if(!document.documentElement.dataset.nexusMenuDismiss){document.documentElement.dataset.nexusMenuDismiss='1';document.addEventListener('click',event=>{document.querySelectorAll('.nexusHomeGroup[open]').forEach(group=>{if(!group.contains(event.target))group.removeAttribute('open')})});document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelectorAll('.nexusHomeGroup[open]').forEach(group=>group.removeAttribute('open'))})}
- let tries=0;function sync(){lockHomeMenuStyles();normalizeNav();ensureSharedHeaderActions();addSectionReturns();ensureCarouselRotation();if(tries++<50)setTimeout(sync,120)}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
+ let tries=0;function sync(){if(document.getElementById('bookingForm')||/\/booking-app(?:\.html)?$/i.test(location.pathname))return;lockHomeMenuStyles();normalizeNav();ensureSharedHeaderActions();addSectionReturns();ensureCarouselRotation();if(tries++<50)setTimeout(sync,120)}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
 })();
 
 // Shared international phone handling for every current and dynamically-added phone field.

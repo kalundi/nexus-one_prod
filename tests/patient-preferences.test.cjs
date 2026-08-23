@@ -24,10 +24,14 @@ test('patient profile captures mobility, assistance, oxygen, language and commun
 });
 
 test('booking applies patient defaults while allowing per-ride changes',()=>{
- const booking=read('booking-app.js');
+ const booking=read('booking-app.js'),html=read('booking-app.html'),platform=read('platform.js');
  assert.match(booking,/function applyPatientTransportationPreferences/);
  assert.match(booking,/selectService\(service\)/);
  assert.match(booking,/defaultPickup/);
  assert.match(booking,/Rider remains in wheelchair during transport/);
  assert.match(booking,/You can change them for this ride/);
+ assert.match(booking,/renderPatientDefaultsBanner/);
+ assert.match(html,/id="patientDefaultsBanner"/);
+ assert.match(html,/Manage saved preferences/);
+ assert.match(platform,/document\.getElementById\('bookingForm'\)/);
 });

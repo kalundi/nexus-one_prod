@@ -96,6 +96,10 @@
   const loginMessage = $('loginMessage');
   const authRoleBadge = $('authRoleBadge');
   const authStatusText = $('authStatusText');
+  const patientDefaultsBanner = $('patientDefaultsBanner');
+  const patientDefaultsTitle = $('patientDefaultsTitle');
+  const patientDefaultsSummary = $('patientDefaultsSummary');
+  const patientDefaultsList = $('patientDefaultsList');
   const riderDetailsSection = $('riderDetailsSection');
   const multipleStopsToggle = $('multipleStopsToggle');
   const stopCountSelect = $('stopCountSelect');
@@ -213,6 +217,7 @@
   let isAdminUser = false;
   let currentUserRole = 'CUSTOMER';
   let currentUser = null;
+  let currentPatientPreferences = null;
   let platformPricing = null;
   let fareRules = { ...DEFAULT_FARE_RULES };
   let companyYardAddress = DEFAULT_YARD_ADDRESS;
@@ -1012,6 +1017,7 @@
       const response=await fetch('/api/patient/preferences',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
       if(!response.ok)return;
       const data=await response.json(),preferences=data.preferences||{},mobility=String(preferences.mobilityType||'AMBULATORY').toLowerCase();
+      currentPatientPreferences=preferences;
       const service=mobility==='broda'?'wheelchair':mobility;
       if(CUSTOMER_ALLOWED_SERVICES.has(service))selectService(service);
       if($('pickup')&&!String($('pickup').value||'').trim()&&preferences.defaultPickup)$('pickup').value=preferences.defaultPickup;
@@ -1023,8 +1029,27 @@
       if($('notes')&&!String($('notes').value||'').trim()&&needLines.length)$('notes').value=needLines.join(' ');
       const wheelchairAnswer=document.querySelector(`input[name="remainsInWheelchair"][value="${preferences.remainsInWheelchair?'yes':'no'}"]`);if(wheelchairAnswer)wheelchairAnswer.checked=true;
       setLoginMessage(`Your ${mobility.replace('_',' ')} transportation preferences were applied. You can change them for this ride.`);
+      renderPatientDefaultsBanner(preferences);
       syncSectionProgressUi();
     }catch{}
+  }
+
+  function renderPatientDefaultsBanner(preferences={}){
+    if(!patientDefaultsBanner||String(currentUserRole||'').toUpperCase()!=='PATIENT'){if(patientDefaultsBanner)patientDefaultsBanner.hidden=true;return}
+    const name=String(currentUser?.displayName||currentUser?.name||'').trim().split(/\s+/)[0];
+    const mobility=String(preferences.mobilityType||'AMBULATORY').replaceAll('_',' ').toLowerCase().replace(/\b\w/g,letter=>letter.toUpperCase());
+    const items=[`${mobility} transportation`];
+    if(preferences.remainsInWheelchair)items.push('Remain in wheelchair');
+    if(preferences.transferAssistance)items.push('Transfer assistance');
+    if(preferences.oxygenRequired)items.push('Traveling with oxygen');
+    if(preferences.defaultPickup)items.push('Saved pickup applied');
+    if(preferences.preferredLanguage)items.push(`Language: ${preferences.preferredLanguage}`);
+    if(preferences.communicationPreference)items.push(`Updates: ${String(preferences.communicationPreference).toUpperCase()}`);
+    if(preferences.accessibilityNotes)items.push('Accessibility notes applied');
+    if(patientDefaultsTitle)patientDefaultsTitle.textContent=`${name?`${name}, your`:'Your'} transportation preferences are ready`;
+    if(patientDefaultsSummary)patientDefaultsSummary.textContent=`${mobility} is selected by default. Review the applied support below, then change anything needed for this ride.`;
+    if(patientDefaultsList)patientDefaultsList.replaceChildren(...items.map(item=>Object.assign(document.createElement('span'),{textContent:item})));
+    patientDefaultsBanner.hidden=false;
   }
 
   function bookingHasStarted(){
@@ -3224,9 +3249,11 @@
     }catch{}
     clearAuthSession();
     currentUser = null;
+    currentPatientPreferences = null;
     currentUserRole = 'CUSTOMER';
     isAdminUser = false;
     applyRiderDetailsFromAuthUser();
+    renderPatientDefaultsBanner();
     setLoginMessage('Signed out. Customer access restored.');
     syncRiderIdentityMode();
     applyAuthUi();
