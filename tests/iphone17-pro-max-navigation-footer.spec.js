@@ -137,6 +137,10 @@ test('mobile footer keeps brand visible and reveals other sections on demand', a
   await expect(footer.locator('.footerAccordionPanel').nth(0)).toBeVisible();
   await expect(footer.getByRole('link', { name: 'Services', exact: true })).toBeVisible();
   await expect(toggles.nth(1)).toHaveAttribute('aria-expanded', 'false');
+  await toggles.nth(2).click();
+  const xLink = footer.getByRole('link', { name: 'X', exact: true });
+  await expect(xLink).toBeVisible();
+  await expect(xLink).toHaveAttribute('href', 'https://x.com/nexus_m_t');
 });
 
 test('late-rendered homepage footer receives the mobile accordion', async ({ page }) => {

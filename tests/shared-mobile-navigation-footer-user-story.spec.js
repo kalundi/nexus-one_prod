@@ -59,6 +59,8 @@ for (const pagePath of sharedPages) {
       leftEdges.push((await link.boundingBox()).x);
     }
     expect(Math.max(...leftEdges) - Math.min(...leftEdges)).toBeLessThanOrEqual(2);
+    await menuButton.click();
+    await expect(menuButton).toHaveAttribute('aria-expanded', 'false');
 
     const footer = page.locator('footer.footerUnified').first();
     await expect(footer.locator('.footerBrandCompact .footerLogo')).toBeVisible();
@@ -68,5 +70,8 @@ for (const pagePath of sharedPages) {
       await expect(footerToggles.nth(index)).toHaveAttribute('aria-expanded', 'false');
       await expect(footer.locator('.footerAccordionPanel').nth(index)).toBeHidden();
     }
+    const xLink = footer.locator('.footerSocial a[aria-label="X"]');
+    await expect(xLink).toHaveCount(1);
+    await expect(xLink).toHaveAttribute('href', 'https://x.com/nexus_m_t');
   });
 }
