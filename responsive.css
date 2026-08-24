@@ -68,23 +68,76 @@ header :where(.nexusLanguageControl,.headerLanguage,.nexusCompactLanguage) selec
   :where(dialog,.modal,.portalDialog,.nexusLoginCard){width:calc(100vw - 20px);max-width:calc(100vw - 20px);padding:clamp(16px,5vw,22px)}
   :where(.access,.nexusLanguageControl:not(header *)){right:max(10px,env(safe-area-inset-right));max-width:calc(100vw - 20px)}
   :where(.fixed,.stickyActionBar){max-width:100vw}
-  #root .topbar .nav{display:grid!important;grid-template-columns:140px minmax(0,1fr) 44px!important;height:auto!important;min-height:0!important;gap:10px!important;padding-block:10px!important}
-  #root .topbar .brand{grid-column:1 / 3!important;grid-row:1!important;justify-self:start!important}
-  #root .topbar .navRight{display:contents!important}
-  #root .topbar .navRight>.call,#root .topbar .navRight>.livecareLink{display:none!important}
-  #root .topbar .navRight>.menuBtn{display:grid!important;grid-column:3!important;grid-row:1!important;justify-self:end!important;margin:0!important}
-  #root .topbar .navRight>.headerLanguage{grid-column:1!important;grid-row:2!important;width:min(140px,100%)!important;min-width:0!important;justify-self:start!important}
-  #root .topbar .navRight>.navBookRide{grid-column:2 / 4!important;grid-row:2!important;width:min(160px,100%)!important;min-width:0!important;max-width:160px!important;justify-self:end!important;padding-inline:14px!important;font-size:13px!important}
-  #root .topbar .navRight>.navBookRide::after,#root .topbar .navRight>.navBookRide span::after{content:none!important;display:none!important}
-  #root .topbar .navRight>.navBookRide span{font-size:13px!important;font-weight:900!important}
-  #root .topbar .navRight>.navBookRide svg{display:none!important}
-  #root .topbar #primary-navigation{grid-column:1 / 4!important;grid-row:3!important;width:100%!important}
+  #root .topbar:not(.nexusAdaptiveMobileHeader) .nav{display:grid!important;grid-template-columns:140px minmax(0,1fr) 44px!important;height:auto!important;min-height:0!important;gap:10px!important;padding-block:10px!important}
+  #root .topbar:not(.nexusAdaptiveMobileHeader) .brand{grid-column:1 / 3!important;grid-row:1!important;justify-self:start!important}
+  #root .topbar:not(.nexusAdaptiveMobileHeader) .navRight{display:contents!important}
+  #root .topbar:not(.nexusAdaptiveMobileHeader) .navRight>.call,#root .topbar:not(.nexusAdaptiveMobileHeader) .navRight>.livecareLink{display:none!important}
+  #root .topbar:not(.nexusAdaptiveMobileHeader) .navRight>.menuBtn{display:grid!important;grid-column:3!important;grid-row:1!important;justify-self:end!important;margin:0!important}
+  #root .topbar:not(.nexusAdaptiveMobileHeader) .navRight>.headerLanguage{grid-column:1!important;grid-row:2!important;width:min(140px,100%)!important;min-width:0!important;justify-self:start!important}
+  #root .topbar:not(.nexusAdaptiveMobileHeader) .navRight>.navBookRide{grid-column:2 / 4!important;grid-row:2!important;width:min(160px,100%)!important;min-width:0!important;max-width:160px!important;justify-self:end!important;padding-inline:14px!important;font-size:13px!important}
+  #root .topbar:not(.nexusAdaptiveMobileHeader) .navRight>.navBookRide::after,#root .topbar:not(.nexusAdaptiveMobileHeader) .navRight>.navBookRide span::after{content:none!important;display:none!important}
+  #root .topbar:not(.nexusAdaptiveMobileHeader) .navRight>.navBookRide span{font-size:13px!important;font-weight:900!important}
+  #root .topbar:not(.nexusAdaptiveMobileHeader) .navRight>.navBookRide svg{display:none!important}
+  #root .topbar:not(.nexusAdaptiveMobileHeader) #primary-navigation{grid-column:1 / 4!important;grid-row:3!important;width:100%!important}
 }
 
 @media(max-width:380px){
   :root{--nexus-shell-gutter:10px}
   :where(.card,.panel,.service,.patientResource,.kmCard){padding:15px}
   :where(table,.table,.facilityTable){min-width:620px}
+}
+
+/* One-row mobile navigation: brand plus five compact, accessible icon actions. */
+@media(max-width:760px){
+  header.nexusAdaptiveMobileHeader :where(.globalNav,.nav){display:grid!important;grid-template-columns:minmax(76px,1fr) repeat(5,44px)!important;grid-template-rows:auto!important;align-items:center!important;gap:clamp(0px,calc((100vw - 320px)/24),5px)!important;height:auto!important;min-height:64px!important;padding-block:8px!important}
+  header.nexusAdaptiveMobileHeader :where(.globalBrand,.brand){grid-column:1!important;grid-row:1!important;justify-self:start!important;width:auto!important;min-width:0!important}
+  header.nexusAdaptiveMobileHeader :where(.globalBrand,.brand) img{width:clamp(76px,24vw,112px)!important;max-width:100%!important;height:auto!important}
+  header.nexusAdaptiveMobileHeader :where(.nexusSharedActions,.navRight,.globalActions){display:contents!important}
+  header.nexusAdaptiveMobileHeader :where(.nexusCompactLanguage,.headerLanguage,.headerLanguageGlobal){grid-column:2!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;min-height:44px!important;border-radius:12px!important;padding:0!important}
+  header.nexusAdaptiveMobileHeader :where(.nexusCompactLanguage,.headerLanguage,.headerLanguageGlobal)::before{content:''!important;width:21px!important;height:21px!important;margin:auto!important;padding:0!important;background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f2744' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18'/%3E%3C/svg%3E")!important}
+  header.nexusAdaptiveMobileHeader :where(.nexusCompactLanguage,.headerLanguage,.headerLanguageGlobal)::after{content:none!important;display:none!important}
+  header.nexusAdaptiveMobileHeader :where(.nexusSharedBook,.navBookRide,.navCta){grid-column:3!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;min-height:44px!important;padding:0!important;border-radius:12px!important;font-size:0!important}
+  header.nexusAdaptiveMobileHeader :where(.nexusSharedBook,.navBookRide,.navCta)::after{content:''!important;position:static!important;display:block!important;width:22px!important;height:22px!important;margin:auto!important;background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 13l2-5h14l2 5v6h-2v-2H5v2H3zM5 13h14M7 13v1M17 13v1'/%3E%3C/svg%3E")!important}
+  header.nexusAdaptiveMobileHeader :where(.nexusSharedBook,.navBookRide,.navCta)>span{font-size:0!important}
+  header.nexusAdaptiveMobileHeader :where(.nexusSharedBook,.navBookRide,.navCta)>svg{display:none!important}
+  header.nexusAdaptiveMobileHeader .nexusMobileHeaderAccount{display:contents!important}
+  header.nexusAdaptiveMobileHeader .nexusMobileHeaderAccount>.nexusAccountButton{grid-column:4!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;padding:0!important;border-radius:12px!important}
+  header.nexusAdaptiveMobileHeader .nexusMobileHeaderAccount>.nexusNavSignUp{grid-column:5!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;padding:0!important;border-radius:12px!important;font-size:0!important;background:center/21px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230b5d91' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M3 21v-2a6 6 0 0 1 12 0v2M19 8v6M16 11h6'/%3E%3C/svg%3E")!important}
+  header.nexusAdaptiveMobileHeader .nexusMobileHeaderAccount .nexusAccountText{display:none!important}
+  header.nexusAdaptiveMobileHeader .nexusMobileHeaderAccount .nexusAccountAvatar{width:22px!important;height:22px!important;font-size:0!important;background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 17l5-5-5-5M15 12H3'/%3E%3Cpath d='M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5'/%3E%3C/svg%3E")!important}
+  header.nexusAdaptiveMobileHeader :where(.menuBtn,.mobileNavToggle){grid-column:6!important;grid-row:1!important;place-self:center end!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;margin:0!important}
+  header.nexusAdaptiveMobileHeader :where(#primary-navigation,.globalLinks,.links){grid-column:1 / 7!important;grid-row:2!important;width:100%!important;margin:0!important}
+  header.nexusAdaptiveMobileHeader :where(#primary-navigation,.globalLinks,.links).open{margin-top:4px!important}
+
+  /* Specificity lock against legacy page and platform header declarations. */
+  header.nexusAdaptiveMobileHeader .globalNav,header.nexusAdaptiveMobileHeader .nav{display:grid!important;grid-template-columns:minmax(76px,1fr) repeat(5,44px)!important;grid-template-rows:auto!important;align-items:center!important;gap:clamp(0px,calc((100vw - 320px)/24),5px)!important;height:auto!important;min-height:64px!important;padding-block:8px!important}
+  header.nexusAdaptiveMobileHeader .globalBrand,header.nexusAdaptiveMobileHeader .brand{grid-column:1!important;grid-row:1!important;justify-self:start!important;width:auto!important;min-width:0!important}
+  header.nexusAdaptiveMobileHeader .nexusSharedActions,header.nexusAdaptiveMobileHeader .navRight,header.nexusAdaptiveMobileHeader .globalActions{display:contents!important}
+  header.nexusAdaptiveMobileHeader .nexusCompactLanguage,header.nexusAdaptiveMobileHeader .headerLanguage,header.nexusAdaptiveMobileHeader .headerLanguageGlobal{grid-column:2!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;min-height:44px!important;padding:0!important}
+  header.nexusAdaptiveMobileHeader .nexusSharedBook,header.nexusAdaptiveMobileHeader .navBookRide,header.nexusAdaptiveMobileHeader .navCta{grid-column:3!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;min-height:44px!important;padding:0!important;border-radius:12px!important;font-size:0!important}
+  header.nexusAdaptiveMobileHeader .nexusSharedActions .nexusSharedBook::after,header.nexusAdaptiveMobileHeader .navRight .navBookRide::after,header.nexusAdaptiveMobileHeader .globalActions .navCta::after{content:''!important;position:static!important;display:block!important;width:22px!important;height:22px!important;margin:auto!important;background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 13l2-5h14l2 5v6h-2v-2H5v2H3zM5 13h14M7 13v1M17 13v1'/%3E%3C/svg%3E")!important}
+  header.nexusAdaptiveMobileHeader .menuBtn,header.nexusAdaptiveMobileHeader .mobileNavToggle{grid-column:6!important;grid-row:1!important;place-self:center end!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;margin:0!important}
+  header.nexusAdaptiveMobileHeader #primary-navigation,header.nexusAdaptiveMobileHeader .globalLinks,header.nexusAdaptiveMobileHeader .links{grid-column:1 / 7!important;grid-row:2!important;width:100%!important;margin:0!important}
+  header.globalTop.nexusAdaptiveMobileHeader .globalNav>.globalBrand{grid-column:1!important;grid-row:1!important;width:auto!important;min-width:0!important;overflow:hidden!important}
+  header.globalTop.nexusAdaptiveMobileHeader .globalNav>.globalBrand img.logo{display:block!important;width:clamp(76px,24vw,112px)!important;max-width:100%!important;height:auto!important}
+  header.globalTop.nexusAdaptiveMobileHeader .nexusLanguageControl.headerLanguageGlobal.nexusCompactLanguage{position:relative!important;inset:auto!important;grid-column:2!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;margin:0!important;padding:0!important}
+  header.globalTop.nexusAdaptiveMobileHeader .globalNav>.mobileNavToggle{position:relative!important;inset:auto!important;grid-column:6!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;margin:0!important}
+  header.globalTop.nexusAdaptiveMobileHeader #nexusAccountMount.nexusMobileHeaderAccount>.nexusAccountButton{background-color:#0b5d91!important;border:1px solid #084d78!important;box-shadow:0 4px 12px rgba(11,93,145,.18)!important}
+  header.globalTop.nexusAdaptiveMobileHeader #nexusAccountMount.nexusMobileHeaderAccount>.nexusNavSignUp{background-color:#eff8ff!important;border:1px solid #0b5d91!important;box-shadow:0 4px 12px rgba(11,93,145,.1)!important}
+  #root header.nexusAdaptiveMobileHeader .nav{display:grid!important;grid-template-columns:minmax(76px,1fr) repeat(5,44px)!important;grid-template-rows:auto!important;align-items:center!important;gap:clamp(0px,calc((100vw - 320px)/24),5px)!important;width:calc(100% - 20px)!important;max-width:none!important;height:auto!important;min-height:64px!important;margin-inline:auto!important;padding-block:8px!important}
+  #root header.nexusAdaptiveMobileHeader .brand{grid-column:1!important;grid-row:1!important;width:auto!important;min-width:0!important}
+  #root header.nexusAdaptiveMobileHeader .brand img{width:clamp(76px,24vw,112px)!important;max-width:100%!important}
+  #root header.nexusAdaptiveMobileHeader .navRight{display:contents!important}
+  #root header.nexusAdaptiveMobileHeader .nexusCompactLanguage{grid-column:2!important;grid-row:1!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;min-height:44px!important;place-self:center!important;padding:0!important}
+  #root header.nexusAdaptiveMobileHeader .navBookRide{grid-column:3!important;grid-row:1!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;min-height:44px!important;place-self:center!important;padding:0!important;font-size:0!important}
+  #root header.nexusAdaptiveMobileHeader .navRight .navBookRide::after{content:''!important;position:static!important;display:block!important;width:22px!important;height:22px!important;margin:auto!important;background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 13l2-5h14l2 5v6h-2v-2H5v2H3zM5 13h14M7 13v1M17 13v1'/%3E%3C/svg%3E")!important}
+  #root header.nexusAdaptiveMobileHeader .navBookRide span{font-size:0!important}
+  #root header.nexusAdaptiveMobileHeader .navBookRide span::after{content:none!important;display:none!important}
+  #root header.nexusAdaptiveMobileHeader #nexusAccountMount.nexusMobileHeaderAccount{display:contents!important}
+  #root header.nexusAdaptiveMobileHeader #nexusAccountMount.nexusMobileHeaderAccount>.nexusAccountButton{grid-column:4!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;padding:0!important}
+  #root header.nexusAdaptiveMobileHeader #nexusAccountMount.nexusMobileHeaderAccount>.nexusNavSignUp{grid-column:5!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;padding:0!important;font-size:0!important}
+  #root header.nexusAdaptiveMobileHeader .menuBtn{grid-column:6!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;margin:0!important}
+  #root header.nexusAdaptiveMobileHeader #primary-navigation{grid-column:1 / 7!important;grid-row:2!important;width:100%!important}
 }
 
 @media(prefers-reduced-motion:reduce){

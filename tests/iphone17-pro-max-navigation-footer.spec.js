@@ -49,8 +49,8 @@ for (const path of publicPages) {
     if (path !== '/__deploy_temp/index.html') {
       const mobileControls = page.locator('header .nexusCompactLanguage:visible, header .nexusSharedBook:visible, header .mobileNavToggle:visible, header .menuBtn:visible');
       expect(await mobileControls.count()).toBe(3);
-      await expect(page.locator('header .nexusSharedActions #nexusAccountMount')).toHaveCount(0);
-      await expect(page.locator('header nav #nexusAccountMount')).toHaveCount(1);
+      await expect(page.locator('header .nexusSharedActions #nexusAccountMount')).toHaveCount(1);
+      await expect(page.locator('header nav #nexusAccountMount')).toHaveCount(0);
     }
     expect(layout.footer).not.toBeNull();
     expect(layout.footer.left).toBeGreaterThanOrEqual(-0.5);
@@ -78,7 +78,7 @@ for (const path of publicPages) {
         : page.locator('header .globalLinks.open, header .links.open').first();
       await expect(menu).toBeVisible();
       expect(await menu.locator('a:visible, .nexusHomeGroup:visible').count()).toBeGreaterThan(0);
-      if (path !== '/__deploy_temp/index.html') await expect(menu.locator('#nexusAccountMount')).toBeVisible();
+      if (path !== '/__deploy_temp/index.html') await expect(page.locator('header .nexusSharedActions #nexusAccountMount')).toBeVisible();
       const home = menu.locator('.nexusHomeGroup summary').first();
       if (await home.count()) {
         await home.click();
@@ -123,7 +123,7 @@ for (const width of [320, 375, 390, 414, 428, 440]) {
     const languageBox = await page.locator('header .nexusCompactLanguage').boundingBox();
     const bookingBox = await page.locator('header .nexusSharedBook').boundingBox();
     expect(Math.abs((languageBox.y + languageBox.height / 2) - (bookingBox.y + bookingBox.height / 2))).toBeLessThanOrEqual(2);
-    await expect(page.locator('header nav #nexusAccountMount')).toHaveCount(1);
+    await expect(page.locator('header .nexusSharedActions #nexusAccountMount')).toHaveCount(1);
     expect(await page.locator('header .nexusCompactLanguage').getAttribute('data-language-label')).toMatch(/English \(US\)/);
     await expect(page.locator('header .nexusSharedBook')).toHaveText(/Book/i);
   });

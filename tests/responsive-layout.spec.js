@@ -36,7 +36,7 @@ for(const width of [320,375,390,414,428,440]){
  });
 }
 
-test('homepage mobile booking CTA has one visual label',async({page})=>{
+test('homepage mobile booking CTA has one accessible icon label',async({page})=>{
  await page.setViewportSize({width:320,height:800});
  await page.goto('/__deploy_temp/index.html',{waitUntil:'domcontentloaded'});
  await page.waitForTimeout(700);
@@ -45,11 +45,33 @@ test('homepage mobile booking CTA has one visual label',async({page})=>{
  const label=await cta.evaluate(element=>({
   text:element.textContent.replace(/\s+/g,' ').trim(),
   after:getComputedStyle(element,'::after').content,
+  afterImage:getComputedStyle(element,'::after').backgroundImage,
   spanAfter:getComputedStyle(element.querySelector('span'),'::after').content,
   spanSize:parseFloat(getComputedStyle(element.querySelector('span')).fontSize)
  }));
  expect(label.text).toBe('Book a Ride');
  expect(['none','normal','""']).toContain(label.after);
  expect(['none','normal','""']).toContain(label.spanAfter);
- expect(label.spanSize).toBeGreaterThan(0);
+ expect(label.afterImage).toContain('svg');
+ expect(label.spanSize).toBe(0);
+ await expect(cta).toHaveAccessibleName(/Book a Ride/i);
 });
+
+for(const width of [320,375,428,440]){
+ test(`mobile navigation icons share one row at ${width}px`,async({page})=>{
+  await page.setViewportSize({width,height:850});
+  await page.goto('/__deploy_temp/index.html',{waitUntil:'domcontentloaded'});
+  await page.waitForTimeout(800);
+  const header=page.locator('header.nexusAdaptiveMobileHeader');
+  await expect(header).toBeVisible();
+  const items=header.locator('.brand:visible, .nexusCompactLanguage:visible, .headerLanguage:visible, .navBookRide:visible, .nexusSharedBook:visible, .nexusAccountButton:visible, .nexusNavSignUp:visible, .menuBtn:visible, .mobileNavToggle:visible');
+  const boxes=await items.evaluateAll(elements=>elements.map(element=>{const box=element.getBoundingClientRect();return {left:box.left,right:box.right,center:box.top+box.height/2}}));
+  expect(boxes.length).toBe(6);
+  expect(Math.max(...boxes.map(box=>box.center))-Math.min(...boxes.map(box=>box.center))).toBeLessThanOrEqual(2);
+  boxes.forEach(box=>{expect(box.left).toBeGreaterThanOrEqual(0);expect(box.right).toBeLessThanOrEqual(width+.5)});
+  await expect(header.locator('[data-nexus-language]')).toHaveAccessibleName(/Language|Select language/i);
+  await expect(header.locator('.navBookRide,.nexusSharedBook').first()).toHaveAccessibleName(/Book a Ride/i);
+  await expect(header.locator('.nexusAccountButton')).toHaveAccessibleName(/Sign In/i);
+  await expect(header.locator('.nexusNavSignUp')).toHaveAccessibleName(/Sign Up/i);
+ });
+}

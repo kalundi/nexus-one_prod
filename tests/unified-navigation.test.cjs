@@ -55,14 +55,15 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(js,/function ensureSharedHeaderActions\(\)/);
  assert.match(js,/\[language,call,book,account\]/);
  assert.match(js,/function arrangeAdaptiveMobileHeader\(\)/);
- assert.match(js,/nav\.appendChild\(account\)/);
+ assert.match(js,/account\.classList\.add\('nexusMobileHeaderAccount'\)/);
+ assert.match(js,/host\.appendChild\(account\)/);
  assert.match(css,/identical right-side header actions site-wide/);
  assert.match(css,/header \.nexusSharedActions/);
 });
 test('homepage requests the current unclipped navigation stylesheet',()=>{
  const homepage=read('__deploy_temp/index.html');
  assert.match(homepage,/platform\.css\?v=65/);
- assert.match(homepage,/platform\.js\?v=63/);
+ assert.match(homepage,/platform\.js\?v=64/);
 });
 
 test('every platform navigation requests the same current stylesheet',()=>{
