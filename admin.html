@@ -191,6 +191,11 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       <h3>Social automation</h3>
       <p>Channel queue previews and publish run history.</p>
     </button>
+    <button class="dashboardTile" type="button" data-section-target="applicantsSection">
+      <span class="dashSignal normal" data-signal-for="applicantsSection">Normal</span>
+      <h3>Career applicants</h3>
+      <p>Review applications, résumés, hiring status, and applicant responses.</p>
+    </button>
     <button class="dashboardTile" type="button" data-section-target="auditSection">
       <span class="dashSignal normal" data-signal-for="auditSection">Normal</span>
       <h3>Audit log</h3>
@@ -598,6 +603,16 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
   </div>
 </section>
 
+<!-- Career Applicants -->
+<section class="sectionTab card" id="applicantsSection" style="margin-top:32px">
+  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">Recruiting</div><h2>Career applicants</h2><p>Review Nexus applications, record decisions, and respond from one secure workspace.</p></div><button class="button" id="refreshApplicants" type="button">Refresh applicants</button></div>
+  <div style="display:grid;grid-template-columns:minmax(280px,.8fr) minmax(0,1.2fr);gap:18px" class="applicantWorkspace">
+    <div><label class="field">Filter status<select id="applicantStatusFilter"><option value="">All statuses</option><option>NEW</option><option>REVIEWING</option><option>INTERVIEW</option><option>OFFERED</option><option>HIRED</option><option>DECLINED</option><option>ARCHIVED</option></select></label><div id="applicantList" style="display:grid;gap:10px;margin-top:12px"><p>Loading applicants…</p></div></div>
+    <article id="applicantDetail" class="card" aria-live="polite"><h3>Select an applicant</h3><p>Application details and response tools will appear here.</p></article>
+  </div>
+  <style>@media(max-width:850px){#applicantsSection .applicantWorkspace{grid-template-columns:1fr!important}}.applicantListButton{width:100%;text-align:left;padding:14px;border:1px solid #cadbe8;border-radius:12px;background:#fff;color:#123;cursor:pointer}.applicantListButton strong,.applicantListButton span{display:block}.applicantListButton span{margin-top:4px;color:#52677a;font-size:13px}.applicantDetailGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.applicantDetailGrid p{margin:0;padding:10px;border-radius:10px;background:#f3f7fa}.applicantResponseForm{display:grid;gap:10px;margin-top:16px}.applicantResponseForm textarea{min-height:130px}@media(max-width:600px){.applicantDetailGrid{grid-template-columns:1fr}}</style>
+</section>
+
 <!-- Audit Log -->
 <section class="sectionTab" id="auditSection" style="margin-top:32px;margin-bottom:40px">
   <details id="auditDetails">
@@ -623,7 +638,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">&#9855;</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div>
 <div id="adminToast" class="adminToast" role="status" aria-live="polite" hidden></div>
 <script src="./nexus-core.js"></script><script src="./platform.js?v=68"></script>
-<script src="./admin-app.js"></script></body></html>
+<script src="./admin-app.js?v=2-career-workspace"></script></body></html>
 
 
 

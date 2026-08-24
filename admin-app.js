@@ -9,7 +9,7 @@ const userRole=()=>{
 };
 const canEditSettings=()=>userRole()==='ADMIN';
 let currentSettings=null;
-const ADMIN_DASHBOARD_SECTIONS=['userSection','pricingSection','manageTripSection','adminTripsSection','settingsSection','costAnalyzerSection','socialSection','auditSection'];
+const ADMIN_DASHBOARD_SECTIONS=['userSection','pricingSection','manageTripSection','adminTripsSection','settingsSection','costAnalyzerSection','socialSection','applicantsSection','auditSection'];
 const ADMIN_DASHBOARD_LABELS={
   userSection:'User management',
   pricingSection:'Nexus Pricing Manager',
@@ -18,6 +18,7 @@ const ADMIN_DASHBOARD_LABELS={
   settingsSection:'Organization settings',
   costAnalyzerSection:'Cost analyzer',
   socialSection:'Social automation',
+  applicantsSection:'Career applicants',
   auditSection:'Audit log'
 };
 let adminFocusSectionId='';
@@ -1545,7 +1546,32 @@ function showToast(text,type='ok'){
   },2600);
 }
 
+let careerApplications=[];
+let selectedCareerApplication=null;
+function applicantValue(application,key){return application?.[key]??application?.[key.replace(/[A-Z]/g,letter=>`_${letter.toLowerCase()}`)]??'';}
+function renderApplicantList(){
+ const list=document.getElementById('applicantList');if(!list)return;
+ const filter=String(document.getElementById('applicantStatusFilter')?.value||'').toUpperCase();
+ const visible=careerApplications.filter(item=>!filter||String(applicantValue(item,'status')).toUpperCase()===filter);
+ list.innerHTML=visible.length?visible.map(item=>`<button class="applicantListButton" type="button" data-applicant-id="${escapeHtml(item.id)}"><strong>${escapeHtml(applicantValue(item,'firstName'))} ${escapeHtml(applicantValue(item,'lastName'))}</strong><span>${escapeHtml(applicantValue(item,'position'))} · ${escapeHtml(applicantValue(item,'status'))}</span><span>${escapeHtml(new Date(applicantValue(item,'createdAt')).toLocaleDateString())}</span></button>`).join(''):'<p>No applications match this status.</p>';
+}
+function renderApplicantDetail(application){
+ const detail=document.getElementById('applicantDetail');if(!detail)return;selectedCareerApplication=application;
+ const fullName=`${applicantValue(application,'firstName')} ${applicantValue(application,'lastName')}`.trim(),resumeName=applicantValue(application,'resumeName');
+ detail.innerHTML=`<div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">${escapeHtml(applicantValue(application,'status'))}</div><h3>${escapeHtml(fullName)}</h3><p>${escapeHtml(applicantValue(application,'position'))}</p></div>${resumeName?'<button class="button" id="downloadApplicantResume" type="button">Download résumé</button>':''}</div><div class="applicantDetailGrid"><p><strong>Email</strong><br><a href="mailto:${escapeHtml(applicantValue(application,'email'))}">${escapeHtml(applicantValue(application,'email'))}</a></p><p><strong>Phone</strong><br>${escapeHtml(applicantValue(application,'phone'))}</p><p><strong>Location</strong><br>${escapeHtml(applicantValue(application,'city'))}, ${escapeHtml(applicantValue(application,'state'))}</p><p><strong>Experience</strong><br>${escapeHtml(applicantValue(application,'experienceYears'))}</p><p><strong>Employment</strong><br>${escapeHtml(applicantValue(application,'employmentPreference'))}</p><p><strong>Available</strong><br>${escapeHtml(applicantValue(application,'availableStartDate')||'Not specified')}</p></div><h4>Applicant statement</h4><p>${escapeHtml(applicantValue(application,'interest'))}</p><h4>Certifications</h4><p>${escapeHtml(applicantValue(application,'certifications')||'None listed')}</p><div class="applicantResponseForm"><label class="field">Hiring status<select id="applicantReviewStatus">${['NEW','REVIEWING','INTERVIEW','OFFERED','HIRED','DECLINED','ARCHIVED'].map(status=>`<option ${status===String(applicantValue(application,'status')).toUpperCase()?'selected':''}>${status}</option>`).join('')}</select></label><label class="field">Internal notes<textarea id="applicantInternalNotes">${escapeHtml(applicantValue(application,'internalNotes'))}</textarea></label><button class="button" id="saveApplicantReview" type="button">Save review</button><hr><h4>Email applicant</h4><label class="field">Subject<input id="applicantResponseSubject" value="Update on your Nexus Medical Transit application"></label><label class="field">Message<textarea id="applicantResponseMessage" placeholder="Write a professional update for the applicant."></textarea></label><button class="button" id="sendApplicantResponse" type="button">Send email response</button><p id="applicantActionMessage" role="status"></p></div>`;
+ document.getElementById('saveApplicantReview')?.addEventListener('click',saveApplicantReview);
+ document.getElementById('sendApplicantResponse')?.addEventListener('click',sendApplicantResponse);
+ document.getElementById('downloadApplicantResume')?.addEventListener('click',downloadApplicantResume);
+}
+async function loadCareerApplications(){const list=document.getElementById('applicantList');if(list)list.innerHTML='<p>Loading applicants…</p>';const response=await fetch('/api/admin/career-applications',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'}),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Unable to load applicants');careerApplications=Array.isArray(data.applications)?data.applications:[];renderApplicantList();if(selectedCareerApplication){const refreshed=careerApplications.find(item=>item.id===selectedCareerApplication.id);if(refreshed)renderApplicantDetail(refreshed)}}
+async function saveApplicantReview(){if(!selectedCareerApplication)return;const message=document.getElementById('applicantActionMessage');const response=await fetch(`/api/admin/career-applications/${encodeURIComponent(selectedCareerApplication.id)}`,{method:'PATCH',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({status:document.getElementById('applicantReviewStatus')?.value,internalNotes:document.getElementById('applicantInternalNotes')?.value})}),data=await response.json().catch(()=>({}));if(!response.ok){message.textContent=data.error||'Unable to save review';return}message.textContent='Review saved.';showToast('Applicant review saved.');await loadCareerApplications()}
+async function sendApplicantResponse(){if(!selectedCareerApplication)return;const message=document.getElementById('applicantActionMessage'),subject=document.getElementById('applicantResponseSubject')?.value,body=document.getElementById('applicantResponseMessage')?.value;if(!subject||!body){message.textContent='Subject and message are required.';return}const response=await fetch(`/api/admin/career-applications/${encodeURIComponent(selectedCareerApplication.id)}/response`,{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({subject,message:body})}),data=await response.json().catch(()=>({}));message.textContent=response.ok?'Email response sent.':(data.error||'Unable to send response');if(response.ok){showToast('Applicant email sent.');await loadCareerApplications()}}
+async function downloadApplicantResume(){if(!selectedCareerApplication)return;const response=await fetch(`/api/admin/career-applications/${encodeURIComponent(selectedCareerApplication.id)}/resume`,{headers:{authorization:`Bearer ${token()}`}});if(!response.ok)return showToast('Unable to download résumé.','err');const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=applicantValue(selectedCareerApplication,'resumeName')||'resume';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+
 document.getElementById('refreshAdminTrips')?.addEventListener('click',()=>{loadAdminTrips().catch((err)=>console.error(err));});
+document.getElementById('refreshApplicants')?.addEventListener('click',()=>loadCareerApplications().catch(error=>showToast(error.message,'err')));
+document.getElementById('applicantStatusFilter')?.addEventListener('change',renderApplicantList);
+document.getElementById('applicantList')?.addEventListener('click',event=>{const button=event.target.closest('[data-applicant-id]');if(button){const application=careerApplications.find(item=>item.id===button.dataset.applicantId);if(application)renderApplicantDetail(application)}});
 document.getElementById('adminTripSourceFilter')?.addEventListener('change',renderAdminTripsRows);
 document.getElementById('adminTripTimeframeFilter')?.addEventListener('change',renderAdminTripsRows);
 document.getElementById('adminTripReferenceFilter')?.addEventListener('input',renderAdminTripsRows);
@@ -1586,6 +1612,7 @@ window.addEventListener('nexus:authorized',async()=>{
     runCostAnalyzer().catch((err)=>console.error(err));
     loadSocialPreview().catch((err)=>console.error(err));
     loadSocialHistory().catch((err)=>console.error(err));
+    loadCareerApplications().catch((err)=>console.error(err));
   }
   try{await loadPlatformSettings();}catch(e){console.error(e);}
 });
@@ -1602,6 +1629,7 @@ if(window.NexusAuthorizedUser){
     runCostAnalyzer().catch((err)=>console.error(err));
     loadSocialPreview().catch((err)=>console.error(err));
     loadSocialHistory().catch((err)=>console.error(err));
+    loadCareerApplications().catch((err)=>console.error(err));
   }
   loadPlatformSettings().catch(()=>{});
 }

@@ -56,6 +56,23 @@ function ensurePatientPreferencesSchema(){
   .catch(error=>{patientPreferencesSchemaPromise=null;throw error});
  return patientPreferencesSchemaPromise;
 }
+let careerApplicationsSchemaPromise=null;
+function ensureCareerApplicationsSchema(){
+ if(careerApplicationsSchemaPromise)return careerApplicationsSchemaPromise;
+ careerApplicationsSchemaPromise=query(`CREATE TABLE IF NOT EXISTS career_applications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),first_name text NOT NULL,last_name text NOT NULL,email text NOT NULL,phone text NOT NULL,
+  city text NOT NULL,state text NOT NULL,position text NOT NULL,employment_preference text NOT NULL,available_start_date date,preferred_shift text,
+  authorized_to_work boolean NOT NULL DEFAULT false,reliable_transportation boolean NOT NULL DEFAULT false,experience_years text NOT NULL,
+  license_state text,certifications text,interest text NOT NULL,additional_information text,resume_name text,resume_mime_type text,resume_data bytea,
+  status text NOT NULL DEFAULT 'NEW' CHECK(status IN ('NEW','REVIEWING','INTERVIEW','OFFERED','HIRED','DECLINED','ARCHIVED')),
+  internal_notes text,applicant_response text,notification_status jsonb NOT NULL DEFAULT '{}'::jsonb,reviewed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at timestamptz,responded_at timestamptz,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now())`)
+  .then(()=>query('CREATE INDEX IF NOT EXISTS idx_career_applications_status_created ON career_applications(status,created_at DESC)'))
+  .then(()=>query('ALTER TABLE career_applications ENABLE ROW LEVEL SECURITY'))
+  .then(()=>query('REVOKE ALL ON TABLE career_applications FROM anon, authenticated').catch(()=>{}))
+  .catch(error=>{careerApplicationsSchemaPromise=null;throw error});
+ return careerApplicationsSchemaPromise;
+}
 const DEMO_SOURCES=new Set(['DEMO','LOCAL','MOCK','TEST']);
 const required=(body,fields)=>{for(const f of fields)if(!clean(body[f]))throw Object.assign(new Error(`${f} is required`),{statusCode:400})};
 const secureDocumentSlug=value=>clean(value).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,56)||'document';
@@ -1842,6 +1859,39 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p[0]==='careers'&&p[1]==='applications'&&method==='POST'){
+   const b=parseBody(event);required(b,['firstName','lastName','email','phone','city','state','position','employmentPreference','experienceYears','interest']);
+   if(clean(b.botField))return json(202,{received:true});
+   const email=clean(b.email).toLowerCase();
+   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json(400,{error:'Enter a valid email address'});
+   if(b.authorizedToWork!==true||b.certification!==true)return json(400,{error:'Required employment certifications must be accepted'});
+   const resume=b.resume||null,resumeBytes=resume?.dataBase64?Buffer.from(String(resume.dataBase64),'base64'):null;
+   const allowedResumeTypes=new Set(['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+   if(resumeBytes&&(!allowedResumeTypes.has(clean(resume.mimeType))||resumeBytes.length>4*1024*1024))return json(400,{error:'Résumé must be a PDF, DOC, or DOCX file no larger than 4 MB'});
+   await ensureCareerApplicationsSchema();
+   const created=await query(`INSERT INTO career_applications(first_name,last_name,email,phone,city,state,position,employment_preference,available_start_date,preferred_shift,authorized_to_work,reliable_transportation,experience_years,license_state,certifications,interest,additional_information,resume_name,resume_mime_type,resume_data)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id,created_at`,[clean(b.firstName),clean(b.lastName),email,clean(b.phone),clean(b.city),clean(b.state),clean(b.position),clean(b.employmentPreference),clean(b.availableStartDate)||null,clean(b.preferredShift)||null,b.reliableTransportation===true,clean(b.experienceYears),clean(b.licenseState)||null,clean(b.certifications)||null,clean(b.interest),clean(b.additionalInformation)||null,resume?clean(resume.name)||null:null,resume?clean(resume.mimeType)||null:null,resumeBytes]);
+   const applicationId=String(created.rows[0].id),name=`${clean(b.firstName)} ${clean(b.lastName)}`;
+   const safe=value=>clean(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+   const applicantEmail=sendEmail([email],'We received your Nexus Medical Transit application',`<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><h2 style="color:#082f49">Application received</h2><p>Hello ${safe(b.firstName)},</p><p>Thank you for applying to Nexus Medical Transit for <strong>${safe(b.position)}</strong>. Our hiring team will review your qualifications and contact you if your experience matches an available opportunity.</p><p><strong>Application reference:</strong> ${applicationId}</p><p>Do not send Social Security numbers or financial information by email.</p><p>Nexus Medical Transit<br>(888) 639-5766</p></div>`);
+   const hiringRecipients=buildEmailRecipients(process.env.HIRING_EMAIL||process.env.COMPANY_EMAIL||'contact@nexusmt.com');
+   const hiringEmail=sendEmail(hiringRecipients,`New Nexus applicant — ${name} — ${clean(b.position)}`,`<div style="font-family:Arial,sans-serif;max-width:680px"><h2>New career application</h2><p><strong>${safe(name)}</strong> applied for <strong>${safe(b.position)}</strong>.</p><p>Email: ${safe(email)}<br>Phone: ${safe(b.phone)}<br>Location: ${safe(b.city)}, ${safe(b.state)}<br>Experience: ${safe(b.experienceYears)}</p><p>Sign in to the Nexus Admin applicant workspace to review and respond.</p><p>Reference: ${applicationId}</p></div>`);
+   const notificationResults=await Promise.allSettled([applicantEmail,hiringEmail]);
+   const notificationStatus={applicant:notificationResults[0].status==='fulfilled'?notificationResults[0].value:{status:'failed'},hiring:notificationResults[1].status==='fulfilled'?notificationResults[1].value:{status:'failed'}};
+   await query('UPDATE career_applications SET notification_status=$2::jsonb WHERE id=$1',[applicationId,JSON.stringify(notificationStatus)]);
+   await audit('CAREER_APPLICATION',applicationId,'SUBMITTED',{position:clean(b.position),notifications:notificationStatus});
+   const confirmationEmailSent=notificationStatus.applicant?.status==='sent';
+   return json(201,{received:true,applicationId,confirmationEmailSent,message:confirmationEmailSent?'Your application has been received. A confirmation email has been sent.':'Your application has been received. Save your application reference.'});
+  }
+  if(p[0]==='admin'&&p[1]==='career-applications'){
+   const me=await requireUser(bearer(event),['ADMIN']);await ensureCareerApplicationsSchema();
+   if(method==='GET'&&p.length===2){const result=await query(`SELECT id,first_name,last_name,email,phone,city,state,position,employment_preference,available_start_date,preferred_shift,authorized_to_work,reliable_transportation,experience_years,license_state,certifications,interest,additional_information,resume_name,status,internal_notes,applicant_response,notification_status,reviewed_at,responded_at,created_at,updated_at FROM career_applications ORDER BY CASE status WHEN 'NEW' THEN 0 WHEN 'REVIEWING' THEN 1 ELSE 2 END,created_at DESC LIMIT 500`);return json(200,{applications:result.rows});}
+   const id=decodeURIComponent(p[2]||'');if(!id)return json(404,{error:'Application not found'});
+   if(method==='GET'&&p[3]==='resume'){const result=await query('SELECT resume_name,resume_mime_type,resume_data FROM career_applications WHERE id=$1',[id]),row=result.rows[0];if(!row?.resume_data)return json(404,{error:'Résumé not found'});return {statusCode:200,isBase64Encoded:true,headers:{'content-type':row.resume_mime_type||'application/octet-stream','content-disposition':`attachment; filename="${clean(row.resume_name).replace(/[^a-zA-Z0-9._-]/g,'_')}"`},body:Buffer.from(row.resume_data).toString('base64')};}
+   const b=parseBody(event);
+   if(method==='PATCH'&&p.length===3){const status=String(b.status||'').toUpperCase();if(!['NEW','REVIEWING','INTERVIEW','OFFERED','HIRED','DECLINED','ARCHIVED'].includes(status))return json(400,{error:'Select a valid application status'});const updated=await query('UPDATE career_applications SET status=$2,internal_notes=$3,reviewed_by=$4,reviewed_at=now(),updated_at=now() WHERE id=$1 RETURNING *',[id,status,clean(b.internalNotes)||null,me.id]);await audit('CAREER_APPLICATION',id,'REVIEWED',{status,by:me.email});return json(200,{application:updated.rows[0]});}
+   if(method==='POST'&&p[3]==='response'){required(b,['subject','message']);const found=await query('SELECT first_name,last_name,email FROM career_applications WHERE id=$1',[id]),applicant=found.rows[0];if(!applicant)return json(404,{error:'Application not found'});const result=await sendEmail([applicant.email],clean(b.subject),`<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><p>Hello ${clean(applicant.first_name)},</p>${clean(b.message).split(/\n+/).map(line=>`<p>${line.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}</p>`).join('')}<p>Nexus Medical Transit<br>(888) 639-5766</p></div>`);if(result.status!=='sent')return json(503,{error:'Applicant email service is not configured or did not accept the message',emailStatus:result});await query('UPDATE career_applications SET applicant_response=$2,responded_at=now(),reviewed_by=$3,updated_at=now() WHERE id=$1',[id,clean(b.message),me.id]);await audit('CAREER_APPLICATION',id,'APPLICANT_RESPONSE_SENT',{to:applicant.email,by:me.email,status:result.status});return json(200,{sent:true,emailStatus:result});}
+  }
   if(p[0]==='keymark'){
    const upsertIntegratedAppointment=async(mapped,facilityId=null,organizationId=null)=>{
     const source=clean(mapped.sourceSystem).toUpperCase()||'FHIR';
