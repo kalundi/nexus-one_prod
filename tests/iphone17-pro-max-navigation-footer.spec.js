@@ -55,13 +55,17 @@ for (const path of publicPages) {
     expect(layout.footer).not.toBeNull();
     expect(layout.footer.left).toBeGreaterThanOrEqual(-0.5);
     expect(layout.footer.right).toBeLessThanOrEqual(440.5);
-    expect(layout.footerLinks.length).toBeGreaterThan(2);
+    const footerAccordions = page.locator('footer .footerAccordionToggle:visible');
+    const footerAccordionCount = await footerAccordions.count();
+    if (footerAccordionCount) expect(footerAccordionCount).toBe(3);
+    else expect(layout.footerLinks.length).toBeGreaterThan(2);
     for (const link of layout.footerLinks) {
       expect(link.right, `${path} footer link clipped: ${link.text}`).toBeLessThanOrEqual(440.5);
     }
     await expect(page.locator('footer').getByText(/Access drives equity/i)).toBeVisible();
+    if (footerAccordionCount) await page.getByRole('button', { name: 'Contact', exact: true }).click();
     await expect(page.locator('footer a[href^="tel:"]').first()).toBeVisible();
-    const footerTapTargets = await page.locator('footer .footerCompactNav a, footer .footerContactBody a, footer .footerSocial a').evaluateAll(links => links.filter(link => getComputedStyle(link).display !== 'none').map(link => ({text:link.textContent.trim() || link.getAttribute('aria-label'),height:link.getBoundingClientRect().height})));
+    const footerTapTargets = await page.locator('footer .footerCompactNav a, footer .footerContactBody a, footer .footerSocial a').evaluateAll(links => links.map(link => ({link,height:link.getBoundingClientRect().height})).filter(item => item.height > 0).map(item => ({text:item.link.textContent.trim() || item.link.getAttribute('aria-label'),height:item.height})));
     for (const link of footerTapTargets) expect(link.height, `${path} footer tap target too short: ${link.text}`).toBeGreaterThanOrEqual(44);
 
     const toggles = page.locator('header .menuBtn,header .mobileNavToggle');
@@ -115,6 +119,24 @@ test('booking mobile navigation stays readable above the safe area', async ({ pa
     expect(tab.left).toBeGreaterThanOrEqual(0);
     expect(tab.right).toBeLessThanOrEqual(440.5);
   }
+});
+
+test('mobile footer keeps brand visible and reveals other sections on demand', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/livecare.html');
+  const footer = page.locator('footer.footerUnified');
+  await expect(footer.locator('.footerBrandCompact .footerLogo')).toBeVisible();
+  const toggles = footer.locator('.footerAccordionToggle');
+  await expect(toggles).toHaveCount(3);
+  for (let index = 0; index < 3; index += 1) {
+    await expect(toggles.nth(index)).toHaveAttribute('aria-expanded', 'false');
+    await expect(footer.locator('.footerAccordionPanel').nth(index)).toBeHidden();
+  }
+  await toggles.nth(0).click();
+  await expect(toggles.nth(0)).toHaveAttribute('aria-expanded', 'true');
+  await expect(footer.locator('.footerAccordionPanel').nth(0)).toBeVisible();
+  await expect(footer.getByRole('link', { name: 'Services', exact: true })).toBeVisible();
+  await expect(toggles.nth(1)).toHaveAttribute('aria-expanded', 'false');
 });
 
 for (const width of [320, 375, 390, 414, 428, 440]) {
