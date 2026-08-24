@@ -139,6 +139,16 @@ test('mobile footer keeps brand visible and reveals other sections on demand', a
   await expect(toggles.nth(1)).toHaveAttribute('aria-expanded', 'false');
 });
 
+test('late-rendered homepage footer receives the mobile accordion', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/__deploy_temp/index.html');
+  const footer = page.locator('footer.footerUnified');
+  await expect(footer.locator('.footerBrandCompact .footerLogo')).toBeVisible();
+  await expect(footer.locator('.footerAccordionToggle')).toHaveCount(3);
+  await expect(footer.locator('.footerAccordionToggle').first()).toHaveAttribute('aria-expanded', 'false');
+  await expect(footer.locator('.footerAccordionPanel').first()).toBeHidden();
+});
+
 for (const width of [320, 375, 390, 414, 428, 440]) {
   test(`shared mobile header adapts at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 428 ? 926 : 900 });
