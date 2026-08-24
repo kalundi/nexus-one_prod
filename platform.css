@@ -1544,6 +1544,7 @@ body.livecare-focus-mode .livecareMapHero .mapOnlyShell .liveFleetMap{
 }
 
 /* Build 065: one adaptive mobile header hierarchy */
+.nexusHomeGroup>summary{white-space:nowrap!important;word-break:normal!important;overflow-wrap:normal!important}
 @media(max-width:760px){
  header.nexusAdaptiveMobileHeader .globalNav,header.nexusAdaptiveMobileHeader .nav{display:grid!important;grid-template-columns:minmax(0,1fr) 46px!important;align-items:center!important;gap:10px!important;padding:10px 0!important}
  header.nexusAdaptiveMobileHeader .globalBrand,header.nexusAdaptiveMobileHeader .brand{grid-column:1!important;grid-row:1!important;justify-self:start!important}

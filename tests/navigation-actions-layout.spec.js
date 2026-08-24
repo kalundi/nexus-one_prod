@@ -105,6 +105,22 @@ test('every legacy language-control class uses the homepage pill', async ({ page
   }
 });
 
+for (const path of ['/careers.html','/career-application.html']) {
+  test(`${path} keeps one booking action and readable navigation`, async ({ page }) => {
+    await page.setViewportSize({ width: 1104, height: 700 });
+    await page.goto(path, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(700);
+    const header = page.locator('header').first();
+    await expect(header.locator('.nexusSharedBook')).toHaveCount(1);
+    await expect(header.locator('nav a[href*="booking-app"]')).toHaveCount(0);
+    const home = header.locator('.nexusHomeGroup summary');
+    await expect(home).toBeVisible();
+    const box = await home.boundingBox();
+    expect(box.width).toBeGreaterThan(34);
+    expect(box.height).toBeLessThan(60);
+  });
+}
+
 test('homepage section headers align left and hero returns sit bottom right', async ({ page }) => {
   const css = fs.readFileSync('platform.css', 'utf8');
   await page.setViewportSize({ width: 1280, height: 900 });
