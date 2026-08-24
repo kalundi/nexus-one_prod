@@ -2841,6 +2841,32 @@ async function handler(event){
    const refreshed=await requireUser(token);await audit('USER',String(u.id),'ROLE_SWITCHED',{from:u.role,to:nextRole});
    return json(200,{user:safeUser(refreshed)});
   }
+  if(p[0]==='patient'&&p[1]==='dashboard'&&method==='GET'){
+   const u=await requireUser(bearer(event),['PATIENT']);
+   await ensurePatientPreferencesSchema();
+   const patientPhone=String(u.phone||'').replace(/\D/g,'');
+   const phoneVariants=patientPhone.length===11&&patientPhone.startsWith('1')?[patientPhone,patientPhone.slice(1)]:[patientPhone];
+   const bookingWhere=patientPhone
+    ? `lower(email)=lower($1) OR regexp_replace(phone,'\\D','','g')=ANY($2::text[])`
+    : 'lower(email)=lower($1)';
+   const bookingParams=patientPhone?[u.email,phoneVariants]:[u.email];
+   const [preferencesResult,bookingsResult]=await Promise.all([
+    query('SELECT * FROM patient_transport_preferences WHERE user_id=$1 LIMIT 1',[u.id]),
+    query(`SELECT * FROM bookings WHERE ${bookingWhere} ORDER BY trip_date DESC,trip_time DESC LIMIT 50`,bookingParams)
+   ]);
+   const preferenceRow=preferencesResult.rows[0]||{};
+   const trips=await mapBookingsWithIntakeAudit(bookingsResult.rows);
+   const inactiveStatuses=new Set(['COMPLETED','CANCELLED','NO_SHOW','DELIVERED']);
+   const upcoming=trips
+    .filter(trip=>!inactiveStatuses.has(String(trip.status||'').toUpperCase())&&String(trip.date||trip.tripDate||trip.trip_date||'')>=new Date().toISOString().slice(0,10))
+    .sort((a,b)=>`${a.date||a.tripDate||a.trip_date||''} ${a.time||a.tripTime||a.trip_time||''}`.localeCompare(`${b.date||b.tripDate||b.trip_date||''} ${b.time||b.tripTime||b.trip_time||''}`));
+   return json(200,{
+    user:safeUser(u),
+    preferences:{mobilityType:preferenceRow.mobility_type||'AMBULATORY',remainsInWheelchair:!!preferenceRow.remains_in_wheelchair,transferAssistance:!!preferenceRow.transfer_assistance,oxygenRequired:!!preferenceRow.oxygen_required,preferredLanguage:preferenceRow.preferred_language||'',communicationPreference:preferenceRow.communication_preference||'SMS',defaultPickup:preferenceRow.default_pickup||'',accessibilityNotes:preferenceRow.accessibility_notes||''},
+    nextRide:upcoming[0]||null,
+    recentRides:trips.slice(0,5)
+   });
+  }
   if(p[0]==='patient'&&p[1]==='preferences'&&method==='GET'){
    const u=await requireUser(bearer(event),['PATIENT']);await ensurePatientPreferencesSchema();
    const result=await query('SELECT * FROM patient_transport_preferences WHERE user_id=$1 LIMIT 1',[u.id]),row=result.rows[0]||{};

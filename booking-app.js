@@ -2821,6 +2821,24 @@
     markDestinationUnconfirmed();expandedSections.add('pickupDropoffSection');switchAppTab('book');syncSectionProgressUi();revealSectionForAction('pickupDropoffSection','confirmPickupDropoffBtn');
   }
 
+  function consumePatientRepeatRide(){
+    let booking=null;
+    try{booking=JSON.parse(sessionStorage.getItem('nexusRepeatRide')||'null');sessionStorage.removeItem('nexusRepeatRide');}catch{sessionStorage.removeItem('nexusRepeatRide');}
+    if(!booking||!String(booking.pickup||'').trim()||!String(booking.destination||'').trim())return false;
+    reuseTripRoute(booking);
+    if($('tripDate'))$('tripDate').value='';
+    if($('tripTime'))$('tripTime').value='';
+    if($('appointmentTime'))$('appointmentTime').value='';
+    if(tripType)tripType.value='ONE_WAY';
+    syncTripScheduleUi();
+    if($('notes')&&String(booking.notes||'').trim())$('notes').value=String(booking.notes).trim();
+    let repeatNotice=$('repeatRideNotice');
+    if(!repeatNotice){repeatNotice=document.createElement('div');repeatNotice.id='repeatRideNotice';repeatNotice.className='msg ok';repeatNotice.setAttribute('role','status');(patientDefaultsBanner||form)?.insertAdjacentElement(patientDefaultsBanner?'afterend':'afterbegin',repeatNotice);}
+    repeatNotice.textContent='Route and transportation needs copied. Choose a new appointment date and time to continue.';
+    window.nexusTrack?.('repeat_booking_started',{service_type:String(booking.service||'unspecified')});
+    return true;
+  }
+
   async function lookupGuestManifest(){
     const reference=String($('manifestReference')?.value||'').trim();const phone=formatPhone(String($('manifestPhone')?.value||''));const message=$('manifestLookupMessage');
     if(!reference||!phone){if(message)message.textContent='Enter the booking reference and phone number.';return;}
@@ -3487,6 +3505,7 @@
     syncJourneyCompact();
     const requestedService = getRequestedServiceFromUrl();
     selectService(requestedService || $('service').value);
+    consumePatientRepeatRide();
     if(isAdminUser){
       renderRateEditor($('service').value);
       saveRateBtn.addEventListener('click', saveCurrentServiceRate);
