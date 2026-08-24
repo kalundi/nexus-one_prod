@@ -36,6 +36,7 @@ iframe{border:0}
 :where(table,.table,.facilityTable){max-width:none}
 
 :where(dialog,.modal,.portalDialog,.nexusLoginCard){max-width:min(calc(100vw - 24px),760px);max-height:min(92dvh,900px);overflow:auto}
+.nexusMobileHomeLink{display:none}
 
 /* Stable visual label over the native selector; prevents encoded option glyphs
    from becoming the navigation label in legacy and generated pages. */
@@ -136,8 +137,20 @@ header :where(.nexusLanguageControl,.headerLanguage,.nexusCompactLanguage) selec
   #root header.nexusAdaptiveMobileHeader #nexusAccountMount.nexusMobileHeaderAccount{display:contents!important}
   #root header.nexusAdaptiveMobileHeader #nexusAccountMount.nexusMobileHeaderAccount>.nexusAccountButton{grid-column:4!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;padding:0!important}
   #root header.nexusAdaptiveMobileHeader #nexusAccountMount.nexusMobileHeaderAccount>.nexusNavSignUp{grid-column:5!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;padding:0!important;font-size:0!important}
+  #root header.nexusAdaptiveMobileHeader #nexusAccountMount.nexusMobileHeaderAccount>.nexusAccountButton{background-color:#0b5d91!important;border:1px solid #084d78!important;box-shadow:0 4px 12px rgba(11,93,145,.18)!important}
+  #root header.nexusAdaptiveMobileHeader #nexusAccountMount.nexusMobileHeaderAccount>.nexusNavSignUp{background-color:#eff8ff!important;border:1px solid #0b5d91!important;box-shadow:0 4px 12px rgba(11,93,145,.1)!important}
   #root header.nexusAdaptiveMobileHeader .menuBtn{grid-column:6!important;grid-row:1!important;place-self:center!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;margin:0!important}
   #root header.nexusAdaptiveMobileHeader #primary-navigation{grid-column:1 / 7!important;grid-row:2!important;width:100%!important}
+
+  header.nexusAdaptiveMobileHeader :where(#primary-navigation,.globalLinks,.links).open{display:grid!important;grid-template-columns:1fr!important;align-items:stretch!important;gap:4px!important;width:100%!important;margin-top:8px!important;padding:10px!important;border:1px solid #d5e3ed!important;border-radius:14px!important;background:#fff!important;box-shadow:0 14px 34px rgba(8,47,73,.14)!important}
+  header.nexusAdaptiveMobileHeader :where(#primary-navigation,.globalLinks,.links).open>a{display:flex!important;align-items:center!important;justify-content:flex-start!important;width:100%!important;min-height:44px!important;margin:0!important;padding:10px 12px!important;border-radius:10px!important;text-align:left!important}
+  header.nexusAdaptiveMobileHeader :where(#primary-navigation,.globalLinks,.links).open>.nexusHomeGroup{display:contents!important}
+  header.nexusAdaptiveMobileHeader :where(#primary-navigation,.globalLinks,.links).open>.nexusHomeGroup>summary{display:none!important}
+  header.nexusAdaptiveMobileHeader :where(#primary-navigation,.globalLinks,.links).open .nexusHomeMenu{display:contents!important;position:static!important;width:auto!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
+  header.nexusAdaptiveMobileHeader :where(#primary-navigation,.globalLinks,.links).open .nexusHomeMenu>a{display:flex!important;align-items:center!important;justify-content:flex-start!important;width:100%!important;min-height:44px!important;margin:0!important;padding:10px 12px!important;border:0!important;border-radius:10px!important;text-align:left!important}
+  header.nexusAdaptiveMobileHeader :where(#primary-navigation,.globalLinks,.links).open .nexusHomeMenu>.nexusMobileHomeLink{display:flex!important}
+  header.nexusAdaptiveMobileHeader .nexusMobileHeaderAccount>.nexusAccountButton{display:grid!important;place-items:center!important;background:#0b5d91!important;border:1px solid #084d78!important}
+  header.nexusAdaptiveMobileHeader .nexusMobileHeaderAccount>.nexusAccountButton>.nexusAccountAvatar{display:block!important;margin:auto!important;background-position:center!important;background-size:22px 22px!important;background-repeat:no-repeat!important}
 }
 
 @media(prefers-reduced-motion:reduce){

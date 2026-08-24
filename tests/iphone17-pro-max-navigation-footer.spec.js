@@ -78,10 +78,19 @@ for (const path of publicPages) {
         : page.locator('header .globalLinks.open, header .links.open').first();
       await expect(menu).toBeVisible();
       expect(await menu.locator('a:visible, .nexusHomeGroup:visible').count()).toBeGreaterThan(0);
+      const coreLinks = ['Home', 'Services', 'Experience', 'Coverage', 'Facilities', 'LiveCare'];
+      const leftEdges = [];
+      for (const label of coreLinks) {
+        const link = menu.getByRole('link', { name: label, exact: true }).first();
+        await expect(link).toBeVisible();
+        leftEdges.push((await link.boundingBox()).x);
+      }
+      expect(Math.max(...leftEdges) - Math.min(...leftEdges)).toBeLessThanOrEqual(2);
       if (path !== '/__deploy_temp/index.html') await expect(page.locator('header .nexusSharedActions #nexusAccountMount')).toBeVisible();
       const home = menu.locator('.nexusHomeGroup summary').first();
       if (await home.count()) {
-        await home.click();
+        const group = menu.locator('.nexusHomeGroup').first();
+        if ((await group.getAttribute('open')) === null) await home.click();
         await expect(menu.locator('.nexusHomeMenu a:visible').first()).toBeVisible();
       }
     }

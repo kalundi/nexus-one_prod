@@ -63,7 +63,7 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
 test('homepage requests the current unclipped navigation stylesheet',()=>{
  const homepage=read('__deploy_temp/index.html');
  assert.match(homepage,/platform\.css\?v=65/);
- assert.match(homepage,/platform\.js\?v=64/);
+ assert.match(homepage,/platform\.js\?v=65/);
 });
 
 test('every platform navigation requests the same current stylesheet',()=>{
