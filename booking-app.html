@@ -298,6 +298,7 @@
     .scheduleRow{grid-template-columns:1fr}
     .moreRideOptions{width:100%;margin-top:8px;padding:10px 12px;background:#eef2f5;color:#24384a}
     .serviceChips .secondaryRideOption[hidden]{display:none}
+    .mobilityQuestions{display:grid;gap:10px;margin:12px 0}.mobilityQuestion{margin:0;border:1px solid #c9dce8;border-radius:12px;padding:12px;background:#f8fbfd}.mobilityQuestion legend{padding:0 5px;font:800 14px/1.35 Sora,sans-serif;color:#173b51}.mobilityAnswers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.mobilityAnswers label{min-height:44px;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid #c7d6df;border-radius:9px;background:#fff;font:800 13px Sora,sans-serif}.mobilityAnswers label:has(input:checked){border-color:#087f8c;background:#e9f8f7;color:#066b75}.mobilityAnswers input{width:18px;height:18px;margin:0}.mobilityRecommendation{margin:8px 0;padding:11px 12px;border-radius:10px;border:1px solid #a9d7dc;background:#eefaf8;color:#14505a;font:700 13px/1.4 Sora,sans-serif}.serviceCatalog{margin-top:9px}.serviceCatalog summary{cursor:pointer;color:#294d62;font:800 12px Sora,sans-serif;padding:9px 0}.reviewDetails{display:grid;margin:12px 0;border:1px solid #d8e1e8;border-radius:12px;overflow:hidden}.reviewLine{display:grid;grid-template-columns:88px 1fr;gap:10px;padding:10px 12px;background:#fff}.reviewLine+.reviewLine{border-top:1px solid #e2e8ed}.reviewLine small{font:800 10px/1.4 Sora,sans-serif;color:#65798a;text-transform:uppercase}.reviewLine strong{font:700 13px/1.4 'Nunito Sans',sans-serif;color:#173b51}.bookingHelpCall{position:fixed;right:12px;bottom:150px;z-index:84;display:flex;align-items:center;gap:7px;min-height:44px;padding:9px 12px;border-radius:999px;background:#fff;color:#0b3954;border:1px solid #b8ccd8;box-shadow:0 8px 22px rgba(8,26,44,.16);text-decoration:none;font:800 12px Sora,sans-serif}@media(max-width:380px){.bookingHelpCall span:last-child{display:none}.bookingHelpCall{width:44px;padding:0;justify-content:center}}
     .estimate{
       margin-top:2px;
       background:#eff6ff;
@@ -874,9 +875,16 @@ Destination: -</p>
       </section>
 
       <section class="section sectionProgressive" id="rideTypeSection">
-        <div class="rideTypeHeading"><h2>Type of Ride</h2><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help Me Choose</button></div>
-        <p class="subtle">Choose the option that best supports the rider’s mobility and care needs. All available customer services remain visible here.</p>
+        <div class="rideTypeHeading"><h2>Ride Needs</h2><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">More help</button></div>
+        <p class="subtle">Answer three quick questions. We will recommend the most suitable ride option.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
+        <div class="mobilityQuestions" id="mobilityQuestions">
+          <fieldset class="mobilityQuestion"><legend>Will the rider stay in a wheelchair during the ride?</legend><div class="mobilityAnswers"><label><input type="radio" name="quickWheelchair" value="yes">Yes</label><label><input type="radio" name="quickWheelchair" value="no" checked>No</label></div></fieldset>
+          <fieldset class="mobilityQuestion"><legend>Does the rider need to travel lying down?</legend><div class="mobilityAnswers"><label><input type="radio" name="quickLyingDown" value="yes">Yes</label><label><input type="radio" name="quickLyingDown" value="no" checked>No</label></div></fieldset>
+          <fieldset class="mobilityQuestion"><legend>Does the rider need additional space or capacity?</legend><div class="mobilityAnswers"><label><input type="radio" name="quickExtraSpace" value="yes">Yes</label><label><input type="radio" name="quickExtraSpace" value="no" checked>No</label></div></fieldset>
+        </div>
+        <p class="mobilityRecommendation" id="mobilityRecommendation" aria-live="polite">Recommended: Ambulatory transportation</p>
+        <details class="serviceCatalog" id="serviceCatalogDetails"><summary>Choose a different ride type</summary>
         <div class="serviceChips" id="serviceChips" role="radiogroup" aria-label="Service type">
           <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="4" r="2"/><path d="m10 22 1-7-3-3 2-5 4 3 3 1M11 15l5 7"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span><span class="serviceCardBest">Best for: walking riders</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip secondaryRideOption" type="button" data-service="facility_transfer" hidden>IFT Routine</button>
@@ -889,7 +897,7 @@ Destination: -</p>
           <button class="chip secondaryRideOption" type="button" data-service="als1" hidden>ALS 1</button>
           <button class="chip secondaryRideOption" type="button" data-service="als2" hidden>ALS 2</button>
         </div>
-        <button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button>
+        <button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button></details>
         <input id="service" name="service" type="hidden" value="">
 
         <div class="field" style="margin-top:12px">
@@ -1022,7 +1030,13 @@ Destination: -</p>
       </dialog>
 
       <section class="section sectionProgressive" id="fareSummarySection">
-        <h2>Fare Estimate</h2>
+        <h2>Review Your Ride</h2>
+        <div class="reviewDetails" aria-label="Ride details">
+          <div class="reviewLine"><small>Rider</small><strong id="reviewRider">-</strong></div>
+          <div class="reviewLine"><small>Route</small><strong id="reviewRoute">-</strong></div>
+          <div class="reviewLine"><small>Schedule</small><strong id="reviewSchedule">-</strong></div>
+          <div class="reviewLine"><small>Ride</small><strong id="reviewService">-</strong></div>
+        </div>
         <div class="fareSummaryCard" aria-live="polite">
           <div class="fareSummaryLine"><b>Distance</b><span id="fareSummaryDistance">-</span></div>
           <div class="fareSummaryLine"><b>ETA</b><span id="fareSummaryEta">-</span></div>
@@ -1056,6 +1070,7 @@ Destination: -</p>
         </div>
       </div>
     </form>
+    <a class="bookingHelpCall" href="tel:+18886395766" aria-label="Call Nexus for booking help"><span aria-hidden="true">☎</span><span>Need help? Call Nexus</span></a>
 
     <section class="tabPanel" id="manifestTabPanel" hidden tabindex="-1" aria-labelledby="manifestTabButton">
       <section class="section">

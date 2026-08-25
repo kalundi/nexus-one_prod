@@ -20,6 +20,7 @@ test('mobile booking schedule does not overlap and optional choices stay compact
   await expect(page.locator('.accessibilityBar')).not.toHaveAttribute('open', '');
   await expect(page.locator('.secondaryRideOption')).toHaveCount(6);
   await expect(page.locator('.secondaryRideOption').first()).toBeHidden();
+  await page.locator('#serviceCatalogDetails summary').click();
   await page.locator('#toggleMoreRideOptions').click();
   await expect(page.locator('[data-service="bls"]')).toBeVisible();
   await expect(page.locator('#toggleMoreRideOptions')).toHaveAttribute('aria-expanded', 'true');
@@ -63,4 +64,42 @@ test('mobile booking opens one screen-filling patient card at a time', async ({ 
   await expect(page.locator('#rideTypeSection')).toBeHidden();
   const routeBox = await page.locator('#pickupDropoffSection').boundingBox();
   expect(routeBox.height).toBeGreaterThanOrEqual(620);
+});
+
+test('patient answers plain-language mobility questions instead of choosing industry codes', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/booking-app.html', { waitUntil: 'domcontentloaded' });
+  await page.locator('#rideTypeSection').evaluate((section) => {
+    document.querySelectorAll('.currentBookingCard').forEach((card) => card.classList.remove('currentBookingCard'));
+    section.classList.add('unlocked', 'currentBookingCard');
+  });
+
+  await expect(page.locator('#mobilityQuestions')).toBeVisible();
+  await expect(page.locator('#serviceCatalogDetails')).not.toHaveAttribute('open', '');
+  await page.locator('input[name="quickWheelchair"][value="yes"]').check();
+  await expect(page.locator('#service')).toHaveValue('wheelchair');
+  await expect(page.locator('#mobilityRecommendation')).toContainText('Wheelchair');
+  await expect(page.locator('.bookingHelpCall')).toBeVisible();
+  await expect(page.locator('.bookingHelpCall')).toHaveAttribute('href', 'tel:+18886395766');
+});
+
+test('review card uses plain language and the patient-entered details', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/booking-app.html', { waitUntil: 'domcontentloaded' });
+  await page.locator('#fareSummarySection').evaluate((section) => {
+    const values = { name:'Jamie Patient', pickup:'100 Main Street', destination:'200 Medical Center Drive', tripDate:'2030-08-15', appointmentTime:'10:30' };
+    Object.entries(values).forEach(([id, value]) => {
+      const field = document.getElementById(id);
+      field.value = value;
+      field.dispatchEvent(new Event('input', { bubbles:true }));
+    });
+    document.querySelectorAll('.currentBookingCard').forEach((card) => card.classList.remove('currentBookingCard'));
+    section.classList.add('unlocked', 'currentBookingCard');
+  });
+
+  await expect(page.locator('#fareSummarySection')).toBeVisible();
+  await expect(page.locator('#reviewRider')).toHaveText('Jamie Patient');
+  await expect(page.locator('#reviewRoute')).toContainText('100 Main Street');
+  await expect(page.locator('#reviewSchedule')).toContainText('2030-08-15 at 10:30');
+  await expect(page.locator('#reviewService')).not.toHaveText('-');
 });

@@ -5,6 +5,8 @@
   const submitBtn = $('submitBtn');
   const bookingOutcomeStatus = $('bookingOutcomeStatus');
   const serviceChips = $('serviceChips');
+  const mobilityQuestions = $('mobilityQuestions');
+  const mobilityRecommendation = $('mobilityRecommendation');
   const statusMsg = $('statusMsg');
   const estMiles = $('estMiles');
   const estDuration = $('estDuration');
@@ -245,6 +247,7 @@
   let coreActionsBound = false;
   let authActionsBound = false;
   let manageActionsBound = false;
+  let lastTrackedBookingStep = '';
   const PRIVILEGED_SERVICE_ROLES = new Set(['ADMIN','DISPATCHER','FACILITY','DRIVER']);
   const CUSTOMER_ALLOWED_SERVICES = new Set(['ambulatory','wheelchair','stretcher','bariatric']);
   const AUTO_COLLAPSIBLE_SECTION_IDS = ['pickupDropoffSection'];
@@ -847,6 +850,13 @@
       const destinationSummary = destinations.length ? destinations.map((value, index) => `Destination ${index + 1}: ${value}`).join('\n') : 'Destination: -';
       pickupDropoffSummary.textContent = `Pickup: ${pickup}\n${destinationSummary}`;
     }
+    const reviewServiceValue = normalizeService($('service')?.value);
+    const reviewServiceChip = Array.from(serviceChips?.querySelectorAll('.chip') || []).find((chip) => normalizeService(chip.dataset.service) === reviewServiceValue);
+    const reviewServiceLabel = String(reviewServiceChip?.querySelector('.serviceCardName')?.textContent || reviewServiceChip?.textContent || reviewServiceValue || '-').trim();
+    if($('reviewRider')) $('reviewRider').textContent = String($('name')?.value || '-').trim() || '-';
+    if($('reviewRoute')) $('reviewRoute').textContent = `${String($('pickup')?.value || '-').trim() || '-'} to ${getRouteDestinations().join(' → ') || '-'}`;
+    if($('reviewSchedule')) $('reviewSchedule').textContent = `${String($('tripDate')?.value || '-')} at ${String(appointmentTimeInput?.value || '-')}`;
+    if($('reviewService')) $('reviewService').textContent = reviewServiceLabel;
 
     AUTO_COLLAPSIBLE_SECTION_IDS.forEach((sectionId) => {
       const isComplete = Boolean(progress[sectionId]);
@@ -956,13 +966,18 @@
       if(!bookingSubmitted) submitBtn.disabled = !fareEstimateSignature || confirmedFareSignature !== fareEstimateSignature;
     }
     updateNextStepGuide();
+    const trackedStep = currentDraftStep();
+    if(trackedStep !== lastTrackedBookingStep){
+      lastTrackedBookingStep = trackedStep;
+      window.nexusTrack?.('booking_step_viewed', { step: trackedStep.toLowerCase() });
+    }
   }
 
   function updateNextStepGuide(){
     if(!nextStepGuide||!nextStepText||!nextStepAction)return;
     let targetId='riderDetailsSection',focusId='name',message='Enter and confirm the rider’s details.';
     if(riderDetailsConfirmed){targetId='pickupDropoffSection';focusId='pickup';message='Enter and confirm the pickup and destination.';}
-    if(riderDetailsConfirmed&&destinationConfirmed){targetId='rideTypeSection';focusId='serviceChips';message='Choose the type of ride and appointment schedule.';}
+    if(riderDetailsConfirmed&&destinationConfirmed){targetId='rideTypeSection';focusId='mobilityQuestions';message='Answer the ride-needs questions and choose the appointment schedule.';}
     const rideComplete=Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&appointmentTimeInput?.value&&$('tripTime')?.value);
     if(riderDetailsConfirmed&&destinationConfirmed&&rideComplete){targetId='fareSummarySection';focusId='reviewFareBtn';message=fareEstimateSignature?'Review and confirm the fare estimate.':'Wait for the route and fare estimate, then review it.';}
     if(fareEstimateSignature&&confirmedFareSignature===fareEstimateSignature){targetId='submitBtn';focusId='submitBtn';message='Fare confirmed. Book the ride when you are ready.';}
@@ -2739,6 +2754,22 @@
     $('toggleMoreRideOptions')?.addEventListener('click', (event) => {
       setSecondaryRideOptionsExpanded(event.currentTarget.getAttribute('aria-expanded') !== 'true');
     });
+    const applyQuickRecommendation = () => {
+      const answers = {
+        remainsInWheelchair: document.querySelector('input[name="quickWheelchair"]:checked')?.value || 'no',
+        lyingDown: document.querySelector('input[name="quickLyingDown"]:checked')?.value || 'no',
+        extraSpace: document.querySelector('input[name="quickExtraSpace"]:checked')?.value || 'no'
+      };
+      const recommendation = window.NexusServiceGuidance?.recommendRideType(answers);
+      if(!recommendation) return;
+      selectService(recommendation.service);
+      const chip = serviceChips.querySelector(`[data-service="${recommendation.service}"]`);
+      const label = String(chip?.querySelector('.serviceCardName')?.textContent || chip?.textContent || recommendation.service).trim();
+      if(mobilityRecommendation) mobilityRecommendation.textContent = `Recommended: ${label}. ${recommendation.reason}`;
+      window.nexusTrack?.('booking_mobility_recommendation', { service_type: recommendation.service });
+    };
+    mobilityQuestions?.querySelectorAll('input[type="radio"]').forEach((input) => input.addEventListener('change', applyQuickRecommendation));
+    applyQuickRecommendation();
   }
 
   function selectedRecurrenceDays(){
@@ -3594,6 +3625,7 @@
     window.addEventListener('beforeunload', () => {
       if(telemetryTimer) clearInterval(telemetryTimer);
       if(!bookingSubmitted){
+        window.nexusTrack?.('booking_abandoned', { step: currentDraftStep().toLowerCase() });
         const phone=formatPhone(String($('phone')?.value||''));
         if(phone.replace(/\D/g,'').length===10){
           const payload=JSON.stringify({draftToken:bookingDraftToken,name:String($('name')?.value||'').trim(),phone,email:String($('email')?.value||'').trim(),currentStep:currentDraftStep()});
