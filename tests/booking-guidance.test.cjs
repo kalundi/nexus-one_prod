@@ -25,9 +25,8 @@ test('header shows current and next stages across five booking steps', () => {
   assert.match(js, /const labels=\['Rider','Route','Ride needs','Review','Payment & confirmation'\]/);
 });
 
-test('type of ride remains visible instead of progressive-hidden', () => {
-  assert.match(html, /<section class="section" id="rideTypeSection">/);
-  assert.doesNotMatch(html, /<section class="section sectionProgressive" id="rideTypeSection">/);
+test('type of ride participates in the focused progressive flow', () => {
+  assert.match(html, /<section class="section sectionProgressive" id="rideTypeSection">/);
   assert.doesNotMatch(js, /AUTO_COLLAPSIBLE_SECTION_IDS\s*=\s*\[[^\]]*'rideTypeSection'/);
   assert.match(js, /sectionId !== 'rideTypeSection'/);
 });

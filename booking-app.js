@@ -883,6 +883,17 @@
       }
     });
 
+    const currentBookingCardId = !riderDetailsConfirmed
+      ? 'riderDetailsSection'
+      : !progress.pickupDropoffSection
+        ? 'pickupDropoffSection'
+        : !progress.rideTypeSection
+          ? 'rideTypeSection'
+          : 'fareSummarySection';
+    PROGRESSIVE_SECTIONS_ORDER.forEach((sectionId) => {
+      $(sectionId)?.classList.toggle('currentBookingCard', sectionId === currentBookingCardId);
+    });
+
     if(riderDetailsSection){
       const riderDetailsKeepOpen = expandedSections.has('riderDetailsSection');
       const shouldCollapseRiderDetails = (riderDetailsInitiallyCollapsed.has('riderDetailsSection') || riderDetailsConfirmed) && !riderDetailsKeepOpen;

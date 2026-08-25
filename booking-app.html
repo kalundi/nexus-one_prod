@@ -559,6 +559,13 @@
       .serviceChips{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
     @media (max-width:600px){.journeyHeader{height:40px;padding:4px 7px}.journeyStep{padding:4px 7px}.journeyStepLabel{display:none}.journeyHeader:not(.compact) .journeyStep.current .journeyStepLabel{display:inline}.journeyStepNumber{display:inline}.journeyConnector{max-width:20px}.nextStepGuide{top:44px}.journeyHeader.compact ~ form .nextStepGuide{top:36px}}
+    @media (max-width:600px){
+      #bookingLoginSection{display:none}
+      #bookingForm>.sectionProgressive.unlocked{display:none}
+      #bookingForm>.sectionProgressive.currentBookingCard{display:block;min-height:calc(100dvh - 210px)}
+      body.showCompletedSections #bookingForm>.sectionProgressive.unlocked{display:block;min-height:0}
+      body.showCompletedSections #bookingForm>.sectionProgressive.currentBookingCard{min-height:calc(100dvh - 210px)}
+    }
     @media (max-width:420px){
       .top{padding:6px 8px}
       .authGrid{grid-template-columns:1fr}
@@ -866,7 +873,7 @@ Destination: -</p>
         </div>
       </section>
 
-      <section class="section" id="rideTypeSection">
+      <section class="section sectionProgressive" id="rideTypeSection">
         <div class="rideTypeHeading"><h2>Type of Ride</h2><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help Me Choose</button></div>
         <p class="subtle">Choose the option that best supports the rider’s mobility and care needs. All available customer services remain visible here.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
