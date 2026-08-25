@@ -2689,6 +2689,8 @@
       return selectService(fallback);
     }
     $('service').value = clean;
+    const selectedServiceChip = serviceChips.querySelector(`[data-service="${clean}"]`);
+    if(selectedServiceChip?.classList.contains('secondaryRideOption')) setSecondaryRideOptionsExpanded(true);
     expandedSections.delete('rideTypeSection');
     serviceChips.querySelectorAll('.chip').forEach((chip) => {
       const active = chip.dataset.service === clean;
@@ -2710,9 +2712,21 @@
     syncSectionProgressUi();
   }
 
+  function setSecondaryRideOptionsExpanded(expanded){
+    const toggle = $('toggleMoreRideOptions');
+    serviceChips.querySelectorAll('.secondaryRideOption').forEach((chip) => { chip.hidden = !expanded; });
+    if(toggle){
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.textContent = expanded ? 'Show fewer ride options' : 'Show more ride options';
+    }
+  }
+
   function bindServiceChips(){
     serviceChips.querySelectorAll('.chip').forEach((chip) => {
       chip.addEventListener('click', () => selectService(chip.dataset.service));
+    });
+    $('toggleMoreRideOptions')?.addEventListener('click', (event) => {
+      setSecondaryRideOptionsExpanded(event.currentTarget.getAttribute('aria-expanded') !== 'true');
     });
   }
 

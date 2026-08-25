@@ -287,13 +287,16 @@
     .serviceCardCopy{display:grid;gap:3px}.serviceCardName{font:800 var(--text-md)/1.2 Sora,sans-serif}.serviceCardDescription{font:600 var(--text-sm)/1.4 'Nunito Sans',sans-serif;color:#476476}.serviceCardBest{font:800 var(--text-xs)/1.35 Sora,sans-serif;color:#0a6b99}
     .serviceSelectedMark{position:absolute;right:10px;top:10px;border-radius:999px;padding:3px 7px;background:#7f1010;color:#fff;font:800 10px Sora,sans-serif;opacity:0}.serviceCard.active .serviceSelectedMark{opacity:1}
     .rideTypeHeading{display:flex;align-items:center;justify-content:space-between;gap:10px}.rideTypeHeading h2{margin:0}.helpChooseBtn{padding:9px 11px;font-size:12px;white-space:nowrap}
-    .accessibilityBar{margin:10px 0;padding:8px 10px;border:1px solid #cfe0ea;border-radius:13px;background:rgba(255,255,255,.72);display:flex;align-items:center;gap:10px;flex-wrap:wrap}.accessibilityBar strong{font:800 11px Sora,sans-serif;color:#496273;text-transform:uppercase;letter-spacing:.06em}.accessibilityControls{display:flex;gap:6px;flex-wrap:wrap}.accessibilityControls button{padding:7px 9px;border:1px solid #bfd0dc;background:#fff;color:#163e55;font-size:11px}.accessibilityControls button[aria-pressed="true"]{background:#0b3954;color:#fff;border-color:#0b3954}
+    .accessibilityBar{margin:8px 0;border:1px solid #cfe0ea;border-radius:13px;background:rgba(255,255,255,.72)}.accessibilityBar summary{min-height:42px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;list-style:none;font:800 11px Sora,sans-serif;color:#496273;text-transform:uppercase;letter-spacing:.06em}.accessibilityBar summary::-webkit-details-marker{display:none}.accessibilityBar summary::after{content:'+';font:800 18px/1 Sora,sans-serif;color:#163e55}.accessibilityBar[open] summary::after{content:'−'}.accessibilityControls{display:flex;gap:6px;flex-wrap:wrap;padding:0 10px 10px}.accessibilityControls button{padding:7px 9px;border:1px solid #bfd0dc;background:#fff;color:#163e55;font-size:11px}.accessibilityControls button[aria-pressed="true"]{background:#0b3954;color:#fff;border-color:#0b3954}
     body.accessLargeText{--text-xs:14px;--text-sm:16px;--text-md:18px;--text-lg:22px;font-size:118%}
     body.accessHighContrast{--ink:#000;--muted:#17202a;--line:#000;background:#fff;color:#000}body.accessHighContrast .phone,body.accessHighContrast .section,body.accessHighContrast .accessibilityBar{background:#fff;border-color:#000}body.accessHighContrast button,body.accessHighContrast input,body.accessHighContrast select,body.accessHighContrast textarea{border:2px solid #000}body.accessHighContrast :focus-visible{outline:4px solid #ffbf00!important;outline-offset:3px}
     body.accessReducedMotion *,body.accessReducedMotion *::before,body.accessReducedMotion *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
     .guidanceDialog{border:0;border-radius:18px;padding:0;max-width:520px;width:calc(100% - 28px);box-shadow:0 24px 70px rgba(15,23,42,.34)}.guidanceDialog::backdrop{background:rgba(8,47,73,.7)}.guidanceBody{padding:22px;display:grid;gap:14px}.guidanceBody h2,.guidanceBody p{margin:0}.guidanceQuestion{border:1px solid #c9dce8;border-radius:12px;padding:12px}.guidanceQuestion legend{font:800 14px Sora,sans-serif;padding:0 5px}.guidanceOptions{display:grid;gap:7px;margin-top:7px}.guidanceOptions label{display:flex;align-items:center;gap:8px;font:600 14px 'Nunito Sans',sans-serif}.guidanceResult{padding:13px;border-radius:12px;background:#eaf8f1;border:1px solid #a9dec5}.guidanceResult[hidden]{display:none}.guidanceActions{display:flex;gap:8px;flex-wrap:wrap}.guidanceActions button{flex:1 1 150px}
-    .metaRow{display:flex;gap:10px}
-    .metaRow .field{flex:1}
+    .metaRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .metaRow .field{min-width:0}
+    .metaRow input,.metaRow select{width:100%;min-width:0;max-width:100%}
+    .moreRideOptions{width:100%;margin-top:8px;padding:10px 12px;background:#eef2f5;color:#24384a}
+    .serviceChips .secondaryRideOption[hidden]{display:none}
     .estimate{
       margin-top:2px;
       background:#eff6ff;
@@ -559,7 +562,8 @@
       .top{padding:6px 8px}
       .authGrid{grid-template-columns:1fr}
       .authGrid.loginCredentials{grid-template-columns:1fr 1fr}
-      .accessibilityBar{align-items:flex-start}.accessibilityBar strong{width:100%}.accessibilityControls{flex-wrap:nowrap;max-width:100%;overflow-x:auto;padding-bottom:2px}.accessibilityControls button{white-space:nowrap}
+      .scheduleRow{grid-template-columns:1fr}
+      .accessibilityControls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-width:100%;overflow:visible}.accessibilityControls button{min-height:40px;padding:7px 6px;white-space:normal}
       .socialContactLinks{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
     @media (max-width:380px){
@@ -630,8 +634,8 @@
       <div class="patientDefaultsActions"><small>You can change any selection for this ride without changing your saved profile.</small><a href="/patient.html#transportation-preferences">Manage saved preferences</a></div>
     </aside>
 
-    <aside class="accessibilityBar" aria-label="Accessibility preferences">
-      <strong>Accessibility</strong>
+    <details class="accessibilityBar">
+      <summary>Accessibility options</summary>
       <div class="accessibilityControls">
         <button type="button" id="largeTextToggle" aria-pressed="false">Larger text</button>
         <button type="button" id="highContrastToggle" aria-pressed="false">High contrast</button>
@@ -639,7 +643,7 @@
         <button type="button" id="readNextStepBtn" aria-pressed="false">Read next step</button>
       </div>
       <span id="accessibilityStatus" class="srOnly" aria-live="polite"></span>
-    </aside>
+    </details>
 
     <form id="bookingForm" novalidate>
       <div class="completedSectionsToggle" id="completedSectionsToggleWrap">
@@ -868,16 +872,17 @@ Destination: -</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
         <div class="serviceChips" id="serviceChips" role="radiogroup" aria-label="Service type">
           <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="4" r="2"/><path d="m10 22 1-7-3-3 2-5 4 3 3 1M11 15l5 7"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span><span class="serviceCardBest">Best for: walking riders</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip" type="button" data-service="facility_transfer">IFT Routine</button>
-          <button class="chip" type="button" data-service="facility_transfer_critical">IFT High-Acuity</button>
+          <button class="chip secondaryRideOption" type="button" data-service="facility_transfer" hidden>IFT Routine</button>
+          <button class="chip secondaryRideOption" type="button" data-service="facility_transfer_critical" hidden>IFT High-Acuity</button>
           <button class="chip serviceCard" type="button" data-service="wheelchair"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="17" r="4"/><circle cx="9" cy="5" r="2"/><path d="M9 8v5h5l3 5M9 11h4"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Wheelchair</span><span class="serviceCardDescription">Accessible vehicle and securement for riders remaining in a wheelchair.</span><span class="serviceCardBest">Best for: wheelchair users</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip serviceCard" type="button" data-service="stretcher"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 15h18M5 15v3M19 15v3M5 11h14a2 2 0 0 1 2 2v2H3v-2a2 2 0 0 1 2-2Z"/><circle cx="7" cy="8" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Stretcher</span><span class="serviceCardDescription">For riders who must travel lying down; needs may require review.</span><span class="serviceCardBest">Best for: non-ambulatory transport</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip" type="button" data-service="broda">Broda</button>
+          <button class="chip secondaryRideOption" type="button" data-service="broda" hidden>Broda</button>
           <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Additional Capacity</span><span class="serviceCardDescription">Additional space, capacity, or specialized mobility support.</span><span class="serviceCardBest">Best for: riders needing more space</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip" type="button" data-service="bls">BLS</button>
-          <button class="chip" type="button" data-service="als1">ALS 1</button>
-          <button class="chip" type="button" data-service="als2">ALS 2</button>
+          <button class="chip secondaryRideOption" type="button" data-service="bls" hidden>BLS</button>
+          <button class="chip secondaryRideOption" type="button" data-service="als1" hidden>ALS 1</button>
+          <button class="chip secondaryRideOption" type="button" data-service="als2" hidden>ALS 2</button>
         </div>
+        <button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button>
         <input id="service" name="service" type="hidden" value="">
 
         <div class="field" style="margin-top:12px">
@@ -895,7 +900,7 @@ Destination: -</p>
           <div class="field"><label for="recurrenceEndDate">Repeat through</label><input id="recurrenceEndDate" name="recurrenceEndDate" type="date"><small class="subtle">Recurring schedules can be requested for up to 12 weeks.</small></div>
         </div>
 
-        <div class="metaRow" style="margin-top:12px">
+        <div class="metaRow scheduleRow" style="margin-top:12px">
           <div class="field">
             <label for="tripDate">Date</label>
             <input id="tripDate" name="tripDate" type="date" required>
