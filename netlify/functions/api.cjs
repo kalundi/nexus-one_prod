@@ -20,6 +20,7 @@ const {testConnection:testKeymarkFhirConnection}=require('./_shared/keymark-fhir
 const {bookingPaymentPolicy,requiresFullPaymentBeforeBoarding}=require('./_shared/payment-policy.cjs');
 const {getSecureDocument,listSecureDocuments}=require('./_shared/secure-document-registry.cjs');
 const {sendSms}=require('./_shared/sms-consent.cjs');
+const {canPatientSeeDriverLocation,distanceMiles}=require('./_shared/patient-driver-location.cjs');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_APPROVAL:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -2625,7 +2626,7 @@ async function handler(event){
    // Try matching by reference first, then by name
    let r=await query('SELECT * FROM bookings WHERE reference=$1 AND regexp_replace(phone,\'\\D\',\'\',\'g\')=regexp_replace($2,\'\\D\',\'\',\'g\')',[searchRef,phone]);
    if(!r.rows[0]){r=await query('SELECT * FROM bookings WHERE LOWER(name)=LOWER($1) AND regexp_replace(phone,\'\\D\',\'\',\'g\')=regexp_replace($2,\'\\D\',\'\',\'g\') ORDER BY created_at DESC LIMIT 1',[searchRef,phone]);}
-   if(!r.rows[0])return json(404,{error:'Request not found'});return json(200,{booking:mapBooking(r.rows[0])});
+   if(!r.rows[0])return json(404,{error:'Request not found'});return json(200,{booking:await mapPatientBooking(r.rows[0])});
   }
   // Cancel booking
   if(p[0]==='bookings'&&p[1]&&p[2]==='accept'&&method==='POST'){
@@ -2905,7 +2906,7 @@ async function handler(event){
     query(`SELECT * FROM bookings WHERE ${bookingWhere} ORDER BY trip_date DESC,trip_time DESC LIMIT 50`,bookingParams)
    ]);
    const preferenceRow=preferencesResult.rows[0]||{};
-   const trips=await mapBookingsWithIntakeAudit(bookingsResult.rows);
+   const trips=await Promise.all((await mapBookingsWithIntakeAudit(bookingsResult.rows)).map(mapPatientBooking));
    const inactiveStatuses=new Set(['COMPLETED','CANCELLED','NO_SHOW','DELIVERED']);
    const upcoming=trips
     .filter(trip=>!inactiveStatuses.has(String(trip.status||'').toUpperCase())&&String(trip.date||trip.tripDate||trip.trip_date||'')>=new Date().toISOString().slice(0,10))
@@ -4606,6 +4607,19 @@ function mapBooking(b){
    mappedBooking.brokerQuotedRate=Number(intakeRow.broker_quoted_rate);
   }
   return json(200,{booking:mappedBooking,intakeAudit});
+}
+
+async function mapPatientBooking(value){
+ const booking=value&&value.reference&&value.statusLabel?{...value}:mapBooking(value||{});
+ booking.driverLocationVisible=false;
+ if(!canPatientSeeDriverLocation(booking))return booking;
+ const position=await query(`SELECT latitude,longitude,heading,speed_mph,recorded_at FROM gps_positions
+  WHERE booking_reference=$1 AND recorded_at>=now()-interval '15 minutes' ORDER BY recorded_at DESC LIMIT 1`,[booking.reference]).catch(()=>({rows:[]}));
+ const row=position.rows[0];if(!row)return booking;
+ const miles=distanceMiles(row.latitude,row.longitude,booking.pickupLat,booking.pickupLng);
+ booking.driverLocationVisible=true;
+ booking.driverLocation={latitude:Number(row.latitude),longitude:Number(row.longitude),heading:row.heading==null?null:Number(row.heading),recordedAt:row.recorded_at,distanceToPickupMiles:miles==null?null:Number(miles.toFixed(1))};
+ return booking;
 }
 
 function mapParseSourceLabel(method){

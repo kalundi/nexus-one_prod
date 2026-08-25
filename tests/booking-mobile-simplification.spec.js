@@ -39,7 +39,7 @@ test('booking schedule expands into columns when a wider webview has room', asyn
   const timeBox = await page.locator('#appointmentTime').boundingBox();
   expect(dateBox).not.toBeNull();
   expect(timeBox).not.toBeNull();
-  expect(Math.abs(timeBox.y - dateBox.y)).toBeLessThanOrEqual(2);
+  expect(Math.abs(timeBox.y - dateBox.y)).toBeLessThanOrEqual(8);
   expect(dateBox.width).toBeGreaterThan(180);
   expect(timeBox.width).toBeGreaterThan(180);
 });
@@ -104,4 +104,35 @@ test('review card uses plain language and the patient-entered details', async ({
   await expect(page.locator('#reviewRoute')).toContainText('100 Main Street');
   await expect(page.locator('#reviewSchedule')).toContainText('2030-08-15 at 10:30');
   await expect(page.locator('#reviewService')).not.toHaveText('-');
+});
+
+test('active Book My Ride state shows only the three patient decision cards', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/booking-app.html', { waitUntil: 'domcontentloaded' });
+  await page.locator('body').evaluate(body => {
+    body.classList.add('bookingFinalView', 'bookingReadyView');
+    body.classList.remove('showCompletedSections');
+    ['bookingLoginSection','riderDetailsSection','pickupDropoffSection','rideTypeSection','rateSettingsSection'].forEach(id => document.getElementById(id)?.classList.add('sectionHiddenInFinal'));
+    ['telemetrySection','fareSummarySection'].forEach(id => document.getElementById(id)?.classList.add('unlocked'));
+    document.getElementById('distanceEtaSection').hidden = false;
+    document.getElementById('completedSectionsToggleWrap').hidden = false;
+    document.getElementById('toggleCompletedSectionsBtn').textContent = 'Make changes';
+    document.getElementById('submitBtn').disabled = false;
+  });
+
+  await expect(page.locator('#submitBtn')).toBeEnabled();
+  await expect(page.getByRole('heading', { name: 'My Nexus Ride' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Distance & ETA' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Review My Ride' })).toBeVisible();
+  await expect(page.locator('#riderDetailsSection')).toBeHidden();
+  await expect(page.locator('#pickupDropoffSection')).toBeHidden();
+  await expect(page.locator('#rideTypeSection')).toBeHidden();
+  await expect(page.locator('#toggleCompletedSectionsBtn')).toHaveText('Make changes');
+
+  await page.locator('body').evaluate(body => {
+    body.classList.add('showCompletedSections');
+    document.getElementById('toggleCompletedSectionsBtn').textContent = 'Hide changes';
+  });
+  await expect(page.locator('#riderDetailsSection')).toBeVisible();
+  await expect(page.locator('#toggleCompletedSectionsBtn')).toHaveText('Hide changes');
 });

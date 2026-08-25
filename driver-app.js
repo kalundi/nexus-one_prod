@@ -2054,7 +2054,7 @@
         maybeAdvanceRouteByPosition(pos).catch(()=>{});
       }
       if(!shift.vehicleUnit)return;
-      try{await fetch('/api/gps',{method:'POST',headers:ah(),body:JSON.stringify({vehicleUnit:shift.vehicleUnit,latitude:pos.coords.latitude,longitude:pos.coords.longitude,heading:pos.coords.heading||null,speedMph:pos.coords.speed?pos.coords.speed*2.237:null,accuracyM:pos.coords.accuracy||null,bookingReference:routeAuto.tripRef||activeRef||null})});}catch{}
+      try{await fetch('/api/gps/positions',{method:'POST',headers:ah(),body:JSON.stringify({vehicleUnit:shift.vehicleUnit,latitude:pos.coords.latitude,longitude:pos.coords.longitude,heading:pos.coords.heading||null,speedMph:pos.coords.speed?pos.coords.speed*2.237:null,accuracyM:pos.coords.accuracy||null,bookingReference:routeAuto.tripRef||activeRef||null})});}catch{}
     },null,{enableHighAccuracy:true,maximumAge:20000,timeout:25000});
   }
   function stopGPS(){if(gpsId!=null){navigator.geolocation.clearWatch(gpsId);gpsId=null;}}

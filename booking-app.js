@@ -45,6 +45,7 @@
   const fareSummaryAmount = $('fareSummaryAmount');
   const fareSummaryDistance = $('fareSummaryDistance');
   const fareSummaryEta = $('fareSummaryEta');
+  const distanceEtaSection = $('distanceEtaSection');
   const fareMemberSavingsRow = $('fareMemberSavingsRow');
   const fareMemberSavings = $('fareMemberSavings');
   const fareConfirmDialog = $('fareConfirmDialog');
@@ -252,8 +253,8 @@
   const CUSTOMER_ALLOWED_SERVICES = new Set(['ambulatory','wheelchair','stretcher','bariatric']);
   const AUTO_COLLAPSIBLE_SECTION_IDS = ['pickupDropoffSection'];
   const PROGRESSIVE_SECTIONS_ORDER = ['riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'telemetrySection', 'fareSummarySection'];
-  const FINAL_HIDDEN_SECTION_IDS = ['bookingLoginSection', 'riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'rateSettingsSection', 'fareSummarySection'];
-  const finalVisibleSectionIds = new Set(['telemetrySection', 'paymentSection']);
+  const FINAL_HIDDEN_SECTION_IDS = ['bookingLoginSection', 'riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'rateSettingsSection'];
+  const finalVisibleSectionIds = new Set(['telemetrySection', 'distanceEtaSection', 'fareSummarySection', 'paymentSection']);
   const expandedSections = new Set();
   const riderDetailsInitiallyCollapsed = new Set();
   const LOCATION_STATE_CODE = 'MD';
@@ -910,8 +911,11 @@
       setSectionCollapsed('riderDetailsSection', shouldCollapseRiderDetails);
     }
 
-    const finalView = Boolean(progress.allRequiredComplete || bookingSubmitted);
+    const reviewReady = Boolean(fareEstimateSignature && confirmedFareSignature === fareEstimateSignature);
+    const finalView = Boolean(reviewReady || bookingSubmitted);
     document.body.classList.toggle('bookingFinalView', finalView);
+    document.body.classList.toggle('bookingReadyView', reviewReady && !bookingSubmitted);
+    if(distanceEtaSection) distanceEtaSection.hidden = !reviewReady || bookingSubmitted;
 
     if(paymentSection){
       const hasBookingReference = Boolean(String(currentBookingReference || '').trim());
@@ -952,7 +956,7 @@
       if(!bookingSubmitted) completedSectionsToggleWrap.hidden = !hasHiddenSections;
       if(toggleCompletedSectionsBtn){
         const showingCompleted = document.body.classList.contains('showCompletedSections');
-        toggleCompletedSectionsBtn.textContent = showingCompleted ? 'Hide completed sections' : 'Show completed sections';
+        toggleCompletedSectionsBtn.textContent = showingCompleted ? 'Hide changes' : 'Make changes';
       }
     }
 
@@ -2478,9 +2482,6 @@
       const yardRoute = await estimateYardToPickupRoute(pickup, tripDate, String(appointmentTimeInput?.value || '').trim());
       yardToPickupDurationMinutes = Math.max(0, Number(yardRoute.minutes || 0));
       yardToPickupTrafficDurationMinutes = Math.max(0, Number(yardRoute.trafficMinutes || 0));
-      if(yardToPickupTrafficDurationMinutes > 0){
-        durationText = `${durationText} | Yard->Pickup ${yardToPickupTrafficDurationMinutes} min`;
-      }
       renderCustomerRoute(result, pickup, destination);
     }catch(err){
       const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations]);
@@ -2955,49 +2956,22 @@
 
   async function loadTelemetry(){
     try{
-      const r = await fetch('/api/fleet/live', { cache: 'no-store' });
-      if(!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json();
-      let vehicles = (data.vehicles || []).filter(v => Number.isFinite(v.lat) && Number.isFinite(v.lng));
-      let usingLocalMock = false;
-      if(!vehicles.length && isLocalHost()){
-        vehicles = localMockVehicles();
-        usingLocalMock = true;
-      }
-      lastTelemetryVehicles = vehicles.slice();
-      lastTelemetryUsingLocalMock = usingLocalMock;
+      const vehicles = [];
+      lastTelemetryVehicles = [];
+      lastTelemetryUsingLocalMock = false;
       updateTelemetrySpotlight();
 
       if(!telemetryMap){
         const routePoints = await resolveFallbackRoutePoints();
-        renderTelemetryFallback(vehicles, usingLocalMock, routePoints);
+        renderTelemetryFallback([], false, routePoints);
         return;
       }
       if(telemetryStatus){
         telemetryStatus.hidden = false;
-        telemetryStatus.textContent = `Route Pulse updated ${new Date(data.generatedAt || Date.now()).toLocaleTimeString()}`;
+        telemetryStatus.textContent = 'Driver location is available in LiveCare within one hour of pickup after your driver starts the trip.';
       }
       if(telemetryList) telemetryList.innerHTML = '';
       const activeIds = new Set();
-      vehicles.forEach(v => {
-        const id = String(v.id || v.unit);
-        activeIds.add(id);
-        let marker = telemetryMarkers.get(id);
-        const position = { lat: Number(v.lat), lng: Number(v.lng) };
-        if(!marker){
-          marker = new google.maps.Marker({
-            map: telemetryMap,
-            position,
-            title: `${v.unit || v.id} (${v.status || 'ACTIVE'})`,
-            icon: telemetryIcon()
-          });
-          telemetryMarkers.set(id, marker);
-        }else{
-          marker.setPosition(position);
-          marker.setTitle(`${v.unit || v.id} (${v.status || 'ACTIVE'})`);
-        }
-      });
-
       telemetryMarkers.forEach((marker, id) => {
         if(!activeIds.has(id)){
           marker.setMap(null);
@@ -3007,15 +2981,6 @@
       applyFocusMode();
       fitCombinedViewport(vehicles);
     }catch(err){
-      if(isLocalHost()){
-        const vehicles = localMockVehicles();
-        lastTelemetryVehicles = vehicles.slice();
-        lastTelemetryUsingLocalMock = true;
-        updateTelemetrySpotlight();
-        const routePoints = await resolveFallbackRoutePoints();
-        renderTelemetryFallback(vehicles, true, routePoints);
-        return;
-      }
       if(telemetryStatus){
         telemetryStatus.hidden = false;
         telemetryStatus.textContent = 'Route Pulse is temporarily unavailable. You can continue booking your ride.';
@@ -3037,11 +3002,8 @@
           fullscreenControl: false
         });
       }else{
-        const localVehicles = localMockVehicles();
-        lastTelemetryVehicles = localVehicles.slice();
-        lastTelemetryUsingLocalMock = true;
         const routePoints = await resolveFallbackRoutePoints();
-        renderTelemetryFallback(localVehicles, true, routePoints);
+        renderTelemetryFallback([], false, routePoints);
       }
       await loadTelemetry();
       telemetryTimer = setInterval(loadTelemetry, Math.max(5000, Number(fareRules.telemetryRefreshSeconds || 20) * 1000));

@@ -170,6 +170,9 @@
     .completedSectionsToggle button{width:100%;padding:10px 12px;font:700 13px Sora,sans-serif}
     body.bookingFinalView .completedSectionsToggle{display:block}
     body.bookingFinalView:not(.showCompletedSections) .sectionHiddenInFinal{display:none}
+    body.bookingReadyView:not(.showCompletedSections) #bookingForm>.sectionProgressive.unlocked{display:none}
+    body.bookingReadyView:not(.showCompletedSections) #bookingForm>#telemetrySection,
+    body.bookingReadyView:not(.showCompletedSections) #bookingForm>#fareSummarySection{display:block;min-height:0}
     .section h2{
       margin:0 0 10px;
       font:800 var(--text-lg) Sora,sans-serif;
@@ -220,9 +223,9 @@
     .suggestionButton:last-child{border-bottom:0;border-radius:0 0 12px 12px}
     .suggestionButton:hover,.suggestionButton:focus-visible{background:#eaf5fb;outline:none}
     .multiStopsRow{
-      display:flex;
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
       align-items:center;
-      justify-content:space-between;
       gap:10px;
       flex-wrap:wrap;
       margin:0 0 10px;
@@ -235,18 +238,25 @@
       display:inline-flex;
       align-items:center;
       gap:8px;
+      flex:1 1 auto;
+      min-width:0;
       font:700 13px Sora,sans-serif;
       color:#15364b;
     }
+    .multiStopsToggle span{white-space:nowrap}
     .multiStopsToggle input{width:18px;height:18px;margin:0}
     .multiStopsControl{
       display:flex;
       align-items:center;
       gap:8px;
       margin-left:auto;
+      flex:0 0 auto;
+      min-width:0;
+      white-space:nowrap;
       font:700 13px Sora,sans-serif;
       color:#38556b;
     }
+    .multiStopsControl span{flex:0 0 auto;white-space:nowrap}
     .multiStopsControl select{
       border:1px solid #c6d5df;
       border-radius:10px;
@@ -254,6 +264,9 @@
       background:#fff;
       color:#0f172a;
       font:700 14px 'Nunito Sans',system-ui,sans-serif;
+      flex:0 0 auto;
+      min-width:58px;
+      max-width:64px;
     }
     .destinationRows{display:grid;gap:10px;margin-top:10px}
     .serviceChips{
@@ -974,7 +987,7 @@ Destination: -</p>
       </section>
 
       <section class="section sectionProgressive" id="telemetrySection">
-        <h2>Nexus Route Pulse</h2>
+        <h2>My Nexus Ride</h2>
         <div class="telemetrySpotlight" id="telemetrySpotlight" aria-live="polite">
           <div class="telemetrySpotlightHeader">
             <div>
@@ -995,7 +1008,7 @@ Destination: -</p>
           </div>
           <p class="telemetryMission" id="telemetryMission">Nexus coordinates each journey so visibility and support stay accessible from request through arrival.</p>
         </div>
-        <div id="telemetryMap" class="telemetryMap" role="img" aria-label="Nexus Route Pulse map showing the planned ride"></div>
+        <div id="telemetryMap" class="telemetryMap" role="img" aria-label="My Nexus Ride map showing the planned ride"></div>
         <div class="telemetryControls">
           <label><input type="checkbox" id="focusMyRouteOnly"> Show only my route</label>
           <small class="subtle" style="margin:0">Keep the map focused on this ride</small>
@@ -1003,6 +1016,14 @@ Destination: -</p>
         <p class="subtle" id="telemetryStatus" hidden>Preparing Nexus Route Pulse...</p>
         <p class="subtle" id="telemetryRouteHint" style="margin-top:8px">Route preview will appear after pickup and destination are set.</p>
         <div class="telemetryList" id="telemetryList" hidden></div>
+      </section>
+
+      <section class="section" id="distanceEtaSection" hidden aria-labelledby="distanceEtaTitle">
+        <h2 id="distanceEtaTitle">Distance &amp; ETA</h2>
+        <div class="fareSummaryCard" aria-live="polite">
+          <div class="fareSummaryLine"><b>Distance</b><span id="fareSummaryDistance">-</span></div>
+          <div class="fareSummaryLine"><b>ETA</b><span id="fareSummaryEta">-</span></div>
+        </div>
       </section>
 
       <dialog class="guidanceDialog" id="rideGuidanceDialog" aria-labelledby="rideGuidanceTitle">
@@ -1031,7 +1052,7 @@ Destination: -</p>
       </dialog>
 
       <section class="section sectionProgressive" id="fareSummarySection">
-        <h2>Review Your Ride</h2>
+        <h2>Review My Ride</h2>
         <div class="reviewDetails" aria-label="Ride details">
           <div class="reviewLine"><small>Rider</small><strong id="reviewRider">-</strong></div>
           <div class="reviewLine"><small>Route</small><strong id="reviewRoute">-</strong></div>
@@ -1039,8 +1060,6 @@ Destination: -</p>
           <div class="reviewLine"><small>Ride</small><strong id="reviewService">-</strong></div>
         </div>
         <div class="fareSummaryCard" aria-live="polite">
-          <div class="fareSummaryLine"><b>Distance</b><span id="fareSummaryDistance">-</span></div>
-          <div class="fareSummaryLine"><b>ETA</b><span id="fareSummaryEta">-</span></div>
           <div class="fareSummaryLine" id="fareMemberSavingsRow" hidden><b>Member Savings (5%)</b><span id="fareMemberSavings">-</span></div>
           <div class="subtle" style="margin:0">Fare Estimate</div>
           <div class="fareSummaryAmount" id="fareSummaryAmount">-</div>

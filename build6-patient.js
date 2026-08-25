@@ -61,6 +61,7 @@
   else if(rawStatus==='ARRIVED'){phase='arrived';headline='Driver has arrived';subtext='Live telemetry indicates vehicle is at the pickup zone.';progress=clampedPct!=null?Math.max(.45,clampedPct/100):.48;eta='At pickup';}
   else if(rawStatus==='DRIVER_ASSIGNED'){phase='approaching';headline='Driver assigned and preparing';subtext='Your driver is assigned and dispatch is preparing route movement.';progress=clampedPct!=null?Math.max(.16,clampedPct/100):.24;}
   if(clampedPct!=null)progress=clampedPct/100;
+  if(Number.isFinite(Number(vehicle.distanceToPickupMiles)))eta=`${Number(vehicle.distanceToPickupMiles).toFixed(1)} mi away`;
   const pos=10+Math.round(Math.max(0,Math.min(1,progress))*80);
   return {phase,progress,pos,headline,subtext,eta};
  }
@@ -74,23 +75,11 @@
     if(value&&value===ref)return v;
    }
   }
-  return vehicles.find(v=>['EN_ROUTE','ARRIVED','PATIENT_ON_BOARD','DRIVER_ASSIGNED'].includes(String(v?.status||'').toUpperCase()))||null;
+  return null;
  }
  async function fetchLiveFleetVehicles(){
-  const now=Date.now();
-  if(now-routeUi.lastTelemetryAt<12000)return routeUi.lastVehicles;
-  const token=sessionStorage.getItem('nexusAccessToken');
-  const headers=token?{authorization:`Bearer ${token}`}:{ };
-  try{
-   const r=await fetch('/api/fleet/live',{headers,cache:'no-store'});
-   if(!r.ok)throw new Error('fleet unavailable');
-   const j=await r.json();
-   routeUi.lastVehicles=Array.isArray(j.vehicles)?j.vehicles:[];
-   routeUi.lastTelemetryAt=now;
-   return routeUi.lastVehicles;
-  }catch{
-   return routeUi.lastVehicles;
-  }
+  const vehicles=upcoming().filter(trip=>trip.driverLocationVisible===true&&trip.driverLocation).map(trip=>({bookingReference:trip.id,status:trip.status,lat:Number(trip.driverLocation.latitude),lng:Number(trip.driverLocation.longitude),distanceToPickupMiles:trip.driverLocation.distanceToPickupMiles}));
+  routeUi.lastVehicles=vehicles;routeUi.lastTelemetryAt=Date.now();return vehicles;
  }
  function renderLiveRoute(trip,vehicle){
   const card=$('#liveRouteCard'),btn=$('#liveRouteOpenBtn'),headline=$('#liveRouteHeadline'),sub=$('#liveRouteSubtext');
@@ -116,6 +105,7 @@
 
   const fallback=liveRouteState(trip);
   const state=deriveVehicleState(vehicle,fallback);
+  if(vehicle&&Number.isFinite(Number(vehicle.distanceToPickupMiles)))state.eta=`${Number(vehicle.distanceToPickupMiles).toFixed(1)} mi away`;
   card.dataset.phase=state.phase;
   btn.href=livecareUrl(trip.id);
   headline.textContent=state.headline;
@@ -153,6 +143,7 @@
  }
  function renderActiveRideItem(trip,vehicle){
   const state=deriveVehicleState(vehicle,liveRouteState(trip));
+  if(vehicle&&Number.isFinite(Number(vehicle.distanceToPickupMiles)))state.eta=`${Number(vehicle.distanceToPickupMiles).toFixed(1)} mi away`;
   const pos=Math.round(Math.max(0,Math.min(1,state.progress))*100);
   return `<article class="manifestItem manifestItemRoute" data-active-route="${esc(trip.id)}" data-phase="${esc(state.phase)}"><div class="manifestMain"><div><strong>${esc(trip.pickup)} → ${esc(trip.destination)}</strong><small>${esc(trip.date)} ${esc(trip.time)} · ${esc(trip.service)} · ${esc(trip.id)}</small></div><div class="manifestMeta"><span class="status ${statusClass(trip.status)}">${esc(trip.status)}</span><span class="toolbar" style="align-items:center;justify-content:flex-end"><a class="button compact" href="${livecareUrl(trip.id)}">Track</a><button class="button compact secondary" type="button" data-share-trip="${esc(trip.id)}">Share</button></span></div></div><div class="routeMiniShell"><div class="routeMiniHead"><span><strong data-route-headline>${esc(state.headline)}</strong><small data-route-subtext>${esc(state.subtext)}</small></span><span class="routeMiniEta"><em>ETA</em><span data-route-eta>${esc(state.eta)}</span></span></div><div class="routeMapRail" aria-label="Active ride route"><span class="routeStop pickup" data-route-pickup>${esc(trip.pickup||'Pickup')}</span><span class="routeStop destination" data-route-destination>${esc(trip.destination||'Destination')}</span><div class="routeTrackBase"></div><div class="routeTrackFill" data-route-fill style="width:${state.pos}%"></div><button class="routeVehiclePin" type="button" data-route-pin aria-label="Driver location" style="left:calc(${state.pos}% - 11px)">N</button></div><p class="routeProgress" data-route-progress>${pos}% route visibility for ${esc(trip.id)}.</p><p class="routeShareHint">Share updates with family members and caregivers for live location awareness.</p></div></article>`;
  }
@@ -174,6 +165,16 @@
   const vehicle=findTripVehicle(vehicles,trip);
   renderLiveRoute(trip,vehicle);
   refreshActiveRideMaps(activeTrips,vehicles);
+ }
+ async function loadPatientTrips(){
+  const token=sessionStorage.getItem('nexusAccessToken');if(!token)return;
+  try{
+   const response=await fetch('/api/patient/dashboard',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(!response.ok)return;
+   const data=await response.json(),rows=Array.isArray(data.recentRides)?data.recentRides:[];
+   const all=data.nextRide&&!rows.some(row=>row.reference===data.nextRide.reference)?[data.nextRide,...rows]:rows;
+   N.write('nexusTrips',all.map(row=>({...row,id:row.reference||row.id,driver:row.driverName||row.driver,vehicle:row.vehicleUnit||row.vehicle,fare:row.estimatedFare||row.fare||0})));
+   render();
+  }catch{}
  }
  function bindLiveRouteDetails(){
   const btn=$('#routeDetailToggle'),panel=$('#liveRouteDetailPanel');
@@ -435,9 +436,10 @@
  bindTopAndFooterActions();
  bindHomeFocusDeck();
  render();
+ loadPatientTrips();
  loadPatientPreferences();
  window.clearInterval(routeRefreshTimer);
  routeRefreshTimer=window.setInterval(()=>{
-  refreshLiveRoute();
+  loadPatientTrips();
  },15000);
 })();
