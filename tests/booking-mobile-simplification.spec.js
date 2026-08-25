@@ -26,7 +26,7 @@ test('mobile booking schedule does not overlap and optional choices stay compact
   await expect(page.locator('#toggleMoreRideOptions')).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('booking schedule remains stacked in wider mobile webviews', async ({ page }) => {
+test('booking schedule expands into columns when a wider webview has room', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
   await page.goto('/booking-app.html', { waitUntil: 'domcontentloaded' });
   await page.locator('#rideTypeSection').evaluate((section) => {
@@ -39,7 +39,9 @@ test('booking schedule remains stacked in wider mobile webviews', async ({ page 
   const timeBox = await page.locator('#appointmentTime').boundingBox();
   expect(dateBox).not.toBeNull();
   expect(timeBox).not.toBeNull();
-  expect(timeBox.y).toBeGreaterThanOrEqual(dateBox.y + dateBox.height);
+  expect(Math.abs(timeBox.y - dateBox.y)).toBeLessThanOrEqual(2);
+  expect(dateBox.width).toBeGreaterThan(180);
+  expect(timeBox.width).toBeGreaterThan(180);
 });
 
 test('mobile booking opens one screen-filling patient card at a time', async ({ page }) => {
