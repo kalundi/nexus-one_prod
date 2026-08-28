@@ -158,6 +158,12 @@ function normalizeTripTime(value){
  return '';
 }
 
+function buildPickupTimestamp(tripDate,pickupTime){
+ const date=normalizeTripDate(tripDate);
+ const time=normalizeTripTime(pickupTime);
+ return date&&time?`${date} ${time}`:null;
+}
+
 function parseCurrencyValue(value){
  const raw=clean(value,120).replace(/,/g,'');
  if(!raw)return 0;
@@ -1151,7 +1157,7 @@ async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,plat
   parsed.destination,
   parsed.pickup_location||null,
   parsed.destination_location||null,
-  parsed.pickup_time||null,
+  buildPickupTimestamp(tripDate,parsed.pickup_time),
   tripDate,
   tripTime,
   'PENDING_DISPATCH_CONFIRMATION',
@@ -1199,7 +1205,7 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
   parsed.destination,
   parsed.pickup_location||null,
   parsed.destination_location||null,
-  parsed.pickup_time||null,
+  buildPickupTimestamp(tripDate,parsed.pickup_time),
   tripDate,
   tripTime,
   notes,
@@ -1570,3 +1576,5 @@ exports.handler=async(event)=>{
   return json(500,{error:'Internal server error',message:error.message});
  }
 };
+
+exports.buildPickupTimestamp=buildPickupTimestamp;
