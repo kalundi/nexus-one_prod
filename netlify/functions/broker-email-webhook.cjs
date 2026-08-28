@@ -375,7 +375,7 @@ function resolveCostBand(service){
 }
 
 async function sendEmail(to,subject,html,attachments=[]){
- const recipients=Array.isArray(to)?to:buildEmailRecipients(to);
+ const recipients=buildEmailRecipients(to);
  if(!process.env.SENDGRID_API_KEY||!process.env.SENDGRID_FROM_EMAIL||recipients.length===0)return {status:'skipped'};
  const payload={
   personalizations:[{to:recipients.map((email)=>({email}))}],
@@ -1280,7 +1280,7 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
 async function forwardBrokerEmailIfNeeded({from,to,subject,text,attachments}){
  const sender=clean(from,200).toLowerCase();
  const recipients=clean(to,500).toLowerCase();
- if(sender!==FORWARD_FROM)return {status:'skipped'};
+ if(FORWARD_FROM!=='*'&&sender!==FORWARD_FROM)return {status:'skipped'};
  if(!recipients.includes(FORWARD_TO_MATCH))return {status:'skipped'};
  const attachmentList=(attachments||[]).map((att)=>clean(att.filename||'attachment',120)).join(', ');
  const html=`<h2>Forwarded broker email</h2><p><strong>From:</strong> ${clean(from,200)}</p><p><strong>To:</strong> ${clean(to,300)}</p><p><strong>Subject:</strong> ${clean(subject,240)||'(no subject)'}</p><p><strong>Attachments:</strong> ${attachmentList||'None'}</p><hr><pre style="white-space:pre-wrap;font-family:inherit">${clean(text,18000)}</pre>`;
