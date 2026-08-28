@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildFilter, syncConfig } = require('../netlify/functions/graph-mail-sync.cjs');
+const { buildFilter, syncConfig, senderMatches } = require('../netlify/functions/graph-mail-sync.cjs');
 const { buildPickupTimestamp } = require('../netlify/functions/broker-email-webhook.cjs');
 
 test('syncConfig honors configured mailbox filters', () => {
@@ -29,8 +29,9 @@ test('buildFilter uses the real broker sender by default', () => {
 
 test('buildFilter supports a broker-domain sender restriction', () => {
   const filter = buildFilter({ since: '2026-08-26T04:00:00.000Z', sender: '*@gotandt.com' });
-  assert.match(filter, /endswith\(from\/emailAddress\/address,'@gotandt\.com'\)/);
   assert.doesNotMatch(filter, /from\/emailAddress\/address eq/);
+  assert.equal(senderMatches({ from: { emailAddress: { address: 'dispatch@gotandt.com' } } }, '*@gotandt.com'), true);
+  assert.equal(senderMatches({ from: { emailAddress: { address: 'alerts@example.com' } } }, '*@gotandt.com'), false);
 });
 
 test('broker pickup time is combined with its trip date for timestamptz columns', () => {

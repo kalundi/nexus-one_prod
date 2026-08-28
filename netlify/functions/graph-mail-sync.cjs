@@ -52,10 +52,16 @@ function buildFilter({since,subjectContains=DEFAULT_SUBJECT,sender=DEFAULT_SENDE
  const hasSender=normalizedSender && normalizedSender!=='*' && normalizedSender!=='any' && normalizedSender!=='all';
  const senderDomain=normalizedSender.match(/^\*?(@[a-z0-9.-]+)$/i)?.[1]||'';
  const escapedSender=String(normalizedSender).replace(/'/g,"''");
- const senderClause=!hasSender?'':senderDomain
-  ?` and endswith(from/emailAddress/address,'${senderDomain.replace(/'/g,"''")}')`
-  :` and from/emailAddress/address eq '${escapedSender}'`;
+ const senderClause=!hasSender||senderDomain?'':` and from/emailAddress/address eq '${escapedSender}'`;
  return `receivedDateTime ge ${safeSince} and contains(subject,'${String(subjectContains).replace(/'/g,"''")}')${senderClause} and hasAttachments eq true`;
+}
+
+function senderMatches(message,senderFilter){
+ const filter=clean(senderFilter).toLowerCase();
+ if(!filter||filter==='*'||filter==='any'||filter==='all')return true;
+ const address=clean(message?.from?.emailAddress?.address).toLowerCase();
+ const domain=filter.match(/^\*?(@[a-z0-9.-]+)$/i)?.[1]||'';
+ return domain?address.endsWith(domain):address===filter;
 }
 
 async function processMessage(message,folder=DEFAULT_FOLDER){
@@ -113,10 +119,11 @@ exports.handler=async(event)=>{
   let total=0;
   while(page?.value?.length){
    for(const message of page.value){
-    total+=1;
     if(message.receivedDateTime&&new Date(message.receivedDateTime)>new Date(newestSince)){
      newestSince=message.receivedDateTime;
     }
+    if(!senderMatches(message,config.sender))continue;
+    total+=1;
     try{
      results.push(await processMessage(message,config.folder));
     }catch(error){
@@ -138,3 +145,4 @@ exports.handler=async(event)=>{
 
 exports.buildFilter=buildFilter;
 exports.syncConfig=syncConfig;
+exports.senderMatches=senderMatches;
