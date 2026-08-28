@@ -34,7 +34,7 @@ Optional tuning variables:
 
 - `GRAPH_MAIL_SYNC_SINCE` - defaults to `2026-07-31T00:00:00Z`
 - `GRAPH_MAIL_SYNC_FOLDER` - defaults to `Inbox`
-- `GRAPH_MAIL_SYNC_SENDER` - defaults to `xxxx@gotandt.com`
+- `GRAPH_MAIL_SYNC_SENDER` - defaults to `driverdeveloper@gotandt.com`
 - `GRAPH_MAIL_SYNC_SUBJECT_CONTAINS` - defaults to `confirmation`
 
 
@@ -112,7 +112,7 @@ Use this checklist to validate end-to-end readiness before relying on production
   - booking is created when confirmation + attachment conditions are met,
   - Teams review notification is posted to `Admin_NMT`.
 9. Verify forwarding rule behavior:
-  - incoming mail to `fletcher@nexusmt.com` from `xxxx@gotandt.com` is forwarded to `jubilee@nexusmt.com`.
+  - incoming mail to `fletcher@nexusmt.com` from `driverdeveloper@gotandt.com` is forwarded to `jubilee@nexusmt.com`.
 10. Monitor first 24 hours:
   - check Netlify function logs for `graph-mail-sync` and `broker-email-webhook`,
   - confirm no auth/token failures and no parsing regressions.
@@ -189,7 +189,7 @@ Actions:
 
 - Run manual sync with explicit query params:
   ```bash
-  curl "https://your-site.netlify.app/.netlify/functions/graph-mail-sync?since=2026-07-31T00:00:00Z&sender=xxxx@gotandt.com&subjectContains=confirmation"
+  curl "https://your-site.netlify.app/.netlify/functions/graph-mail-sync?since=2026-07-31T00:00:00Z&sender=driverdeveloper@gotandt.com&subjectContains=confirmation"
   ```
 - Relax filter values temporarily to confirm pipeline health.
 

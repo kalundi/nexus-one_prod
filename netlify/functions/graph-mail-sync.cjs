@@ -4,6 +4,9 @@ const {listMessages,getMessageAttachments,getMessageMime,toBrokerAttachment,isFi
 const brokerWebhook=require('./broker-email-webhook.cjs');
 
 const DEFAULT_SINCE='2026-07-31T00:00:00Z';
+const DEFAULT_SENDER='driverdeveloper@gotandt.com';
+const DEFAULT_SUBJECT='confirmation';
+const DEFAULT_FOLDER='Inbox';
 
 function jsonResponse(statusCode,body){
  return {statusCode,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)};
@@ -11,6 +14,14 @@ function jsonResponse(statusCode,body){
 
 function clean(value){
  return String(value||'').trim();
+}
+
+function syncConfig(queryParams={}){
+ return {
+  sender:clean(queryParams.sender||process.env.GRAPH_MAIL_SYNC_SENDER||DEFAULT_SENDER),
+  subjectContains:clean(queryParams.subjectContains||process.env.GRAPH_MAIL_SYNC_SUBJECT_CONTAINS||DEFAULT_SUBJECT),
+  folder:clean(queryParams.folder||process.env.GRAPH_MAIL_SYNC_FOLDER||DEFAULT_FOLDER)||DEFAULT_FOLDER
+ };
 }
 
 function parseSince(input){
@@ -35,7 +46,7 @@ async function invokeBrokerWebhook(payload){
  return {statusCode:response.statusCode||200,body};
 }
 
-function buildFilter({since,subjectContains='confirmation',sender='xxxx@gotandt.com'}){
+function buildFilter({since,subjectContains=DEFAULT_SUBJECT,sender=DEFAULT_SENDER}){
  const safeSince=since;
  const normalizedSender=clean(sender).toLowerCase();
  const hasSender=normalizedSender && normalizedSender!=='*' && normalizedSender!=='any' && normalizedSender!=='all';
@@ -43,8 +54,8 @@ function buildFilter({since,subjectContains='confirmation',sender='xxxx@gotandt.
  return `receivedDateTime ge ${safeSince} and contains(subject,'${String(subjectContains).replace(/'/g,"''")}')${senderClause} and hasAttachments eq true`;
 }
 
-async function processMessage(message){
- const attachments=await getMessageAttachments({messageId:message.id,folder:'Inbox'}).catch(()=>[]);
+async function processMessage(message,folder=DEFAULT_FOLDER){
+ const attachments=await getMessageAttachments({messageId:message.id,folder}).catch(()=>[]);
  let brokerAttachments=attachments.filter(isFileAttachment).map(toBrokerAttachment).filter((att)=>att.content);
  if(!brokerAttachments.length&&message?.id){
   try{
@@ -84,13 +95,15 @@ exports.handler=async(event)=>{
  try{
   requireGraphConfig();
   const method=event.httpMethod||'GET';
-    const syncState=await getSyncState();
-    const since=parseSince(event.queryStringParameters?.since||event.queryStringParameters?.start||syncState.since||DEFAULT_SINCE);
+  const queryParams=event.queryStringParameters||{};
+  const config=syncConfig(queryParams);
+  const syncState=await getSyncState();
+  const since=parseSince(queryParams.since||queryParams.start||syncState.since||process.env.GRAPH_MAIL_SYNC_SINCE||DEFAULT_SINCE);
   if(method!=='GET'&&method!=='POST'){
    return jsonResponse(405,{error:'Method not allowed'});
   }
-  const filter=buildFilter({since,subjectContains:event.queryStringParameters?.subjectContains||'confirmation',sender:event.queryStringParameters?.sender||'xxxx@gotandt.com'});
-  let page=await listMessages({since,folder:'Inbox',top:Number(event.queryStringParameters?.top||50),filter});
+  const filter=buildFilter({since,subjectContains:config.subjectContains,sender:config.sender});
+  let page=await listMessages({since,folder:config.folder,top:Number(queryParams.top||50),filter});
   const results=[];
   let newestSince=since;
   let total=0;
@@ -101,7 +114,7 @@ exports.handler=async(event)=>{
      newestSince=message.receivedDateTime;
     }
     try{
-     results.push(await processMessage(message));
+     results.push(await processMessage(message,config.folder));
     }catch(error){
      results.push({status:'failed',error:error.message,messageId:message.internetMessageId||message.id});
     }
@@ -109,10 +122,15 @@ exports.handler=async(event)=>{
    if(!page['@odata.nextLink'])break;
     page=await graphFetchUrl(page['@odata.nextLink']);
   }
-  await setSyncState({since:newestSince,updatedAt:new Date().toISOString()});
-  return jsonResponse(200,{since,processed:results.length,totalMessages:total,latestSince:newestSince,results});
+  const failed=results.filter((result)=>result?.status==='failed'||Number(result?.statusCode||200)>=400);
+  const savedSince=failed.length?since:newestSince;
+  await setSyncState({since:savedSince,updatedAt:new Date().toISOString(),lastFailureCount:failed.length});
+  return jsonResponse(200,{since,processed:results.length,totalMessages:total,latestSince:newestSince,savedSince,failed:failed.length,results});
  }catch(error){
   console.error('[GRAPH_MAIL_SYNC]',error.message);
   return jsonResponse(500,{error:error.message});
  }
 };
+
+exports.buildFilter=buildFilter;
+exports.syncConfig=syncConfig;

@@ -7,7 +7,7 @@ const pool=new Client({connectionString:process.env.DATABASE_URL});
 let connected=false;
 let auditSchemaCache=null;
 
-const FORWARD_FROM='xxxx@gotandt.com';
+const FORWARD_FROM=String(process.env.GRAPH_MAIL_SYNC_SENDER||'driverdeveloper@gotandt.com').trim().toLowerCase();
 const FORWARD_TO_MATCH='fletcher@nexusmt.com';
 const FORWARD_TO='jubilee@nexusmt.com';
 const DRIVER_PAY_RATES={ambulatory:20,wheelchair:25,stretcher:30,ambulance:40};
