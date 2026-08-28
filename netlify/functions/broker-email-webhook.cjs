@@ -1311,21 +1311,26 @@ async function notifyTeamsForBrokerReview({request,booking,parsed,platformRate,b
 
 async function hasNotificationLog({requestId,messageId,channel}){
  if(!requestId||!messageId||!channel)return false;
- const logs=await query(`SELECT details FROM audit_log WHERE entity_type=$1 AND entity_id=$2 AND action=$3 ORDER BY created_at DESC LIMIT 50`,[
-  'BROKER_REQUEST',
-  String(requestId),
-  'NOTIFICATION_SENT'
+ const result=await query(`SELECT 1 FROM broker_notification_log WHERE broker_request_id=$1 AND source_message_id=$2 AND channel=$3 AND status='sent' LIMIT 1`,[
+  requestId,
+  String(messageId),
+  String(channel)
  ]).catch(()=>({rows:[]}));
- for(const row of logs.rows||[]){
-  const details=safeJsonParse(row?.details);
-  if(!details)continue;
-  if(String(details.channel||'')===String(channel)&&String(details.messageId||'')===String(messageId))return true;
- }
- return false;
+ return Boolean(result.rows?.length);
 }
 
 async function auditNotification({requestId,channel,messageId,status,error}){
  if(!requestId||!channel)return;
+ await query(`INSERT INTO broker_notification_log(broker_request_id,source_message_id,channel,status,error_message,updated_at)
+  VALUES($1,$2,$3,$4,$5,now())
+  ON CONFLICT(broker_request_id,source_message_id,channel)
+  DO UPDATE SET status=EXCLUDED.status,error_message=EXCLUDED.error_message,updated_at=now()`,[
+  requestId,
+  String(messageId||''),
+  String(channel),
+  String(status||'failed'),
+  error?clean(error,500):null
+ ]).catch((ledgerError)=>console.error('[BROKER_NOTIFICATION_LEDGER]',ledgerError.message));
  await writeAuditLog({
   entityType:'BROKER_REQUEST',
   entityId:String(requestId),

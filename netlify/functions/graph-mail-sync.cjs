@@ -50,7 +50,11 @@ function buildFilter({since,subjectContains=DEFAULT_SUBJECT,sender=DEFAULT_SENDE
  const safeSince=since;
  const normalizedSender=clean(sender).toLowerCase();
  const hasSender=normalizedSender && normalizedSender!=='*' && normalizedSender!=='any' && normalizedSender!=='all';
- const senderClause=hasSender?` and from/emailAddress/address eq '${String(normalizedSender).replace(/'/g,"''")}'`:'';
+ const senderDomain=normalizedSender.match(/^\*?(@[a-z0-9.-]+)$/i)?.[1]||'';
+ const escapedSender=String(normalizedSender).replace(/'/g,"''");
+ const senderClause=!hasSender?'':senderDomain
+  ?` and endswith(from/emailAddress/address,'${senderDomain.replace(/'/g,"''")}')`
+  :` and from/emailAddress/address eq '${escapedSender}'`;
  return `receivedDateTime ge ${safeSince} and contains(subject,'${String(subjectContains).replace(/'/g,"''")}')${senderClause} and hasAttachments eq true`;
 }
 

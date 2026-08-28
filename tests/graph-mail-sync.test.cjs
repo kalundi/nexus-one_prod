@@ -27,6 +27,12 @@ test('buildFilter uses the real broker sender by default', () => {
   assert.match(filter, /hasAttachments eq true/);
 });
 
+test('buildFilter supports a broker-domain sender restriction', () => {
+  const filter = buildFilter({ since: '2026-08-26T04:00:00.000Z', sender: '*@gotandt.com' });
+  assert.match(filter, /endswith\(from\/emailAddress\/address,'@gotandt\.com'\)/);
+  assert.doesNotMatch(filter, /from\/emailAddress\/address eq/);
+});
+
 test('broker pickup time is combined with its trip date for timestamptz columns', () => {
   assert.equal(buildPickupTimestamp('2026-08-26', '10:35 AM'), '2026-08-26 10:35:00');
   assert.equal(buildPickupTimestamp('2026-08-26', '10:35:00'), '2026-08-26 10:35:00');
