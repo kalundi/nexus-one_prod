@@ -6,6 +6,7 @@ const pdfParse=require('pdf-parse');
 const pool=new Client({connectionString:process.env.DATABASE_URL});
 let connected=false;
 let auditSchemaCache=null;
+let notificationLedgerReady=null;
 
 const FORWARD_FROM=String(process.env.GRAPH_MAIL_SYNC_SENDER||'driverdeveloper@gotandt.com').trim().toLowerCase();
 const FORWARD_TO_MATCH='fletcher@nexusmt.com';
@@ -22,6 +23,35 @@ async function ensureConnection(){
 async function query(sql,params){
  await ensureConnection();
  return pool.query(sql,params);
+}
+
+async function ensureNotificationLedger(){
+ if(!notificationLedgerReady){
+  notificationLedgerReady=(async()=>{
+   await query(`CREATE TABLE IF NOT EXISTS broker_notification_log (
+    id bigserial PRIMARY KEY,
+    broker_request_id bigint NOT NULL REFERENCES broker_requests(id) ON DELETE CASCADE,
+    source_message_id text NOT NULL,
+    channel text NOT NULL,
+    status text NOT NULL,
+    error_message text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (broker_request_id,source_message_id,channel)
+   )`);
+   await query(`CREATE INDEX IF NOT EXISTS idx_broker_notification_log_message ON broker_notification_log(source_message_id,channel,status)`);
+   await query(`INSERT INTO broker_notification_log(broker_request_id,source_message_id,channel,status)
+    SELECT id,source_message_id,channel,'sent'
+    FROM broker_requests
+    CROSS JOIN (VALUES ('BROKER_CONFIRMATION_EMAIL'),('TEAMS_REVIEW')) AS channels(channel)
+    WHERE source_message_id IS NOT NULL
+    ON CONFLICT(broker_request_id,source_message_id,channel) DO NOTHING`);
+  })().catch((error)=>{
+   notificationLedgerReady=null;
+   throw error;
+  });
+ }
+ return notificationLedgerReady;
 }
 
 async function detectAuditSchema(){
@@ -1311,6 +1341,7 @@ async function notifyTeamsForBrokerReview({request,booking,parsed,platformRate,b
 
 async function hasNotificationLog({requestId,messageId,channel}){
  if(!requestId||!messageId||!channel)return false;
+ await ensureNotificationLedger();
  const result=await query(`SELECT 1 FROM broker_notification_log WHERE broker_request_id=$1 AND source_message_id=$2 AND channel=$3 AND status='sent' LIMIT 1`,[
   requestId,
   String(messageId),
@@ -1321,6 +1352,7 @@ async function hasNotificationLog({requestId,messageId,channel}){
 
 async function auditNotification({requestId,channel,messageId,status,error}){
  if(!requestId||!channel)return;
+ await ensureNotificationLedger();
  await query(`INSERT INTO broker_notification_log(broker_request_id,source_message_id,channel,status,error_message,updated_at)
   VALUES($1,$2,$3,$4,$5,now())
   ON CONFLICT(broker_request_id,source_message_id,channel)
