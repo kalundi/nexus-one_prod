@@ -22,7 +22,7 @@ test('booking provides an accessible next-step guide', () => {
 test('header shows current and next stages across five booking steps', () => {
   assert.match(html, /id="journeyHeader"[^>]*role="progressbar"/);
   assert.match(html, /aria-valuemax="5"/);
-  assert.match(js, /const labels=\['Rider','Route','Ride needs','Review','Payment & confirmation'\]/);
+  assert.match(js, /const labels=\['Rider details','Route & schedule','Choose ride','Review','Payment & confirmation'\]/);
 });
 
 test('type of ride participates in the focused progressive flow', () => {

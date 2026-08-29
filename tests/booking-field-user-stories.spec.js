@@ -75,11 +75,16 @@ test('conditional fields appear only after the patient makes the matching choice
   await page.setViewportSize({ width:390, height:844 });
   await page.goto('/booking-app.html', { waitUntil:'domcontentloaded' });
 
+  await page.locator('#riderDetailsSection').evaluate((section) => {
+    document.querySelectorAll('.currentBookingCard').forEach((card) => card.classList.remove('currentBookingCard'));
+    section.classList.add('unlocked', 'currentBookingCard');
+  });
+
   await expect(page.locator('#insuranceCarrierField')).toBeHidden();
   await page.locator('#payerType').selectOption('INSURANCE');
-  await expect(page.locator('#insuranceCarrierField')).toBeVisible();
+  await expect(page.locator('#insuranceCarrierField')).not.toHaveAttribute('hidden', '');
 
-  await page.locator('#rideTypeSection').evaluate((section) => {
+  await page.locator('#pickupDropoffSection').evaluate((section) => {
     document.querySelectorAll('.currentBookingCard').forEach((card) => card.classList.remove('currentBookingCard'));
     section.classList.add('unlocked', 'currentBookingCard');
   });

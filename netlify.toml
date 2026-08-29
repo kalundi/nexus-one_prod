@@ -17,6 +17,27 @@
 [functions.api]
   included_files = ["netlify/functions/_private-documents/**"]
 
+# Preview contexts simulate bookings and payments and skip database setup tasks.
+[context.deploy-preview]
+  command = "node scripts/build-static.mjs"
+  publish = "dist-preview"
+
+[context.deploy-preview.environment]
+  NEXUS_TEST_MODE = "true"
+  APP_ENV = "test"
+  ALLOW_FALLBACK_AUTH = "true"
+  NEXUS_BUILD_DIR = "dist-preview"
+
+[context.branch-deploy]
+  command = "node scripts/build-static.mjs"
+  publish = "dist-preview"
+
+[context.branch-deploy.environment]
+  NEXUS_TEST_MODE = "true"
+  APP_ENV = "test"
+  ALLOW_FALLBACK_AUTH = "true"
+  NEXUS_BUILD_DIR = "dist-preview"
+
 # Scheduled function: send ride reminders (2-hour windows and recurring checks)
 [functions.ride-reminders]
   schedule = "*/15 * * * *"

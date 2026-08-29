@@ -3,9 +3,12 @@ const { test, expect } = require('@playwright/test');
 test('mobile booking schedule does not overlap and optional choices stay compact', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/booking-app.html', { waitUntil: 'domcontentloaded' });
-  await page.locator('#rideTypeSection').evaluate((section) => {
-    section.hidden = false;
+  await page.waitForFunction(()=>Boolean(window.NexusBookingApp));
+  await page.locator('#pickupDropoffSection').evaluate((section) => {
+    document.querySelectorAll('.currentBookingCard').forEach((card) => card.classList.remove('currentBookingCard'));
     section.classList.add('unlocked', 'currentBookingCard');
+    const ride = document.querySelector('#rideTypeSection');
+    ride.classList.add('unlocked', 'currentBookingCard');
     section.classList.remove('progressiveHidden', 'collapsed', 'sectionCollapsed');
   });
 
@@ -20,7 +23,6 @@ test('mobile booking schedule does not overlap and optional choices stay compact
   await expect(page.locator('.accessibilityBar')).not.toHaveAttribute('open', '');
   await expect(page.locator('.secondaryRideOption')).toHaveCount(6);
   await expect(page.locator('.secondaryRideOption').first()).toBeHidden();
-  await page.locator('#serviceCatalogDetails summary').click();
   await page.locator('#toggleMoreRideOptions').click();
   await expect(page.locator('[data-service="bls"]')).toBeVisible();
   await expect(page.locator('#toggleMoreRideOptions')).toHaveAttribute('aria-expanded', 'true');
@@ -29,8 +31,9 @@ test('mobile booking schedule does not overlap and optional choices stay compact
 test('booking schedule expands into columns when a wider webview has room', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
   await page.goto('/booking-app.html', { waitUntil: 'domcontentloaded' });
-  await page.locator('#rideTypeSection').evaluate((section) => {
-    section.hidden = false;
+  await page.waitForFunction(()=>Boolean(window.NexusBookingApp));
+  await page.locator('#pickupDropoffSection').evaluate((section) => {
+    document.querySelectorAll('.currentBookingCard').forEach((card) => card.classList.remove('currentBookingCard'));
     section.classList.add('unlocked', 'currentBookingCard');
     section.classList.remove('progressiveHidden', 'collapsed', 'sectionCollapsed');
   });
@@ -44,31 +47,56 @@ test('booking schedule expands into columns when a wider webview has room', asyn
   expect(timeBox.width).toBeGreaterThan(180);
 });
 
-test('mobile booking opens one screen-filling patient card at a time', async ({ page }) => {
+test('mobile booking confirms the fare before opening payment', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/bookings',async(route)=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({booking:{reference:'BK-WHEELCHAIR-1',estimatedFare:293.70,status:'PENDING_PAYMENT'},clientMessage:'Booking created successfully.',persisted:true,requiresOnlinePayment:true,depositRequired:true})}));
   await page.goto('/booking-app.html', { waitUntil: 'domcontentloaded' });
 
   const riderCard = page.locator('#riderDetailsSection');
+  const routeCard = page.locator('#pickupDropoffSection');
   await expect(riderCard).toBeVisible();
-  await expect(page.locator('#bookingLoginSection')).toBeHidden();
-  await expect(page.locator('#pickupDropoffSection')).toBeHidden();
+  await expect(routeCard).toBeHidden();
+  await expect(page.locator('#bookingLoginSection')).toBeVisible();
+  await expect(page.locator('#bookingLoginSection #authActionBtn')).toHaveCount(1);
+  await expect(page.locator('.bottomBar #authActionBtn')).toHaveCount(0);
   await expect(page.locator('#rideTypeSection')).toBeHidden();
   const initialBox = await riderCard.boundingBox();
   expect(initialBox.height).toBeGreaterThanOrEqual(620);
   expect(initialBox.width).toBeLessThanOrEqual(390);
 
-  await page.locator('#name').fill('Mobile Patient');
+  await page.locator('#name').fill('Jamie Patient');
   await page.locator('#phone').fill('(240) 555-0101');
   await page.locator('#confirmRiderBtn').click();
-
-  await expect(page.locator('#pickupDropoffSection')).toBeVisible();
+  await expect(routeCard).toBeVisible();
   await expect(riderCard).toBeHidden();
-  await expect(page.locator('#rideTypeSection')).toBeHidden();
-  const routeBox = await page.locator('#pickupDropoffSection').boundingBox();
-  expect(routeBox.height).toBeGreaterThanOrEqual(620);
+  await page.locator('#pickup').fill('100 Main Street');
+  await page.locator('#destination').fill('200 Medical Center Drive');
+  await page.locator('#tripDate').fill('2030-08-15');
+  await page.locator('#appointmentTime').fill('10:30');
+  await page.locator('#confirmPickupDropoffBtn').click();
+  await expect(page.locator('#confirmPickupDropoffBtn')).toHaveText('Confirm Details', { timeout:30000 });
+  await expect(page.locator('#rideTypeSection')).toBeVisible({ timeout:30000 });
+  await expect(page.locator('#serviceChips')).toHaveClass(/rideMarketplace/);
+  await expect(page.locator('#continueRideBtn')).toHaveText('Book My Ride');
+  await expect(page.locator('#continueRideBtn')).toHaveCSS('position','sticky');
+  await expect(page.locator('#mobilityQuestions')).toBeHidden();
+  await expect(page.locator('#rideTypeSection .estimate')).toBeHidden();
+  await page.locator('[data-service="wheelchair"]').click();
+  await expect(page.locator('#continueRideBtn')).toHaveText('Book My Ride');
+  await expect(page.locator('#continueRideBtn')).toHaveAttribute('aria-label','Book My Ride: Wheelchair');
+  await page.locator('#continueRideBtn').click();
+  await expect(page.locator('#fareConfirmDialog')).toBeVisible({timeout:15000});
+  await expect(page.locator('.journeyStep').nth(3)).toHaveClass(/current/);
+  await page.locator('#fareConfirmAccept').click();
+  await expect(page.locator('#paymentSection')).toBeVisible({timeout:15000});
+  await expect(page.locator('#paymentSummary')).toContainText('BK-WHEELCHAIR-1');
+  await expect(page.locator('#fareSummarySection')).toBeHidden();
+  await expect(page.locator('#fareConfirmDialog')).toBeHidden();
+  await expect(page.locator('body')).toHaveClass(/bookingPaymentMapView/);
+  await expect(page.locator('#paymentSection .paymentActions')).toBeVisible();
 });
 
-test('patient answers plain-language mobility questions instead of choosing industry codes', async ({ page }) => {
+test('Uber ride card keeps the legacy mobility questionnaire hidden', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/booking-app.html', { waitUntil: 'domcontentloaded' });
   await page.locator('#rideTypeSection').evaluate((section) => {
@@ -76,11 +104,9 @@ test('patient answers plain-language mobility questions instead of choosing indu
     section.classList.add('unlocked', 'currentBookingCard');
   });
 
-  await expect(page.locator('#mobilityQuestions')).toBeVisible();
-  await expect(page.locator('#serviceCatalogDetails')).not.toHaveAttribute('open', '');
-  await page.locator('input[name="quickWheelchair"][value="yes"]').check();
+  await expect(page.locator('#mobilityQuestions')).toBeHidden();
+  await page.locator('[data-service="wheelchair"]').click();
   await expect(page.locator('#service')).toHaveValue('wheelchair');
-  await expect(page.locator('#mobilityRecommendation')).toContainText('Wheelchair');
   await expect(page.locator('.bookingHelpCall')).toBeVisible();
   await expect(page.locator('.bookingHelpCall')).toHaveAttribute('href', 'tel:+18886395766');
 });
@@ -121,9 +147,10 @@ test('active Book My Ride state shows only the three patient decision cards', as
   });
 
   await expect(page.locator('#submitBtn')).toBeEnabled();
-  await expect(page.getByRole('heading', { name: 'My Nexus Ride' })).toBeVisible();
+  await expect(page.locator('#telemetryMap')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Distance & ETA' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Review My Ride' })).toBeVisible();
+  await expect(page.locator('#fareSummarySection')).toBeVisible();
+  await expect(page.locator('#reviewFareBtn')).toBeVisible();
   await expect(page.locator('#riderDetailsSection')).toBeHidden();
   await expect(page.locator('#pickupDropoffSection')).toBeHidden();
   await expect(page.locator('#rideTypeSection')).toBeHidden();
@@ -132,6 +159,9 @@ test('active Book My Ride state shows only the three patient decision cards', as
   await page.locator('body').evaluate(body => {
     body.classList.add('showCompletedSections');
     document.getElementById('toggleCompletedSectionsBtn').textContent = 'Hide changes';
+    const rider = document.getElementById('riderDetailsSection');
+    rider.classList.remove('sectionHiddenInFinal');
+    rider.classList.add('unlocked', 'currentBookingCard');
   });
   await expect(page.locator('#riderDetailsSection')).toBeVisible();
   await expect(page.locator('#toggleCompletedSectionsBtn')).toHaveText('Hide changes');

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Test Payment | Nexus Medical Transit</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#eef5f9;color:#08111f;font-family:Arial,sans-serif}.card{width:min(520px,100%);background:#fff;border:1px solid #c8d8e6;border-radius:22px;padding:28px;box-shadow:0 18px 50px rgba(8,29,71,.14)}.badge{display:inline-block;padding:7px 10px;border-radius:999px;background:#fff3cd;color:#5f4500;font-weight:800;font-size:12px}.amount{font-size:40px;font-weight:800;margin:18px 0 4px}.muted{color:#5a6c7b}.details{margin:22px 0;padding:16px;border-radius:14px;background:#f4f8fb;line-height:1.7}.actions{display:grid;gap:10px}.button{display:block;text-align:center;text-decoration:none;border:0;border-radius:12px;padding:15px;background:#08111f;color:#fff;font-weight:800;cursor:pointer}.secondary{background:#e9f0f4;color:#08111f}.success{padding:14px;border-radius:12px;background:#e7f7f1;color:#075e4d;font-weight:700}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <span class="badge">TEST MODE — NO CHARGE</span>
+    <h1>Simulated payment</h1>
+    <p class="muted">This page replaces Stripe or Square in the Netlify test environment.</p>
+    <div class="amount" id="amount">$0.00</div>
+    <div class="details"><strong id="mode">Full payment</strong><br>Booking: <span id="reference">TEST</span><br>Provider: <span id="provider">Stripe</span></div>
+    <div class="actions" id="actions"><button class="button" id="complete">Complete test payment</button><a class="button secondary" href="/booking-app.html?payment=cancelled">Cancel and return</a></div>
+  </main>
+  <script>
+    const q=new URLSearchParams(location.search),ref=q.get('bookingReference')||'TEST',mode=q.get('mode')||'full',cents=Number(q.get('amount')||0),provider=q.get('provider')||'stripe';
+    document.getElementById('amount').textContent=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
+    document.getElementById('reference').textContent=ref;document.getElementById('mode').textContent=mode==='deposit'?'25% deposit':'Full payment';document.getElementById('provider').textContent=provider[0].toUpperCase()+provider.slice(1);
+    document.getElementById('complete').addEventListener('click',()=>{document.getElementById('actions').innerHTML='<div class="success">Test payment completed. No card was charged.</div><a class="button" href="/booking-app.html?payment=success&testMode=1&bookingReference='+encodeURIComponent(ref)+'">Return to booking app</a>'});
+  </script>
+</body>
+</html>

@@ -25,6 +25,7 @@ const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_APPROVAL:
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
 const clean=v=>String(v??'').trim();
+const isTestMode=()=>String(process.env.NEXUS_TEST_MODE||'').toLowerCase()==='true';
 let multiRoleSchemaPromise=null;
 function ensureMultiRoleSchema(){
  if(multiRoleSchemaPromise)return multiRoleSchemaPromise;
@@ -1386,7 +1387,8 @@ async function createStripeIntent(amountCents,metadata){
  const data=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(data.error?.message||'Stripe request failed'),{statusCode:502});return data;
 }
 function siteBase(){
- return String(process.env.SITE_URL||process.env.URL||process.env.DEPLOY_PRIME_URL||'https://nexusmt.com').replace(/\/$/,'');
+ const previewBase=process.env.DEPLOY_PRIME_URL||process.env.DEPLOY_URL;
+ return String((isTestMode()&&previewBase)||process.env.SITE_URL||process.env.URL||previewBase||'https://nexusmt.com').replace(/\/$/,'');
 }
 function xmlEscape(value){
  return String(value??'')
@@ -1860,6 +1862,36 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(isTestMode()){
+   const route=p.join('/');
+   if(route==='integrations/config'&&method==='GET')return json(200,{build:'test',testMode:true,googleMapsEnabled:false,googleMapsBrowserKey:'',stripeEnabled:true,stripePublishableKey:'',squareEnabled:false});
+   if(route==='integrations/health'&&method==='GET')return json(200,{testMode:true,googleMaps:'simulated',twilio:'disabled',sendGrid:'disabled',stripe:'simulated',square:'disabled',gps:'simulated',checkedAt:new Date().toISOString()});
+   if(route==='locations/search'&&method==='GET'){
+    const q=clean(event.queryStringParameters?.q);
+    return json(200,{locations:q.length<2?[]:[{id:`test-${crypto.createHash('sha1').update(q).digest('hex').slice(0,8)}`,name:q,address:q,type:'test'}]});
+   }
+   if(p[0]==='booking-drafts'&&method==='POST')return json(202,{saved:true,testMode:true,reminderInMinutes:0});
+   if(p[0]==='bookings'&&method==='POST'&&p.length===1){
+    const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
+    const ref=`TEST-${Date.now().toString(36).toUpperCase()}-${crypto.randomInt(100,999)}`;
+    return json(201,{testMode:true,persisted:false,booking:{reference:ref,name:clean(b.name),service:clean(b.service),pickup:clean(b.pickup),destination:clean(b.destination),date:clean(b.date),time:clean(b.time),estimatedFare:Number(b.estimatedFare||0),status:'PENDING_PAYMENT'},requiresOnlinePayment:true,depositRequired:true,clientMessage:`Test booking created. Reference: ${ref}. No live booking was saved.`});
+   }
+   if(p[0]==='bookings'&&p[1]&&p[2]==='update'&&method==='POST'){
+    const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
+    return json(200,{testMode:true,persisted:false,booking:{reference:decodeURIComponent(p[1]),name:clean(b.name),service:clean(b.service),pickup:clean(b.pickup),destination:clean(b.destination),date:clean(b.date),time:clean(b.time),estimatedFare:Number(b.estimatedFare||0),status:'PENDING_PAYMENT'},requiresOnlinePayment:true,depositRequired:true,clientMessage:`Test booking ${decodeURIComponent(p[1])} updated. No live booking was changed.`});
+   }
+   if((route==='payments/stripe/checkout'||route==='payments/square/checkout')&&method==='POST'){
+    const b=parseBody(event);required(b,['bookingReference']);
+    const provider=route.includes('/square/')?'square':'stripe';
+    const paymentMode=['deposit','full'].includes(b.paymentMode)?b.paymentMode:'full';
+    const amount=Math.max(0,Number(b.amount||0));
+    const chargeAmount=paymentMode==='deposit'?Math.round(amount*.25*100):Math.round(amount*100);
+    const requestHost=clean(event.headers?.host||event.headers?.Host);
+    const testBase=requestHost?`https://${requestHost}`:siteBase();
+    const url=`${testBase}/test-payment.html?provider=${provider}&mode=${paymentMode}&bookingReference=${encodeURIComponent(clean(b.bookingReference))}&amount=${chargeAmount}`;
+    return json(200,{testMode:true,provider,url,sessionId:`test_${crypto.randomUUID()}`,amount:chargeAmount,paymentMode});
+   }
+  }
   if(p[0]==='careers'&&p[1]==='applications'&&method==='POST'){
    const b=parseBody(event);required(b,['firstName','lastName','email','phone','city','state','position','employmentPreference','experienceYears','interest']);
    if(clean(b.botField))return json(202,{received:true});
@@ -2883,6 +2915,20 @@ async function handler(event){
    u.role='PATIENT';u.scope_id=null;u.available_roles=['PATIENT'];
    await audit('USER',String(u.id),'ACCOUNT_REGISTERED',{requestedRole,status:requestedRole==='PATIENT'?'APPROVED':'PENDING'});
    return json(201,{token,user:safeUser(u),roleRequest:requestedRole==='PATIENT'?null:{role:requestedRole,status:'PENDING'},message:requestedRole==='PATIENT'?'Your patient account is ready.':`Your ${requestedRole.toLowerCase()} access request is awaiting administrator verification. Patient access is available now.`});
+  }
+  if(p[0]==='bookings'&&p[1]&&p[2]==='update'&&method==='POST'){
+   const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
+   const ref=decodeURIComponent(p[1]);
+   const phoneDigits=normalizeE164(b.phone);if(!phoneDigits)return json(400,{error:'Enter the phone number used for this booking'});
+   const found=await query(`SELECT * FROM bookings WHERE reference=$1 AND regexp_replace(phone,'\\D','','g')=regexp_replace($2,'\\D','','g')`,[ref,phoneDigits]);
+   if(!found.rows[0])return json(404,{error:'Booking not found or phone number does not match'});
+   if(!['PENDING_PAYMENT','PENDING_APPROVAL','SUBMITTED','REQUESTED','SCHEDULED'].includes(clean(found.rows[0].status).toUpperCase()))return json(409,{error:'This trip can no longer be changed online. Please call dispatch.'});
+   if(found.rows[0].driver_name||found.rows[0].driver_scope_id)return json(409,{error:'A driver is already assigned. Please call dispatch to change this trip.'});
+   const fare=Math.max(0,Number(b.estimatedFare||0));
+   const updated=await query(`UPDATE bookings SET name=$2,email=$3,service=$4,pickup=$5,destination=$6,trip_date=$7,trip_time=$8,notes=$9,distance_miles=$10,estimated_duration=$11,estimated_fare=$12,deposit_amount=CASE WHEN requires_deposit THEN $12*.25 ELSE deposit_amount END,balance_due=CASE WHEN requires_deposit THEN $12*.75 ELSE $12 END,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,clean(b.name),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,clean(b.time),upsertAppointmentNote(clean(b.notes),clean(b.appointmentTime)),b.distanceMiles||null,clean(b.estimatedDuration)||null,fare]);
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),'Rider updated booking details','PASSENGER']);
+   await audit('BOOKING',ref,'RIDER_UPDATED',{service:b.service,date:b.date,time:b.time});
+   return json(200,{booking:mapBooking(updated.rows[0]),requiresOnlinePayment:Boolean(updated.rows[0].requires_deposit),depositRequired:Boolean(updated.rows[0].requires_deposit),clientMessage:`Booking ${ref} updated. Review the new details and complete payment.`});
   }
   if(p[0]==='auth'&&p[1]==='switch-role'&&method==='POST'){
    await ensureMultiRoleSchema();

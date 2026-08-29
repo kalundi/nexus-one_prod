@@ -6,6 +6,8 @@ node_modules/
 
 # Build artifacts
 dist/
+dist-preview/
+dist-production/
 
 # Local environment/secrets
 .env

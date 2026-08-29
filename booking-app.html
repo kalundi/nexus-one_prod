@@ -43,6 +43,7 @@
     }
     *{box-sizing:border-box}
     [hidden]{display:none !important}
+    .srOnly{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
     body{
       margin:0;
       font-family:'Nunito Sans',system-ui,sans-serif;
@@ -299,6 +300,61 @@
     .serviceCardIcon{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#e7f5fb;color:#075985;font-size:23px}
     .serviceCardCopy{display:grid;gap:3px}.serviceCardName{font:800 var(--text-md)/1.2 Sora,sans-serif}.serviceCardDescription{font:600 var(--text-sm)/1.4 'Nunito Sans',sans-serif;color:#476476}.serviceCardBest{font:800 var(--text-xs)/1.35 Sora,sans-serif;color:#0a6b99}
     .serviceSelectedMark{position:absolute;right:10px;top:10px;border-radius:999px;padding:3px 7px;background:#7f1010;color:#fff;font:800 10px Sora,sans-serif;opacity:0}.serviceCard.active .serviceSelectedMark{opacity:1}
+    .serviceChips.rideMarketplace{display:grid;grid-template-columns:1fr;gap:0;border:1px solid #d8e1e8;border-radius:16px;overflow:hidden;background:#fff}
+    .rideMarketplace .serviceCard{grid-template-columns:52px minmax(0,1fr) auto;min-height:88px;border:0;border-radius:0;padding:13px 12px;background:#fff;box-shadow:none}
+    .rideMarketplace .serviceCard+.serviceCard{border-top:1px solid #e5e9ed}
+    .rideMarketplace .serviceCard.active{z-index:1;border:2px solid #111827;border-radius:14px;background:#fff;padding:11px 10px;box-shadow:0 7px 18px rgba(15,23,42,.1)}
+    .rideMarketplace .serviceCardDescription{display:none}.rideMarketplace .serviceCardBest{color:#597083;font-weight:700}
+    .serviceCardMarketMeta{align-self:center;display:grid;gap:4px;text-align:right;min-width:76px}.serviceCardEta{font:800 11px/1.2 Sora,sans-serif;color:#42596b}.serviceCardFare{font:900 15px/1.2 Sora,sans-serif;color:#102f43}.serviceCardFare.review{font-size:11px;color:#8a5a00}
+    .rideMarketplace .serviceSelectedMark{display:none}.rideMarketplaceIntro{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:0 0 10px}.rideMarketplaceIntro h2{margin:0}.rideMarketplaceIntro span{font:800 11px Sora,sans-serif;color:#0a6b99}
+    .chooseRideBtn{position:sticky;bottom:128px;z-index:30;width:100%;margin-top:12px;background:#101214!important;color:#fff!important;box-shadow:0 12px 25px rgba(0,0,0,.2)!important}
+    body.bookingUberFlow #telemetrySection .telemetrySpotlight,body.bookingUberFlow #telemetrySection .telemetryControls,body.bookingUberFlow #telemetrySection .telemetryList,body.bookingUberFlow #telemetrySection>h2{display:none!important}
+    body.bookingUberFlow #telemetrySection{padding:0;border:0;background:transparent;box-shadow:none}
+    body.bookingUberFlow #telemetrySection .telemetryMap{min-height:250px;border-radius:0;border-left:0;border-right:0}
+    body.bookingUberFlow .rideGuidancePrompt,body.bookingUberFlow #mobilityQuestions,body.bookingUberFlow #mobilityRecommendation{display:none}
+    body.bookingUberFlow #rideTypeSection .estimate,body.bookingUberFlow #rateSourceLabel,body.bookingUberFlow #memberDiscountNote{display:none}
+    body.bookingUberFlow #serviceCatalogDetails>summary{display:none}
+    body.bookingUberFlow #serviceCatalogDetails{display:block;margin-top:0}
+    .rideSheetToggle{width:42px;height:34px;padding:0;display:grid;place-items:center;border:0;background:#eef2f5;color:#102f43;border-radius:999px;font-size:20px;line-height:1}
+    .rideSheetToggle::before{content:'⌄'}
+    .rideContextBar{display:flex;gap:8px;margin:0 0 10px}.rideContextPill{min-height:36px;padding:8px 11px;border:1px solid #d8e1e8;border-radius:999px;background:#f4f6f8;color:#102f43;font:800 11px/1.2 Sora,sans-serif;display:flex;align-items:center;gap:7px}.rideContextPill svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    body.bookingRideMarketplaceView .phone,body.bookingReviewMapView .phone,body.bookingPaymentMapView .phone{padding-bottom:84px;background:transparent!important;border-color:transparent!important;box-shadow:none!important}
+    body.bookingRideMarketplaceView #telemetrySection,body.bookingReviewMapView #telemetrySection,body.bookingPaymentMapView #telemetrySection{position:fixed;top:var(--booking-map-top,140px);right:0;bottom:var(--booking-map-bottom,64px);left:0;z-index:8;width:min(780px,calc(100% - 40px));margin:auto!important;display:block!important;background:#dbe7eb!important;border-top:0!important;border-radius:0!important;overflow:hidden;isolation:isolate;transition:height .2s ease,bottom .2s ease}
+    body.bookingRideMarketplaceView #telemetrySection .telemetryMap,body.bookingReviewMapView #telemetrySection .telemetryMap,body.bookingPaymentMapView #telemetrySection .telemetryMap{height:100%;min-height:100%;border-radius:0}
+    body.bookingRideMarketplaceView .telemetryFallbackMap,body.bookingReviewMapView .telemetryFallbackMap,body.bookingPaymentMapView .telemetryFallbackMap{height:100%;min-height:100%}
+    body.bookingRideMarketplaceView .telemetryFallbackMap svg,body.bookingReviewMapView .telemetryFallbackMap svg,body.bookingPaymentMapView .telemetryFallbackMap svg{height:100%;min-height:100%}
+    body.bookingRideMarketplaceView #rideTypeSection{position:fixed;left:50%;bottom:64px;z-index:45;width:min(820px,100%);min-height:0!important;max-height:min(56dvh,540px);margin:0;overflow:auto;scrollbar-width:none;transform:translateX(-50%);border-radius:22px 22px 0 0;box-shadow:0 -12px 32px rgba(8,26,44,.24);transition:max-height .25s ease}
+    body.bookingRideMarketplaceView #rideTypeSection::-webkit-scrollbar{display:none}
+    body.bookingRideMarketplaceView #rideTypeSection{padding-bottom:12px}
+    body.bookingRideMarketplaceView #continueRideBtn{position:sticky;left:auto;bottom:0;z-index:4;width:100%;height:56px;margin:12px 0 0;transform:none;border-radius:12px}
+    body:not(.bookingRideMarketplaceView) #continueRideBtn{display:none!important}
+    .rideSheetHandle{display:block;width:64px;height:20px;margin:-6px auto 4px;padding:0;border:0;background:transparent;position:relative}.rideSheetHandle::before{content:'';position:absolute;left:11px;right:11px;top:7px;height:5px;border-radius:999px;background:#aebbc4}.rideSheetHandle:focus-visible{outline:3px solid rgba(8,127,140,.28);outline-offset:1px}
+    body.bookingRideMarketplaceView.rideSheetCollapsed #rideTypeSection{height:30px;max-height:30px;padding:5px 0 0;overflow:hidden;border-radius:16px 16px 0 0}
+    body.bookingRideMarketplaceView.rideSheetCollapsed #rideTypeSection>:not(.rideSheetHandle){display:none!important}
+    body.bookingRideMarketplaceView.rideSheetCollapsed #continueRideBtn{display:none!important}
+    body.bookingRideMarketplaceView.rideSheetCollapsed .rideSheetToggle::before{content:'⌃'}
+    body.bookingRideMarketplaceView.rideSheetCollapsed .rideMarketplaceIntro{margin-bottom:0}
+    body.bookingReviewMapView #fareSummarySection{position:fixed;left:50%;bottom:70px;z-index:45;width:min(820px,100%);min-height:0!important;max-height:min(62dvh,590px);margin:0;overflow:auto;transform:translateX(-50%);border-radius:22px 22px 0 0;box-shadow:0 -12px 32px rgba(8,26,44,.24)}
+    body.bookingReviewMapView #fareSummarySection::before{content:'';display:block;width:42px;height:5px;margin:0 auto 10px;border-radius:999px;background:#c8d0d6}
+    body.bookingPaymentMapView #paymentSection{position:fixed;top:var(--booking-sheet-top,auto);left:50%;bottom:auto;z-index:45;display:block!important;width:min(780px,calc(100% - 40px));min-height:0!important;max-height:calc(100dvh - var(--booking-sheet-top,50dvh) - 64px);margin:0;overflow:auto;transform:translateX(-50%);border-radius:22px 22px 0 0;box-shadow:0 -12px 32px rgba(8,26,44,.24);transition:top .2s ease,max-height .2s ease;background:#fff!important}
+    body.bookingPaymentMapView #telemetrySection{bottom:auto;height:var(--booking-map-height,420px);max-height:calc(100dvh - var(--booking-map-top,140px) - 180px)}
+    body.bookingPaymentMapView #fareSummarySection{display:none!important}
+    body.bookingPaymentMapView.paymentSheetCollapsed #paymentSection{height:30px;max-height:30px;padding:5px 0 0;overflow:hidden}
+    body.bookingPaymentMapView.paymentSheetCollapsed #paymentSection>:not(.paymentSheetHandle){display:none!important}
+    .paymentSheetHandle{display:block;width:64px;height:20px;margin:-6px auto 4px;padding:0;border:0;background:transparent;position:relative}.paymentSheetHandle::before{content:'';position:absolute;left:11px;right:11px;top:7px;height:5px;border-radius:999px;background:#aebbc4}
+    body.bookingRideMarketplaceView #nextStepGuide,body.bookingReviewMapView #nextStepGuide,body.bookingPaymentMapView #nextStepGuide,body.bookingRideMarketplaceView .bottomBar,body.bookingReviewMapView .bottomBar,body.bookingPaymentMapView .bottomBar{display:none!important}
+    body.bookingRideMarketplaceView .bookingHelpCall{display:none!important}
+    body.bookingRideMarketplaceView .telemetryFallbackOverlay,body.bookingReviewMapView .telemetryFallbackOverlay,body.bookingPaymentMapView .telemetryFallbackOverlay{display:none!important}
+    body.bookingRideMarketplaceView .appTabBar,body.bookingReviewMapView .appTabBar{position:fixed;left:50%;right:auto;bottom:0;z-index:80;width:min(780px,calc(100% - 40px));height:64px;transform:translateX(-50%);border-radius:0}
+    body.bookingPaymentMapView .appTabBar{position:fixed;top:var(--booking-tabs-top,calc(100dvh - 64px));left:50%;right:auto;bottom:auto;z-index:80;width:min(780px,calc(100% - 40px));height:64px;transform:translateX(-50%);border-radius:0;transition:top .2s ease}
+    body.bookingRideMarketplaceView,body.bookingReviewMapView,body.bookingPaymentMapView{overflow:hidden}
+    body.bookingRideMarketplaceView #rideTypeSection,body.bookingReviewMapView #fareSummarySection{bottom:64px;width:min(780px,calc(100% - 40px));border:1px solid #d8e1e8;border-bottom:0;border-radius:22px 22px 0 0;background:#fff;box-shadow:0 -12px 32px rgba(8,26,44,.2)}
+    body.bookingPaymentMapView #paymentSection{border:1px solid #d8e1e8;border-bottom:0;box-shadow:0 -12px 32px rgba(8,26,44,.2)}
+    body.bookingRideMarketplaceView #rideTypeSection,body.bookingReviewMapView #fareSummarySection,body.bookingPaymentMapView #paymentSection{animation:none}
+    body.bookingReviewMapView #fareSummarySection,body.bookingPaymentMapView #paymentSection{max-height:min(54dvh,540px);padding:16px 18px 20px;scrollbar-width:none}
+    body.bookingReviewMapView #fareSummarySection::-webkit-scrollbar,body.bookingPaymentMapView #paymentSection::-webkit-scrollbar{display:none}
+    .fareReviewActions{display:grid;grid-template-columns:minmax(0,1fr) 52px;gap:10px;margin-top:12px}.fareReviewActions .fareConfirmLauncher{margin:0}.scheduleRideIconBtn{width:52px;height:48px;padding:0;display:grid;place-items:center;border:1px solid #bdccd6;border-radius:12px;background:#fff;color:#102f43}.scheduleRideIconBtn svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.scheduleSummary{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#f4f7f9;color:#294d62;font:800 13px/1.4 Sora,sans-serif}
+    @media (max-width:600px){body.bookingRideMarketplaceView #telemetrySection,body.bookingReviewMapView #telemetrySection,body.bookingPaymentMapView #telemetrySection,body.bookingRideMarketplaceView #rideTypeSection,body.bookingReviewMapView #fareSummarySection,body.bookingPaymentMapView #paymentSection,body.bookingRideMarketplaceView .appTabBar,body.bookingReviewMapView .appTabBar,body.bookingPaymentMapView .appTabBar{width:100%}body.bookingRideMarketplaceView #rideTypeSection{max-height:min(58dvh,510px);padding:10px 12px 12px}.rideMarketplaceIntro{align-items:center}.rideMarketplaceIntro h2{font-size:18px}.rideMarketplaceIntro span{font-size:10px}.rideMarketplace .serviceCard{min-height:72px;padding:10px}.rideMarketplace .serviceCard.active{padding:8px}.serviceCardIcon{width:40px;height:40px}.rideContextBar{overflow-x:auto;scrollbar-width:none}.rideContextPill{flex:0 0 auto}.rideSheetToggle{display:none}}
     .rideTypeHeading{display:flex;align-items:center;justify-content:space-between;gap:10px}.rideTypeHeading h2{margin:0}.helpChooseBtn{padding:9px 11px;font-size:12px;white-space:nowrap}
     .accessibilityBar{margin:8px 0;border:1px solid #cfe0ea;border-radius:13px;background:rgba(255,255,255,.72)}.accessibilityBar summary{min-height:42px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;list-style:none;font:800 11px Sora,sans-serif;color:#496273;text-transform:uppercase;letter-spacing:.06em}.accessibilityBar summary::-webkit-details-marker{display:none}.accessibilityBar summary::after{content:'+';font:800 18px/1 Sora,sans-serif;color:#163e55}.accessibilityBar[open] summary::after{content:'−'}.accessibilityControls{display:flex;gap:6px;flex-wrap:wrap;padding:0 10px 10px}.accessibilityControls button{padding:7px 9px;border:1px solid #bfd0dc;background:#fff;color:#163e55;font-size:11px}.accessibilityControls button[aria-pressed="true"]{background:#0b3954;color:#fff;border-color:#0b3954}
     body.accessLargeText{--text-xs:14px;--text-sm:16px;--text-md:18px;--text-lg:22px;font-size:118%}
@@ -530,6 +586,7 @@
     .bookingNudge{position:fixed;left:50%;bottom:150px;z-index:85;width:min(560px,calc(100% - 28px));transform:translateX(-50%);padding:14px;border:1px solid #8fd7ef;border-radius:16px;background:rgba(244,252,255,.97);box-shadow:0 20px 50px rgba(8,47,73,.20);backdrop-filter:blur(14px);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px}.bookingNudge[hidden]{display:none}.bookingNudgeIcon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#0a6b99;color:#fff;font-size:20px}.bookingNudgeCopy strong,.bookingNudgeCopy span{display:block}.bookingNudgeCopy strong{font:800 14px/1.3 Sora,sans-serif;color:#10324a}.bookingNudgeCopy span{margin-top:3px;color:#4f6879;font-size:12px}.bookingNudgeActions{display:flex;align-items:center;gap:6px}.bookingNudgeActions button{padding:8px 10px;font-size:11px}.bookingNudgeDismiss{border:0;background:transparent;color:#52677c;font-size:18px!important;padding:7px!important}@media(max-width:520px){.bookingNudge{grid-template-columns:auto 1fr;bottom:142px}.bookingNudgeActions{grid-column:1/-1;justify-content:flex-end}.bookingNudgeIcon{width:36px;height:36px}}
     body[data-active-tab="manifest"] .bottomBar,body[data-active-tab="contact"] .bottomBar{display:none}
     .inlineBtns{display:flex;justify-content:space-between;gap:8px;align-items:center}
+    .bottomBar .inlineBtns{justify-content:flex-end}
     .inlineBtns .topAuthAction{flex:0 0 auto}
     .inlineBtns .primary{min-width:220px}
     body.bookingFinalView .inlineBtns{display:flex;justify-content:flex-end}
@@ -574,8 +631,9 @@
       .serviceChips{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
     @media (max-width:600px){.journeyHeader{height:40px;padding:4px 7px}.journeyStep{padding:4px 7px}.journeyStepLabel{display:none}.journeyHeader:not(.compact) .journeyStep.current .journeyStepLabel{display:inline}.journeyStepNumber{display:inline}.journeyConnector{max-width:20px}.nextStepGuide{top:44px}.journeyHeader.compact ~ form .nextStepGuide{top:36px}}
+    @media (max-width:700px){body.bookingUberFlow #telemetrySection.unlocked{display:block!important;min-height:0!important;margin:0 -14px 10px}}
     @media (max-width:600px){
-      #bookingLoginSection{display:none}
+      #bookingLoginSection{display:block}
       #bookingForm>.sectionProgressive.unlocked{display:none}
       #bookingForm>.sectionProgressive.currentBookingCard{display:block;min-height:calc(100dvh - 210px)}
       body.showCompletedSections #bookingForm>.sectionProgressive.unlocked{display:block;min-height:0}
@@ -609,6 +667,8 @@
     .journeyStep.complete{border-color:#087f8c;background:#087f8c;color:#fff}
     .journeyConnector{background:#d8e1e8}
     .journeyStepIcon{display:grid;place-items:center}.journeyStepIcon svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+    body.bookingRideMarketplaceView .journeyHeader.compact,body.bookingReviewMapView .journeyHeader.compact,body.bookingPaymentMapView .journeyHeader.compact{height:48px;padding:6px 10px}
+    @media (max-width:600px){body.bookingRideMarketplaceView .journeyHeader.compact,body.bookingReviewMapView .journeyHeader.compact,body.bookingPaymentMapView .journeyHeader.compact{height:40px;padding:4px 7px}}
     .section{border-radius:12px;border-color:#d8e1e8;box-shadow:0 8px 24px rgba(8,26,44,.06);backdrop-filter:none}
     .section:hover{box-shadow:0 10px 28px rgba(8,26,44,.08)}
     .nextStepGuide{border:1px solid #d8e1e8;border-left:4px solid #c92032;border-radius:10px;background:#fff;box-shadow:0 8px 22px rgba(8,26,44,.07)}
@@ -640,7 +700,7 @@
     </header>
     <nav class="journeyHeader" id="journeyHeader" role="progressbar" aria-label="Booking progress" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1">
       <span class="srOnly">Current: <strong id="journeyCurrent">Rider</strong>. Next: <strong id="journeyNext">Route</strong>.</span>
-      <div class="journeySteps" id="journeySegments" aria-hidden="true">
+      <div class="journeySteps" id="journeySegments" aria-label="Booking steps">
         <span class="journeyStep current"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="journeyStepNumber">1</span><span class="journeyStepLabel">Rider</span></span><span class="journeyConnector"></span>
         <span class="journeyStep"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></span><span class="journeyStepNumber">2</span><span class="journeyStepLabel">Route</span></span><span class="journeyConnector"></span>
         <span class="journeyStep"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><circle cx="8" cy="17" r="4"/><circle cx="9" cy="5" r="2"/><path d="M9 8v5h5l3 5M9 11h4"/></svg></span><span class="journeyStepNumber">3</span><span class="journeyStepLabel">Ride</span></span><span class="journeyConnector"></span>
@@ -695,6 +755,7 @@
           </div>
         </div>
         <div class="authActions" style="margin-top:6px">
+          <button type="button" class="topAuthAction" id="authActionBtn">Sign In</button>
           <button type="button" class="authUtilityButton" id="forgotPasswordBtn">Forgot password?</button>
         </div>
         <div class="forgotPasswordPanel" id="forgotPasswordPanel" hidden>
@@ -755,7 +816,7 @@
             <button type="button" class="primary" id="createAccountBtn">Create Account &amp; Save 5%</button>
           </div>
         </div>
-        <small class="subtle" id="loginMessage" style="margin:8px 0 0">Use the Sign In button next to Book My Ride after entering your email and password.</small>
+        <small class="subtle" id="loginMessage" style="margin:8px 0 0">Enter your email and password, then use Sign In above.</small>
         <small class="subtle" style="margin:6px 0 0">Book as a guest anytime, or create your rider account to lock in 5% off every ride.</small>
 
         <div class="manageTripWrap">
@@ -889,8 +950,9 @@ Destination: -</p>
       </section>
 
       <section class="section sectionProgressive" id="rideTypeSection">
-        <div class="rideTypeHeading"><h2>Ride Needs</h2><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">More help</button></div>
-        <p class="subtle">Answer three quick questions. We will recommend the most suitable ride option.</p>
+        <button type="button" class="rideSheetHandle" id="rideSheetHandle" aria-label="Collapse ride choices" aria-expanded="true"></button>
+        <div class="rideMarketplaceIntro"><div><h2>Choose your Nexus ride</h2><span>Live route-based estimate</span></div><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help me choose</button><button type="button" class="rideSheetToggle" id="rideSheetToggle" aria-label="Collapse ride choices" aria-expanded="true"></button></div>
+        <p class="subtle rideGuidancePrompt">Answer three quick questions. We will recommend the most suitable ride option.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
         <div class="mobilityQuestions" id="mobilityQuestions">
           <fieldset class="mobilityQuestion"><legend>Will the rider stay in a wheelchair during the ride?</legend><div class="mobilityAnswers"><label><input type="radio" name="quickWheelchair" value="yes">Yes</label><label><input type="radio" name="quickWheelchair" value="no" checked>No</label></div></fieldset>
@@ -898,8 +960,9 @@ Destination: -</p>
           <fieldset class="mobilityQuestion"><legend>Does the rider need additional space or capacity?</legend><div class="mobilityAnswers"><label><input type="radio" name="quickExtraSpace" value="yes">Yes</label><label><input type="radio" name="quickExtraSpace" value="no" checked>No</label></div></fieldset>
         </div>
         <p class="mobilityRecommendation" id="mobilityRecommendation" aria-live="polite">Recommended: Ambulatory transportation</p>
-        <details class="serviceCatalog" id="serviceCatalogDetails"><summary>Choose a different ride type</summary>
-        <div class="serviceChips" id="serviceChips" role="radiogroup" aria-label="Service type">
+        <div class="rideContextBar"><button type="button" class="rideContextPill" id="rideSchedulePill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><span id="rideSchedulePillText">Scheduled pickup</span></button><button type="button" class="rideContextPill" id="rideRiderPill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span id="rideRiderPillText">For rider</span></button></div>
+        <details class="serviceCatalog" id="serviceCatalogDetails" open><summary>Choose a different ride type</summary>
+        <div class="serviceChips rideMarketplace" id="serviceChips" role="radiogroup" aria-label="Service type">
           <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="4" r="2"/><path d="m10 22 1-7-3-3 2-5 4 3 3 1M11 15l5 7"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span><span class="serviceCardBest">Best for: walking riders</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip secondaryRideOption" type="button" data-service="facility_transfer" hidden>IFT Routine</button>
           <button class="chip secondaryRideOption" type="button" data-service="facility_transfer_critical" hidden>IFT High-Acuity</button>
@@ -914,6 +977,7 @@ Destination: -</p>
         <button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button></details>
         <input id="service" name="service" type="hidden" value="">
 
+        <div id="routeScheduleFields">
         <div class="field" style="margin-top:12px">
           <label for="tripType">Trip schedule</label>
           <select id="tripType" name="tripType"><option value="ONE_WAY">One-way ride</option><option value="ROUND_TRIP">Round trip</option><option value="RECURRING">Recurring rides</option></select>
@@ -946,6 +1010,7 @@ Destination: -</p>
           </div>
         </div>
         <p class="subtle" style="margin-top:0">We calculate a recommended pickup time so the rider can arrive before the appointment.</p>
+        </div>
 
         <div class="estimate" aria-live="polite">
           <div class="line"><b>Distance</b><span id="estMiles">-</span></div>
@@ -957,6 +1022,7 @@ Destination: -</p>
         </div>
         <p class="subtle" id="rateSourceLabel">Your estimate is based on the selected ride, distance, and travel time.</p>
         <p class="memberNote" id="memberDiscountNote">Unlock 5% savings on every ride when you sign in or sign up.</p>
+        <button type="button" class="primary chooseRideBtn" id="continueRideBtn">Book My Ride</button>
       </section>
 
       <section class="section" id="rateSettingsSection" hidden>
@@ -1052,8 +1118,7 @@ Destination: -</p>
       </dialog>
 
       <section class="section sectionProgressive" id="fareSummarySection">
-        <h2>Review My Ride</h2>
-        <div class="reviewDetails" aria-label="Ride details">
+        <div class="reviewDetails" aria-label="Ride details" hidden>
           <div class="reviewLine"><small>Rider</small><strong id="reviewRider">-</strong></div>
           <div class="reviewLine"><small>Route</small><strong id="reviewRoute">-</strong></div>
           <div class="reviewLine"><small>Schedule</small><strong id="reviewSchedule">-</strong></div>
@@ -1064,10 +1129,15 @@ Destination: -</p>
           <div class="subtle" style="margin:0">Fare Estimate</div>
           <div class="fareSummaryAmount" id="fareSummaryAmount">-</div>
         </div>
-        <button type="button" class="primary fareConfirmLauncher" id="reviewFareBtn">Review &amp; Confirm Fare</button>
+        <div class="fareReviewActions"><button type="button" class="primary fareConfirmLauncher" id="reviewFareBtn">Review &amp; Confirm Fare</button><button type="button" class="scheduleRideIconBtn" id="reviewScheduleBtn" aria-label="View scheduled ride date and time"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><circle cx="12" cy="15" r="2"/><path d="M12 13v2l1 1"/></svg></button></div>
       </section>
 
+      <dialog class="guidanceDialog" id="reviewScheduleDialog" aria-labelledby="reviewScheduleTitle">
+        <div class="guidanceBody"><h2 id="reviewScheduleTitle">Scheduled ride</h2><p class="scheduleSummary" id="reviewScheduleSummary">Date and time pending</p><p class="subtle">This booking is scheduled for later. Ride-now service is not available yet.</p><div class="guidanceActions"><button type="button" class="primary" id="editReviewScheduleBtn">Edit schedule</button><button type="button" class="ghost" id="closeReviewScheduleBtn">Close</button></div></div>
+      </dialog>
+
       <section class="section" id="paymentSection" hidden>
+        <button type="button" class="paymentSheetHandle" id="paymentSheetHandle" aria-label="Collapse payment options" aria-expanded="true"></button>
         <h2>Complete Payment</h2>
         <p class="subtle" id="paymentSummary">Choose how you want to pay for this booking.</p>
         <div class="paymentActions">
@@ -1083,7 +1153,6 @@ Destination: -</p>
       <div class="bottomBar">
         <div class="bottomInner">
           <div class="inlineBtns">
-            <button type="button" class="topAuthAction" id="authActionBtn">Sign In</button>
             <button type="submit" class="primary" id="submitBtn" disabled title="Confirm the fare estimate to enable booking">Book My Ride</button>
           </div>
           <div class="bookingOutcome" id="bookingOutcomeStatus" aria-live="polite"></div>
