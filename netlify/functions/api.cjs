@@ -2556,6 +2556,9 @@ async function handler(event){
   const submittedAppointments=Array.isArray(b.appointmentTimes)?b.appointmentTimes:[];
   const appointmentTimes=(submittedAppointments.length?submittedAppointments:[{leg:1,destination:destinations[0]||clean(b.destination),appointmentTime}]).map((item,index)=>({leg:index+1,destination:clean(item?.destination||destinations[index]||''),appointmentTime:normalizeOptionalTripTime(item?.appointmentTime||'')}));
   if(destinations.length>1&&(appointmentTimes.length!==destinations.length||appointmentTimes.some((item)=>!item.appointmentTime)))return json(400,{error:'An appointment time is required for every destination stop.'});
+  const stopWaitMinutes=(Array.isArray(b.stopWaitMinutes)?b.stopWaitMinutes:[]).map((value)=>Math.max(0,Math.min(720,Number(value)||0)));
+  const scheduleFeasibility=b.scheduleFeasibility&&typeof b.scheduleFeasibility==='object'?b.scheduleFeasibility:null;
+  if(destinations.length>1&&scheduleFeasibility?.feasible===false&&!scheduleFeasibility?.pending)return json(400,{error:clean(scheduleFeasibility.message)||'The multi-stop schedule is not feasible for one driver.'});
   const tripType=['ONE_WAY','ROUND_TRIP','RECURRING'].includes(clean(b.tripType).toUpperCase())?clean(b.tripType).toUpperCase():'ONE_WAY';
   const returnTripDate=tripType==='ROUND_TRIP'?normalizeTripDate(b.returnTripDate||''):null;
   const returnTripTime=tripType==='ROUND_TRIP'?normalizeOptionalTripTime(b.returnTripTime||''):null;
@@ -2585,6 +2588,8 @@ async function handler(event){
   const baseNotes=clean(b.notes)||'';
   const metadataNotes=[
    appointmentTimes.length>1?`Stop appointments: ${appointmentTimes.map((item)=>`Stop ${item.leg} (${item.destination}): ${item.appointmentTime}`).join('; ')}`:'',
+   stopWaitMinutes.length?`Expected stop times: ${stopWaitMinutes.map((minutes,index)=>`Stop ${index+1}: ${Math.round(minutes)} min`).join('; ')}`:'',
+   appointmentTimes.length>1&&scheduleFeasibility?.message?`One-driver schedule check: ${clean(scheduleFeasibility.message)}`:'',
    pickupTimeEstimate?`Pickup estimate: ${pickupTimeEstimate}`:'',
     yardAddress?`Yard start: ${yardAddress}`:'',
     Number.isFinite(yardToPickupMinutes)&&yardToPickupMinutes>0?`Yard to pickup estimate: ${Math.round(yardToPickupMinutes)} min`:'',

@@ -70,6 +70,7 @@
   const appointmentTimeLabel = document.querySelector('label[for="appointmentTime"]');
   const legAppointmentTimes = $('legAppointmentTimes');
   const legAppointmentTimesGrid = $('legAppointmentTimesGrid');
+  const scheduleFeasibility = $('scheduleFeasibility');
   const bookingLoginSummary = $('bookingLoginSummary');
   const pickupDropoffSummary = $('pickupDropoffSummary');
   const confirmPickupDropoffBtn = $('confirmPickupDropoffBtn');
@@ -220,6 +221,7 @@
   let customerRoutePolyline = null;
   let customerPickupMarker = null;
   let customerDestinationMarker = null;
+  let customerIntermediateStopMarkers = [];
   let customerRouteBounds = null;
   let isAdminUser = false;
   let currentUserRole = 'CUSTOMER';
@@ -250,6 +252,8 @@
   let activeManagedBooking = null;
   let destinationStopDraftCache = [];
   let legAppointmentTimeDraftCache = [];
+  let stopWaitDraftCache = [];
+  let routeLegTravelMinutes = [];
   const locationSuggestionCache = new Map();
   const routePointCache = new Map();
   let lastTelemetryVehicles = [];
@@ -686,6 +690,54 @@
     return appointments.length > 0 && appointments.every((item) => Boolean(item.appointmentTime));
   }
 
+  function getStopWaitInputs(){
+    return Array.from(legAppointmentTimesGrid?.querySelectorAll('[data-stop-wait-minutes="true"]') || []);
+  }
+
+  function getStopWaitMinutes(){
+    return getStopWaitInputs().map((input) => Math.max(0, Number(input.value || 0)));
+  }
+
+  function serviceTransitionBufferMinutes(){
+    const service = normalizeService($('service')?.value);
+    if(service === 'wheelchair') return 15;
+    if(service === 'stretcher' || service === 'bariatric') return 25;
+    return 10;
+  }
+
+  function evaluateMultiStopFeasibility(){
+    const appointments = getLegAppointments();
+    if(appointments.length < 2) return { feasible: true, checks: [], message: '' };
+    if(!areLegAppointmentTimesComplete()) return { feasible: false, pending: true, checks: [], message: 'Enter an appointment time for every stop.' };
+    if(routeLegTravelMinutes.length < appointments.length) return { feasible: false, pending: true, checks: [], message: 'Calculate the route to check travel time and traffic between stops.' };
+    const waits = getStopWaitMinutes();
+    const assistanceBuffer = serviceTransitionBufferMinutes();
+    const checks = [];
+    for(let index = 0; index < appointments.length - 1; index += 1){
+      const current = parseTimeToMinutes(appointments[index].appointmentTime);
+      const next = parseTimeToMinutes(appointments[index + 1].appointmentTime);
+      const wait = Math.max(0, Number(waits[index] || 0));
+      const travel = Math.max(1, Math.ceil(Number(routeLegTravelMinutes[index + 1] || 0)));
+      const earliestArrival = current + wait + assistanceBuffer + travel;
+      checks.push({ fromLeg: index + 1, toLeg: index + 2, waitMinutes: wait, assistanceBuffer, travelMinutes: travel, earliestArrival, appointmentMinutes: next, cushionMinutes: next - earliestArrival });
+    }
+    const conflicts = checks.filter((check) => check.cushionMinutes < 0);
+    if(conflicts.length){
+      const first = conflicts[0];
+      return { feasible: false, checks, message: `Schedule conflict: Stop ${first.toLeg} is at least ${Math.abs(first.cushionMinutes)} minutes too early for one driver. Allow ${first.waitMinutes} minutes at Stop ${first.fromLeg}, ${first.assistanceBuffer} minutes for rider assistance, and about ${first.travelMinutes} minutes of travel.` };
+    }
+    const tightest = checks.reduce((minimum, check) => Math.min(minimum, check.cushionMinutes), Infinity);
+    return { feasible: true, checks, message: `Schedule appears feasible for one driver, with a minimum ${Math.max(0, Math.floor(tightest))}-minute cushion. Travel, expected stop time, traffic, and rider assistance are included.` };
+  }
+
+  function renderMultiStopFeasibility(){
+    if(!scheduleFeasibility) return evaluateMultiStopFeasibility();
+    const result = evaluateMultiStopFeasibility();
+    scheduleFeasibility.className = `scheduleFeasibility ${result.pending ? 'pending' : (result.feasible ? 'feasible' : 'conflict')}`;
+    scheduleFeasibility.textContent = result.message || 'Complete the route and stop schedule to check feasibility.';
+    return result;
+  }
+
   function syncLegAppointmentDestinationLabels(){
     getDestinationInputs().slice(1).forEach((input, index) => {
       const label = legAppointmentTimesGrid?.querySelector(`[data-leg-destination="${index + 2}"]`);
@@ -698,24 +750,40 @@
     if(appointmentTimeLabel) appointmentTimeLabel.textContent = enabled ? 'Stop 1 Appointment Time' : 'Appointment Time';
     if(!legAppointmentTimes || !legAppointmentTimesGrid) return;
     const existingTimes = Array.from(legAppointmentTimesGrid.querySelectorAll('[data-leg-appointment-time="true"]')).map((input) => String(input.value || ''));
+    const existingWaits = Array.from(legAppointmentTimesGrid.querySelectorAll('[data-stop-wait-minutes="true"]')).map((input) => String(input.value || '30'));
     if(existingTimes.length) legAppointmentTimeDraftCache = existingTimes;
+    if(existingWaits.length) stopWaitDraftCache = existingWaits;
     legAppointmentTimesGrid.innerHTML = '';
     legAppointmentTimes.hidden = !enabled;
     if(!enabled) return;
-    for(let index = 2; index <= getStopCount(); index += 1){
-      const field = document.createElement('div');
-      field.className = 'field';
-      field.innerHTML = `<label for="appointmentTime-${index}">Stop ${index} Appointment Time</label><input id="appointmentTime-${index}" name="appointmentTime-${index}" type="time" data-leg-appointment-time="true" required><small class="legAppointmentDestination" data-leg-destination="${index}">Destination ${index}</small>`;
-      const input = field.querySelector('input');
-      if(input) input.value = legAppointmentTimeDraftCache[index - 2] || '';
-      ['change', 'input', 'blur'].forEach((eventName) => input?.addEventListener(eventName, () => {
-        fareEstimateSignature = '';
-        confirmedFareSignature = '';
-        syncSectionProgressUi();
-      }));
-      legAppointmentTimesGrid.appendChild(field);
+    const stopCount = getStopCount();
+    for(let index = 1; index <= stopCount; index += 1){
+      if(index > 1){
+        const field = document.createElement('div');
+        field.className = 'field';
+        field.innerHTML = `<label for="appointmentTime-${index}">Stop ${index} Appointment Time</label><input id="appointmentTime-${index}" name="appointmentTime-${index}" type="time" data-leg-appointment-time="true" required><small class="legAppointmentDestination" data-leg-destination="${index}">Destination ${index}</small>`;
+        const input = field.querySelector('input');
+        if(input) input.value = legAppointmentTimeDraftCache[index - 2] || '';
+        ['change', 'input', 'blur'].forEach((eventName) => input?.addEventListener(eventName, () => {
+          fareEstimateSignature = '';
+          confirmedFareSignature = '';
+          renderMultiStopFeasibility();
+          syncSectionProgressUi();
+        }));
+        legAppointmentTimesGrid.appendChild(field);
+      }
+      if(index < stopCount){
+        const waitField = document.createElement('div');
+        waitField.className = 'field stopWaitField';
+        waitField.innerHTML = `<label for="stopWaitMinutes-${index}">Expected time at Stop ${index}</label><select id="stopWaitMinutes-${index}" data-stop-wait-minutes="true" aria-label="Expected time at Stop ${index}"><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="90">1 hour 30 minutes</option><option value="120">2 hours</option><option value="180">3 hours</option></select><small class="subtle">Appointment, treatment, discharge, or other waiting time before leaving for Stop ${index + 1}.</small>`;
+        const waitInput = waitField.querySelector('select');
+        if(waitInput) waitInput.value = stopWaitDraftCache[index - 1] || '30';
+        waitInput?.addEventListener('change', () => { fareEstimateSignature = ''; confirmedFareSignature = ''; renderMultiStopFeasibility(); syncSectionProgressUi(); });
+        legAppointmentTimesGrid.appendChild(waitField);
+      }
     }
     syncLegAppointmentDestinationLabels();
+    renderMultiStopFeasibility();
   }
 
   function bindRouteFieldListeners(input, routeField){
@@ -795,6 +863,11 @@
     try{await estimateRouteAndFare({promptConfirmation:false});}
     finally{setBusy(confirmPickupDropoffBtn,false,'Calculating prices...','Confirm Details');}
     if(!Number(estimateState.miles||0))return;
+    const feasibility = renderMultiStopFeasibility();
+    if(isMultipleStopsEnabled() && !feasibility.feasible && !feasibility.pending){
+      setStatus(feasibility.message, 'err');
+      return;
+    }
     applyPickupEstimateFromAppointment();
     if(!$('tripTime')?.value){
       setStatus('We could not calculate a pickup time from this schedule. Check the appointment time.', 'err');
@@ -1315,7 +1388,7 @@
   }
 
   function buildFareEstimateSignature(){
-    return [normalizeService($('service')?.value),String($('pickup')?.value||'').trim(),getRouteDestinations().join('|'),String($('tripDate')?.value||''),getLegAppointments().map((item) => item.appointmentTime).join('|'),Number(estimateState.fare||0).toFixed(2),Number(estimateState.miles||0).toFixed(2)].join('::');
+    return [normalizeService($('service')?.value),String($('pickup')?.value||'').trim(),getRouteDestinations().join('|'),String($('tripDate')?.value||''),getLegAppointments().map((item) => item.appointmentTime).join('|'),getStopWaitMinutes().join('|'),Number(estimateState.fare||0).toFixed(2),Number(estimateState.miles||0).toFixed(2)].join('::');
   }
 
   function updateFareConfirmationState(){
@@ -1394,7 +1467,10 @@
       if(!field) return;
       ['change', 'input', 'blur'].forEach((eventName) => {
         field.addEventListener(eventName, () => {
-          if(id === 'appointmentTime') applyPickupEstimateFromAppointment();
+          if(id === 'appointmentTime'){
+            applyPickupEstimateFromAppointment();
+            renderMultiStopFeasibility();
+          }
           if(id === 'name' || id === 'phone' || id === 'email' || id === 'notes'){
             riderDetailsInitiallyCollapsed.delete('riderDetailsSection');
             expandedSections.delete('riderDetailsSection');
@@ -2105,9 +2181,11 @@
     if(customerRoutePolyline) customerRoutePolyline.setMap(null);
     if(customerPickupMarker) customerPickupMarker.setMap(null);
     if(customerDestinationMarker) customerDestinationMarker.setMap(null);
+    customerIntermediateStopMarkers.forEach((marker) => marker.setMap(null));
     customerRoutePolyline = null;
     customerPickupMarker = null;
     customerDestinationMarker = null;
+    customerIntermediateStopMarkers = [];
     customerRouteBounds = null;
     applyFocusMode();
   }
@@ -2252,11 +2330,13 @@
     if(hasBounds) telemetryMap.fitBounds(bounds, 48);
   }
 
-  function renderCustomerRoute(result, pickupLabel, destinationLabel){
+  function renderCustomerRoute(result, pickupLabel, destinationLabels){
     if(!telemetryMap || !result?.routes?.[0]) return;
     if(customerRoutePolyline) customerRoutePolyline.setMap(null);
     if(customerPickupMarker) customerPickupMarker.setMap(null);
     if(customerDestinationMarker) customerDestinationMarker.setMap(null);
+    customerIntermediateStopMarkers.forEach((marker) => marker.setMap(null));
+    customerIntermediateStopMarkers = [];
 
     customerRoutePolyline = new google.maps.Polyline({
       map: telemetryMap,
@@ -2269,6 +2349,7 @@
     });
 
     const legs = result.routes[0].legs || [];
+    const destinations = Array.isArray(destinationLabels) ? destinationLabels : [destinationLabels];
     const firstLeg = legs[0];
     const lastLeg = legs[legs.length - 1] || firstLeg;
     const start = firstLeg?.start_location;
@@ -2291,7 +2372,29 @@
         zIndex: 700
       });
     }
+    legs.slice(0, -1).forEach((leg, index) => {
+      const position = leg?.end_location;
+      const address = String(destinations[index] || leg?.end_address || `Stop ${index + 1}`).trim();
+      if(!position) return;
+      customerIntermediateStopMarkers.push(new google.maps.Marker({
+        map: telemetryMap,
+        position,
+        title: `Stop ${index + 1}: ${address}`,
+        label: { text: `Stop ${index + 1}: ${address}`, color: '#58410a', fontWeight: '700', className: 'routeAddressMarkerLabel routeAddressMarkerLabelStop' },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          fillColor: '#d99a16',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+          scale: 8,
+          labelOrigin: new google.maps.Point(0, -3)
+        },
+        zIndex: 710 + index
+      }));
+    });
     if(end){
+      const destinationLabel = String(destinations[destinations.length - 1] || lastLeg?.end_address || 'Destination').trim();
       customerDestinationMarker = new google.maps.Marker({
         map: telemetryMap,
         position: end,
@@ -2655,6 +2758,7 @@
     let trafficDurationMinutes = 0;
     yardToPickupDurationMinutes = 0;
     yardToPickupTrafficDurationMinutes = 0;
+    routeLegTravelMinutes = [];
 
     try{
       await loadMaps();
@@ -2674,6 +2778,7 @@
         }, (res, status) => status === 'OK' ? resolve(res) : reject(new Error(status)));
       });
       const legs = result.routes?.[0]?.legs || [];
+      routeLegTravelMinutes = legs.map((leg) => Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60);
       miles = legs.reduce((sum, leg) => sum + (Number(leg?.distance?.value || 0) / 1609.34), 0);
       durationMinutes = legs.reduce((sum, leg) => sum + (Number(leg?.duration?.value || 0) / 60), 0);
       trafficDurationMinutes = legs.reduce((sum, leg) => sum + (Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60), 0);
@@ -2685,7 +2790,8 @@
       const yardRoute = await estimateYardToPickupRoute(pickup, tripDate, String(appointmentTimeInput?.value || '').trim());
       yardToPickupDurationMinutes = Math.max(0, Number(yardRoute.minutes || 0));
       yardToPickupTrafficDurationMinutes = Math.max(0, Number(yardRoute.trafficMinutes || 0));
-      renderCustomerRoute(result, pickup, destination);
+      renderCustomerRoute(result, pickup, destinations);
+      renderMultiStopFeasibility();
     }catch(err){
       const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations]);
       if(fallbackMiles){
@@ -2706,6 +2812,7 @@
 
     const breakdown = calculateFareBreakdown(service, miles, tripDate, fareTime, { durationMinutes, trafficDurationMinutes });
     renderFareEstimateBreakdown(breakdown, miles, durationText || '-', durationMinutes, trafficDurationMinutes);
+    renderMultiStopFeasibility();
     setStatus('Route and fare estimate updated.', 'ok');
     syncSectionProgressUi();
     saveBookingDraft();
@@ -2986,6 +3093,7 @@
     }
     renderRateEditor(clean);
     renderRideMarketplace();
+    renderMultiStopFeasibility();
     autoEstimate();
     syncSectionProgressUi();
   }
@@ -3312,6 +3420,8 @@
       stopCount: routeDestinations.length,
       routeStops,
       appointmentTimes: getLegAppointments(),
+      stopWaitMinutes: getStopWaitMinutes(),
+      scheduleFeasibility: evaluateMultiStopFeasibility(),
       date: $('tripDate').value,
       appointmentTime: String(appointmentTimeInput?.value || '').trim(),
       time: $('tripTime').value,
@@ -3337,6 +3447,7 @@
 
     const invalidRoundTrip=payload.tripType==='ROUND_TRIP'&&(!payload.returnTripDate||!payload.returnTripTime);
     const invalidRecurring=payload.tripType==='RECURRING'&&(!payload.recurrenceEndDate||!payload.recurrenceDays.length);
+    const infeasibleMultiStop=payload.multipleStops&&!payload.scheduleFeasibility.feasible&&!payload.scheduleFeasibility.pending;
     if(!payload.name || !payload.phone || !payload.service || !payload.pickup || !routeDestinations.length || !payload.date || !areLegAppointmentTimesComplete() || !payload.time || !destinationReady || (payload.payerType==='INSURANCE'&&!payload.insuranceCarrier) || invalidRoundTrip || invalidRecurring){
       setStatus('Please complete all required fields.', 'err');
       setBookingOutcome('Action required before booking', 'pending');
@@ -3355,6 +3466,12 @@
         const missingRideField = !payload.date ? 'tripDate' : (missingLegTime?.id || (!payload.appointmentTime ? 'appointmentTime' : 'tripTime'));
         revealSectionForAction('rideTypeSection', missingRideField);
       }
+      return;
+    }
+    if(infeasibleMultiStop){
+      setStatus(payload.scheduleFeasibility.message, 'err');
+      setBookingOutcome('Multi-stop schedule needs adjustment', 'pending');
+      revealSectionForAction('rideTypeSection', 'legAppointmentTimes');
       return;
     }
     if(!destinationConfirmed){
@@ -3828,6 +3945,8 @@
       if(!riderDetailsConfirmed){setStatus('Confirm the rider details first.','err');revealSectionForAction('riderDetailsSection','name');return;}
       if(!destinationConfirmed){setStatus('Confirm the pickup and destination first.','err');revealSectionForAction('pickupDropoffSection','pickup');return;}
       if(!normalizeService($('service')?.value)||!$('tripDate')?.value||!areLegAppointmentTimesComplete()){setStatus(isMultipleStopsEnabled()?'Choose a ride and enter the appointment time for every stop.':'Choose a ride and complete the appointment schedule.','err');return;}
+      const feasibility=renderMultiStopFeasibility();
+      if(isMultipleStopsEnabled()&&!feasibility.feasible&&!feasibility.pending){setStatus(feasibility.message,'err');return;}
       rideChoiceConfirmed=true;
       journeyNavigationOverride='fareSummarySection';
       document.body.classList.remove('showCompletedSections');

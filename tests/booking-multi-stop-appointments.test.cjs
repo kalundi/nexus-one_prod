@@ -10,7 +10,7 @@ const api = fs.readFileSync(path.join(root, 'netlify/functions/api.cjs'), 'utf8'
 
 test('multi-stop booking renders a required appointment time for each additional stop', () => {
   assert.match(html, /id="legAppointmentTimes"/);
-  assert.match(html, /Additional stop appointment times/);
+  assert.match(html, /Multi-stop schedule check/);
   assert.match(client, /Stop \$\{index\} Appointment Time/);
   assert.match(client, /data-leg-appointment-time="true" required/);
   assert.match(client, /areLegAppointmentTimesComplete\(\)/);
