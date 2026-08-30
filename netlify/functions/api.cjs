@@ -2552,6 +2552,10 @@ async function handler(event){
   const actorRole=String(bookingActor?.role||'CUSTOMER').toUpperCase();
   const appointmentTime=normalizeOptionalTripTime(b.appointmentTime||'');
   if(!appointmentTime)return json(400,{error:'Appointment time is required and must be valid (for example 2:00 PM).'});
+  const destinations=(Array.isArray(b.destinations)?b.destinations:[b.destination]).map((value)=>clean(value)).filter(Boolean);
+  const submittedAppointments=Array.isArray(b.appointmentTimes)?b.appointmentTimes:[];
+  const appointmentTimes=(submittedAppointments.length?submittedAppointments:[{leg:1,destination:destinations[0]||clean(b.destination),appointmentTime}]).map((item,index)=>({leg:index+1,destination:clean(item?.destination||destinations[index]||''),appointmentTime:normalizeOptionalTripTime(item?.appointmentTime||'')}));
+  if(destinations.length>1&&(appointmentTimes.length!==destinations.length||appointmentTimes.some((item)=>!item.appointmentTime)))return json(400,{error:'An appointment time is required for every destination stop.'});
   const tripType=['ONE_WAY','ROUND_TRIP','RECURRING'].includes(clean(b.tripType).toUpperCase())?clean(b.tripType).toUpperCase():'ONE_WAY';
   const returnTripDate=tripType==='ROUND_TRIP'?normalizeTripDate(b.returnTripDate||''):null;
   const returnTripTime=tripType==='ROUND_TRIP'?normalizeOptionalTripTime(b.returnTripTime||''):null;
@@ -2580,6 +2584,7 @@ async function handler(event){
 
   const baseNotes=clean(b.notes)||'';
   const metadataNotes=[
+   appointmentTimes.length>1?`Stop appointments: ${appointmentTimes.map((item)=>`Stop ${item.leg} (${item.destination}): ${item.appointmentTime}`).join('; ')}`:'',
    pickupTimeEstimate?`Pickup estimate: ${pickupTimeEstimate}`:'',
     yardAddress?`Yard start: ${yardAddress}`:'',
     Number.isFinite(yardToPickupMinutes)&&yardToPickupMinutes>0?`Yard to pickup estimate: ${Math.round(yardToPickupMinutes)} min`:'',
@@ -2601,9 +2606,9 @@ async function handler(event){
   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null,tripType,returnTripDate,returnTripTime,JSON.stringify(recurrenceDays),recurrenceEndDate]);
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,initialStatus,statusLabel(initialStatus),paymentPolicy.coverageMessage||(paymentPolicy.requiresDeposit?'Awaiting required 25% deposit':paymentPolicy.requiresApproval?'Awaiting payer eligibility approval':'Online transportation request received'),bookingActor?.display_name||bookingSource||'PUBLIC']);
    await query("UPDATE booking_drafts SET completed_at=now(),updated_at=now() WHERE completed_at IS NULL AND regexp_replace(phone,'\\D','','g')=$1",[phoneDigits.replace(/\D/g,'')]).catch(()=>{});
-  await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource,requestedByRole,appointmentTime:appointmentTime||null,pickupTimeEstimate:pickupTimeEstimate||null,referralIncentiveEligible:bookingSource==='DRIVER_REFERRAL'});
+  await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource,requestedByRole,appointmentTime:appointmentTime||null,appointmentTimes,pickupTimeEstimate:pickupTimeEstimate||null,referralIncentiveEligible:bookingSource==='DRIVER_REFERRAL'});
   const mappedBooking=mapBooking(r.rows[0]);
-  const booking={...mappedBooking,appointmentTime,pickupTime:pickupTimeEstimate||mappedBooking.time,requestedByRole,requestedByUser:clean(b.requestedByUser||bookingActor?.email||'')};
+  const booking={...mappedBooking,appointmentTime,appointmentTimes,pickupTime:pickupTimeEstimate||mappedBooking.time,requestedByRole,requestedByUser:clean(b.requestedByUser||bookingActor?.email||'')};
    // Auto-assign driver + vehicle (fire-and-forget, does not block response)
    if(!paymentPolicy.requiresDeposit&&!paymentPolicy.requiresApproval)autoAssign(r.rows[0]).catch(()=>{});
    let notifications;

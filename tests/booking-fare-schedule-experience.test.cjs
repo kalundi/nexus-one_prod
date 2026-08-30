@@ -30,6 +30,8 @@ test('suite fields align and the three schedule values share one responsive row'
   assert.match(html, /\.suiteRow\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
   assert.ok(html.includes('.scheduleRow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.08fr)'));
   assert.match(html, /System calculated/);
+  assert.match(html, /<span>Pickup Time<\/span><span class="systemGeneratedTag">System calculated/);
+  assert.doesNotMatch(html, /Pickup Time Estimate/);
   assert.match(html, /No entry needed—we calculate this from the route and appointment/);
   assert.match(html, /class="systemGeneratedField" id="tripTime"[^>]+readonly/);
 });

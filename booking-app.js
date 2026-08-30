@@ -67,6 +67,9 @@
   const journeyHeaderAction = $('journeyHeaderAction');
   const rideTypeSummary = $('rideTypeSummary');
   const appointmentTimeInput = $('appointmentTime');
+  const appointmentTimeLabel = document.querySelector('label[for="appointmentTime"]');
+  const legAppointmentTimes = $('legAppointmentTimes');
+  const legAppointmentTimesGrid = $('legAppointmentTimesGrid');
   const bookingLoginSummary = $('bookingLoginSummary');
   const pickupDropoffSummary = $('pickupDropoffSummary');
   const confirmPickupDropoffBtn = $('confirmPickupDropoffBtn');
@@ -246,6 +249,7 @@
   let journeyNavigationOverride = '';
   let activeManagedBooking = null;
   let destinationStopDraftCache = [];
+  let legAppointmentTimeDraftCache = [];
   const locationSuggestionCache = new Map();
   const routePointCache = new Map();
   let lastTelemetryVehicles = [];
@@ -664,6 +668,56 @@
     return inputs.every((input) => String(input.value || '').trim().length > 0);
   }
 
+  function getLegAppointmentTimeInputs(){
+    return [appointmentTimeInput, ...Array.from(legAppointmentTimesGrid?.querySelectorAll('[data-leg-appointment-time="true"]') || [])].filter(Boolean);
+  }
+
+  function getLegAppointments(){
+    const timeInputs = getLegAppointmentTimeInputs();
+    return getDestinationInputs().map((destinationInput, index) => ({
+      leg: index + 1,
+      destination: String(destinationInput?.value || '').trim(),
+      appointmentTime: String(timeInputs[index]?.value || '').trim()
+    }));
+  }
+
+  function areLegAppointmentTimesComplete(){
+    const appointments = getLegAppointments();
+    return appointments.length > 0 && appointments.every((item) => Boolean(item.appointmentTime));
+  }
+
+  function syncLegAppointmentDestinationLabels(){
+    getDestinationInputs().slice(1).forEach((input, index) => {
+      const label = legAppointmentTimesGrid?.querySelector(`[data-leg-destination="${index + 2}"]`);
+      if(label) label.textContent = String(input.value || '').trim() || `Destination ${index + 2}`;
+    });
+  }
+
+  function syncLegAppointmentTimesUi(){
+    const enabled = isMultipleStopsEnabled();
+    if(appointmentTimeLabel) appointmentTimeLabel.textContent = enabled ? 'Stop 1 Appointment Time' : 'Appointment Time';
+    if(!legAppointmentTimes || !legAppointmentTimesGrid) return;
+    const existingTimes = Array.from(legAppointmentTimesGrid.querySelectorAll('[data-leg-appointment-time="true"]')).map((input) => String(input.value || ''));
+    if(existingTimes.length) legAppointmentTimeDraftCache = existingTimes;
+    legAppointmentTimesGrid.innerHTML = '';
+    legAppointmentTimes.hidden = !enabled;
+    if(!enabled) return;
+    for(let index = 2; index <= getStopCount(); index += 1){
+      const field = document.createElement('div');
+      field.className = 'field';
+      field.innerHTML = `<label for="appointmentTime-${index}">Stop ${index} Appointment Time</label><input id="appointmentTime-${index}" name="appointmentTime-${index}" type="time" data-leg-appointment-time="true" required><small class="legAppointmentDestination" data-leg-destination="${index}">Destination ${index}</small>`;
+      const input = field.querySelector('input');
+      if(input) input.value = legAppointmentTimeDraftCache[index - 2] || '';
+      ['change', 'input', 'blur'].forEach((eventName) => input?.addEventListener(eventName, () => {
+        fareEstimateSignature = '';
+        confirmedFareSignature = '';
+        syncSectionProgressUi();
+      }));
+      legAppointmentTimesGrid.appendChild(field);
+    }
+    syncLegAppointmentDestinationLabels();
+  }
+
   function bindRouteFieldListeners(input, routeField){
     if(!input || input.dataset.routeListenersBound === 'true') return;
     input.dataset.routeListenersBound = 'true';
@@ -674,6 +728,7 @@
           markDestinationUnconfirmed();
           updateTelemetryRouteHint();
           autoEstimate();
+          syncLegAppointmentDestinationLabels();
         }
         syncSectionProgressUi();
       });
@@ -714,6 +769,7 @@
       }
     }
 
+    syncLegAppointmentTimesUi();
     updateTelemetryRouteHint();
     syncSectionProgressUi();
   }
@@ -728,9 +784,9 @@
       syncSectionProgressUi();
       return;
     }
-    if(!$('tripDate')?.value||!appointmentTimeInput?.value){
-      setStatus('Choose the trip date and appointment time to calculate ride prices.', 'err');
-      $('tripDate')?.focus();
+    if(!$('tripDate')?.value||!areLegAppointmentTimesComplete()){
+      setStatus(isMultipleStopsEnabled() ? 'Choose the trip date and enter an appointment time for every destination stop.' : 'Choose the trip date and appointment time to calculate ride prices.', 'err');
+      (!$('tripDate')?.value ? $('tripDate') : getLegAppointmentTimeInputs().find((input) => !input.value))?.focus();
       return;
     }
     const previouslySelectedService=normalizeService($('service')?.value);
@@ -899,7 +955,7 @@
   function getProgressState(){
     const riderDetailsComplete = riderDetailsConfirmed;
     const pickupComplete = Boolean(String($('pickup')?.value || '').trim() && getRouteDestinations().length > 0 && destinationConfirmed && areDestinationRowsFilled());
-    const rideTypeComplete = pickupComplete && rideChoiceConfirmed && Boolean(normalizeService($('service')?.value) && $('tripDate')?.value && appointmentTimeInput?.value && $('tripTime')?.value);
+    const rideTypeComplete = pickupComplete && rideChoiceConfirmed && Boolean(normalizeService($('service')?.value) && $('tripDate')?.value && areLegAppointmentTimesComplete() && $('tripTime')?.value);
     const allRequiredComplete = pickupComplete && rideTypeComplete && riderDetailsConfirmed;
     return {
       riderDetailsSection: riderDetailsComplete,
@@ -1082,7 +1138,7 @@
     let targetId='riderDetailsSection',focusId='name',message='Enter and confirm the rider details.';
     if(riderDetailsConfirmed){targetId='pickupDropoffSection';focusId='pickup';message='Enter the route and appointment schedule to calculate prices.';}
     if(riderDetailsConfirmed&&destinationConfirmed){targetId='rideTypeSection';focusId='serviceChips';message='Compare the estimates and choose a Nexus ride.';}
-    const rideComplete=rideChoiceConfirmed&&Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&appointmentTimeInput?.value&&$('tripTime')?.value);
+    const rideComplete=rideChoiceConfirmed&&Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&areLegAppointmentTimesComplete()&&$('tripTime')?.value);
     if(riderDetailsConfirmed&&destinationConfirmed&&rideComplete){targetId='fareSummarySection';focusId='reviewFareBtn';message=fareEstimateSignature?'Review and confirm the fare estimate.':'Wait for the route and fare estimate, then review it.';}
     if(fareEstimateSignature&&confirmedFareSignature===fareEstimateSignature){targetId='submitBtn';focusId='submitBtn';message='Fare confirmed. Book the ride when you are ready.';}
     if(bookingSubmitted){
@@ -1105,7 +1161,7 @@
     if(!journeyHeader||!journeyCurrent||!journeyNext)return;
     const riderReady=riderDetailsConfirmed;
     const routeReady=riderReady&&destinationConfirmed;
-    const rideReady=routeReady&&rideChoiceConfirmed&&Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&appointmentTimeInput?.value&&$('tripTime')?.value&&isTripScheduleComplete());
+    const rideReady=routeReady&&rideChoiceConfirmed&&Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&areLegAppointmentTimesComplete()&&$('tripTime')?.value&&isTripScheduleComplete());
     const reviewReady=Boolean(fareEstimateSignature&&confirmedFareSignature===fareEstimateSignature);
     let step=1;
     if(riderReady)step=2;
@@ -1138,7 +1194,7 @@
   function currentDraftStep(){
     if(!riderDetailsConfirmed)return 'RIDER';
     if(!destinationConfirmed)return 'ROUTE';
-    if(!rideChoiceConfirmed||!normalizeService($('service')?.value)||!$('tripDate')?.value||!appointmentTimeInput?.value||!isTripScheduleComplete())return 'RIDE';
+    if(!rideChoiceConfirmed||!normalizeService($('service')?.value)||!$('tripDate')?.value||!areLegAppointmentTimesComplete()||!isTripScheduleComplete())return 'RIDE';
     if(!fareEstimateSignature||confirmedFareSignature!==fareEstimateSignature)return 'REVIEW';
     return 'PAYMENT';
   }
@@ -1259,7 +1315,7 @@
   }
 
   function buildFareEstimateSignature(){
-    return [normalizeService($('service')?.value),String($('pickup')?.value||'').trim(),getRouteDestinations().join('|'),String($('tripDate')?.value||''),String(appointmentTimeInput?.value||''),Number(estimateState.fare||0).toFixed(2),Number(estimateState.miles||0).toFixed(2)].join('::');
+    return [normalizeService($('service')?.value),String($('pickup')?.value||'').trim(),getRouteDestinations().join('|'),String($('tripDate')?.value||''),getLegAppointments().map((item) => item.appointmentTime).join('|'),Number(estimateState.fare||0).toFixed(2),Number(estimateState.miles||0).toFixed(2)].join('::');
   }
 
   function updateFareConfirmationState(){
@@ -3255,6 +3311,7 @@
       multipleStops: routeDestinations.length > 1,
       stopCount: routeDestinations.length,
       routeStops,
+      appointmentTimes: getLegAppointments(),
       date: $('tripDate').value,
       appointmentTime: String(appointmentTimeInput?.value || '').trim(),
       time: $('tripTime').value,
@@ -3280,7 +3337,7 @@
 
     const invalidRoundTrip=payload.tripType==='ROUND_TRIP'&&(!payload.returnTripDate||!payload.returnTripTime);
     const invalidRecurring=payload.tripType==='RECURRING'&&(!payload.recurrenceEndDate||!payload.recurrenceDays.length);
-    if(!payload.name || !payload.phone || !payload.service || !payload.pickup || !routeDestinations.length || !payload.date || !payload.appointmentTime || !payload.time || !destinationReady || (payload.payerType==='INSURANCE'&&!payload.insuranceCarrier) || invalidRoundTrip || invalidRecurring){
+    if(!payload.name || !payload.phone || !payload.service || !payload.pickup || !routeDestinations.length || !payload.date || !areLegAppointmentTimesComplete() || !payload.time || !destinationReady || (payload.payerType==='INSURANCE'&&!payload.insuranceCarrier) || invalidRoundTrip || invalidRecurring){
       setStatus('Please complete all required fields.', 'err');
       setBookingOutcome('Action required before booking', 'pending');
       if(!payload.name || !payload.phone || (payload.payerType==='INSURANCE'&&!payload.insuranceCarrier)){
@@ -3294,7 +3351,8 @@
         setStatus('Choose at least one recurring day and an end date.', 'err');
         revealSectionForAction('rideTypeSection', !payload.recurrenceDays.length ? 'recurrenceDays' : 'recurrenceEndDate');
       }else{
-        const missingRideField = !payload.date ? 'tripDate' : (!payload.appointmentTime ? 'appointmentTime' : 'tripTime');
+        const missingLegTime = getLegAppointmentTimeInputs().find((input) => !input.value);
+        const missingRideField = !payload.date ? 'tripDate' : (missingLegTime?.id || (!payload.appointmentTime ? 'appointmentTime' : 'tripTime'));
         revealSectionForAction('rideTypeSection', missingRideField);
       }
       return;
@@ -3769,7 +3827,7 @@
       const continueButton=$('continueRideBtn');
       if(!riderDetailsConfirmed){setStatus('Confirm the rider details first.','err');revealSectionForAction('riderDetailsSection','name');return;}
       if(!destinationConfirmed){setStatus('Confirm the pickup and destination first.','err');revealSectionForAction('pickupDropoffSection','pickup');return;}
-      if(!normalizeService($('service')?.value)||!$('tripDate')?.value||!appointmentTimeInput?.value){setStatus('Choose a ride and complete the appointment schedule.','err');return;}
+      if(!normalizeService($('service')?.value)||!$('tripDate')?.value||!areLegAppointmentTimesComplete()){setStatus(isMultipleStopsEnabled()?'Choose a ride and enter the appointment time for every stop.':'Choose a ride and complete the appointment schedule.','err');return;}
       rideChoiceConfirmed=true;
       journeyNavigationOverride='fareSummarySection';
       document.body.classList.remove('showCompletedSections');
