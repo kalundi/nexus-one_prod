@@ -2230,7 +2230,7 @@
           strokeColor: '#ffffff',
           strokeWeight: 2,
           scale: 9,
-          labelOrigin: new google.maps.Point(0, -18)
+          labelOrigin: new google.maps.Point(0, -3)
         },
         zIndex: 700
       });
@@ -2248,7 +2248,7 @@
           strokeColor: '#ffffff',
           strokeWeight: 2,
           scale: 9,
-          labelOrigin: new google.maps.Point(0, -18)
+          labelOrigin: new google.maps.Point(0, -3)
         },
         zIndex: 700
       });

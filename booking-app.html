@@ -361,11 +361,13 @@
     body.accessHighContrast{--ink:#000;--muted:#17202a;--line:#000;background:#fff;color:#000}body.accessHighContrast .phone,body.accessHighContrast .section,body.accessHighContrast .accessibilityBar{background:#fff;border-color:#000}body.accessHighContrast button,body.accessHighContrast input,body.accessHighContrast select,body.accessHighContrast textarea{border:2px solid #000}body.accessHighContrast :focus-visible{outline:4px solid #ffbf00!important;outline-offset:3px}
     body.accessReducedMotion *,body.accessReducedMotion *::before,body.accessReducedMotion *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
     .guidanceDialog{border:0;border-radius:18px;padding:0;max-width:520px;width:calc(100% - 28px);box-shadow:0 24px 70px rgba(15,23,42,.34)}.guidanceDialog::backdrop{background:rgba(8,47,73,.7)}.guidanceBody{padding:22px;display:grid;gap:14px}.guidanceBody h2,.guidanceBody p{margin:0}.guidanceQuestion{border:1px solid #c9dce8;border-radius:12px;padding:12px}.guidanceQuestion legend{font:800 14px Sora,sans-serif;padding:0 5px}.guidanceOptions{display:grid;gap:7px;margin-top:7px}.guidanceOptions label{display:flex;align-items:center;gap:8px;font:600 14px 'Nunito Sans',sans-serif}.guidanceResult{padding:13px;border-radius:12px;background:#eaf8f1;border:1px solid #a9dec5}.guidanceResult[hidden]{display:none}.guidanceActions{display:flex;gap:8px;flex-wrap:wrap}.guidanceActions button{flex:1 1 150px}
-    .metaRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .metaRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     .metaRow .field{min-width:0}
-    .metaRow input,.metaRow select{width:100%;min-width:0;max-width:100%}
-    .scheduleRow{grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr))}
+    .metaRow input,.metaRow select{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+    .suiteRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:8px}.suiteRow .field{min-width:0}.suiteRow input{width:100%;min-width:0;box-sizing:border-box}
+    .scheduleRow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.08fr);align-items:start}
     .scheduleRow .field,.scheduleRow input{min-width:0;width:100%;max-width:100%;box-sizing:border-box}
+    .systemGeneratedLabel{display:flex;align-items:center;justify-content:space-between;gap:6px}.systemGeneratedTag{padding:3px 6px;border-radius:999px;background:#e7eef2;color:#506878;font:800 9px/1 Sora,sans-serif;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}.systemGeneratedField{background:#edf2f5!important;border-color:#c7d3da!important;color:#355264!important;cursor:not-allowed;font-weight:800}.systemGeneratedHint{display:block;margin-top:5px;color:#667d8b;font:600 10px/1.3 'Nunito Sans',sans-serif}
     .moreRideOptions{width:100%;margin-top:8px;padding:10px 12px;background:#eef2f5;color:#24384a}
     .serviceChips .secondaryRideOption[hidden]{display:none}
     .mobilityQuestions{display:grid;gap:10px;margin:12px 0}.mobilityQuestion{margin:0;border:1px solid #c9dce8;border-radius:12px;padding:12px;background:#f8fbfd}.mobilityQuestion legend{padding:0 5px;font:800 14px/1.35 Sora,sans-serif;color:#173b51}.mobilityAnswers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.mobilityAnswers label{min-height:44px;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid #c7d6df;border-radius:9px;background:#fff;font:800 13px Sora,sans-serif}.mobilityAnswers label:has(input:checked){border-color:#087f8c;background:#e9f8f7;color:#066b75}.mobilityAnswers input{width:18px;height:18px;margin:0}.mobilityRecommendation{margin:8px 0;padding:11px 12px;border-radius:10px;border:1px solid #a9d7dc;background:#eefaf8;color:#14505a;font:700 13px/1.4 Sora,sans-serif}.serviceCatalog{margin-top:9px}.serviceCatalog summary{cursor:pointer;color:#294d62;font:800 12px Sora,sans-serif;padding:9px 0}.reviewDetails{display:grid;margin:12px 0;border:1px solid #d8e1e8;border-radius:12px;overflow:hidden}.reviewLine{display:grid;grid-template-columns:88px 1fr;gap:10px;padding:10px 12px;background:#fff}.reviewLine+.reviewLine{border-top:1px solid #e2e8ed}.reviewLine small{font:800 10px/1.4 Sora,sans-serif;color:#65798a;text-transform:uppercase}.reviewLine strong{font:700 13px/1.4 'Nunito Sans',sans-serif;color:#173b51}.bookingHelpCall{position:fixed;right:12px;bottom:150px;z-index:84;display:flex;align-items:center;gap:7px;min-height:44px;padding:9px 12px;border-radius:999px;background:#fff;color:#0b3954;border:1px solid #b8ccd8;box-shadow:0 8px 22px rgba(8,26,44,.16);text-decoration:none;font:800 12px Sora,sans-serif}.routeAddressMarkerLabel{max-width:min(260px,70vw);padding:6px 9px;border:1px solid rgba(8,47,73,.22);border-radius:8px;background:rgba(255,255,255,.96);box-shadow:0 4px 12px rgba(8,47,73,.22);font:700 12px/1.25 'Nunito Sans',sans-serif!important;white-space:normal;text-align:center}.routeAddressMarkerLabelPickup{border-color:#70ae99}.routeAddressMarkerLabelDestination{border-color:#7fa6bd}@media(max-width:380px){.bookingHelpCall span:last-child{display:none}.bookingHelpCall{width:44px;padding:0;justify-content:center}.routeAddressMarkerLabel{max-width:190px;font-size:11px!important}}
@@ -408,7 +410,7 @@
       text-align:right;
     }
     #fareSummarySection .fareSummaryAmount{color:#0a6670;font-size:32px}
-    @media(max-width:520px){.fareReviewActions{grid-template-columns:1fr}.scheduleRideIconBtn{width:100%}.fareAssurances{grid-template-columns:1fr}.scheduleEditGrid{grid-template-columns:1fr}}
+    @media(max-width:620px){.suiteRow,.scheduleRow{grid-template-columns:1fr}.fareReviewActions{grid-template-columns:1fr}.scheduleRideIconBtn{width:100%}.fareAssurances{grid-template-columns:1fr}.scheduleEditGrid{grid-template-columns:1fr}}
     .subtle{margin:8px 0 0;color:var(--muted);font-size:var(--text-xs)}
     .authGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .authGrid.loginCredentials{grid-template-columns:1fr 1fr;align-items:start}
@@ -935,7 +937,7 @@ Destination: -</p>
           <input id="destination" name="destination" placeholder="Destination address" autocomplete="off" required>
           <div id="destinationSuggestionsPanel" class="suggestions" hidden></div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:8px">
+        <div class="suiteRow">
           <div class="field">
             <label for="pickupSuite">Pickup suite/unit <span style="font-size:12px;color:#888">(optional)</span></label>
             <input id="pickupSuite" name="pickupSuite" type="text" placeholder="Suite, Apt, Unit #">
@@ -1005,14 +1007,12 @@ Destination: -</p>
             <label for="appointmentTime">Appointment Time</label>
             <input id="appointmentTime" name="appointmentTime" type="time" required>
           </div>
-        </div>
-        <div class="metaRow" style="margin-top:10px">
           <div class="field">
-            <label for="tripTime">Pickup Time Estimate</label>
-            <input id="tripTime" name="tripTime" type="time" placeholder="Auto-calculated from appointment and route" readonly required>
+            <label class="systemGeneratedLabel" for="tripTime"><span>Pickup Time Estimate</span><span class="systemGeneratedTag">System calculated</span></label>
+            <input class="systemGeneratedField" id="tripTime" name="tripTime" type="time" readonly required aria-describedby="pickupTimeSystemHint">
+            <small class="systemGeneratedHint" id="pickupTimeSystemHint">No entry needed—we calculate this from the route and appointment.</small>
           </div>
         </div>
-        <p class="subtle" style="margin-top:0">We calculate a recommended pickup time so the rider can arrive before the appointment.</p>
         </div>
 
         <div class="estimate" aria-live="polite">
@@ -1208,7 +1208,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=69"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-  <script src="./booking-app.js?v=20260830-fare-schedule-experience"></script>
+  <script src="./booking-app.js?v=20260830-aligned-schedule-fields"></script>
 </body>
 </html>
 

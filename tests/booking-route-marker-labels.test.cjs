@@ -11,5 +11,6 @@ test('route markers display pickup and destination addresses', () => {
   assert.match(source, /text: `Pickup: \$\{pickupLabel\}`/);
   assert.match(source, /text: `Destination: \$\{destinationLabel\}`/);
   assert.doesNotMatch(source, /label: \{ text: '[PD]'/);
+  assert.equal((source.match(/labelOrigin: new google\.maps\.Point\(0, -3\)/g) || []).length, 2);
   assert.match(html, /\.routeAddressMarkerLabel\{/);
 });
