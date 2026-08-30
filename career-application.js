@@ -2,9 +2,17 @@
  const form=document.getElementById('careerApplicationForm'),status=document.getElementById('careerApplicationStatus');
  if(!form)return;
  const show=(message,error=false)=>{if(!status)return;status.hidden=false;status.textContent=message;status.style.borderLeftColor=error?'#b42318':'#16835b';status.style.background=error?'#fff1f0':'#e7f8ef';status.style.color=error?'#8a1c13':'#125c35';};
+ const firstInvalidField=()=>form.querySelector(':invalid:not(fieldset)');
+ const showValidationError=()=>{
+  const field=firstInvalidField();
+  show('Please complete the required fields highlighted below, then submit again.',true);
+  field?.focus({preventScroll:true});
+  field?.scrollIntoView({behavior:'smooth',block:'center'});
+ };
  const filePayload=file=>new Promise((resolve,reject)=>{if(!file)return resolve(null);if(file.size>4*1024*1024)return reject(new Error('Résumé must be no larger than 4 MB.'));const reader=new FileReader();reader.onerror=()=>reject(new Error('Unable to read the résumé file.'));reader.onload=()=>resolve({name:file.name,mimeType:file.type||'application/octet-stream',dataBase64:String(reader.result||'').split(',')[1]||''});reader.readAsDataURL(file)});
  form.addEventListener('submit',async event=>{
-  event.preventDefault();if(!form.reportValidity())return;
+  event.preventDefault();
+  if(!form.checkValidity()){showValidationError();return;}
   const button=form.querySelector('[type="submit"]'),data=new FormData(form);
   button.disabled=true;button.textContent='Submitting securely…';show('Securely submitting your application…');
   try{
@@ -14,5 +22,9 @@
    if(!response.ok)throw new Error(result.error||'Unable to submit your application.');
    form.reset();show(`Application received. Your reference is ${result.applicationId}.${result.confirmationEmailSent===false?' Save this reference; email confirmation is temporarily unavailable.':' Check your email for confirmation.'}`);status.focus();
   }catch(error){show(error.message||'Unable to submit your application.',true)}finally{button.disabled=false;button.textContent='Submit application'}
+ });
+ form.addEventListener('invalid',event=>event.target.setAttribute('aria-invalid','true'),true);
+ form.addEventListener('input',event=>{
+  if(event.target.matches('input,select,textarea')&&event.target.checkValidity())event.target.removeAttribute('aria-invalid');
  });
 })();

@@ -2222,14 +2222,15 @@
         map: telemetryMap,
         position: start,
         title: `Pickup: ${pickupLabel}`,
-        label: { text: 'P', color: '#ffffff', fontWeight: '700' },
+        label: { text: `Pickup: ${pickupLabel}`, color: '#0b3d2f', fontWeight: '700', className: 'routeAddressMarkerLabel routeAddressMarkerLabelPickup' },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           fillColor: '#0b7a5a',
           fillOpacity: 1,
           strokeColor: '#ffffff',
           strokeWeight: 2,
-          scale: 9
+          scale: 9,
+          labelOrigin: new google.maps.Point(0, -18)
         },
         zIndex: 700
       });
@@ -2239,14 +2240,15 @@
         map: telemetryMap,
         position: end,
         title: `Destination: ${destinationLabel}`,
-        label: { text: 'D', color: '#ffffff', fontWeight: '700' },
+        label: { text: `Destination: ${destinationLabel}`, color: '#12364c', fontWeight: '700', className: 'routeAddressMarkerLabel routeAddressMarkerLabelDestination' },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           fillColor: '#0c4a6e',
           fillOpacity: 1,
           strokeColor: '#ffffff',
           strokeWeight: 2,
-          scale: 9
+          scale: 9,
+          labelOrigin: new google.maps.Point(0, -18)
         },
         zIndex: 700
       });
@@ -2675,11 +2677,29 @@
       window.setTimeout(()=>form?.requestSubmit(),0);
     });
     reviewFareBtn?.addEventListener('click',reopenFareConfirmation);
-    $('reviewScheduleBtn')?.addEventListener('click',()=>$('reviewScheduleDialog')?.showModal());
+    $('reviewScheduleBtn')?.addEventListener('click',()=>{
+      const dateInput=$('reviewScheduleDate'),timeInput=$('reviewScheduleTime'),message=$('reviewScheduleMessage');
+      if(dateInput){dateInput.value=String($('tripDate')?.value||'');dateInput.min=String($('tripDate')?.min||new Date().toISOString().slice(0,10));}
+      if(timeInput)timeInput.value=String(appointmentTimeInput?.value||'');
+      if(message)message.textContent='';
+      $('reviewScheduleDialog')?.showModal();
+    });
     $('closeReviewScheduleBtn')?.addEventListener('click',()=>$('reviewScheduleDialog')?.close());
-    $('editReviewScheduleBtn')?.addEventListener('click',()=>{
-      $('reviewScheduleDialog')?.close();
-      revealSectionForAction('pickupDropoffSection','tripDate');
+    $('saveReviewScheduleBtn')?.addEventListener('click',async()=>{
+      const dateInput=$('reviewScheduleDate'),timeInput=$('reviewScheduleTime'),message=$('reviewScheduleMessage');
+      if(!dateInput?.value||!timeInput?.value){if(message)message.textContent='Choose both an appointment date and time.';return;}
+      if(dateInput.min&&dateInput.value<dateInput.min){if(message)message.textContent='Choose today or a future date.';dateInput.focus();return;}
+      $('tripDate').value=dateInput.value;
+      appointmentTimeInput.value=timeInput.value;
+      $('tripDate').dispatchEvent(new Event('change',{bubbles:true}));
+      appointmentTimeInput.dispatchEvent(new Event('change',{bubbles:true}));
+      if(message)message.textContent='Recalculating your pickup time and fare…';
+      try{
+        await estimateRouteAndFare({promptConfirmation:false});
+        applyPickupEstimateFromAppointment();
+        syncSectionProgressUi();
+        if(message)message.textContent='Schedule updated. Your pickup estimate and fare have been recalculated.';
+      }catch(error){if(message)message.textContent=error?.message||'We could not recalculate this schedule. Please try again.';return;}
     });
     nextStepAction?.addEventListener('click',()=>{
       const targetId=nextStepAction.dataset.target||'riderDetailsSection';

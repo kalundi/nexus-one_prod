@@ -1,5 +1,13 @@
 const { test, expect } = require('@playwright/test');
 
+test('submit application explains incomplete required fields', async ({ page }) => {
+  await page.goto('/career-application.html');
+  await page.getByRole('button', { name: 'Submit application' }).click();
+  await expect(page.locator('#careerApplicationStatus')).toContainText('Please complete the required fields');
+  await expect(page.locator('[name="first-name"]')).toBeFocused();
+  await expect(page.locator('[name="first-name"]')).toHaveAttribute('aria-invalid', 'true');
+});
+
 test('applicant submits to the Nexus careers API and receives a reference', async ({ page }) => {
   let submitted;
   await page.route('**/api/careers/applications', async route => {
