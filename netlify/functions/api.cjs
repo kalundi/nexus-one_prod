@@ -21,6 +21,7 @@ const {bookingPaymentPolicy,requiresFullPaymentBeforeBoarding}=require('./_share
 const {getSecureDocument,listSecureDocuments}=require('./_shared/secure-document-registry.cjs');
 const {sendSms}=require('./_shared/sms-consent.cjs');
 const {canPatientSeeDriverLocation,distanceMiles}=require('./_shared/patient-driver-location.cjs');
+const montgomeryOutreachPilot=require('../../data/montgomery-tier-a-outreach-pilot.json');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_APPROVAL:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
@@ -1050,6 +1051,33 @@ async function sendEmail(to,subject,html){
  const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:recipients.map(email=>({email}))}],from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Medical Transit'},subject,content:[{type:'text/html',value:html}]})});
  if(!r.ok)throw new Error(`SendGrid request failed (${r.status})`);return {status:'sent'};
 }
+
+const OUTREACH_CAMPAIGN={
+ id:'montgomery-tier-a-pilot-2026',status:'DRAFT',sendEnabled:false,
+ name:'Montgomery County Tier A pilot',subject:'Medical transportation support for your patients',
+ fromName:'Fletcher Kalundi',fromEmail:'fletcher@nexusmt.com',replyTo:'fletcher@nexusmt.com',
+ testRecipient:'kalundi@gmail.com',timezone:'America/New_York',sendWindow:'Tuesday-Thursday, 9:30-10:30 AM',
+ followUpBusinessDays:5,
+ message:`Hello [Contact Name],\n\nI’m reaching out on behalf of Nexus Medical Transit, a licensed medical transportation provider serving Montgomery County and the DMV area.\n\nWe provide reliable wheelchair, stretcher and non-emergency medical transportation for healthcare facilities and their patients, including scheduled appointments, discharges and recurring treatments.\n\nI would appreciate the opportunity to introduce Nexus and learn how your facility currently handles transportation requests.\n\nWould you be available for a brief call next week?`,
+ followUpMessage:`Hello [Contact Name],\n\nI wanted to follow up on my note about medical transportation support from Nexus Medical Transit. We help healthcare facilities coordinate reliable wheelchair, stretcher and non-emergency transportation for appointments, discharges and recurring treatments.\n\nIf transportation support is relevant for [Facility Name], I would be glad to arrange a brief introductory call.\n\nThank you for your time.`,
+ signature:`Fletcher Kalundi\nChief Accessibility Officer\nNexus Medical Transit, LLC\n888-639-5766\nfletcher@nexusmt.com\nwww.nexusmt.com\nWMATC Certificate No. 4152`,
+ complianceFooter:`Advertisement · Nexus Medical Transit, LLC · 22505 Gateway Center Dr, Clarksburg, MD 20871\nTo stop receiving marketing emails, reply “unsubscribe.”`
+};
+const escapeEmailHtml=value=>clean(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+function outreachHtml(contactName,facilityName,followUp=false){
+ const template=followUp?OUTREACH_CAMPAIGN.followUpMessage:OUTREACH_CAMPAIGN.message;
+ const body=template.replaceAll('[Contact Name]',clean(contactName)||'there').replaceAll('[Facility Name]',clean(facilityName)||'your facility');
+ const paragraphs=body.split(/\n{2,}/).map(line=>`<p>${escapeEmailHtml(line)}</p>`).join('');
+ const signature=OUTREACH_CAMPAIGN.signature.split('\n').map(escapeEmailHtml).join('<br>');
+ const footer=OUTREACH_CAMPAIGN.complianceFooter.split('\n').map(escapeEmailHtml).join('<br>');
+ return `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;color:#153247;line-height:1.55">${paragraphs}<p>${signature}</p><hr style="border:0;border-top:1px solid #d7e2e9;margin:24px 0"><p style="font-size:12px;color:#52677a">${footer}</p></div>`;
+}
+async function sendOutreachTestEmail(){
+ if(!envEnabled('SENDGRID_API_KEY'))return {status:'skipped',reason:'SENDGRID_API_KEY is not configured'};
+ const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:[{email:OUTREACH_CAMPAIGN.testRecipient}]}],from:{email:OUTREACH_CAMPAIGN.fromEmail,name:OUTREACH_CAMPAIGN.fromName},reply_to:{email:OUTREACH_CAMPAIGN.replyTo,name:OUTREACH_CAMPAIGN.fromName},subject:`TEST — ${OUTREACH_CAMPAIGN.subject}`,content:[{type:'text/html',value:outreachHtml('Test Recipient','Test Facility')}]})});
+ if(!r.ok)throw Object.assign(new Error(`SendGrid rejected the test message (${r.status})`),{statusCode:502});
+ return {status:'sent'};
+}
 async function ensurePasswordResetColumns(){
  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token text').catch(()=>{});
@@ -1862,6 +1890,22 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN']);
+   const recipients=montgomeryOutreachPilot.recipients.map((recipient,index)=>({...recipient,sequence:index+1,status:'DRAFT'}));
+   return json(200,{campaign:OUTREACH_CAMPAIGN,selection:montgomeryOutreachPilot.selection,eligibleCount:montgomeryOutreachPilot.eligibleCount,recipients,previewHtml:outreachHtml(recipients[0]?.contactName,recipients[0]?.facility),followUpPreviewHtml:outreachHtml(recipients[0]?.contactName,recipients[0]?.facility,true),delivery:{sendGrid:envEnabled('SENDGRID_API_KEY')?'configured':'not-configured',sender:OUTREACH_CAMPAIGN.fromEmail}});
+  }
+  if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&p[3]==='test'&&method==='POST'){
+   const me=await requireUser(bearer(event),['ADMIN']);
+   const result=await sendOutreachTestEmail();
+   await audit('OUTREACH_CAMPAIGN',OUTREACH_CAMPAIGN.id,'TEST_EMAIL_REQUESTED',{by:me.email,to:OUTREACH_CAMPAIGN.testRecipient,status:result.status});
+   if(result.status!=='sent')return json(503,{error:result.reason||'Test email was not sent',delivery:result});
+   return json(200,{sent:true,to:OUTREACH_CAMPAIGN.testRecipient,delivery:result});
+  }
+  if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&p[3]==='send'){
+   await requireUser(bearer(event),['ADMIN']);
+   return json(423,{error:'Campaign sending is locked. This pilot is draft-only and requires a separate production approval.'});
+  }
   if(isTestMode()){
    const route=p.join('/');
    if(route==='integrations/config'&&method==='GET')return json(200,{build:'test',testMode:true,googleMapsEnabled:false,googleMapsBrowserKey:'',stripeEnabled:true,stripePublishableKey:'',squareEnabled:false});

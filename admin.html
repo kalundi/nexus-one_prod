@@ -191,6 +191,11 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       <h3>Social automation</h3>
       <p>Channel queue previews and publish run history.</p>
     </button>
+    <button class="dashboardTile" type="button" data-section-target="outreachSection">
+      <span class="dashSignal normal" data-signal-for="outreachSection">Draft only</span>
+      <h3>Outreach campaigns</h3>
+      <p>Review the controlled Montgomery County prospect pilot and send a test.</p>
+    </button>
     <button class="dashboardTile" type="button" data-section-target="applicantsSection">
       <span class="dashSignal normal" data-signal-for="applicantsSection">Normal</span>
       <h3>Career applicants</h3>
@@ -601,6 +606,19 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       <tbody id="socialHistoryRows"><tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Loading history…</td></tr></tbody>
     </table>
   </div>
+</section>
+
+<section class="sectionTab card" id="outreachSection" style="margin-top:32px">
+  <div class="sectionTitle">
+    <div><div class="eyebrow" style="color:var(--blue)">Business Development</div><h2>Outreach Campaigns</h2><p>Draft-only pilot for 25 Tier-A Montgomery County healthcare prospects.</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="button" id="refreshOutreach" type="button">Refresh draft</button><button class="button primary" id="sendOutreachTest" type="button">Send test to kalundi@gmail.com</button></div>
+  </div>
+  <div id="outreachMsg" hidden></div>
+  <div class="adminStatGrid" style="margin-top:12px"><div class="adminStat"><strong id="outreachStatus">DRAFT</strong><small>Campaign status</small></div><div class="adminStat"><strong id="outreachRecipientCount">25</strong><small>Selected recipients</small></div><div class="adminStat"><strong id="outreachEligibleCount">—</strong><small>Eligible prospects</small></div><div class="adminStat"><strong id="outreachDeliveryStatus">—</strong><small>SendGrid</small></div></div>
+  <div class="formRow" style="margin-top:18px"><div class="formField"><label>Subject</label><input id="outreachSubject" readonly></div><div class="formField"><label>From / Reply-To</label><input id="outreachSender" readonly></div></div>
+  <div class="formRow" style="margin-top:14px"><div class="formField"><label>Initial email preview</label><div id="outreachPreview" class="card" style="min-height:260px;background:#f8fbfd"></div></div><div class="formField"><label>Five-business-day follow-up preview</label><div id="outreachFollowUpPreview" class="card" style="min-height:260px;background:#f8fbfd"></div></div></div>
+  <div style="margin-top:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong style="font-family:Manrope,sans-serif">Selected recipients</strong><span class="pill muted">Production sending locked</span></div>
+  <div class="tableWrap" style="margin-top:10px"><table class="table" aria-label="Outreach pilot recipients"><thead><tr><th>#</th><th>Facility</th><th>Contact</th><th>Email</th><th>Phone</th><th>Score</th><th>Status</th></tr></thead><tbody id="outreachRecipientRows"><tr><td colspan="7">Loading campaign draft…</td></tr></tbody></table></div>
 </section>
 
 <!-- Career Applicants -->

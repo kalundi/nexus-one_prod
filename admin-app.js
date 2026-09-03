@@ -1568,7 +1568,31 @@ async function saveApplicantReview(){if(!selectedCareerApplication)return;const 
 async function sendApplicantResponse(){if(!selectedCareerApplication)return;const message=document.getElementById('applicantActionMessage'),subject=document.getElementById('applicantResponseSubject')?.value,body=document.getElementById('applicantResponseMessage')?.value;if(!subject||!body){message.textContent='Subject and message are required.';return}const response=await fetch(`/api/admin/career-applications/${encodeURIComponent(selectedCareerApplication.id)}/response`,{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({subject,message:body})}),data=await response.json().catch(()=>({}));message.textContent=response.ok?'Email response sent.':(data.error||'Unable to send response');if(response.ok){showToast('Applicant email sent.');await loadCareerApplications()}}
 async function downloadApplicantResume(){if(!selectedCareerApplication)return;const response=await fetch(`/api/admin/career-applications/${encodeURIComponent(selectedCareerApplication.id)}/resume`,{headers:{authorization:`Bearer ${token()}`}});if(!response.ok)return showToast('Unable to download résumé.','err');const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=applicantValue(selectedCareerApplication,'resumeName')||'resume';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 
+async function loadOutreachCampaign(){
+ const rows=document.getElementById('outreachRecipientRows');if(!rows)return;
+ rows.innerHTML='<tr><td colspan="7">Loading campaign draft…</td></tr>';
+ const response=await fetch('/api/admin/outreach-campaigns/pilot',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'}),data=await response.json().catch(()=>({}));
+ if(!response.ok){rows.innerHTML=`<tr><td colspan="7">${escapeHtml(data.error||'Unable to load campaign draft')}</td></tr>`;return}
+ document.getElementById('outreachStatus').textContent=data.campaign.status;
+ document.getElementById('outreachRecipientCount').textContent=String(data.recipients.length);
+ document.getElementById('outreachEligibleCount').textContent=String(data.eligibleCount);
+ document.getElementById('outreachDeliveryStatus').textContent=data.delivery.sendGrid;
+ document.getElementById('outreachSubject').value=data.campaign.subject;
+ document.getElementById('outreachSender').value=`${data.campaign.fromName} <${data.campaign.fromEmail}>`;
+ document.getElementById('outreachPreview').innerHTML=data.previewHtml;
+ document.getElementById('outreachFollowUpPreview').innerHTML=data.followUpPreviewHtml;
+ rows.innerHTML=data.recipients.map(item=>`<tr><td>${item.sequence}</td><td><strong>${escapeHtml(item.facility)}</strong><br><small>${escapeHtml(item.providerType)}</small></td><td>${escapeHtml(item.contactName)}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(item.phone||'—')}</td><td>${item.score}</td><td><span class="pill muted">${escapeHtml(item.status)}</span></td></tr>`).join('');
+}
+async function sendOutreachTest(){
+ const button=document.getElementById('sendOutreachTest'),message=document.getElementById('outreachMsg');
+ if(!confirm('Send one test email to kalundi@gmail.com? No prospect emails will be sent.'))return;
+ button.disabled=true;message.hidden=false;message.className='msgBox';message.textContent='Sending test email…';
+ try{const response=await fetch('/api/admin/outreach-campaigns/pilot/test',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:'{}'}),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Unable to send test email');showMsg(message,'Test email sent to kalundi@gmail.com.','ok');showToast('Outreach test email sent.')}catch(error){showMsg(message,error.message,'err');showToast(error.message,'err')}finally{button.disabled=false}
+}
+
 document.getElementById('refreshAdminTrips')?.addEventListener('click',()=>{loadAdminTrips().catch((err)=>console.error(err));});
+document.getElementById('refreshOutreach')?.addEventListener('click',()=>loadOutreachCampaign().catch(error=>showToast(error.message,'err')));
+document.getElementById('sendOutreachTest')?.addEventListener('click',()=>sendOutreachTest());
 document.getElementById('refreshApplicants')?.addEventListener('click',()=>loadCareerApplications().catch(error=>showToast(error.message,'err')));
 document.getElementById('applicantStatusFilter')?.addEventListener('change',renderApplicantList);
 document.getElementById('applicantList')?.addEventListener('click',event=>{const button=event.target.closest('[data-applicant-id]');if(button){const application=careerApplications.find(item=>item.id===button.dataset.applicantId);if(application)renderApplicantDetail(application)}});
@@ -1613,6 +1637,7 @@ window.addEventListener('nexus:authorized',async()=>{
     loadSocialPreview().catch((err)=>console.error(err));
     loadSocialHistory().catch((err)=>console.error(err));
     loadCareerApplications().catch((err)=>console.error(err));
+    loadOutreachCampaign().catch((err)=>console.error(err));
   }
   try{await loadPlatformSettings();}catch(e){console.error(e);}
 });
@@ -1630,6 +1655,7 @@ if(window.NexusAuthorizedUser){
     loadSocialPreview().catch((err)=>console.error(err));
     loadSocialHistory().catch((err)=>console.error(err));
     loadCareerApplications().catch((err)=>console.error(err));
+    loadOutreachCampaign().catch((err)=>console.error(err));
   }
   loadPlatformSettings().catch(()=>{});
 }
