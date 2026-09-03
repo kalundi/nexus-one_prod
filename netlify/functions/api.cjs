@@ -1070,7 +1070,15 @@ function outreachHtml(contactName,facilityName,followUp=false){
  const paragraphs=body.split(/\n{2,}/).map(line=>`<p>${escapeEmailHtml(line)}</p>`).join('');
  const signature=OUTREACH_CAMPAIGN.signature.split('\n').map(escapeEmailHtml).join('<br>');
  const footer=OUTREACH_CAMPAIGN.complianceFooter.split('\n').map(escapeEmailHtml).join('<br>');
- return `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;color:#153247;line-height:1.55">${paragraphs}<p>${signature}</p><hr style="border:0;border-top:1px solid #d7e2e9;margin:24px 0"><p style="font-size:12px;color:#52677a">${footer}</p></div>`;
+ const socialLinks=[
+  {label:'Facebook',icon:'f',url:'https://www.facebook.com/profile.php?id=61581462908206',color:'#1877f2'},
+  {label:'Instagram',icon:'◎',url:'https://www.instagram.com/nexus_m_t/',color:'#c13584'},
+  {label:'YouTube',icon:'▶',url:'https://www.youtube.com/@nexus_m_t',color:'#ff0000'},
+  {label:'X',icon:'X',url:'https://x.com/nexus_m_t',color:'#111111'},
+  {label:'Bluesky',icon:'☁',url:'https://bsky.app/profile/nexusmt.bsky.social',color:'#1185fe'}
+ ];
+ const social=socialLinks.map(item=>`<a href="${item.url}" aria-label="Nexus Medical Transit on ${item.label}" style="display:inline-block;width:30px;height:30px;margin:0 5px;border-radius:50%;background:${item.color};color:#ffffff;text-align:center;text-decoration:none;font:bold 16px/30px Arial,sans-serif">${item.icon}</a>`).join('');
+ return `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;color:#153247;line-height:1.55">${paragraphs}<p>${signature}</p><hr style="border:0;border-top:1px solid #d7e2e9;margin:24px 0"><div style="margin:0 0 14px" aria-label="Follow Nexus Medical Transit">${social}</div><p style="font-size:12px;color:#52677a">${footer}</p></div>`;
 }
 async function sendOutreachTestEmail(){
  if(!envEnabled('SENDGRID_API_KEY'))return {status:'skipped',reason:'SENDGRID_API_KEY is not configured'};
