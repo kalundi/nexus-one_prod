@@ -1074,6 +1074,7 @@ function outreachHtml(contactName,facilityName,followUp=false){
   {label:'Facebook',icon:'f',url:'https://www.facebook.com/profile.php?id=61581462908206',color:'#1877f2'},
   {label:'Instagram',icon:'◎',url:'https://www.instagram.com/nexus_m_t/',color:'#c13584'},
   {label:'YouTube',icon:'▶',url:'https://www.youtube.com/@nexus_m_t',color:'#ff0000'},
+  {label:'TikTok',icon:'♪',url:'https://www.tiktok.com/@nexus_m_t',color:'#111111'},
   {label:'X',icon:'X',url:'https://x.com/nexus_m_t',color:'#111111'},
   {label:'Bluesky',icon:'☁',url:'https://bsky.app/profile/nexusmt.bsky.social',color:'#1185fe'}
  ];
