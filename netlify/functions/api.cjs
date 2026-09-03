@@ -1053,7 +1053,7 @@ async function sendEmail(to,subject,html){
 }
 
 const OUTREACH_CAMPAIGN={
- id:'montgomery-tier-a-pilot-2026',status:'DRAFT',sendEnabled:false,
+ id:'montgomery-tier-a-pilot-2026',status:'APPROVED',sendEnabled:true,
  name:'Montgomery County Tier A pilot',subject:'Medical transportation support for your patients',
  fromName:'Fletcher Kalundi',fromEmail:'fletcher@nexusmt.com',replyTo:'fletcher@nexusmt.com',
  testRecipient:'kalundi@gmail.com',timezone:'America/New_York',sendWindow:'Tuesday-Thursday, 9:30-10:30 AM',
@@ -1086,6 +1086,42 @@ async function sendOutreachTestEmail(){
  const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:[{email:OUTREACH_CAMPAIGN.testRecipient}]}],from:{email:OUTREACH_CAMPAIGN.fromEmail,name:OUTREACH_CAMPAIGN.fromName},reply_to:{email:OUTREACH_CAMPAIGN.replyTo,name:OUTREACH_CAMPAIGN.fromName},subject:`TEST — ${OUTREACH_CAMPAIGN.subject}`,content:[{type:'text/html',value:outreachHtml('Test Recipient','Test Facility')}]})});
  if(!r.ok)throw Object.assign(new Error(`SendGrid rejected the test message (${r.status})`),{statusCode:502});
  return {status:'sent'};
+}
+let outreachSchemaPromise=null;
+function ensureOutreachSchema(){
+ if(outreachSchemaPromise)return outreachSchemaPromise;
+ outreachSchemaPromise=(async()=>{
+  await query(`CREATE TABLE IF NOT EXISTS outreach_suppressions (email text PRIMARY KEY,reason text,created_at timestamptz NOT NULL DEFAULT now(),created_by uuid REFERENCES users(id) ON DELETE SET NULL)`);
+  await query(`CREATE TABLE IF NOT EXISTS outreach_deliveries (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),campaign_id text NOT NULL,prospect_id text NOT NULL,email text NOT NULL,facility text,contact_name text,stage text NOT NULL DEFAULT 'INITIAL',status text NOT NULL,provider_status integer,error_message text,sent_at timestamptz,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(campaign_id,email,stage))`);
+  await query('CREATE INDEX IF NOT EXISTS idx_outreach_deliveries_campaign ON outreach_deliveries(campaign_id,created_at DESC)');
+  await query('ALTER TABLE outreach_suppressions ENABLE ROW LEVEL SECURITY');
+  await query('ALTER TABLE outreach_deliveries ENABLE ROW LEVEL SECURITY');
+  await query('REVOKE ALL ON TABLE outreach_suppressions,outreach_deliveries FROM anon,authenticated').catch(()=>{});
+ })().catch(error=>{outreachSchemaPromise=null;throw error});
+ return outreachSchemaPromise;
+}
+async function sendOutreachRecipient(recipient){
+ const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:[{email:recipient.email}]}],from:{email:OUTREACH_CAMPAIGN.fromEmail,name:OUTREACH_CAMPAIGN.fromName},reply_to:{email:OUTREACH_CAMPAIGN.replyTo,name:OUTREACH_CAMPAIGN.fromName},subject:OUTREACH_CAMPAIGN.subject,content:[{type:'text/html',value:outreachHtml(recipient.contactName,recipient.facility,false)}]})});
+ return {ok:r.ok,status:r.status,error:r.ok?'':clean(await r.text()).slice(0,500)};
+}
+async function releaseOutreachPilot(me){
+ if(!envEnabled('SENDGRID_API_KEY'))throw Object.assign(new Error('SENDGRID_API_KEY is not configured'),{statusCode:503});
+ await ensureOutreachSchema();
+ const recipients=montgomeryOutreachPilot.recipients.slice(0,25),results=[];
+ for(const recipient of recipients){
+  const email=clean(recipient.email).toLowerCase();
+  const suppressed=await query('SELECT 1 FROM outreach_suppressions WHERE lower(email)=lower($1) LIMIT 1',[email]);
+  if(suppressed.rows[0]){results.push({email,status:'SUPPRESSED'});continue}
+  const claimed=await query(`INSERT INTO outreach_deliveries(campaign_id,prospect_id,email,facility,contact_name,stage,status) VALUES($1,$2,$3,$4,$5,'INITIAL','SENDING') ON CONFLICT(campaign_id,email,stage) DO NOTHING RETURNING id`,[OUTREACH_CAMPAIGN.id,recipient.prospectId,email,recipient.facility,recipient.contactName]);
+  if(!claimed.rows[0]){results.push({email,status:'ALREADY_RECORDED'});continue}
+  try{
+   const delivery=await sendOutreachRecipient(recipient),status=delivery.ok?'SENT':'FAILED';
+   await query(`UPDATE outreach_deliveries SET status=$2,provider_status=$3,error_message=$4,sent_at=CASE WHEN $2='SENT' THEN now() ELSE NULL END WHERE id=$1`,[claimed.rows[0].id,status,delivery.status,delivery.error||null]);
+   results.push({email,status,providerStatus:delivery.status});
+  }catch(error){await query(`UPDATE outreach_deliveries SET status='FAILED',error_message=$2 WHERE id=$1`,[claimed.rows[0].id,clean(error.message).slice(0,500)]);results.push({email,status:'FAILED'});}
+ }
+ await audit('OUTREACH_CAMPAIGN',OUTREACH_CAMPAIGN.id,'PILOT_RELEASED',{by:me.email,sent:results.filter(x=>x.status==='SENT').length,failed:results.filter(x=>x.status==='FAILED').length,suppressed:results.filter(x=>x.status==='SUPPRESSED').length});
+ return results;
 }
 async function ensurePasswordResetColumns(){
  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
@@ -1901,7 +1937,9 @@ async function handler(event){
   const p=routePath(event),method=event.httpMethod;
   if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
-   const recipients=montgomeryOutreachPilot.recipients.map((recipient,index)=>({...recipient,sequence:index+1,status:'DRAFT'}));
+   const delivered=await query(`SELECT email,status,provider_status,sent_at,error_message FROM outreach_deliveries WHERE campaign_id=$1 AND stage='INITIAL'`,[OUTREACH_CAMPAIGN.id]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
+   const deliveryByEmail=new Map(delivered.rows.map(row=>[clean(row.email).toLowerCase(),row]));
+   const recipients=montgomeryOutreachPilot.recipients.map((recipient,index)=>{const delivery=deliveryByEmail.get(clean(recipient.email).toLowerCase());return {...recipient,sequence:index+1,status:delivery?.status||'READY',providerStatus:delivery?.provider_status||null,sentAt:delivery?.sent_at||null,error:delivery?.error_message||null}});
    return json(200,{campaign:OUTREACH_CAMPAIGN,selection:montgomeryOutreachPilot.selection,eligibleCount:montgomeryOutreachPilot.eligibleCount,recipients,previewHtml:outreachHtml(recipients[0]?.contactName,recipients[0]?.facility),followUpPreviewHtml:outreachHtml(recipients[0]?.contactName,recipients[0]?.facility,true),delivery:{sendGrid:envEnabled('SENDGRID_API_KEY')?'configured':'not-configured',sender:OUTREACH_CAMPAIGN.fromEmail}});
   }
   if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&p[3]==='test'&&method==='POST'){
@@ -1911,9 +1949,11 @@ async function handler(event){
    if(result.status!=='sent')return json(503,{error:result.reason||'Test email was not sent',delivery:result});
    return json(200,{sent:true,to:OUTREACH_CAMPAIGN.testRecipient,delivery:result});
   }
-  if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&p[3]==='send'){
-   await requireUser(bearer(event),['ADMIN']);
-   return json(423,{error:'Campaign sending is locked. This pilot is draft-only and requires a separate production approval.'});
+  if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&p[3]==='send'&&method==='POST'){
+   const me=await requireUser(bearer(event),['ADMIN']),body=parseBody(event);
+   if(clean(body.confirmation)!=='SEND FIRST 25')return json(400,{error:'Type SEND FIRST 25 exactly to confirm this release.'});
+   const results=await releaseOutreachPilot(me),sent=results.filter(x=>x.status==='SENT').length,failed=results.filter(x=>x.status==='FAILED').length;
+   return json(failed?207:200,{released:true,sent,failed,suppressed:results.filter(x=>x.status==='SUPPRESSED').length,alreadyRecorded:results.filter(x=>x.status==='ALREADY_RECORDED').length,results});
   }
   if(isTestMode()){
    const route=p.join('/');

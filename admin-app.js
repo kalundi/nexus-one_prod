@@ -1589,10 +1589,17 @@ async function sendOutreachTest(){
  button.disabled=true;message.hidden=false;message.className='msgBox';message.textContent='Sending test email…';
  try{const response=await fetch('/api/admin/outreach-campaigns/pilot/test',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:'{}'}),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Unable to send test email');showMsg(message,'Test email sent to kalundi@gmail.com.','ok');showToast('Outreach test email sent.')}catch(error){showMsg(message,error.message,'err');showToast(error.message,'err')}finally{button.disabled=false}
 }
+async function releaseOutreachPilot(){
+ const confirmation=prompt('This will email up to 25 prospects immediately. Type SEND FIRST 25 to confirm:','');
+ if(confirmation!=='SEND FIRST 25'){if(confirmation!==null)showToast('Confirmation did not match. Nothing was sent.','err');return}
+ const button=document.getElementById('releaseOutreachPilot'),message=document.getElementById('outreachMsg');button.disabled=true;message.hidden=false;message.className='msgBox';message.textContent='Rechecking suppression records and sending the pilot…';
+ try{const response=await fetch('/api/admin/outreach-campaigns/pilot/send',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({confirmation})}),data=await response.json().catch(()=>({}));if(!response.ok&&response.status!==207)throw new Error(data.error||'Unable to release campaign');showMsg(message,`Pilot processed: ${data.sent} sent, ${data.failed} failed, ${data.suppressed} suppressed, ${data.alreadyRecorded} already recorded.`,'ok');showToast('Campaign release completed.');await loadOutreachCampaign()}catch(error){showMsg(message,error.message,'err');showToast(error.message,'err')}finally{button.disabled=false}
+}
 
 document.getElementById('refreshAdminTrips')?.addEventListener('click',()=>{loadAdminTrips().catch((err)=>console.error(err));});
 document.getElementById('refreshOutreach')?.addEventListener('click',()=>loadOutreachCampaign().catch(error=>showToast(error.message,'err')));
 document.getElementById('sendOutreachTest')?.addEventListener('click',()=>sendOutreachTest());
+document.getElementById('releaseOutreachPilot')?.addEventListener('click',()=>releaseOutreachPilot());
 document.getElementById('refreshApplicants')?.addEventListener('click',()=>loadCareerApplications().catch(error=>showToast(error.message,'err')));
 document.getElementById('applicantStatusFilter')?.addEventListener('change',renderApplicantList);
 document.getElementById('applicantList')?.addEventListener('click',event=>{const button=event.target.closest('[data-applicant-id]');if(button){const application=careerApplications.find(item=>item.id===button.dataset.applicantId);if(application)renderApplicantDetail(application)}});
