@@ -202,7 +202,7 @@ ensureGlobalAccessWidget();
 const access=$('#accessToggle'),panel=$('#accessPanel');
 if(access && panel){
 	const accessIcon=access.querySelector('span[aria-hidden="true"]');
-	if(accessIcon&&String(accessIcon.textContent||'').includes('â™¿')) accessIcon.textContent='♿';
+	if(accessIcon&&String(accessIcon.textContent||'').includes('♿')) accessIcon.textContent='♿';
 	const accessRoot=access.closest('.access') || access.parentElement;
 	let accessPinnedOpen=false;
 	const setAccessOpen=(open)=>{

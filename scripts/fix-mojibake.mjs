@@ -1,0 +1,22 @@
+import fs from 'node:fs';
+
+const cp = (...values) => String.fromCodePoint(...values);
+const replacements = [
+  [cp(0xe2, 0x20ac, 0x201d), cp(0x2014)],
+  [cp(0xe2, 0x20ac, 0x201c), cp(0x2013)],
+  [cp(0xe2, 0x20ac, 0x00a6), cp(0x2026)],
+  [cp(0xe2, 0x20ac, 0x2122), cp(0x2019)],
+  [cp(0xe2, 0x20ac, 0x00a2), cp(0x2022)],
+  [cp(0xe2, 0x2020, 0x2019), cp(0x2192)],
+  [cp(0xe2, 0x0153, 0x201c), cp(0x2713)],
+  [cp(0xe2, 0x2122, 0x00bf), cp(0x267f)],
+  [cp(0x00c3, 0x00b1), cp(0x00f1)],
+  [cp(0x00c3, 0x00a7), cp(0x00e7)],
+  [cp(0x00c2, 0x00a9), cp(0x00a9)]
+];
+
+for (const file of process.argv.slice(2)) {
+  let source = fs.readFileSync(file, 'utf8');
+  for (const [broken, corrected] of replacements) source = source.split(broken).join(corrected);
+  fs.writeFileSync(file, source, 'utf8');
+}

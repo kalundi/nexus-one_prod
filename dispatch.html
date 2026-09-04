@@ -1058,7 +1058,7 @@ document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); e
   const callback=async(id,button)=>{
     const token=sessionStorage.getItem('nexusAccessToken')||'';
     button.disabled=true;
-    button.textContent='Calling dispatch�';
+    button.textContent='Calling dispatch…';
     try{
       const response=await fetch(`/api/dispatch/calls/${encodeURIComponent(id)}/callback`,{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'}});
       const data=await response.json().catch(()=>({}));
@@ -1075,7 +1075,7 @@ document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); e
   window.loadDispatchCalls=async()=>{
     const token=sessionStorage.getItem('nexusAccessToken')||'';
     refresh.disabled=true;
-    message.textContent='Loading recent calls�';
+    message.textContent='Loading recent calls…';
     try{
       const response=await fetch('/api/dispatch/calls?limit=40',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});
       const data=await response.json().catch(()=>({}));
@@ -1083,7 +1083,7 @@ document.addEventListener('DOMContentLoaded',()=>{activateIntakeTab('broker'); e
       const calls=Array.isArray(data.calls)?data.calls:[];
       list.innerHTML=calls.length?calls.map((call)=>`<article class="dispatchCallRow"><div><div class="dispatchCallNumber">${escapeHtml(call.callerPhone||'Unknown caller')}</div><div class="dispatchCallMeta">Received ${escapeHtml(formatWhen(call.createdAt))}</div></div><div><span class="status blue">${escapeHtml(String(call.status||'RECEIVED').replaceAll('_',' '))}</span>${call.callbackRequestedAt?`<div class="dispatchCallMeta">Callback requested ${escapeHtml(formatWhen(call.callbackRequestedAt))}</div>`:''}</div><button class="button" type="button" data-call-back="${escapeHtml(call.id)}">Call Back</button></article>`).join(''):'<p class="subtle">No incoming calls have been recorded yet.</p>';
       list.querySelectorAll('[data-call-back]').forEach((button)=>button.addEventListener('click',()=>callback(button.dataset.callBack,button)));
-      message.textContent=`${calls.length} recent call${calls.length===1?'':'s'} � outbound caller ID ${data.businessNumber||'(888) 639-5766'}`;
+      message.textContent=`${calls.length} recent call${calls.length===1?'':'s'} · outbound caller ID ${data.businessNumber||'(888) 639-5766'}`;
     }catch(error){
       list.innerHTML='';
       message.textContent=error.message||'Unable to load calls.';
@@ -1229,11 +1229,11 @@ function parseSourceBadge(t){
   if(!source && !method && bookingSource!=='BROKER') return '';
   const attachmentCount=Number(t.sourceAttachmentCount||0);
   if(source==='ATTACHMENT_PARSED' || method==='EMAIL_ATTACHMENT'){
-    const suffix=attachmentCount>0?` � ${attachmentCount} file${attachmentCount===1?'':'s'}`:'';
+    const suffix=attachmentCount>0?` · ${attachmentCount} file${attachmentCount===1?'':'s'}`:'';
     return `<div style="margin-top:4px"><span class="status green" style="font-size:10px">Attachment Parsed${suffix}</span></div>`;
   }
   if(source==='SUBJECT_FALLBACK' || method==='EMAIL_SUBJECT_FALLBACK'){
-    const suffix=attachmentCount>0?` � ${attachmentCount} file${attachmentCount===1?'':'s'}`:' � no file';
+    const suffix=attachmentCount>0?` · ${attachmentCount} file${attachmentCount===1?'':'s'}`:' · no file';
     return `<div style="margin-top:4px"><span class="status amber" style="font-size:10px">Subject Fallback${suffix}</span></div>`;
   }
   return `<div style="margin-top:4px"><span class="status blue" style="font-size:10px">Broker Intake</span></div>`;
@@ -1918,7 +1918,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         const left=((item.start-timelineStart)/span)*100;
         const width=Math.max(4,((item.end-item.start)/span)*100);
         const tone=schedulerStatusTone(item.trip);
-        return `<button type="button" data-scheduler-ref="${escapeHtml(item.reference)}" title="${escapeHtml(item.reference)} | ${escapeHtml(item.status)} | ${prettyMinutes(item.start)}-${prettyMinutes(item.end)}" style="position:absolute;left:${left}%;width:${width}%;top:10px;height:34px;border:1px solid #93a8bd;background:${tone};border-radius:8px;padding:0 8px;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;font-size:11px;font-weight:700;color:#0f172a">${escapeHtml(item.reference)} � ${escapeHtml(prettyMinutes(item.start))}</button>`;
+        return `<button type="button" data-scheduler-ref="${escapeHtml(item.reference)}" title="${escapeHtml(item.reference)} | ${escapeHtml(item.status)} | ${prettyMinutes(item.start)}-${prettyMinutes(item.end)}" style="position:absolute;left:${left}%;width:${width}%;top:10px;height:34px;border:1px solid #93a8bd;background:${tone};border-radius:8px;padding:0 8px;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;font-size:11px;font-weight:700;color:#0f172a">${escapeHtml(item.reference)} · ${escapeHtml(prettyMinutes(item.start))}</button>`;
       }).join('');
       return `<div data-scheduler-lane="${escapeHtml(driverName)}" style="border:1px solid #d6e3ee;border-radius:12px;background:#fff;padding:10px 10px 8px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div><strong style="font-size:13px">${escapeHtml(driverName)}</strong><div style="font-size:11px;color:#667085">${escapeHtml(shiftText)} | Active trips: ${activeTrips}</div></div><span class="status ${onDutyNow?'green':'blue'}" style="font-size:10px">${onDutyNow?'On duty':'Off duty'}</span></div><div style="position:relative;margin-top:8px;height:54px;border:1px dashed #cbd5e1;border-radius:10px;background:linear-gradient(to right,#f8fafc 0,#f8fafc 50%,#f1f5f9 50%,#f1f5f9 100%);background-size:40px 100%">${tripBlocks||'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px">Drop unassigned trip here</div>'}</div></div>`;
     }).join('');
@@ -2791,7 +2791,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     let text=String(value||'').trim();
     if(!text) return {location:'',address:''};
     text=text
-      .replace(/^[-�?]+\s*/,'')
+      .replace(/^[-•?]+\s*/,'')
       .replace(/^(?:pickup|pickup\s*address|destination|destination\s*address|drop\s*off|dropoff|from|to)\s*[:\-\s]*/i,'')
       .trim();
     if(!text) return {location:'',address:''};
@@ -3438,7 +3438,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const displayValue=(value)=>{
       const text=String(value ?? '').trim();
       if(!text) return 'N/A';
-      if(/[��]/.test(text) || text==='�' || text==='�') return 'N/A';
+      if(/\uFFFD/.test(text)) return 'N/A';
       return text;
     };
     const details=[
