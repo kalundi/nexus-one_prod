@@ -127,11 +127,14 @@ test('homepage section headers align left and hero returns sit bottom right', as
   await page.setContent(`<style>${css}</style><section id="coverage" class="nexusReturnSection" style="height:420px"><div class="shell coverageGrid"><div></div><div><div class="eyebrow">Regional coverage</div><h2>Local coordination</h2></div></div><a class="nexusBackHero" href="#home"></a></section>`);
   const geometry = await page.evaluate(() => {
     const section = document.querySelector('#coverage').getBoundingClientRect();
+    const grid = document.querySelector('#coverage .coverageGrid').getBoundingClientRect();
+    const eyebrow = document.querySelector('#coverage .eyebrow').getBoundingClientRect();
     const arrow = document.querySelector('.nexusBackHero').getBoundingClientRect();
     const heading = getComputedStyle(document.querySelector('#coverage .coverageGrid>div:last-child'));
-    return { rightGap: section.right - arrow.right, bottomGap: section.bottom - arrow.bottom, headingAlign: heading.textAlign };
+    return { rightGap: section.right - arrow.right, bottomGap: section.bottom - arrow.bottom, headingAlign: heading.textAlign, gridLeft: grid.left, eyebrowLeft: eyebrow.left };
   });
   expect(geometry.headingAlign).toBe('left');
+  expect(geometry.eyebrowLeft).toBeCloseTo(geometry.gridLeft, 0);
   expect(geometry.rightGap).toBeGreaterThanOrEqual(17);
   expect(geometry.bottomGap).toBe(18);
 });
