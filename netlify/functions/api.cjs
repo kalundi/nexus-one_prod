@@ -1321,6 +1321,40 @@ async function notifyBookingPending(b,{subject,statusText,detail}){
  return {sms:results[0].status==='fulfilled'?{status:'sent'}:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
 }
 
+function paymentTripConfirmationContent(row,{paymentMode='full',amountPaid=0,balanceDue=0}={}){
+ const b=mapBooking(row);
+ const isDeposit=paymentMode==='deposit'||clean(b.paymentStatus).toUpperCase()==='DEPOSIT_PAID';
+ const pickupTime=clean(b.pickupTime||b.time)||'To be confirmed';
+ const appointmentTime=clean(b.submittedAppointmentTime||b.appointmentTime||'');
+ const paid=Number(amountPaid||0),remaining=Math.max(0,Number(balanceDue||0));
+ const paymentLine=isDeposit?`Deposit paid: $${paid.toFixed(2)}. Remaining balance: $${remaining.toFixed(2)}.`:`Payment complete: $${paid.toFixed(2)} paid in full.`;
+ const returnLine=clean(b.tripType).toUpperCase()==='ROUND_TRIP'?` Return trip: ${b.returnTripDate||b.date||'TBD'} at ${b.returnTripTime||'TBD'}.`:'';
+ const sms=`Nexus Medical Transit: ${paymentLine} Trip ${b.reference}: ${b.date||'TBD'} at ${pickupTime}. Pickup: ${b.pickup||'TBD'}. Destination: ${b.destination||'TBD'}. Service: ${b.service||'TBD'}.${appointmentTime?` Appointment time: ${appointmentTime}.`:''}${returnLine} Questions? Call (888) 760-4990. Reply STOP to opt out.`;
+ const esc=value=>clean(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+ const rows=[
+  ['Booking reference',b.reference],['Passenger',b.name],['Payment status',isDeposit?'Deposit received':'Paid in full'],
+  ['Amount paid',`$${paid.toFixed(2)}`],...(isDeposit?[['Remaining balance',`$${remaining.toFixed(2)}`]]:[]),
+  ['Trip date',b.date],['Pickup time',pickupTime],...(appointmentTime?[['Appointment time',appointmentTime]]:[]),
+  ['Pickup',b.pickup],['Destination',b.destination],['Service',b.service],['Trip type',clean(b.tripType).replaceAll('_',' ')||'ONE WAY'],
+  ...(clean(b.tripType).toUpperCase()==='ROUND_TRIP'?[['Return date',b.returnTripDate||b.date],['Return time',b.returnTripTime||'TBD']]:[])
+ ];
+ const html=`<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#153247;line-height:1.5"><h2 style="color:#082f49">${isDeposit?'Deposit received':'Payment complete'} — ${esc(b.reference)}</h2><p>Your payment has been confirmed and your ride is reserved.</p><table style="width:100%;border-collapse:collapse;margin:16px 0">${rows.map(([label,value],index)=>`<tr${index%2===0?' style="background:#f3f8fb"':''}><td style="padding:8px;font-weight:600;color:#62758a;vertical-align:top">${esc(label)}</td><td style="padding:8px">${esc(value||'—')}</td></tr>`).join('')}</table><p>Please keep this message as your payment receipt and trip confirmation.</p><p>Questions? Call <strong>(888) 760-4990</strong>.</p></div>`;
+ return {sms,html,subject:`${isDeposit?'Deposit and trip confirmed':'Payment receipt and trip confirmation'} — ${b.reference}`};
+}
+
+async function sendPaymentTripConfirmation(row,options={}){
+ const content=paymentTripConfirmationContent(row,options);
+ const smsRecipients=buildSmsRecipients(row.phone),emailRecipients=buildEmailRecipients(row.email);
+ const results=await Promise.allSettled([
+  smsRecipients.length?Promise.all(smsRecipients.map(phone=>sendSms(phone,content.sms))):Promise.resolve([]),
+  emailRecipients.length?sendEmail(emailRecipients,content.subject,content.html):Promise.resolve({status:'skipped'})
+ ]);
+ const smsValue=results[0].status==='fulfilled'?results[0].value:null;
+ const smsStatuses=Array.isArray(smsValue)?smsValue.map(value=>clean(value?.status)||'accepted'):[];
+ const smsStatus=results[0].status==='rejected'?'failed':!smsRecipients.length?'skipped':smsStatuses.some(status=>status==='sent'||status==='accepted')?'sent':smsStatuses.every(status=>status.startsWith('skipped'))?'skipped':'failed';
+ return {sms:{status:smsStatus,count:smsRecipients.length},email:results[1].status==='rejected'?{status:'failed'}:results[1].value};
+}
+
 async function issueFacilityCompletionInvoice(row){
  if(clean(row.booking_source).toUpperCase()!=='FACILITY'||row.facility_invoice_sent_at)return null;
  const fare=Number(row.estimated_fare||0),facilityCode=clean(row.facility_id)||null;
@@ -1955,6 +1989,37 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p.join('/')==='maintenance/resend-payment-trip/NMT-20260905-8539'&&method==='POST'){
+   const token=clean(event.headers?.['x-nexus-one-time-token']||event.headers?.['X-Nexus-One-Time-Token']);
+   const tokenHash=crypto.createHash('sha256').update(token).digest('hex');
+   if(tokenHash!=='477c2548e0cb880041ba79aee9d8390c0a3537f4daea431b6aa2a3e542e7a4d4')return json(404,{error:'Route not found'});
+   const reference='NMT-20260905-8539';
+   const found=await query('SELECT * FROM bookings WHERE reference=$1',[reference]);
+   if(!found.rows[0])return json(404,{error:'Booking not found'});
+   let row=found.rows[0],stripeSession=null;
+   if(clean(row.stripe_checkout_session_id)&&envEnabled('STRIPE_SECRET_KEY')){
+    const response=await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(row.stripe_checkout_session_id)}`,{headers:{authorization:`Bearer ${process.env.STRIPE_SECRET_KEY}`}});
+    if(response.ok)stripeSession=await response.json();
+   }
+   let paymentStatus=clean(row.payment_status).toUpperCase();
+   if(!['DEPOSIT_PAID','PAID_IN_FULL','PAID'].includes(paymentStatus)&&stripeSession?.payment_status==='paid'){
+    const paymentMode=stripeSession.metadata?.paymentMode==='deposit'?'deposit':'full';
+    paymentStatus=paymentMode==='deposit'?'DEPOSIT_PAID':'PAID_IN_FULL';
+    const updated=await query(paymentMode==='deposit'
+     ?"UPDATE bookings SET payment_status=$2,deposit_paid_at=COALESCE(deposit_paid_at,now()),status=CASE WHEN status='PENDING_PAYMENT' THEN 'SUBMITTED' ELSE status END,updated_at=now() WHERE reference=$1 RETURNING *"
+     :"UPDATE bookings SET payment_status=$2,paid_in_full_at=COALESCE(paid_in_full_at,now()),balance_due=0,status=CASE WHEN status='PENDING_PAYMENT' THEN 'SUBMITTED' ELSE status END,updated_at=now() WHERE reference=$1 RETURNING *",
+     [reference,paymentStatus]);
+    row=updated.rows[0]||row;
+    await audit('BOOKING',reference,'PAYMENT_STATUS_RECOVERED',{source:'STRIPE_SESSION',sessionId:stripeSession.id,mode:paymentMode});
+   }
+   if(!['DEPOSIT_PAID','PAID_IN_FULL','PAID'].includes(paymentStatus))return json(409,{error:'Payment is not confirmed',reference,paymentStatus:paymentStatus||'UNKNOWN'});
+   const paymentMode=paymentStatus==='DEPOSIT_PAID'?'deposit':'full';
+   const fallbackAmount=paymentMode==='deposit'?Number(row.deposit_amount||0):Number(row.estimated_fare||0);
+   const amountPaid=stripeSession?.amount_total!=null?Number(stripeSession.amount_total)/100:fallbackAmount;
+   const delivery=await sendPaymentTripConfirmation(row,{paymentMode,amountPaid,balanceDue:Number(row.balance_due||0)});
+   await audit('BOOKING',reference,'PAYMENT_CONFIRMATION_RESENT',{paymentStatus,delivery});
+   return json(200,{sent:true,reference,paymentStatus,delivery});
+  }
   if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
    const delivered=await query(`SELECT email,status,provider_status,sent_at,error_message FROM outreach_deliveries WHERE campaign_id=$1 AND stage='INITIAL'`,[OUTREACH_CAMPAIGN.id]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
@@ -2941,27 +3006,17 @@ async function handler(event){
        ?"UPDATE bookings SET payment_status=$2,deposit_paid_at=now(),status=CASE WHEN status='PENDING_PAYMENT' THEN 'SUBMITTED' ELSE status END,updated_at=now() WHERE reference=$1 RETURNING *"
        :"UPDATE bookings SET payment_status=$2,paid_in_full_at=now(),balance_due=0,status=CASE WHEN status='PENDING_PAYMENT' THEN 'SUBMITTED' ELSE status END,updated_at=now() WHERE reference=$1 RETURNING *";
       const paidBookingResult=await query(updateSql,[bookingReference,newStatus]);
+      const paidBooking=paidBookingResult.rows[0]||{...bk,payment_status:newStatus};
       if(clean(bk.status).toUpperCase()==='PENDING_PAYMENT'){
-       const confirmedRow=paidBookingResult.rows[0]||{...bk,status:'SUBMITTED',payment_status:newStatus};
+       const confirmedRow={...paidBooking,status:'SUBMITTED'};
        autoAssign(confirmedRow).catch(()=>{});
-       await notifyBooking(mapBooking(confirmedRow)).catch(()=>{});
       }
       await audit('BOOKING',bookingReference,'PAYMENT_RECEIVED',{mode:paymentMode,sessionId:session.id,amount:session.amount_total});
-      if(isDeposit){
-       const depositSmsRecipients=buildSmsRecipients(bk.phone);
-       const depositEmailRecipients=buildEmailRecipients(bk.email||process.env.COMPANY_EMAIL);
+      await sendPaymentTripConfirmation(paidBooking,{paymentMode,amountPaid:Number(session.amount_total||0)/100,balanceDue:Number(paidBooking.balance_due||0)});
+      if(!isDeposit){
        await Promise.allSettled([
-        Promise.all(depositSmsRecipients.map((phone)=>sendSms(phone,`Nexus Medical Transit: 25% deposit received for booking ${bookingReference}. Your ride is reserved! The remaining balance of $${Number(bk.balance_due||0).toFixed(2)} will be due before pickup.`))).then(()=>({status:'sent'})),
-        bk.email?sendEmail(depositEmailRecipients,`Deposit confirmed — ${bookingReference}`,`<h2>Deposit received</h2><p>Your 25% deposit for booking <strong>${bookingReference}</strong> has been received and your ride is reserved.</p><p>Remaining balance: <strong>$${Number(bk.balance_due||0).toFixed(2)}</strong> — due before pickup.</p>`):Promise.resolve()
-       ]);
-      }else{
-       const paymentSmsRecipients=buildSmsRecipients(bk.phone);
-       const paymentEmailRecipients=buildEmailRecipients(bk.email||process.env.COMPANY_EMAIL);
-       await Promise.allSettled([
-        Promise.all(paymentSmsRecipients.map((phone)=>sendSms(phone,`Nexus Medical Transit: Full payment confirmed for booking ${bookingReference}. Thank you!`))).then(()=>({status:'sent'})),
-        bk.email?sendEmail(paymentEmailRecipients,`Payment confirmed — ${bookingReference}`,`<h2>Payment confirmed</h2><p>Booking <strong>${bookingReference}</strong> is fully paid. We look forward to your ride.</p>`):Promise.resolve(),
         process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Payment complete: ${bookingReference}`,`<h2>Payment Received</h2><p><strong>Reference:</strong> ${bookingReference}</p><p><strong>Passenger:</strong> ${bk.name}</p><p><strong>Amount:</strong> $${((session.amount_total||0)/100).toFixed(2)}</p>`):Promise.resolve(),
-        bk.driver_name?Promise.all(paymentSmsRecipients.map((phone)=>sendSms(phone,`[NEXUS DRIVER ALERT] Payment complete for booking ${bookingReference} — ${bk.name}. You are clear to proceed.`))).then(()=>({status:'sent'})):Promise.resolve()
+        bk.driver_name?notifyAssignedDriver(paidBooking,{driverName:bk.driver_name,driverScopeId:bk.driver_scope_id}):Promise.resolve()
        ]);
       }
      }
