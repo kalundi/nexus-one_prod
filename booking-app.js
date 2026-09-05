@@ -1926,15 +1926,12 @@
     }catch{}
   }
 
-  function resolveRouteDepartureTime(tripDate, appointmentTime, leadMinutes = 0){
+  function resolveRouteDepartureTime(tripDate, appointmentTime){
     const date = String(tripDate || '').trim();
     const time = String(appointmentTime || '').trim();
     if(/^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(time)){
       const local = new Date(`${date}T${time}:00`);
-      if(!Number.isNaN(local.getTime())){
-        local.setMinutes(local.getMinutes() - Math.max(0, Number(leadMinutes) || 0));
-        return local;
-      }
+      if(!Number.isNaN(local.getTime())) return local;
     }
     return new Date();
   }
@@ -2806,7 +2803,7 @@
       await loadMaps();
       const dirSvc = new google.maps.DirectionsService();
       const waypoints = destinations.slice(0, -1).map((location) => ({ location, stopover: true }));
-      let result = await new Promise((resolve, reject) => {
+      const result = await new Promise((resolve, reject) => {
         dirSvc.route({
           origin: pickup,
           destination,
@@ -2819,15 +2816,7 @@
           unitSystem: google.maps.UnitSystem.IMPERIAL
         }, (res, status) => status === 'OK' ? resolve(res) : reject(new Error(status)));
       });
-      let legs = result.routes?.[0]?.legs || [];
-      const initialMinutes = legs.reduce((sum, leg) => sum + (Number(leg?.duration?.value || 0) / 60), 0);
-      const scheduledDeparture = resolveRouteDepartureTime(tripDate, String(appointmentTimeInput?.value || '').trim(), Math.ceil(initialMinutes) + 15);
-      if(scheduledDeparture.getTime() > Date.now()){
-        result = await new Promise((resolve, reject) => {
-          dirSvc.route({origin:pickup,destination,waypoints,travelMode:google.maps.TravelMode.DRIVING,drivingOptions:{departureTime:scheduledDeparture,trafficModel:google.maps.TrafficModel.BEST_GUESS},unitSystem:google.maps.UnitSystem.IMPERIAL},(res,status)=>status==='OK'?resolve(res):reject(new Error(status)));
-        });
-        legs = result.routes?.[0]?.legs || [];
-      }
+      const legs = result.routes?.[0]?.legs || [];
       routeLegTravelMinutes = legs.map((leg) => Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60);
       miles = legs.reduce((sum, leg) => sum + (Number(leg?.distance?.value || 0) / 1609.34), 0);
       durationMinutes = legs.reduce((sum, leg) => sum + (Number(leg?.duration?.value || 0) / 60), 0);
