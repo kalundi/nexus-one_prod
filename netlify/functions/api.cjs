@@ -1989,10 +1989,17 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
-  if(p.join('/')==='maintenance/inspect-schedule/NMT-20260905-8539'&&method==='GET'){
+  if(p.join('/')==='maintenance/inspect-schedule/NMT-20260905-8539'&&['GET','POST'].includes(method)){
    const token=clean(event.headers?.['x-nexus-one-time-token']||event.headers?.['X-Nexus-One-Time-Token']);
    if(crypto.createHash('sha256').update(token).digest('hex')!=='37929a9ce67c4de70f60c62297caba4f59dca579076d097fd23e6915d714bf34')return json(404,{error:'Route not found'});
    const reference='NMT-20260905-8539';
+   if(method==='POST'){
+    const updated=await query(`UPDATE bookings SET trip_time='06:15'::time,pickup_time='06:15'::time,notes=regexp_replace(regexp_replace(notes,'Pickup estimate: [^|\\n]+','Pickup estimate: 06:15'),'Check-in time: [^|\\n]+','Check-in time: 5:00 AM'),updated_at=now() WHERE reference=$1 RETURNING reference,trip_date,trip_time,pickup_time,notes,status,payment_status`,[reference]);
+    if(!updated.rows[0])return json(404,{error:'Booking not found'});
+    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[reference,updated.rows[0].status,statusLabel(updated.rows[0].status),'Pickup corrected to 6:15 AM after scheduled-departure review','SYSTEM_SCHEDULE_CORRECTION']);
+    await audit('BOOKING',reference,'PICKUP_TIME_CORRECTED',{from:'05:58',to:'06:15',driverCheckIn:'05:00',reason:'Scheduled route traffic was previously sampled at booking time'});
+    return json(200,{corrected:true,booking:updated.rows[0]});
+   }
    const found=await query('SELECT reference,service,pickup,destination,trip_date,trip_time,pickup_time,notes,estimated_duration,distance_miles,status,payment_status,created_at,updated_at FROM bookings WHERE reference=$1',[reference]);
    if(!found.rows[0])return json(404,{error:'Booking not found'});
    const settings=await readPlatformSettings();
