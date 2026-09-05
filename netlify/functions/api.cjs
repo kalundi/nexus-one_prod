@@ -1990,6 +1990,20 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p.join('/')==='maintenance/email-corrected-trip/NMT-20260905-8539'&&method==='POST'){
+   const token=clean(event.headers?.['x-nexus-one-time-token']||event.headers?.['X-Nexus-One-Time-Token']);
+   if(crypto.createHash('sha256').update(token).digest('hex')!=='2085654911171924fb2621cee4f02cbdf05591ea0651c4f705355ad3caa51e89')return json(404,{error:'Route not found'});
+   const reference='NMT-20260905-8539';
+   const found=await query('SELECT * FROM bookings WHERE reference=$1',[reference]);
+   const row=found.rows[0];
+   if(!row)return json(404,{error:'Booking not found'});
+   if(!['PAID_IN_FULL','PAID'].includes(clean(row.payment_status).toUpperCase()))return json(409,{error:'Payment is not confirmed'});
+   if(!clean(row.email))return json(409,{error:'No email is saved for this booking'});
+   const content=paymentTripConfirmationContent(row,{paymentMode:'full',amountPaid:Number(row.estimated_fare||0),balanceDue:0});
+   const delivery=await sendEmail([clean(row.email)],`Corrected trip itinerary and payment receipt — ${reference}`,content.html);
+   await audit('BOOKING',reference,'CORRECTED_ITINERARY_EMAIL_SENT',{delivery:delivery.status,pickupTime:'09:00'});
+   return json(200,{sent:delivery.status==='sent',reference,delivery});
+  }
   if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
    const delivered=await query(`SELECT email,status,provider_status,sent_at,error_message FROM outreach_deliveries WHERE campaign_id=$1 AND stage='INITIAL'`,[OUTREACH_CAMPAIGN.id]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
