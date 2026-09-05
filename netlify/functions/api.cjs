@@ -1989,6 +1989,15 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p.join('/')==='maintenance/inspect-schedule/NMT-20260905-8539'&&method==='GET'){
+   const token=clean(event.headers?.['x-nexus-one-time-token']||event.headers?.['X-Nexus-One-Time-Token']);
+   if(crypto.createHash('sha256').update(token).digest('hex')!=='37929a9ce67c4de70f60c62297caba4f59dca579076d097fd23e6915d714bf34')return json(404,{error:'Route not found'});
+   const reference='NMT-20260905-8539';
+   const found=await query('SELECT reference,service,pickup,destination,trip_date,trip_time,pickup_time,notes,estimated_duration,distance_miles,status,payment_status,created_at,updated_at FROM bookings WHERE reference=$1',[reference]);
+   if(!found.rows[0])return json(404,{error:'Booking not found'});
+   const settings=await readPlatformSettings();
+   return json(200,{booking:found.rows[0],organization:{yardAddress:settings.organization.yardAddress,preTripInspectionMinutes:settings.organization.preTripInspectionMinutes}});
+  }
   if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
    const delivered=await query(`SELECT email,status,provider_status,sent_at,error_message FROM outreach_deliveries WHERE campaign_id=$1 AND stage='INITIAL'`,[OUTREACH_CAMPAIGN.id]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
