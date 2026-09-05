@@ -23,6 +23,7 @@ test('negotiated coupon is single-use, stretcher-only, date-restricted, and tota
   assert.match(migration, /1995\.00/);
   assert.match(api, /redeemed_booking_reference IS NULL/);
   assert.match(api, /UPDATE booking_promotions SET redeemed_booking_reference/);
+  assert.match(api, /ensureBookingPromotionsSchema/);
 });
 
 test('hosted checkout charges the booking amount from the database', () => {

@@ -1052,6 +1052,13 @@ async function sendEmail(to,subject,html){
  if(!r.ok)throw new Error(`SendGrid request failed (${r.status})`);return {status:'sent'};
 }
 function promotionHash(value){return crypto.createHash('sha256').update(clean(value).toUpperCase()).digest('hex');}
+async function ensureBookingPromotionsSchema(){
+ await query(`CREATE TABLE IF NOT EXISTS booking_promotions (id bigserial PRIMARY KEY,code_hash text NOT NULL UNIQUE,display_code text NOT NULL,description text,service text NOT NULL,trip_date date NOT NULL,fixed_total numeric(12,2) NOT NULL CHECK (fixed_total >= 0),active boolean NOT NULL DEFAULT true,redeemed_booking_reference text,redeemed_at timestamptz,created_at timestamptz NOT NULL DEFAULT now())`);
+ await query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS promotion_code text');
+ await query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS fare_before_promotion numeric(12,2)');
+ await query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS promotion_discount numeric(12,2) NOT NULL DEFAULT 0');
+ await query(`INSERT INTO booking_promotions(code_hash,display_code,description,service,trip_date,fixed_total) VALUES($1,'SEP10-1995-NEXUS','Negotiated stretcher ride total','stretcher',DATE '2026-09-10',1995.00) ON CONFLICT(code_hash) DO NOTHING`,[promotionHash('SEP10-1995-NEXUS')]);
+}
 
 const OUTREACH_CAMPAIGN={
  id:'montgomery-tier-a-pilot-2026',status:'APPROVED',sendEnabled:true,
@@ -2639,6 +2646,7 @@ async function handler(event){
    return json(200,{completed:true});
   }
   if(p.join('/')==='promotions/validate'&&method==='POST'){
+   await ensureBookingPromotionsSchema();
    const b=parseBody(event),codeHash=promotionHash(b.code);
    const result=await query(`SELECT description,fixed_total FROM booking_promotions WHERE code_hash=$1 AND active=true AND redeemed_booking_reference IS NULL AND lower(service)=lower($2) AND trip_date=$3::date LIMIT 1`,[codeHash,clean(b.service),normalizeTripDate(b.date)]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
    const promotion=result.rows[0];
@@ -2715,6 +2723,7 @@ async function handler(event){
    const ref=reference();
    const submittedFare=Math.max(0,Number(b.estimatedFare||0));
    const codeHash=clean(b.promotionCode)?promotionHash(b.promotionCode):'';
+   if(codeHash)await ensureBookingPromotionsSchema();
    let fare=submittedFare,promotionLabel=null,promotionDiscount=0,r;
    const insertSql=`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,trip_type,return_trip_date,return_trip_time,recurrence_days,recurrence_end_date,promotion_code,fare_before_promotion,promotion_discount,created_at,updated_at)
   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,$35,$36,$37,now(),now()) RETURNING *`;
