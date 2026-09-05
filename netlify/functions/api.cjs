@@ -1994,7 +1994,7 @@ async function handler(event){
    if(crypto.createHash('sha256').update(token).digest('hex')!=='37929a9ce67c4de70f60c62297caba4f59dca579076d097fd23e6915d714bf34')return json(404,{error:'Route not found'});
    const reference='NMT-20260905-8539';
    if(method==='POST'){
-    const updated=await query(`UPDATE bookings SET trip_time='09:00'::time,pickup_time='09:00'::time,notes=concat(regexp_replace(regexp_replace(regexp_replace(COALESCE(notes,''),'Pickup estimate: [^|\\n]+','Pickup estimate: 09:00'),'Check-in time: [^|\\n]+','Check-in time: 7:45 AM'),'\\s*\\|\\s*Appointment time: [^|\\n]+','','g'),' | Schedule basis: PICKUP'),updated_at=now() WHERE reference=$1 RETURNING reference,trip_date,trip_time,pickup_time,notes,status,payment_status`,[reference]);
+    const updated=await query(`UPDATE bookings SET trip_time='09:00'::time,pickup_time=NULL,notes=concat(regexp_replace(regexp_replace(regexp_replace(COALESCE(notes,''),'Pickup estimate: [^|\\n]+','Pickup estimate: 09:00'),'Check-in time: [^|\\n]+','Check-in time: 7:45 AM'),'\\s*\\|\\s*Appointment time: [^|\\n]+','','g'),' | Schedule basis: PICKUP'),updated_at=now() WHERE reference=$1 RETURNING reference,trip_date,trip_time,pickup_time,notes,status,payment_status`,[reference]);
     if(!updated.rows[0])return json(404,{error:'Booking not found'});
     await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[reference,updated.rows[0].status,statusLabel(updated.rows[0].status),'Patient-selected pickup time corrected to 9:00 AM; no appointment time','SYSTEM_SCHEDULE_CORRECTION']);
     await audit('BOOKING',reference,'PICKUP_TIME_CORRECTED',{from:'05:58',to:'09:00',driverCheckIn:'07:45',scheduleBasis:'PICKUP',appointmentTime:null});
