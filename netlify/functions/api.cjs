@@ -1990,23 +1990,6 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
-  if(p.join('/')==='maintenance/email-admin-itinerary/NMT-20260905-8539'&&method==='POST'){
-   const token=clean(event.headers?.['x-nexus-one-time-token']||event.headers?.['X-Nexus-One-Time-Token']);
-   if(crypto.createHash('sha256').update(token).digest('hex')!=='7e6c63e69ee543df5e32f609d8866db8d635ca028b00b4c70b087cc689ec7fbe')return json(404,{error:'Route not found'});
-   const reference='NMT-20260905-8539';
-   const found=await query('SELECT * FROM bookings WHERE reference=$1',[reference]);
-   const row=found.rows[0];
-   if(!row)return json(404,{error:'Booking not found'});
-   const admins=await query("SELECT email FROM users WHERE role='ADMIN' AND active=true AND email IS NOT NULL");
-   const recipients=[...new Set([...admins.rows.map(item=>clean(item.email)),...buildEmailRecipients(process.env.COMPANY_EMAIL)].filter(Boolean))];
-   if(!recipients.length)return json(409,{error:'No active admin email recipients are configured'});
-   const paymentMode=clean(row.payment_status).toUpperCase()==='DEPOSIT_PAID'?'deposit':'full';
-   const amountPaid=paymentMode==='deposit'?Number(row.deposit_amount||0):Number(row.estimated_fare||0);
-   const content=paymentTripConfirmationContent(row,{paymentMode,amountPaid,balanceDue:Number(row.balance_due||0)});
-   const delivery=await sendEmail(recipients,`Customer itinerary copy — ${reference}`,content.html);
-   await audit('BOOKING',reference,'ADMIN_ITINERARY_COPY_SENT',{delivery:delivery.status,recipientCount:recipients.length});
-   return json(200,{sent:delivery.status==='sent',reference,recipientCount:recipients.length,delivery});
-  }
   if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
    const delivered=await query(`SELECT email,status,provider_status,sent_at,error_message FROM outreach_deliveries WHERE campaign_id=$1 AND stage='INITIAL'`,[OUTREACH_CAMPAIGN.id]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
