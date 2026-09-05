@@ -1067,7 +1067,7 @@ async function ensureBookingPromotionsSchema(){
  await query('ALTER TABLE booking_promotions ALTER COLUMN fixed_total DROP NOT NULL');
  await query('ALTER TABLE booking_promotions ADD COLUMN IF NOT EXISTS percent_off numeric(5,2)');
  await query(`INSERT INTO booking_promotions(code_hash,display_code,description,service,trip_date,fixed_total) VALUES($1,'SEP10-1995-NEXUS','Negotiated stretcher ride total','stretcher',DATE '2026-09-10',1995.00) ON CONFLICT(code_hash) DO NOTHING`,[promotionHash('SEP10-1995-NEXUS')]);
- const params=[],rows=PERCENT_PROMOTION_CODES.map((code,index)=>{const pct=Number(code.match(/^NEXUS(\d+)-/)[1]);params.push(promotionHash(code),code,pct);const n=index*3;return `($${n+1},$${n+2},'Single-use '||$${n+3}||'% coupon',NULL,NULL,NULL,$${n+3})`;});
+ const params=[],rows=PERCENT_PROMOTION_CODES.map((code,index)=>{const pct=Number(code.match(/^NEXUS(\d+)-/)[1]);params.push(promotionHash(code),code,pct);const n=index*3;return `($${n+1},$${n+2},'Single-use '||$${n+3}::text||'% coupon',NULL,NULL,NULL,$${n+3}::numeric)`;});
  await query(`INSERT INTO booking_promotions(code_hash,display_code,description,service,trip_date,fixed_total,percent_off) VALUES ${rows.join(',')} ON CONFLICT(code_hash) DO NOTHING`,params);
 }
 
