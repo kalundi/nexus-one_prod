@@ -594,6 +594,7 @@
     .bookingNudge{position:fixed;left:50%;bottom:150px;z-index:85;width:min(560px,calc(100% - 28px));transform:translateX(-50%);padding:14px;border:1px solid #8fd7ef;border-radius:16px;background:rgba(244,252,255,.97);box-shadow:0 20px 50px rgba(8,47,73,.20);backdrop-filter:blur(14px);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px}.bookingNudge[hidden]{display:none}.bookingNudgeIcon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#0a6b99;color:#fff;font-size:20px}.bookingNudgeCopy strong,.bookingNudgeCopy span{display:block}.bookingNudgeCopy strong{font:800 14px/1.3 Sora,sans-serif;color:#10324a}.bookingNudgeCopy span{margin-top:3px;color:#4f6879;font-size:12px}.bookingNudgeActions{display:flex;align-items:center;gap:6px}.bookingNudgeActions button{padding:8px 10px;font-size:11px}.bookingNudgeDismiss{border:0;background:transparent;color:#52677c;font-size:18px!important;padding:7px!important}@media(max-width:520px){.bookingNudge{grid-template-columns:auto 1fr;bottom:142px}.bookingNudgeActions{grid-column:1/-1;justify-content:flex-end}.bookingNudgeIcon{width:36px;height:36px}}
     body[data-active-tab="manifest"] .bottomBar,body[data-active-tab="contact"] .bottomBar{display:none}
     .inlineBtns{display:flex;justify-content:space-between;gap:8px;align-items:center}
+    .promotionEntry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.promotionEntry .ghost{min-width:78px;white-space:nowrap}
     .bottomBar .inlineBtns{justify-content:flex-end}
     .inlineBtns .topAuthAction{flex:0 0 auto}
     .inlineBtns .primary{min-width:220px}
@@ -1029,10 +1030,12 @@ Destination: -</p>
           <div class="line"><b>Subtotal</b><span id="estSubtotal">-</span></div>
           <div class="line"><b>Card Processing Fee (3%)</b><span id="estTax">-</span></div>
           <div class="line" id="estMemberSavingsRow" hidden><b>Member Savings (5%)</b><span id="estMemberSavings">-</span></div>
+          <div class="line" id="farePromotionSavingsRow" hidden><b>Special coupon</b><span id="farePromotionSavings">-</span></div>
           <div class="line total"><b>Fare Estimate</b><span id="estFare">-</span></div>
         </div>
         <p class="subtle" id="rateSourceLabel">Your estimate is based on the selected ride, distance, and travel time.</p>
         <p class="memberNote" id="memberDiscountNote">Unlock 5% savings on every ride when you sign in or sign up.</p>
+        <div class="field" style="margin:14px 0"><label for="promotionCode">Special coupon code</label><div class="promotionEntry"><input id="promotionCode" name="promotionCode" autocomplete="off" autocapitalize="characters" placeholder="Enter coupon code"><button type="button" class="ghost" id="applyPromotionBtn">Apply</button></div><small class="subtle" id="promotionMessage" aria-live="polite">Enter an eligible coupon before continuing.</small></div>
         <button type="button" class="primary chooseRideBtn" id="continueRideBtn">Book My Ride</button>
       </section>
 
@@ -1139,8 +1142,6 @@ Destination: -</p>
           <div class="fareTrustHeader"><div><span class="fareTrustEyebrow">Clear, compassionate pricing</span><h2 class="fareTrustTitle">Your estimated ride fare</h2></div><div class="fareSummaryAmount" id="fareSummaryAmount">-</div></div>
           <p class="fareTrustMessage">A dependable estimate based on the route, ride support, and schedule you selected—with the same transparent process for every rider.</p>
           <div class="fareSummaryLine" id="fareMemberSavingsRow" hidden><b>Member Savings (5%)</b><span id="fareMemberSavings">-</span></div>
-          <div class="fareSummaryLine" id="farePromotionSavingsRow" hidden><b>Special coupon</b><span id="farePromotionSavings">-</span></div>
-          <div class="field" style="margin-top:14px"><label for="promotionCode">Special coupon code</label><div class="inlineBtns"><input id="promotionCode" name="promotionCode" autocomplete="off" autocapitalize="characters" placeholder="Enter coupon code"><button type="button" class="ghost" id="applyPromotionBtn">Apply</button></div><small class="subtle" id="promotionMessage" aria-live="polite"></small></div>
           <div class="fareAssurances" aria-label="Nexus fare commitments"><span class="fareAssurance">Reliable route planning</span><span class="fareAssurance">Care-centered service</span><span class="fareAssurance">Fair, transparent estimate</span></div>
           <p class="fareEstimateNote">You will review this estimate before submitting. It changes only if ride details, timing, or requested support change.</p>
         </div>
