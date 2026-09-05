@@ -1344,7 +1344,7 @@ function paymentTripConfirmationContent(row,{paymentMode='full',amountPaid=0,bal
 
 async function sendPaymentTripConfirmation(row,options={}){
  const content=paymentTripConfirmationContent(row,options);
- const smsRecipients=buildSmsRecipients(row.phone),emailRecipients=buildEmailRecipients(row.email);
+ const smsRecipients=clean(row.phone)?[clean(row.phone)]:[],emailRecipients=clean(row.email)?[clean(row.email)]:[];
  const results=await Promise.allSettled([
   smsRecipients.length?Promise.all(smsRecipients.map(phone=>sendSms(phone,content.sms))):Promise.resolve([]),
   emailRecipients.length?sendEmail(emailRecipients,content.subject,content.html):Promise.resolve({status:'skipped'})
@@ -1989,37 +1989,6 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
-  if(p.join('/')==='maintenance/resend-payment-trip/NMT-20260905-8539'&&method==='POST'){
-   const token=clean(event.headers?.['x-nexus-one-time-token']||event.headers?.['X-Nexus-One-Time-Token']);
-   const tokenHash=crypto.createHash('sha256').update(token).digest('hex');
-   if(tokenHash!=='477c2548e0cb880041ba79aee9d8390c0a3537f4daea431b6aa2a3e542e7a4d4')return json(404,{error:'Route not found'});
-   const reference='NMT-20260905-8539';
-   const found=await query('SELECT * FROM bookings WHERE reference=$1',[reference]);
-   if(!found.rows[0])return json(404,{error:'Booking not found'});
-   let row=found.rows[0],stripeSession=null;
-   if(clean(row.stripe_checkout_session_id)&&envEnabled('STRIPE_SECRET_KEY')){
-    const response=await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(row.stripe_checkout_session_id)}`,{headers:{authorization:`Bearer ${process.env.STRIPE_SECRET_KEY}`}});
-    if(response.ok)stripeSession=await response.json();
-   }
-   let paymentStatus=clean(row.payment_status).toUpperCase();
-   if(!['DEPOSIT_PAID','PAID_IN_FULL','PAID'].includes(paymentStatus)&&stripeSession?.payment_status==='paid'){
-    const paymentMode=stripeSession.metadata?.paymentMode==='deposit'?'deposit':'full';
-    paymentStatus=paymentMode==='deposit'?'DEPOSIT_PAID':'PAID_IN_FULL';
-    const updated=await query(paymentMode==='deposit'
-     ?"UPDATE bookings SET payment_status=$2,deposit_paid_at=COALESCE(deposit_paid_at,now()),status=CASE WHEN status='PENDING_PAYMENT' THEN 'SUBMITTED' ELSE status END,updated_at=now() WHERE reference=$1 RETURNING *"
-     :"UPDATE bookings SET payment_status=$2,paid_in_full_at=COALESCE(paid_in_full_at,now()),balance_due=0,status=CASE WHEN status='PENDING_PAYMENT' THEN 'SUBMITTED' ELSE status END,updated_at=now() WHERE reference=$1 RETURNING *",
-     [reference,paymentStatus]);
-    row=updated.rows[0]||row;
-    await audit('BOOKING',reference,'PAYMENT_STATUS_RECOVERED',{source:'STRIPE_SESSION',sessionId:stripeSession.id,mode:paymentMode});
-   }
-   if(!['DEPOSIT_PAID','PAID_IN_FULL','PAID'].includes(paymentStatus))return json(409,{error:'Payment is not confirmed',reference,paymentStatus:paymentStatus||'UNKNOWN'});
-   const paymentMode=paymentStatus==='DEPOSIT_PAID'?'deposit':'full';
-   const fallbackAmount=paymentMode==='deposit'?Number(row.deposit_amount||0):Number(row.estimated_fare||0);
-   const amountPaid=stripeSession?.amount_total!=null?Number(stripeSession.amount_total)/100:fallbackAmount;
-   const delivery=await sendPaymentTripConfirmation(row,{paymentMode,amountPaid,balanceDue:Number(row.balance_due||0)});
-   await audit('BOOKING',reference,'PAYMENT_CONFIRMATION_RESENT',{paymentStatus,delivery});
-   return json(200,{sent:true,reference,paymentStatus,delivery});
-  }
   if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
    const delivered=await query(`SELECT email,status,provider_status,sent_at,error_message FROM outreach_deliveries WHERE campaign_id=$1 AND stage='INITIAL'`,[OUTREACH_CAMPAIGN.id]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));

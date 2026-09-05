@@ -11,10 +11,7 @@ test('paid booking notification contains receipt and full trip details',()=>{
  assert.match(source,/sendPaymentTripConfirmation\(paidBooking,/);
 });
 
-test('one-time resend verifies payment before contacting the saved recipients',()=>{
- assert.match(source,/maintenance\/resend-payment-trip\/NMT-20260905-8539/);
- assert.match(source,/\['DEPOSIT_PAID','PAID_IN_FULL','PAID'\]\.includes\(paymentStatus\)/);
- assert.match(source,/buildSmsRecipients\(row\.phone\)/);
- assert.match(source,/buildEmailRecipients\(row\.email\)/);
- assert.match(source,/PAYMENT_CONFIRMATION_RESENT/);
+test('payment receipt goes only to the phone and email saved on the booking',()=>{
+ assert.match(source,/const smsRecipients=clean\(row\.phone\)\?\[clean\(row\.phone\)\]:\[\],emailRecipients=clean\(row\.email\)\?\[clean\(row\.email\)\]:\[\]/);
+ assert.doesNotMatch(source,/maintenance\/resend-payment-trip\/NMT-20260905-8539/);
 });
