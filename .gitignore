@@ -3,6 +3,7 @@
 
 # Dependencies
 node_modules/
+database/coupon-codes.csv
 
 # Build artifacts
 dist/
