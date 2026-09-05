@@ -10,6 +10,8 @@ test('patient can schedule by pickup or appointment time',()=>{
  assert.match(html,/<option value="PICKUP">Pickup time<\/option>/);
  assert.match(client,/function applyAppointmentEstimateFromPickup/);
  assert.match(client,/function applyPickupEstimateFromAppointment/);
+ assert.match(client,/appointmentTimeInput\.classList\.toggle\('systemGeneratedField',pickupBasis\)/);
+ assert.match(client,/\$\('tripTime'\)\.classList\.toggle\('systemGeneratedField',!pickupBasis\)/);
  assert.match(client,/scheduleBasis: isPickupTimeBasis\(\)\?'PICKUP':'APPOINTMENT'/);
  assert.match(api,/Schedule basis: \$\{scheduleBasis\}/);
  assert.match(api,/Estimated arrival time:/);

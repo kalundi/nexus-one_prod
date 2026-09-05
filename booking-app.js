@@ -2133,7 +2133,7 @@
   function applyScheduleTimeCalculation(){if(isPickupTimeBasis())applyAppointmentEstimateFromPickup();else applyPickupEstimateFromAppointment();}
   function syncScheduleBasisUi(){
     const pickupBasis=isPickupTimeBasis();
-    if(appointmentTimeInput){appointmentTimeInput.readOnly=pickupBasis;appointmentTimeInput.required=!pickupBasis;}
+    if(appointmentTimeInput){appointmentTimeInput.readOnly=pickupBasis;appointmentTimeInput.required=!pickupBasis;appointmentTimeInput.classList.toggle('systemGeneratedField',pickupBasis);}
     if($('tripTime')){$('tripTime').readOnly=!pickupBasis;$('tripTime').classList.toggle('systemGeneratedField',!pickupBasis);}
     if(appointmentTimeLabel)appointmentTimeLabel.textContent=pickupBasis?'Estimated Arrival Time':'Appointment Time';
     if($('pickupTimeSystemHint'))$('pickupTimeSystemHint').textContent=pickupBasis?'Enter the time the patient should be picked up.':'Calculated from the route and appointment time.';
