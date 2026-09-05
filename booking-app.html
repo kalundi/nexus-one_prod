@@ -1005,6 +1005,11 @@ Destination: -</p>
 
         <div class="metaRow scheduleRow" style="margin-top:12px">
           <div class="field">
+            <label for="scheduleBasis">I know the</label>
+            <select id="scheduleBasis" name="scheduleBasis"><option value="APPOINTMENT">Appointment time</option><option value="PICKUP">Pickup time</option></select>
+            <small class="subtle">Enter either time. We calculate the other from the route.</small>
+          </div>
+          <div class="field">
             <label for="tripDate">Date</label>
             <input id="tripDate" name="tripDate" type="date" required>
           </div>
@@ -1015,7 +1020,7 @@ Destination: -</p>
           <div class="field">
             <label class="systemGeneratedLabel" for="tripTime"><span>Pickup Time</span><span class="systemGeneratedTag">System calculated</span></label>
             <input class="systemGeneratedField" id="tripTime" name="tripTime" type="time" readonly required aria-describedby="pickupTimeSystemHint">
-            <small class="systemGeneratedHint" id="pickupTimeSystemHint">No entry needed—we calculate this from the route and appointment.</small>
+            <small class="systemGeneratedHint" id="pickupTimeSystemHint">Calculated from the route and appointment time.</small>
           </div>
         </div>
         <div class="legAppointmentTimes" id="legAppointmentTimes" hidden>

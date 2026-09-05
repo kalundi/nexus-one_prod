@@ -1989,22 +1989,6 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
-  if(p.join('/')==='maintenance/inspect-schedule/NMT-20260905-8539'&&['GET','POST'].includes(method)){
-   const token=clean(event.headers?.['x-nexus-one-time-token']||event.headers?.['X-Nexus-One-Time-Token']);
-   if(crypto.createHash('sha256').update(token).digest('hex')!=='37929a9ce67c4de70f60c62297caba4f59dca579076d097fd23e6915d714bf34')return json(404,{error:'Route not found'});
-   const reference='NMT-20260905-8539';
-   if(method==='POST'){
-    const updated=await query(`UPDATE bookings SET trip_time='09:00'::time,pickup_time=NULL,notes=concat(regexp_replace(regexp_replace(regexp_replace(COALESCE(notes,''),'Pickup estimate: [^|\\n]+','Pickup estimate: 09:00'),'Check-in time: [^|\\n]+','Check-in time: 7:45 AM'),'\\s*\\|\\s*Appointment time: [^|\\n]+','','g'),' | Schedule basis: PICKUP'),updated_at=now() WHERE reference=$1 RETURNING reference,trip_date,trip_time,pickup_time,notes,status,payment_status`,[reference]);
-    if(!updated.rows[0])return json(404,{error:'Booking not found'});
-    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[reference,updated.rows[0].status,statusLabel(updated.rows[0].status),'Patient-selected pickup time corrected to 9:00 AM; no appointment time','SYSTEM_SCHEDULE_CORRECTION']);
-    await audit('BOOKING',reference,'PICKUP_TIME_CORRECTED',{from:'05:58',to:'09:00',driverCheckIn:'07:45',scheduleBasis:'PICKUP',appointmentTime:null});
-    return json(200,{corrected:true,booking:updated.rows[0]});
-   }
-   const found=await query('SELECT reference,service,pickup,destination,trip_date,trip_time,pickup_time,notes,estimated_duration,distance_miles,status,payment_status,created_at,updated_at FROM bookings WHERE reference=$1',[reference]);
-   if(!found.rows[0])return json(404,{error:'Booking not found'});
-   const settings=await readPlatformSettings();
-   return json(200,{booking:found.rows[0],organization:{yardAddress:settings.organization.yardAddress,preTripInspectionMinutes:settings.organization.preTripInspectionMinutes}});
-  }
   if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
    const delivered=await query(`SELECT email,status,provider_status,sent_at,error_message FROM outreach_deliveries WHERE campaign_id=$1 AND stage='INITIAL'`,[OUTREACH_CAMPAIGN.id]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
@@ -2718,7 +2702,7 @@ async function handler(event){
    return json(200,{valid:true,total,savings:Math.max(0,currentFare-total),percentOff,description:promotion.description});
   }
   if(p[0]==='bookings'&&method==='POST'&&p.length===1){
-   const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
+   const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time']);
    const phoneDigits=normalizeE164(b.phone);
    if(!phoneDigits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});
    // Validate email if provided
@@ -2728,8 +2712,9 @@ async function handler(event){
    let bookingActor=null;
    try{if(bearer(event))bookingActor=await requireUser(bearer(event))}catch{}
   const actorRole=String(bookingActor?.role||'CUSTOMER').toUpperCase();
+  const scheduleBasis=clean(b.scheduleBasis).toUpperCase()==='PICKUP'?'PICKUP':'APPOINTMENT';
   const appointmentTime=normalizeOptionalTripTime(b.appointmentTime||'');
-  if(!appointmentTime)return json(400,{error:'Appointment time is required and must be valid (for example 2:00 PM).'});
+  if(scheduleBasis==='APPOINTMENT'&&!appointmentTime)return json(400,{error:'Appointment time is required and must be valid (for example 2:00 PM).'});
   const destinations=(Array.isArray(b.destinations)?b.destinations:[b.destination]).map((value)=>clean(value)).filter(Boolean);
   const submittedAppointments=Array.isArray(b.appointmentTimes)?b.appointmentTimes:[];
   const appointmentTimes=(submittedAppointments.length?submittedAppointments:[{leg:1,destination:destinations[0]||clean(b.destination),appointmentTime}]).map((item,index)=>({leg:index+1,destination:clean(item?.destination||destinations[index]||''),appointmentTime:normalizeOptionalTripTime(item?.appointmentTime||'')}));
@@ -2775,12 +2760,13 @@ async function handler(event){
     checkInTime?`Check-in time: ${checkInTime}`:'',
     Number.isFinite(preTripInspectionMinutes)&&preTripInspectionMinutes>=0?`Pre-trip inspection buffer: ${Math.round(preTripInspectionMinutes)} min`:'',
    requestedByRole?`Requested by role: ${requestedByRole}`:'',
+   `Schedule basis: ${scheduleBasis}`,
    paymentPolicy.payerType==='INSURANCE'&&clean(b.insuranceCarrier)?`Insurance carrier: ${clean(b.insuranceCarrier)}`:'',
    tripType==='ROUND_TRIP'?`Round trip return: ${returnTripDate} ${returnTripTime}`:'',
    tripType==='RECURRING'?`Recurring schedule: ${recurrenceDays.join(', ')} through ${recurrenceEndDate}`:'',
    clean(b.paymentWindowLabel)?clean(b.paymentWindowLabel):''
   ].filter(Boolean).join(' | ');
-  const notesWithAppointment=upsertAppointmentNote([baseNotes,metadataNotes].filter(Boolean).join(baseNotes&&metadataNotes?'\n':''),appointmentTime);
+  const notesWithAppointment=scheduleBasis==='APPOINTMENT'?upsertAppointmentNote([baseNotes,metadataNotes].filter(Boolean).join(baseNotes&&metadataNotes?'\n':''),appointmentTime):[baseNotes,metadataNotes,appointmentTime?`Estimated arrival time: ${appointmentNoteLabel(appointmentTime)}`:''].filter(Boolean).join(baseNotes?'\n':'');
   const composedNotes=upsertCheckInNote(notesWithAppointment,checkInTime);
 
    const ref=reference();
