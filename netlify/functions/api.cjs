@@ -1052,12 +1052,23 @@ async function sendEmail(to,subject,html){
  if(!r.ok)throw new Error(`SendGrid request failed (${r.status})`);return {status:'sent'};
 }
 function promotionHash(value){return crypto.createHash('sha256').update(clean(value).toUpperCase()).digest('hex');}
+const PERCENT_PROMOTION_CODES=`NEXUS5-1EA710DF NEXUS5-4110EAF3 NEXUS5-503D4000 NEXUS5-CA3FFBE6 NEXUS5-09D553EE NEXUS5-D2FBD003 NEXUS5-B1EF26F2 NEXUS5-33CE92DA NEXUS5-A27176C1 NEXUS5-A0B1A57D
+NEXUS10-F79A2EC2 NEXUS10-B1241C23 NEXUS10-9A5FFEE7 NEXUS10-8BF33933 NEXUS10-AAAB3C2C NEXUS10-B2912B05 NEXUS10-2CD2D4F8 NEXUS10-1CE8A1C7 NEXUS10-70A55387 NEXUS10-179B8781
+NEXUS20-9955679C NEXUS20-DF9CB4D1 NEXUS20-8CF313A5 NEXUS20-D57A9D55 NEXUS20-CEA7DE82 NEXUS20-6DF0140B NEXUS20-47D3E5FF NEXUS20-358A011B NEXUS20-6AB7CA70 NEXUS20-433A01CC
+NEXUS30-F1723837 NEXUS30-E958F66F NEXUS30-A81BD403 NEXUS30-DE76F54D NEXUS30-1F693E87 NEXUS30-AAB65F5B NEXUS30-C6E186F0 NEXUS30-766826B3 NEXUS30-0C6E29B0 NEXUS30-318B7BFA
+NEXUS40-3E04F9D1 NEXUS40-DB28D6C8 NEXUS40-22126FCC NEXUS40-DAE3BC80 NEXUS40-2E4C0BC0 NEXUS40-9C1D5D1D NEXUS40-F56E06C0 NEXUS40-DFDB51B1 NEXUS40-D1D27501 NEXUS40-EF84EDB9`.split(/\s+/);
 async function ensureBookingPromotionsSchema(){
  await query(`CREATE TABLE IF NOT EXISTS booking_promotions (id bigserial PRIMARY KEY,code_hash text NOT NULL UNIQUE,display_code text NOT NULL,description text,service text NOT NULL,trip_date date NOT NULL,fixed_total numeric(12,2) NOT NULL CHECK (fixed_total >= 0),active boolean NOT NULL DEFAULT true,redeemed_booking_reference text,redeemed_at timestamptz,created_at timestamptz NOT NULL DEFAULT now())`);
  await query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS promotion_code text');
  await query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS fare_before_promotion numeric(12,2)');
  await query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS promotion_discount numeric(12,2) NOT NULL DEFAULT 0');
+ await query('ALTER TABLE booking_promotions ALTER COLUMN service DROP NOT NULL');
+ await query('ALTER TABLE booking_promotions ALTER COLUMN trip_date DROP NOT NULL');
+ await query('ALTER TABLE booking_promotions ALTER COLUMN fixed_total DROP NOT NULL');
+ await query('ALTER TABLE booking_promotions ADD COLUMN IF NOT EXISTS percent_off numeric(5,2)');
  await query(`INSERT INTO booking_promotions(code_hash,display_code,description,service,trip_date,fixed_total) VALUES($1,'SEP10-1995-NEXUS','Negotiated stretcher ride total','stretcher',DATE '2026-09-10',1995.00) ON CONFLICT(code_hash) DO NOTHING`,[promotionHash('SEP10-1995-NEXUS')]);
+ const params=[],rows=PERCENT_PROMOTION_CODES.map((code,index)=>{const pct=Number(code.match(/^NEXUS(\d+)-/)[1]);params.push(promotionHash(code),code,pct);const n=index*3;return `($${n+1},$${n+2},'Single-use '||$${n+3}||'% coupon',NULL,NULL,NULL,$${n+3})`;});
+ await query(`INSERT INTO booking_promotions(code_hash,display_code,description,service,trip_date,fixed_total,percent_off) VALUES ${rows.join(',')} ON CONFLICT(code_hash) DO NOTHING`,params);
 }
 
 const OUTREACH_CAMPAIGN={
@@ -2648,11 +2659,12 @@ async function handler(event){
   if(p.join('/')==='promotions/validate'&&method==='POST'){
    await ensureBookingPromotionsSchema();
    const b=parseBody(event),codeHash=promotionHash(b.code);
-   const result=await query(`SELECT description,fixed_total FROM booking_promotions WHERE code_hash=$1 AND active=true AND redeemed_booking_reference IS NULL AND lower(service)=lower($2) AND trip_date=$3::date LIMIT 1`,[codeHash,clean(b.service),normalizeTripDate(b.date)]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
+   const result=await query(`SELECT description,fixed_total,percent_off FROM booking_promotions WHERE code_hash=$1 AND active=true AND redeemed_booking_reference IS NULL AND (service IS NULL OR lower(service)=lower($2)) AND (trip_date IS NULL OR trip_date=$3::date) LIMIT 1`,[codeHash,clean(b.service),normalizeTripDate(b.date)]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
    const promotion=result.rows[0];
    if(!promotion)return json(400,{error:'This coupon is invalid, already used, or does not apply to the selected ride type and date.'});
-   const total=Number(promotion.fixed_total);
-   return json(200,{valid:true,total,savings:Math.max(0,Number(b.currentFare||0)-total),description:promotion.description});
+   const currentFare=Math.max(0,Number(b.currentFare||0)),percentOff=Number(promotion.percent_off||0);
+   const total=promotion.fixed_total!=null?Number(promotion.fixed_total):Number((currentFare*(1-percentOff/100)).toFixed(2));
+   return json(200,{valid:true,total,savings:Math.max(0,currentFare-total),percentOff,description:promotion.description});
   }
   if(p[0]==='bookings'&&method==='POST'&&p.length===1){
    const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
@@ -2732,9 +2744,9 @@ async function handler(event){
     const client=await getPool().connect();
     try{
      await client.query('BEGIN');
-     const claimed=await client.query(`UPDATE booking_promotions SET redeemed_booking_reference=$2,redeemed_at=now() WHERE code_hash=$1 AND active=true AND redeemed_booking_reference IS NULL AND lower(service)=lower($3) AND trip_date=$4::date RETURNING display_code,fixed_total`,[codeHash,ref,clean(b.service),normalizeTripDate(b.date)]);
+     const claimed=await client.query(`UPDATE booking_promotions SET redeemed_booking_reference=$2,redeemed_at=now() WHERE code_hash=$1 AND active=true AND redeemed_booking_reference IS NULL AND (service IS NULL OR lower(service)=lower($3)) AND (trip_date IS NULL OR trip_date=$4::date) RETURNING display_code,fixed_total,percent_off`,[codeHash,ref,clean(b.service),normalizeTripDate(b.date)]);
      if(!claimed.rows[0])throw Object.assign(new Error('This coupon is invalid, already used, or does not apply to this ride.'),{statusCode:409});
-     promotionLabel=claimed.rows[0].display_code;fare=Number(claimed.rows[0].fixed_total);promotionDiscount=Math.max(0,submittedFare-fare);
+     promotionLabel=claimed.rows[0].display_code;fare=claimed.rows[0].fixed_total!=null?Number(claimed.rows[0].fixed_total):Number((submittedFare*(1-Number(claimed.rows[0].percent_off||0)/100)).toFixed(2));promotionDiscount=Math.max(0,submittedFare-fare);
      r=await client.query(insertSql,insertParams());
      await client.query('COMMIT');
     }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}

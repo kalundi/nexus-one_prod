@@ -30,3 +30,12 @@ test('hosted checkout charges the booking amount from the database', () => {
   assert.doesNotMatch(api, /Number\(b\.amount\|\|r\.rows\[0\]\.estimated_fare/);
   assert.match(api, /const totalFare=Number\(r\.rows\[0\]\.estimated_fare\|\|0\)/);
 });
+
+test('percentage coupon pool contains ten single-use codes at each requested level', () => {
+  const percentageMigration = fs.readFileSync(path.join(root, 'database', 'migrations', '076.001_percentage_coupon_pool.sql'), 'utf8');
+  for (const pct of [5, 10, 20, 30, 40]) {
+    assert.equal((percentageMigration.match(new RegExp(`Single-use ${pct}% coupon`, 'g')) || []).length, 10);
+  }
+  assert.match(api, /percent_off/);
+  assert.match(api, /submittedFare\*\(1-Number\(claimed\.rows\[0\]\.percent_off/);
+});

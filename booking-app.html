@@ -595,6 +595,7 @@
     body[data-active-tab="manifest"] .bottomBar,body[data-active-tab="contact"] .bottomBar{display:none}
     .inlineBtns{display:flex;justify-content:space-between;gap:8px;align-items:center}
     .promotionEntry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.promotionEntry .ghost{min-width:78px;white-space:nowrap}
+    .promotionStatus{display:block;min-height:22px;margin-top:3px;color:#176b4d;font-weight:750}
     .bottomBar .inlineBtns{justify-content:flex-end}
     .inlineBtns .topAuthAction{flex:0 0 auto}
     .inlineBtns .primary{min-width:220px}
@@ -1035,7 +1036,7 @@ Destination: -</p>
         </div>
         <p class="subtle" id="rateSourceLabel">Your estimate is based on the selected ride, distance, and travel time.</p>
         <p class="memberNote" id="memberDiscountNote">Unlock 5% savings on every ride when you sign in or sign up.</p>
-        <div class="field" style="margin:14px 0"><label for="promotionCode">Special coupon code</label><div class="promotionEntry"><input id="promotionCode" name="promotionCode" autocomplete="off" autocapitalize="characters" placeholder="Enter coupon code"><button type="button" class="ghost" id="applyPromotionBtn">Apply</button></div><small class="subtle" id="promotionMessage" aria-live="polite">Enter an eligible coupon before continuing.</small></div>
+        <div class="field" style="margin:14px 0"><label for="promotionCode">Special coupon code</label><div class="promotionEntry"><input id="promotionCode" name="promotionCode" autocomplete="off" autocapitalize="characters" placeholder="Enter coupon code"><button type="button" class="ghost" id="applyPromotionBtn">Apply</button></div><small class="promotionStatus" id="promotionMessage" aria-live="polite">Enter an eligible coupon before continuing.</small></div>
         <button type="button" class="primary chooseRideBtn" id="continueRideBtn">Book My Ride</button>
       </section>
 

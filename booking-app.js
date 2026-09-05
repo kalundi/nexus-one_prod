@@ -579,13 +579,13 @@
       const r=await fetch('/api/promotions/validate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code,service,date,currentFare:Number(estimateState.fare||0)})});
       const data=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(data.error||'Coupon could not be applied');
-      appliedPromotion={code,total:Number(data.total),savings:Number(data.savings||0)};
+      appliedPromotion={code,total:Number(data.total),savings:Number(data.savings||0),percentOff:Number(data.percentOff||0)};
       estimateState.fare=appliedPromotion.total;
       if(estFare)estFare.textContent=`$${appliedPromotion.total.toFixed(2)}`;
       if(fareSummaryAmount)fareSummaryAmount.textContent=`$${appliedPromotion.total.toFixed(2)}`;
       if(farePromotionSavingsRow)farePromotionSavingsRow.hidden=false;
       if(farePromotionSavings)farePromotionSavings.textContent=`-$${appliedPromotion.savings.toFixed(2)}`;
-      if(promotionMessage)promotionMessage.textContent=`Coupon applied. Your agreed total is $${appliedPromotion.total.toFixed(2)}.`;
+      if(promotionMessage)promotionMessage.textContent=`Coupon applied${appliedPromotion.percentOff?`: ${appliedPromotion.percentOff}% off`:''}. Your discounted total is $${appliedPromotion.total.toFixed(2)}.`;
       confirmedFareSignature=''; fareSubmissionAuthorized=false; updateFareConfirmationState(); syncSectionProgressUi();
     }catch(err){
       appliedPromotion=null;
