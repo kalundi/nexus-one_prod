@@ -1051,6 +1051,7 @@ async function sendEmail(to,subject,html){
  const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:recipients.map(email=>({email}))}],from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Medical Transit'},subject,content:[{type:'text/html',value:html}]})});
  if(!r.ok)throw new Error(`SendGrid request failed (${r.status})`);return {status:'sent'};
 }
+function promotionHash(value){return crypto.createHash('sha256').update(clean(value).toUpperCase()).digest('hex');}
 
 const OUTREACH_CAMPAIGN={
  id:'montgomery-tier-a-pilot-2026',status:'APPROVED',sendEnabled:true,
@@ -1957,6 +1958,11 @@ async function handler(event){
   }
   if(isTestMode()){
    const route=p.join('/');
+   if(route==='promotions/validate'&&method==='POST'){
+    const b=parseBody(event),valid=clean(b.code).toUpperCase()==='SEP10-1995-NEXUS'&&clean(b.service).toLowerCase()==='stretcher'&&normalizeTripDate(b.date)==='2026-09-10';
+    if(!valid)return json(400,{error:'This coupon is not valid for the selected ride type and date.'});
+    return json(200,{valid:true,total:1995,savings:Math.max(0,Number(b.currentFare||0)-1995),description:'Negotiated stretcher ride total'});
+   }
    if(route==='integrations/config'&&method==='GET')return json(200,{build:'test',testMode:true,googleMapsEnabled:false,googleMapsBrowserKey:'',stripeEnabled:true,stripePublishableKey:'',squareEnabled:false});
    if(route==='integrations/health'&&method==='GET')return json(200,{testMode:true,googleMaps:'simulated',twilio:'disabled',sendGrid:'disabled',stripe:'simulated',square:'disabled',gps:'simulated',checkedAt:new Date().toISOString()});
    if(route==='locations/search'&&method==='GET'){
@@ -2632,6 +2638,14 @@ async function handler(event){
    await query('UPDATE booking_drafts SET completed_at=now(),updated_at=now() WHERE draft_token=$1',[decodeURIComponent(p[1])]);
    return json(200,{completed:true});
   }
+  if(p.join('/')==='promotions/validate'&&method==='POST'){
+   const b=parseBody(event),codeHash=promotionHash(b.code);
+   const result=await query(`SELECT description,fixed_total FROM booking_promotions WHERE code_hash=$1 AND active=true AND redeemed_booking_reference IS NULL AND lower(service)=lower($2) AND trip_date=$3::date LIMIT 1`,[codeHash,clean(b.service),normalizeTripDate(b.date)]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
+   const promotion=result.rows[0];
+   if(!promotion)return json(400,{error:'This coupon is invalid, already used, or does not apply to the selected ride type and date.'});
+   const total=Number(promotion.fixed_total);
+   return json(200,{valid:true,total,savings:Math.max(0,Number(b.currentFare||0)-total),description:promotion.description});
+  }
   if(p[0]==='bookings'&&method==='POST'&&p.length===1){
    const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
    const phoneDigits=normalizeE164(b.phone);
@@ -2699,9 +2713,23 @@ async function handler(event){
   const composedNotes=upsertCheckInNote(notesWithAppointment,checkInTime);
 
    const ref=reference();
-   const fare=Number(b.estimatedFare||0);
-   const r=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,trip_type,return_trip_date,return_trip_time,recurrence_days,recurrence_end_date,created_at,updated_at)
-  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,now(),now()) RETURNING *`,[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null,tripType,returnTripDate,returnTripTime,JSON.stringify(recurrenceDays),recurrenceEndDate]);
+   const submittedFare=Math.max(0,Number(b.estimatedFare||0));
+   const codeHash=clean(b.promotionCode)?promotionHash(b.promotionCode):'';
+   let fare=submittedFare,promotionLabel=null,promotionDiscount=0,r;
+   const insertSql=`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,trip_type,return_trip_date,return_trip_time,recurrence_days,recurrence_end_date,promotion_code,fare_before_promotion,promotion_discount,created_at,updated_at)
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,$35,$36,$37,now(),now()) RETURNING *`;
+   const insertParams=()=>[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null,tripType,returnTripDate,returnTripTime,JSON.stringify(recurrenceDays),recurrenceEndDate,promotionLabel,codeHash?submittedFare:null,promotionDiscount];
+   if(codeHash){
+    const client=await getPool().connect();
+    try{
+     await client.query('BEGIN');
+     const claimed=await client.query(`UPDATE booking_promotions SET redeemed_booking_reference=$2,redeemed_at=now() WHERE code_hash=$1 AND active=true AND redeemed_booking_reference IS NULL AND lower(service)=lower($3) AND trip_date=$4::date RETURNING display_code,fixed_total`,[codeHash,ref,clean(b.service),normalizeTripDate(b.date)]);
+     if(!claimed.rows[0])throw Object.assign(new Error('This coupon is invalid, already used, or does not apply to this ride.'),{statusCode:409});
+     promotionLabel=claimed.rows[0].display_code;fare=Number(claimed.rows[0].fixed_total);promotionDiscount=Math.max(0,submittedFare-fare);
+     r=await client.query(insertSql,insertParams());
+     await client.query('COMMIT');
+    }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
+   }else r=await query(insertSql,insertParams());
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,initialStatus,statusLabel(initialStatus),paymentPolicy.coverageMessage||(paymentPolicy.requiresDeposit?'Awaiting required 25% deposit':paymentPolicy.requiresApproval?'Awaiting payer eligibility approval':'Online transportation request received'),bookingActor?.display_name||bookingSource||'PUBLIC']);
    await query("UPDATE booking_drafts SET completed_at=now(),updated_at=now() WHERE completed_at IS NULL AND regexp_replace(phone,'\\D','','g')=$1",[phoneDigits.replace(/\D/g,'')]).catch(()=>{});
   await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource,requestedByRole,appointmentTime:appointmentTime||null,appointmentTimes,pickupTimeEstimate:pickupTimeEstimate||null,referralIncentiveEligible:bookingSource==='DRIVER_REFERRAL'});
@@ -2854,7 +2882,7 @@ async function handler(event){
   }
   if(p.join('/')==='payments/create-intent'&&method==='POST'){
    const b=parseBody(event);required(b,['bookingReference']);const r=await query('SELECT reference,estimated_fare,payment_status FROM bookings WHERE reference=$1',[b.bookingReference]);if(!r.rows[0])return json(404,{error:'Booking not found'});
-   const amount=Math.round(Number(b.amount||r.rows[0].estimated_fare||0)*100);if(amount<50)return json(400,{error:'A valid payment amount is required'});
+   const amount=Math.round(Number(r.rows[0].estimated_fare||0)*100);if(amount<50)return json(400,{error:'A valid payment amount is required'});
    const pi=await createStripeIntent(amount,{bookingReference:r.rows[0].reference});await query('UPDATE bookings SET stripe_payment_intent_id=$2,payment_status=$3,updated_at=now() WHERE reference=$1',[r.rows[0].reference,pi.id,'PENDING']);
    return json(200,{clientSecret:pi.client_secret,paymentIntentId:pi.id,amount});
   }
@@ -2863,7 +2891,7 @@ async function handler(event){
    const paymentMode=['deposit','full'].includes(b.paymentMode)?b.paymentMode:'full';
    const r=await query('SELECT reference,email,estimated_fare,payment_status,booking_source,coverage_status FROM bookings WHERE reference=$1',[b.bookingReference]);
    if(!r.rows[0])return json(404,{error:'Booking not found'});
-   const totalFare=Number(b.amount||r.rows[0].estimated_fare||0);
+   const totalFare=Number(r.rows[0].estimated_fare||0);
    const chargeAmount=paymentMode==='deposit'?Math.round(totalFare*0.25*100):Math.round(totalFare*100);
    if(chargeAmount<50)return json(400,{error:'A valid payment amount is required'});
    const depositAmount=paymentMode==='deposit'?chargeAmount/100:totalFare;
@@ -2923,7 +2951,7 @@ async function handler(event){
    const b=parseBody(event);required(b,['bookingReference']);
    const r=await query('SELECT reference,email,estimated_fare,payment_status FROM bookings WHERE reference=$1',[b.bookingReference]);
    if(!r.rows[0])return json(404,{error:'Booking not found'});
-   const amount=Math.round(Number(b.amount||r.rows[0].estimated_fare||0)*100);if(amount<50)return json(400,{error:'A valid payment amount is required'});
+   const amount=Math.round(Number(r.rows[0].estimated_fare||0)*100);if(amount<50)return json(400,{error:'A valid payment amount is required'});
    const square=await createSquarePaymentLink(amount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined});
    await query('UPDATE bookings SET square_payment_link_id=$2,square_order_id=$3,payment_status=$4,updated_at=now() WHERE reference=$1',[r.rows[0].reference,square.payment_link?.id||null,square.payment_link?.order_id||square.related_resources?.orders?.[0]?.id||null,'PENDING']);
    return json(200,{provider:'square',url:square.payment_link?.url,linkId:square.payment_link?.id||null,amount});
@@ -4725,6 +4753,9 @@ function mapBooking(b){
   distanceMiles:b.distance_miles!=null?Number(b.distance_miles):b.distanceMiles!=null?Number(b.distanceMiles):null,
   estimatedDuration:b.estimated_duration,
   estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,
+  promotionCode:b.promotion_code||null,
+  fareBeforePromotion:b.fare_before_promotion!=null?Number(b.fare_before_promotion):null,
+  promotionDiscount:b.promotion_discount?Number(b.promotion_discount):0,
   paymentStatus:b.payment_status||'UNPAID',
   payerType:b.payer_type||'SELF_PAY',
   tripType:b.trip_type||'ONE_WAY',

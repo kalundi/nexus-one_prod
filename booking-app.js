@@ -48,6 +48,11 @@
   const distanceEtaSection = $('distanceEtaSection');
   const fareMemberSavingsRow = $('fareMemberSavingsRow');
   const fareMemberSavings = $('fareMemberSavings');
+  const promotionCode = $('promotionCode');
+  const applyPromotionBtn = $('applyPromotionBtn');
+  const promotionMessage = $('promotionMessage');
+  const farePromotionSavingsRow = $('farePromotionSavingsRow');
+  const farePromotionSavings = $('farePromotionSavings');
   const fareConfirmDialog = $('fareConfirmDialog');
   const fareConfirmAmount = $('fareConfirmAmount');
   const fareConfirmDetails = $('fareConfirmDetails');
@@ -241,6 +246,7 @@
   let fareEstimateSignature = '';
   let confirmedFareSignature = '';
   let fareSubmissionAuthorized = false;
+  let appliedPromotion = null;
   let lastPromptedFareSignature = '';
   let draftSaveTimer = null;
   let bookingNudgeTimer = null;
@@ -526,6 +532,9 @@
   }
 
   function renderFareEstimateBreakdown(breakdown, miles, durationText, durationMinutes = 0, trafficDurationMinutes = 0){
+    appliedPromotion = null;
+    if(farePromotionSavingsRow) farePromotionSavingsRow.hidden = true;
+    if(promotionMessage) promotionMessage.textContent = promotionCode?.value ? 'Reapply the coupon after ride details or pricing change.' : '';
     const discountView = pricingWithMembership(breakdown.total);
     estimateState = {
       miles: Math.max(0, Number(miles || 0)),
@@ -556,6 +565,36 @@
     applyPickupEstimateFromAppointment();
     renderRideMarketplace();
   }
+
+  async function applySpecialPromotion(){
+    const code=String(promotionCode?.value||'').trim().toUpperCase();
+    const service=normalizeService($('service')?.value||'');
+    const date=String($('tripDate')?.value||'');
+    if(!code||!service||!date||Number(estimateState.fare||0)<=0){
+      if(promotionMessage) promotionMessage.textContent='Complete the ride type, date, and fare estimate before applying a coupon.';
+      return;
+    }
+    setBusy(applyPromotionBtn,true,'Applying...','Apply');
+    try{
+      const r=await fetch('/api/promotions/validate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code,service,date,currentFare:Number(estimateState.fare||0)})});
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(data.error||'Coupon could not be applied');
+      appliedPromotion={code,total:Number(data.total),savings:Number(data.savings||0)};
+      estimateState.fare=appliedPromotion.total;
+      if(estFare)estFare.textContent=`$${appliedPromotion.total.toFixed(2)}`;
+      if(fareSummaryAmount)fareSummaryAmount.textContent=`$${appliedPromotion.total.toFixed(2)}`;
+      if(farePromotionSavingsRow)farePromotionSavingsRow.hidden=false;
+      if(farePromotionSavings)farePromotionSavings.textContent=`-$${appliedPromotion.savings.toFixed(2)}`;
+      if(promotionMessage)promotionMessage.textContent=`Coupon applied. Your agreed total is $${appliedPromotion.total.toFixed(2)}.`;
+      confirmedFareSignature=''; fareSubmissionAuthorized=false; updateFareConfirmationState(); syncSectionProgressUi();
+    }catch(err){
+      appliedPromotion=null;
+      if(farePromotionSavingsRow)farePromotionSavingsRow.hidden=true;
+      if(promotionMessage)promotionMessage.textContent=err.message;
+    }finally{setBusy(applyPromotionBtn,false,'Applying...','Apply');}
+  }
+
+  applyPromotionBtn?.addEventListener('click',applySpecialPromotion);
 
   function renderRideMarketplace(){
     if(!serviceChips)return;
@@ -3432,6 +3471,7 @@
       estimatedFare: Number(estimateState.fare || 0),
       memberDiscountPct: token() ? MEMBER_DISCOUNT_PCT : 0,
       memberDiscountAmount: Number(estimateState.memberSavings || 0),
+      promotionCode: appliedPromotion?.code || '',
       pickupTimeEstimate: String($('tripTime')?.value || '').trim(),
       yardAddress: companyYardAddress,
       yardToPickupMinutes: Math.max(0, Number(yardToPickupDurationMinutes || 0)),

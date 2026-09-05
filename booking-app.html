@@ -1139,6 +1139,8 @@ Destination: -</p>
           <div class="fareTrustHeader"><div><span class="fareTrustEyebrow">Clear, compassionate pricing</span><h2 class="fareTrustTitle">Your estimated ride fare</h2></div><div class="fareSummaryAmount" id="fareSummaryAmount">-</div></div>
           <p class="fareTrustMessage">A dependable estimate based on the route, ride support, and schedule you selected—with the same transparent process for every rider.</p>
           <div class="fareSummaryLine" id="fareMemberSavingsRow" hidden><b>Member Savings (5%)</b><span id="fareMemberSavings">-</span></div>
+          <div class="fareSummaryLine" id="farePromotionSavingsRow" hidden><b>Special coupon</b><span id="farePromotionSavings">-</span></div>
+          <div class="field" style="margin-top:14px"><label for="promotionCode">Special coupon code</label><div class="inlineBtns"><input id="promotionCode" name="promotionCode" autocomplete="off" autocapitalize="characters" placeholder="Enter coupon code"><button type="button" class="ghost" id="applyPromotionBtn">Apply</button></div><small class="subtle" id="promotionMessage" aria-live="polite"></small></div>
           <div class="fareAssurances" aria-label="Nexus fare commitments"><span class="fareAssurance">Reliable route planning</span><span class="fareAssurance">Care-centered service</span><span class="fareAssurance">Fair, transparent estimate</span></div>
           <p class="fareEstimateNote">You will review this estimate before submitting. It changes only if ride details, timing, or requested support change.</p>
         </div>
@@ -1216,7 +1218,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=69"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-  <script src="./booking-app.js?v=20260830-multi-stop-feasibility"></script>
+  <script src="./booking-app.js?v=20260904-special-coupon"></script>
 </body>
 </html>
 
