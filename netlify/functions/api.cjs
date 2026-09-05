@@ -321,6 +321,7 @@ async function autoAssign(booking){
   const updatedBookingResult=await query('SELECT * FROM bookings WHERE reference=$1',[booking.reference]);
   const updatedBooking=updatedBookingResult.rows[0];
   await notifyAssignedDriver(updatedBooking,{driverName,driverScopeId,driverEmail,driverPhone,vehicleUnit}).catch(e=>console.error('[ASSIGNMENT_NOTIFY]',e.message));
+  await sendTripStakeholderUpdate(booking,updatedBooking,{display_name:'Nexus Dispatch'},'Driver or vehicle assignment updated').catch(e=>console.error('[TRIP_UPDATE_NOTIFY]',e.message));
   return {assigned:true,driverName,vehicleUnit,status:nextStatus,message:`Assigned to ${driverName||'—'} / ${vehicleUnit||'—'}`};
  }catch(e){console.error('[AUTO-ASSIGN]',e.message);return {assigned:false,message:'Auto-assign error: '+e.message};}
 }
@@ -2873,7 +2874,8 @@ async function handler(event){
    const updated=await query(`UPDATE bookings SET status=$2, driver_name=COALESCE($3,driver_name), driver_scope_id=COALESCE($4,driver_scope_id), updated_at=now() WHERE reference=$1 RETURNING *`,[ref,nextStatus,clean(u.display_name||u.email||'Driver')||null,clean(u.scope_id||u.scopeId||null)||null]);
    if(!updated.rows[0])return json(404,{error:'Booking not found'});
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,nextStatus,statusLabel(nextStatus),`Accepted by ${u.display_name||u.email||'driver'}`,'DRIVER']);
-   return json(200,{booking:mapBooking(updated.rows[0]),message:'Trip accepted'});
+   const notifications=await sendTripStakeholderUpdate(booking.rows[0],updated.rows[0],u,'Driver accepted the trip').catch(()=>({status:'failed'}));
+   return json(200,{booking:mapBooking(updated.rows[0]),notifications,message:'Trip accepted'});
   }
   if(p[0]==='bookings'&&p[1]&&p[2]==='cancel'&&method==='POST'){
    const b=parseBody(event);const phone=clean(b.phone);if(!phone)return json(400,{error:'Phone number is required to cancel'});
@@ -3107,7 +3109,8 @@ async function handler(event){
    const updated=await query(`UPDATE bookings SET name=$2,email=$3,service=$4,pickup=$5,destination=$6,trip_date=$7,trip_time=$8,notes=$9,distance_miles=$10,estimated_duration=$11,estimated_fare=$12,deposit_amount=CASE WHEN requires_deposit THEN $12*.25 ELSE deposit_amount END,balance_due=CASE WHEN requires_deposit THEN $12*.75 ELSE $12 END,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,clean(b.name),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,clean(b.time),upsertAppointmentNote(clean(b.notes),clean(b.appointmentTime)),b.distanceMiles||null,clean(b.estimatedDuration)||null,fare]);
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),'Rider updated booking details','PASSENGER']);
    await audit('BOOKING',ref,'RIDER_UPDATED',{service:b.service,date:b.date,time:b.time});
-   return json(200,{booking:mapBooking(updated.rows[0]),requiresOnlinePayment:Boolean(updated.rows[0].requires_deposit),depositRequired:Boolean(updated.rows[0].requires_deposit),clientMessage:`Booking ${ref} updated. Review the new details and complete payment.`});
+   const notifications=await sendTripStakeholderUpdate(found.rows[0],updated.rows[0],{display_name:'Passenger'},'Booking details updated online').catch(()=>({status:'failed'}));
+   return json(200,{booking:mapBooking(updated.rows[0]),notifications,requiresOnlinePayment:Boolean(updated.rows[0].requires_deposit),depositRequired:Boolean(updated.rows[0].requires_deposit),clientMessage:`Booking ${ref} updated. Review the new details and complete payment.`});
   }
   if(p[0]==='auth'&&p[1]==='switch-role'&&method==='POST'){
    await ensureMultiRoleSchema();
@@ -3578,7 +3581,7 @@ async function handler(event){
   if(hasCheckInTime&&!checkInTimeValue)return json(400,{error:'checkInTime must be a valid time (for example 12:00 PM).'});
   const existingAppointmentTime=getSubmittedAppointmentTime(before.rows[0]);
   const effectiveAppointmentTime=appointmentTimeValue||(!existingAppointmentTime?proposedTripTime:'');
-  if(!existingAppointmentTime&&!effectiveAppointmentTime)return json(409,{error:'Appointment time must be entered by the submitter before further actions can proceed. Enter appointment time and save first.'});
+  if(!existingAppointmentTime&&!effectiveAppointmentTime&&!/Schedule basis:\s*PICKUP/i.test(clean(before.rows[0].notes)))return json(409,{error:'Appointment time must be entered by the submitter before further actions can proceed. Enter appointment time and save first.'});
   const hasBookingSource=Object.prototype.hasOwnProperty.call(b,'bookingSource')||Object.prototype.hasOwnProperty.call(b,'booking_source');
   const hasSubmitterEntity=Object.prototype.hasOwnProperty.call(b,'submitterEntity')||Object.prototype.hasOwnProperty.call(b,'submitter_entity');
   const hasBrokerCompanyName=Object.prototype.hasOwnProperty.call(b,'brokerCompanyName')||Object.prototype.hasOwnProperty.call(b,'broker_company_name');
@@ -3748,7 +3751,7 @@ async function handler(event){
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const currentStatus=String(current.rows[0].status||'').toUpperCase();const next=STATUS_FLOW[currentStatus]||currentStatus;
     const submittedAppointment=getSubmittedAppointmentTime(current.rows[0]);
-    if(!submittedAppointment)return json(409,{error:'Appointment time is required before advancing this trip. The submitter must provide appointment time first.',booking:mapBooking(current.rows[0])});
+    if(!submittedAppointment&&!/Schedule basis:\s*PICKUP/i.test(clean(current.rows[0].notes)))return json(409,{error:'Appointment time is required before advancing this trip. The submitter must provide appointment time first.',booking:mapBooking(current.rows[0])});
    if(!next||next===currentStatus)return json(409,{error:'Trip is already at the furthest workflow step for manual advance.',booking:mapBooking(current.rows[0])});
   const driverAvailabilitySql=typeof buildDriverAvailabilitySql==='function'
    ? buildDriverAvailabilitySql()
@@ -4462,7 +4465,8 @@ async function handler(event){
    if(clean(found.rows[0].payer_type).toUpperCase()!=='SELF_PAY')return json(409,{error:'Driver payment confirmation applies only to self-pay trips.'});
    const updated=await query("UPDATE bookings SET payment_status='PAID_IN_FULL',balance_due=0,paid_in_full_at=now(),payment_confirmed_at=now(),payment_confirmed_by=$2,updated_at=now() WHERE reference=$1 RETURNING *",[ref,u.email||u.display_name||u.role]);
    await audit('BOOKING',ref,'FULL_PAYMENT_CONFIRMED',{by:u.email||u.role,source:'DRIVER_APP'});
-   return json(200,{booking:mapBooking(updated.rows[0]),message:'Full payment confirmed'});
+   const paymentNotifications=await sendPaymentTripConfirmation(updated.rows[0],{paymentMode:'full',amountPaid:Number(updated.rows[0].estimated_fare||0),balanceDue:0}).catch(()=>({status:'failed'}));
+   return json(200,{booking:mapBooking(updated.rows[0]),notifications:paymentNotifications,message:'Full payment confirmed'});
   }
   if(p[0]==='bookings'&&p[1]&&p[2]==='update'&&method==='POST'){
    const ref=decodeURIComponent(p[1]);
@@ -4525,7 +4529,8 @@ async function handler(event){
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),'Trip details updated by passenger','PASSENGER']);
    await audit('BOOKING',ref,'DETAILS_UPDATED',{updatedFields:Object.keys(b).filter(k=>['name','service','pickup','destination','email','alternatePhone','alternateEmail'].includes(k))});
    const booking=mapBooking(updated.rows[0]);
-   return json(200,{booking,message:'Trip details updated successfully'});
+   const notifications=await sendTripStakeholderUpdate(r.rows[0],updated.rows[0],{display_name:'Passenger'},'Trip contact or route details updated').catch(()=>({status:'failed'}));
+   return json(200,{booking,notifications,message:'Trip details updated successfully'});
   }
   if(p[0]==='admin'&&p[1]==='brokers'&&method==='POST'){
    const u=await requireUser(bearer(event),['ADMIN']);
