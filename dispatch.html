@@ -406,7 +406,7 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
       <div class="formField"><label for="brokerNotes">Notes</label><input id="brokerNotes" name="notes" type="text" placeholder="Special instructions, equipment needs, patient condition"></div>
 
       <div style="display:flex;justify-content:flex-end;gap:10px;align-items:center">
-        <div id="brokerIntakeMessage" class="msgBox" hidden></div>
+        <div id="brokerIntakeMessage" class="msgBox" role="status" aria-live="polite" hidden></div>
         <button id="submitBrokerRequest" class="button primary" type="submit">Submit broker request</button>
       </div>
     </form>
@@ -924,6 +924,12 @@ function ensureDispatchReference(prefix){const idMap={broker:'brokerReference',c
 function getDispatchRate(service, waitMinutes, isReturnTrip){const pricing=NexusCore?.getPricing?.()||NexusCore?.DEFAULT||{}; const rate=pricing[service]||pricing[service.toLowerCase?.()||service]||NexusCore?.DEFAULT?.[service]||NexusCore?.DEFAULT?.ambulatory||{base:65,includedMiles:5,perMile:3.25,waitPer15:20}; const base=Number(rate.base||0); const waitCharge=(Number(waitMinutes)||0)/15*Number(rate.waitPer15||0); const returnBoost=isReturnTrip?Number(rate.base||0)*0.15:0; return Number((base+waitCharge+returnBoost).toFixed(2));}
 function updateDispatchRateInputs(){const service=document.getElementById('customerService')?.value||'';const waitMinutes=Number(document.getElementById('customerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('customerReturnTrip')?.checked||false; const rate=getDispatchRate(service,waitMinutes,isReturnTrip); const rateInput=document.getElementById('customerCalculatedRate'); if(rateInput) rateInput.value=rate.toFixed(2); const facilityService=document.getElementById('facilityService')?.value||'';const facilityWait=Number(document.getElementById('facilityWaitMinutes')?.value||0);const facilityReturn=document.getElementById('facilityReturnTrip')?.checked||false; const facilityRate=getDispatchRate(facilityService,facilityWait,facilityReturn); const facilityInput=document.getElementById('facilityCalculatedRate'); if(facilityInput) facilityInput.value=facilityRate.toFixed(2); const brokerService=document.getElementById('brokerService')?.value||'';const brokerWait=Number(document.getElementById('brokerWaitMinutes')?.value||0); const brokerReturn=document.getElementById('brokerReturnTrip')?.checked||false; const brokerRate=getDispatchRate(brokerService,brokerWait,brokerReturn); const brokerInput=document.getElementById('brokerCalculatedRate'); if(brokerInput) brokerInput.value=brokerRate.toFixed(2);}function syncBrokerPickupTime(force=false){const appointmentInput=document.getElementById('brokerTripTime');const pickupInput=document.getElementById('brokerPickupTime');if(!appointmentInput||!pickupInput)return;const appointment=appointmentInput.value;if(!appointment)return;const service=document.getElementById('brokerService')?.value||'ambulatory';const serviceMinutes={wheelchair:35,ambulatory:25,facility_transfer:55,facility_transfer_critical:70,broda:40,stretcher:55,bariatric:65,bls:60,als1:70,als2:75}[service]||35;const waitMinutes=Number(document.getElementById('brokerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('brokerReturnTrip')?.checked||false;const travelMinutes=serviceMinutes+Math.round(waitMinutes/15)*10+(isReturnTrip?15:0);const [hour,minute]=appointment.split(':').map(Number);const totalMinutes=hour*60+minute-travelMinutes;const clamped=Math.max(0,Math.min(23*60+59,totalMinutes));const suggested=new Date(2000,0,1,Math.floor(clamped/60),clamped%60); if(force||!pickupInput.value){pickupInput.value=`${String(suggested.getHours()).padStart(2,'0')}:${String(suggested.getMinutes()).padStart(2,'0')}`;}}
 function floorWaitMinutes(value){return Math.max(120,Number(value)||0);}
+function shiftTimeBack(value,minutes){
+ const match=String(value||'').match(/^(\d{1,2}):(\d{2})$/);
+ if(!match)return '';
+ const total=Math.max(0,Math.min(1439,(Number(match[1])*60+Number(match[2]))-(Number(minutes)||0)));
+ return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+}
 function getDispatchRate(service, waitMinutes, isReturnTrip){const pricing=NexusCore?.getPricing?.()||NexusCore?.DEFAULT||{}; const rate=pricing[service]||pricing[service.toLowerCase?.()||service]||NexusCore?.DEFAULT?.[service]||NexusCore?.DEFAULT?.ambulatory||{base:65,includedMiles:5,perMile:3.25,waitPer15:20}; const base=Number(rate.base||0); const waitCharge=floorWaitMinutes(waitMinutes)/15*Number(rate.waitPer15||0); const returnBoost=isReturnTrip?Number(rate.base||0)*0.15:0; return Number((base+waitCharge+returnBoost).toFixed(2));}
 function updateDispatchRateInputs(){const service=document.getElementById('customerService')?.value||'';const waitMinutes=floorWaitMinutes(document.getElementById('customerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('customerReturnTrip')?.checked||false; const rate=getDispatchRate(service,waitMinutes,isReturnTrip); const rateInput=document.getElementById('customerCalculatedRate'); if(rateInput) rateInput.value=rate.toFixed(2); const facilityService=document.getElementById('facilityService')?.value||'';const facilityWait=floorWaitMinutes(document.getElementById('facilityWaitMinutes')?.value||0);const facilityReturn=document.getElementById('facilityReturnTrip')?.checked||false; const facilityRate=getDispatchRate(facilityService,facilityWait,facilityReturn); const facilityInput=document.getElementById('facilityCalculatedRate'); if(facilityInput) facilityInput.value=facilityRate.toFixed(2); const brokerService=document.getElementById('brokerService')?.value||'';const brokerWait=floorWaitMinutes(document.getElementById('brokerWaitMinutes')?.value||0); const brokerReturn=document.getElementById('brokerReturnTrip')?.checked||false; const brokerRate=getDispatchRate(brokerService,brokerWait,brokerReturn); const brokerInput=document.getElementById('brokerCalculatedRate'); if(brokerInput) brokerInput.value=brokerRate.toFixed(2);}
 function syncBrokerPickupTime(force=false){const appointmentInput=document.getElementById('brokerTripTime');const pickupInput=document.getElementById('brokerPickupTime');if(!appointmentInput||!pickupInput)return;const appointment=appointmentInput.value;if(!appointment)return;const service=document.getElementById('brokerService')?.value||'ambulatory';const serviceMinutes={wheelchair:35,ambulatory:25,facility_transfer:55,facility_transfer_critical:70,broda:40,stretcher:55,bariatric:65,bls:60,als1:70,als2:75}[service]||35;const waitMinutes=floorWaitMinutes(document.getElementById('brokerWaitMinutes')?.value||0);const isReturnTrip=document.getElementById('brokerReturnTrip')?.checked||false;const routeMinutes=serviceMinutes+waitMinutes;const calculated=shiftTimeBack(appointment,routeMinutes);if(calculated||force){pickupInput.value=calculated;} }
@@ -936,10 +942,17 @@ function activateIntakeTab(tab){document.querySelectorAll('[data-intake-tab]').f
 
 async function submitBrokerRequest(event){
   event.preventDefault();
-  syncBrokerPickupTime(true);
-  await refreshBrokerQuotedRateAuto();
+  const btn=document.getElementById('submitBrokerRequest');
   const form=document.getElementById('brokerIntakeForm');
-  const payload={
+  btn.disabled=true;btn.textContent='Submitting...';
+  setBrokerIntakeMessage('Validating request...','ok');
+  try{
+   syncBrokerPickupTime(true);
+   await Promise.race([
+     refreshBrokerQuotedRateAuto().catch(()=>{}),
+     new Promise(resolve=>setTimeout(resolve,5000))
+   ]);
+   const payload={
     broker_name: document.getElementById('pickerCardName')?.textContent?.trim() || selectedCompanyName || 'Unknown',
     referral_id: document.getElementById('brokerReference').value.trim(),
     patient_name: document.getElementById('brokerPatientName').value.trim(),
@@ -960,24 +973,21 @@ async function submitBrokerRequest(event){
     wait_minutes: Number(document.getElementById('brokerWaitMinutes').value || 0),
     notes: document.getElementById('brokerNotes').value.trim(),
     is_return_trip: document.getElementById('brokerReturnTrip').checked
-  };
-  const missing=[];
-  if(!payload.pickup)missing.push('Pickup address');
-  if(!payload.destination)missing.push('Destination address');
-  if(!payload.trip_date)missing.push('Appointment date');
-  if(!payload.trip_time)missing.push('Appointment time');
-  if(!payload.broker_name||payload.broker_name==='Unknown')missing.push('Transportation company (select a company and click Continue)');
-  if(missing.length){
-    setBrokerIntakeMessage('Missing: '+missing.join(', '),'err');
-    return;
-  }
-  // Auto-calculate platform rate if not set
-  if(!payload.platform_calculated_rate){
-    payload.platform_calculated_rate=getDispatchRate(payload.service,payload.wait_minutes,payload.is_return_trip)||0;
-  }
-  const btn=document.getElementById('submitBrokerRequest');
-  btn.disabled=true;btn.textContent='Submitting...';
-  try{
+   };
+   const missing=[];
+   if(!payload.pickup)missing.push('Pickup address');
+   if(!payload.destination)missing.push('Destination address');
+   if(!payload.trip_date)missing.push('Appointment date');
+   if(!payload.trip_time)missing.push('Appointment time');
+   if(!payload.broker_name||payload.broker_name==='Unknown')missing.push('Transportation company (select a company and click Continue)');
+   if(missing.length){
+     setBrokerIntakeMessage('Missing: '+missing.join(', '),'err');
+     return;
+   }
+   // Auto-calculate platform rate if not set
+   if(!payload.platform_calculated_rate){
+     payload.platform_calculated_rate=getDispatchRate(payload.service,payload.wait_minutes,payload.is_return_trip)||0;
+   }
     const res=await fetch('/api/broker-requests',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
     const data=await res.json().catch(()=>({}));
     if(!res.ok) {

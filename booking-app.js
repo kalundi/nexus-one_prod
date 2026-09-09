@@ -1351,6 +1351,7 @@
   }
 
   async function applyPatientTransportationPreferences(){
+    if(sessionStorage.getItem('nexusCaretakerPlan'))return;
     if(String(currentUserRole||'').toUpperCase()!=='PATIENT'||!token())return;
     try{
       const response=await fetch('/api/patient/preferences',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
@@ -3302,6 +3303,27 @@
     markDestinationUnconfirmed();expandedSections.add('pickupDropoffSection');switchAppTab('book');syncSectionProgressUi();revealSectionForAction('pickupDropoffSection','confirmPickupDropoffBtn');
   }
 
+  function consumeCaretakerPlan(){
+    let plan=null,account=null;
+    try{plan=JSON.parse(sessionStorage.getItem('nexusCaretakerPlan')||'null');account=JSON.parse(sessionStorage.getItem('nexusUser')||'null');}catch{}
+    sessionStorage.removeItem('nexusCaretakerPlan');
+    if(!plan||!account||plan.ownerId!==account.id||!token())return false;
+    currentPatientPreferences=null;
+    if(patientDefaultsBanner)patientDefaultsBanner.hidden=true;
+    document.querySelectorAll('input[name="remainsInWheelchair"]').forEach(input=>{input.checked=false;});
+    reuseTripRoute(plan);
+    for(const [id,value] of Object.entries({name:plan.name,phone:plan.phone,email:plan.email,tripDate:plan.date,tripTime:String(plan.trip_time||'').slice(0,5),appointmentTime:String(plan.appointment_time||'').slice(0,5),notes:plan.notes})){
+      if($(id))$(id).value=String(value||'');
+    }
+    if(tripType)tripType.value='ONE_WAY';
+    riderDetailsConfirmed=false;
+    syncTripScheduleUi();syncSectionProgressUi();
+    const notice=document.createElement('div');notice.className='msg ok';notice.setAttribute('role','status');
+    notice.textContent=`Caretaker plan loaded. Planned pickup: ${String(plan.trip_time||'').slice(0,5)}. Booking recalculates pickup time from your appointment and route. Review the patient, contact phone, addresses and times, then complete booking and payment. This plan is not yet a reservation.`;
+    form.prepend(notice);
+    return true;
+  }
+
   function consumePatientRepeatRide(){
     let booking=null;
     try{booking=JSON.parse(sessionStorage.getItem('nexusRepeatRide')||'null');sessionStorage.removeItem('nexusRepeatRide');}catch{sessionStorage.removeItem('nexusRepeatRide');}
@@ -3976,6 +3998,7 @@
     const requestedService = getRequestedServiceFromUrl();
     selectService(requestedService || $('service').value);
     consumePatientRepeatRide();
+    consumeCaretakerPlan();
     if(isAdminUser){
       renderRateEditor($('service').value);
       saveRateBtn.addEventListener('click', saveCurrentServiceRate);

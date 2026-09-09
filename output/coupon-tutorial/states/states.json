@@ -1,0 +1,74 @@
+[
+  {
+    "file": "01-rider.png",
+    "title": "Enter rider details",
+    "caption": "Enter the patient name and contact information.",
+    "target": {
+      "x": 270,
+      "y": 324
+    }
+  },
+  {
+    "file": "02-route.png",
+    "title": "Add the route",
+    "caption": "Enter the pickup address and destination.",
+    "target": {
+      "x": 270,
+      "y": 451
+    }
+  },
+  {
+    "file": "03-ride.png",
+    "title": "Choose ride and schedule",
+    "caption": "Select the ride type, date, and appointment time.",
+    "target": {
+      "x": 270,
+      "y": 541
+    }
+  },
+  {
+    "file": "04-coupon.png",
+    "title": "Enter your coupon",
+    "caption": "Before Book My Ride, enter the coupon exactly as provided.",
+    "target": {
+      "x": 227,
+      "y": 761
+    }
+  },
+  {
+    "file": "05-applied.png",
+    "title": "Apply and verify",
+    "caption": "Select Apply and confirm the discounted total appears.",
+    "target": {
+      "x": 470,
+      "y": 761
+    }
+  },
+  {
+    "file": "06-book.png",
+    "title": "Continue booking",
+    "caption": "Select Book My Ride only after the coupon is applied.",
+    "target": {
+      "x": 270,
+      "y": 853
+    }
+  },
+  {
+    "file": "07-review.png",
+    "title": "Review the final fare",
+    "caption": "Review and confirm the discounted fare.",
+    "target": {
+      "x": 270,
+      "y": 548
+    }
+  },
+  {
+    "file": "08-payment.png",
+    "title": "Complete payment",
+    "caption": "Pay the deposit or the discounted total in full.",
+    "target": {
+      "x": 270,
+      "y": 383
+    }
+  }
+]

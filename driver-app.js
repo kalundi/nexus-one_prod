@@ -1585,7 +1585,13 @@
     const mapUrl=fullMode
       ? `https://www.google.com/maps?q=${encodeURIComponent(`${t.pickup} to ${t.destination}`)}&output=embed`
       : `https://www.google.com/maps?q=${encodeURIComponent(legTo)}&output=embed`;
-    const frame=$('#routeFocusMap');if(frame)frame.src=mapUrl;
+    const frame=$('#routeFocusMap');if(frame){
+      frame.src=mapUrl;
+      const wrap=frame.closest('.routeFocusMapWrap');
+      let labels=wrap?.querySelector('.routeFocusAddressLabels');
+      if(wrap&&!labels){labels=document.createElement('div');labels.className='routeFocusAddressLabels';labels.style.cssText='position:absolute;left:10px;right:10px;top:10px;z-index:4;display:grid;grid-template-columns:1fr 1fr;gap:8px;pointer-events:none';labels.innerHTML='<span data-route-address="pickup"></span><span data-route-address="destination"></span>';wrap.appendChild(labels)}
+      labels?.querySelectorAll('span').forEach((label,index)=>{label.style.cssText=`padding:7px 9px;border:1px solid ${index?'#7fa6bd':'#70ae99'};border-radius:8px;background:rgba(255,255,255,.96);box-shadow:0 4px 12px rgba(8,47,73,.22);color:#173b51;font:700 10px/1.25 Sora,sans-serif;text-align:center`;label.textContent=index?`Destination: ${t.destination}`:`Pickup: ${t.pickup}`});
+    }
     const legBtn=$('#btnRouteOpenLegNav');
     const fullBtn=$('#btnRouteOpenFullNav');
     if(legBtn){

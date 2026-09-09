@@ -8,7 +8,7 @@ out=root/'output'/'social-video'; states_dir=out/'app-states'; frame_dir=out/'wa
 frame_dir.mkdir(parents=True,exist_ok=True)
 states=json.loads((states_dir/'states.json').read_text())
 font_path='C:/Windows/Fonts/segoeuib.ttf'
-title_font=ImageFont.truetype(font_path,22); caption_font=ImageFont.truetype(font_path,16)
+campaign_font=ImageFont.truetype(font_path,22); title_font=ImageFont.truetype(font_path,15); caption_font=ImageFont.truetype(font_path,16)
 W,H,FPS,frames_per_step=540,960,5,26
 
 for index,state in enumerate(states):
@@ -18,9 +18,11 @@ for index,state in enumerate(states):
     for phase in range(frames_per_step):
         canvas=Image.new('RGB',(W,H),'#EAF1F7'); draw=ImageDraw.Draw(canvas)
         draw.rounded_rectangle((14,78,W-14,894),26,fill='#09142F'); canvas.paste(shot,(sx,sy))
-        draw.rounded_rectangle((20,18,W-20,76),18,fill='#101B45')
-        title=f'{index+1}  {state["title"]}'; box=draw.textbbox((0,0),title,font=title_font)
-        draw.text(((W-(box[2]-box[0]))/2,33),title,font=title_font,fill='white')
+        draw.rounded_rectangle((20,12,W-20,80),18,fill='#101B45')
+        campaign='BOOKING MADE EASY'; campaign_box=draw.textbbox((0,0),campaign,font=campaign_font)
+        draw.text(((W-(campaign_box[2]-campaign_box[0]))/2,21),campaign,font=campaign_font,fill='white')
+        title=f'Step {index+1} · {state["title"].title()}'; box=draw.textbbox((0,0),title,font=title_font)
+        draw.text(((W-(box[2]-box[0]))/2,51),title,font=title_font,fill='#8CEBF0')
         progress=min(1,phase/5); progress=progress*progress*(3-2*progress)
         px=(W-42)+(tx-(W-42))*progress; py=(H-42)+(ty-(H-42))*progress
         pulse=13+6*math.sin(phase*math.pi/2)**2
@@ -33,7 +35,7 @@ for index,state in enumerate(states):
         draw.text(((W-(cbox[2]-cbox[0]))/2,917),cap,font=caption_font,fill='white')
         canvas.save(frame_dir/f'frame-{index*frames_per_step+phase:04d}.jpg',quality=91)
 
-ffmpeg=imageio_ffmpeg.get_ffmpeg_exe(); video=root/'assets'/'nexus-booking-app-walkthrough-v6-silent.mp4'
+ffmpeg=imageio_ffmpeg.get_ffmpeg_exe(); video=root/'assets'/'nexus-booking-made-easy-v7-silent.mp4'
 subprocess.run([ffmpeg,'-y','-framerate',str(FPS),'-i',str(frame_dir/'frame-%04d.jpg'),'-frames:v',str(len(states)*frames_per_step),'-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',str(video)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 rows=math.ceil(len(states)/4); sheet=Image.new('RGB',(1080,rows*480),'white')
 for i in range(len(states)):

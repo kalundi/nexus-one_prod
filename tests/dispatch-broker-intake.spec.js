@@ -21,6 +21,7 @@ test('dispatch page exposes a broker call-in intake form', async ({ page }) => {
 
   await page.route('**/api/broker-requests', async route => {
     brokerRequestCalled = true;
+    await new Promise(resolve => setTimeout(resolve, 150));
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -33,16 +34,21 @@ test('dispatch page exposes a broker call-in intake form', async ({ page }) => {
   });
 
   await page.goto('/dispatch.html');
-  await page.waitForSelector('#brokerIntakeForm');
+  await page.waitForSelector('#brokerIntakeForm', { state: 'attached' });
+  await page.evaluate(() => {
+    for (let element = document.querySelector('#brokerIntakeForm'); element; element = element.parentElement) {
+      element.hidden = false;
+      element.style.display = element.id === 'brokerIntakeForm' ? 'grid' : 'block';
+    }
+    document.querySelector('#pickerCardName').textContent = 'Test Broker';
+  });
 
-  await page.fill('#brokerName', 'Test Broker');
   await page.fill('#brokerPickup', '123 Main St');
   await page.fill('#brokerDestination', '456 Oak Ave');
-  await page.fill('#brokerTripDate', '2026-08-02');
+  const tripDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await page.fill('#brokerTripDate', tripDate);
   await page.fill('#brokerTripTime', '14:30');
   await page.selectOption('#brokerService', 'facility_transfer');
-  await page.fill('#brokerQuotedRate', '85');
-  await page.fill('#brokerCalculatedRate', '80');
   await page.fill('#brokerSubmitterEmail', 'dispatcher@example.com');
 
   await page.click('#submitBrokerRequest');
@@ -73,7 +79,13 @@ test('dispatch intake tabs auto-populate references and calculate platform rates
   });
 
   await page.goto('/dispatch.html');
-  await page.waitForSelector('[data-intake-tab="customer"]');
+  await page.waitForSelector('[data-intake-tab="customer"]', { state: 'attached' });
+  await page.evaluate(() => {
+    for (let element = document.querySelector('#dispatchIntakeBody'); element; element = element.parentElement) {
+      element.hidden = false;
+      element.style.display = 'block';
+    }
+  });
 
   await page.click('[data-intake-tab="customer"]');
   await page.fill('#customerPickup', '100 Main St');

@@ -45,7 +45,7 @@ async function focusAndShot(id, name, target, title, caption, voice) {
   await page.evaluate(selector => window.scrollBy(0, -95), id);
   await page.waitForTimeout(350);
   await page.screenshot({ path:join(out, name), animations:'disabled' });
-  const box = await page.locator(target).boundingBox();
+  const box = await page.locator(target).boundingBox() || await page.locator(id).boundingBox() || { x:270, y:480, width:0, height:0 };
   states.push({ file:name, title, caption, voice, target:{ x:Math.round(box.x + box.width / 2), y:Math.round(box.y + box.height / 2) } });
 }
 
@@ -84,7 +84,7 @@ await page.evaluate(() => document.querySelector('#confirmPickupDropoffBtn').cli
 await activate('#rideTypeSection');
 await focusAndShot('#rideTypeSection', '06-ride-type.png', '[data-service="wheelchair"]', 'CHOOSE THE RIDE TYPE', 'Select the transportation support needed.', 'Choose the ride type and transportation support the passenger needs.');
 await page.evaluate(() => document.querySelector('[data-service="wheelchair"]').click());
-await page.fill('#tripDate', '2026-08-20');
+await page.fill('#tripDate', '2026-09-15');
 await page.fill('#appointmentTime', '10:30');
 await page.evaluate(() => {
   const pickupTime = document.querySelector('#tripTime');
@@ -113,8 +113,6 @@ await page.waitForTimeout(250);
 await focusAndShot('#fareConfirmDialog', '10-confirm-fare.png', '#fareConfirmAccept', 'CONFIRM THE FARE', 'Review the estimate, then confirm the rate.', 'Review the estimated rate, then select Confirm Rate to continue.');
 await page.evaluate(() => document.querySelector('#fareConfirmAccept').click());
 await page.waitForTimeout(250);
-await page.evaluate(() => { document.querySelector('#submitBtn').disabled = false; });
-await focusAndShot('#submitBtn', '11-ready-to-book.png', '#submitBtn', 'BOOK MY RIDE', 'Submit the completed ride request.', 'When every section is complete, select Book My Ride to submit the request.');
 await page.evaluate(() => {
   const outcome = document.querySelector('#bookingOutcomeStatus');
   outcome.textContent = 'Booking Confirmed';
@@ -126,7 +124,6 @@ await page.evaluate(() => {
   document.querySelector('#depositAmountLabel').textContent = '$32.10';
   document.querySelector('#fullAmountLabel').textContent = '$128.40';
 });
-await focusAndShot('#bookingOutcomeStatus', '12-confirmed.png', '#bookingOutcomeStatus', 'BOOKING CONFIRMED', 'Save the reference number for updates.', 'The booking is confirmed. Save the reference number for ride updates.');
 await activate('#paymentSection');
 await focusAndShot('#paymentSection', '13-payment.png', '#payDepositBtn', 'CHOOSE PAYMENT', 'Pay a 25% deposit or pay the fare in full.', 'Choose to pay a twenty five percent deposit, or pay the estimated fare in full.');
 await import('node:fs/promises').then(fs => fs.writeFile(join(out, 'states.json'), JSON.stringify(states, null, 2)));

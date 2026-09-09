@@ -34,7 +34,7 @@ function ensureMultiRoleSchema(){
   await query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS active_role text');
   await query(`CREATE TABLE IF NOT EXISTS user_role_requests (
    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-   role text NOT NULL CHECK (role IN ('PATIENT','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN')),
+   role text NOT NULL CHECK (role IN ('PATIENT','CARETAKER','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN')),
    status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED')),
    requested_at timestamptz NOT NULL DEFAULT now(),reviewed_at timestamptz,reviewed_by uuid REFERENCES users(id) ON DELETE SET NULL,
    scope_id text,notes text,UNIQUE(user_id,role))`);
@@ -1443,11 +1443,13 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
   if(clean(process.env.COMPANY_EMAIL))adminEmails.push(clean(process.env.COMPANY_EMAIL));
   adminEmails.push('admin@nexusmt.com');
 
-  const smsTargets=new Set([...buildSmsRecipients(after.phone),...(driverPhone?[driverPhone]:[])]);
+  const caretakers=await require('./_shared/caretaker-access.cjs').alertRecipients(reference).catch(error=>{console.error('[CARETAKER_ALERTS]',error.message);return []});
+  const smsTargets=new Set([...buildSmsRecipients(after.phone),...(driverPhone?[driverPhone]:[]),...caretakers.map(row=>row.phone).filter(Boolean)]);
   const emailTargets=new Set([
    ...buildEmailRecipients(after.email),
    ...(driverEmail?[driverEmail]:[]),
    ...facilityEmails,
+   ...caretakers.map(row=>row.email).filter(Boolean),
    ...adminEmails
   ].filter(Boolean));
 
@@ -1990,6 +1992,29 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p[0]==='caretaker'){
+   const access=require('./_shared/caretaker-access.cjs');
+   if(['access','permissions','alerts'].includes(p[1]))return await access.accessRoutes(event,p);
+   if(p[1]==='trips'){
+    const me=await requireUser(bearer(event));
+    if(method==='GET'&&!p[2])return json(200,{trips:await Promise.all((await access.listTrips(me.id)).map(mapPatientBooking))});
+    const trip=await access.getTrip(me.id,decodeURIComponent(p[2]||''));
+    if(method==='GET'&&p.length===3)return json(200,{booking:await mapPatientBooking(trip)});
+    if(method==='POST'&&p.length===4&&['cancel','reschedule','update'].includes(p[3])){
+     const body=parseBody(event);
+     if(p[3]==='reschedule'){
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(body.date||'')||!/^([01]\d|2[0-3]):[0-5]\d$/.test(body.time||''))return json(400,{error:'Enter a valid date and pickup time'});
+      const parsed=new Date(`${body.date}T12:00:00Z`);
+      if(!Number.isFinite(parsed.getTime())||parsed.toISOString().slice(0,10)!==body.date||body.date<new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(new Date()))return json(400,{error:'Choose today or a future date'});
+     }
+     const result=await handler({...event,path:`/api/bookings/${encodeURIComponent(trip.reference)}/${p[3]}`,body:JSON.stringify({...body,phone:trip.phone})});
+     if(result.statusCode<300)await audit('BOOKING',trip.reference,`CARETAKER_${p[3].toUpperCase()}`,{caretakerId:me.id});
+     return result;
+    }
+    return json(404,{error:'Not found'});
+   }
+   return await require('./_shared/caretaker.cjs').handleCaretaker(event,p);
+  }
   if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
    const delivered=await query(`SELECT email,status,provider_status,sent_at,error_message FROM outreach_deliveries WHERE campaign_id=$1 AND stage='INITIAL'`,[OUTREACH_CAMPAIGN.id]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
@@ -2713,6 +2738,7 @@ async function handler(event){
    let bookingActor=null;
    try{if(bearer(event))bookingActor=await requireUser(bearer(event))}catch{}
   const actorRole=String(bookingActor?.role||'CUSTOMER').toUpperCase();
+  const caretakerSubject=await require('./_shared/caretaker-access.cjs').bookingSubject(bookingActor,b);
   const scheduleBasis=clean(b.scheduleBasis).toUpperCase()==='PICKUP'?'PICKUP':'APPOINTMENT';
   const appointmentTime=normalizeOptionalTripTime(b.appointmentTime||'');
   if(scheduleBasis==='APPOINTMENT'&&!appointmentTime)return json(400,{error:'Appointment time is required and must be valid (for example 2:00 PM).'});
@@ -2775,9 +2801,9 @@ async function handler(event){
    const codeHash=clean(b.promotionCode)?promotionHash(b.promotionCode):'';
    if(codeHash)await ensureBookingPromotionsSchema();
    let fare=submittedFare,promotionLabel=null,promotionDiscount=0,r;
-   const insertSql=`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,trip_type,return_trip_date,return_trip_time,recurrence_days,recurrence_end_date,promotion_code,fare_before_promotion,promotion_discount,created_at,updated_at)
-  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,$35,$36,$37,now(),now()) RETURNING *`;
-   const insertParams=()=>[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null,tripType,returnTripDate,returnTripTime,JSON.stringify(recurrenceDays),recurrenceEndDate,promotionLabel,codeHash?submittedFare:null,promotionDiscount];
+   const insertSql=`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,trip_type,return_trip_date,return_trip_time,recurrence_days,recurrence_end_date,promotion_code,fare_before_promotion,promotion_discount,caretaker_owner_id,caretaker_patient_id,caretaker_subject_id,created_at,updated_at)
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,$35,$36,$37,$38,$39,$40,now(),now()) RETURNING *`;
+   const insertParams=()=>[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null,tripType,returnTripDate,returnTripTime,JSON.stringify(recurrenceDays),recurrenceEndDate,promotionLabel,codeHash?submittedFare:null,promotionDiscount,caretakerSubject?.ownerId||null,caretakerSubject?.profileId||null,caretakerSubject?.subjectId||null];
    if(codeHash){
     const client=await getPool().connect();
     try{
@@ -3065,7 +3091,7 @@ async function handler(event){
   if(p[0]==='auth'&&p[1]==='register'&&method==='POST'){
    await ensureMultiRoleSchema();
    const b=parseBody(event),displayName=clean(b.displayName),email=clean(b.email).toLowerCase(),password=String(b.password||''),phoneDigits=normalizeE164(b.phone),requestedRole=String(b.role||'PATIENT').toUpperCase();
-   const publicRoles=['PATIENT','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN'];
+   const publicRoles=['PATIENT','CARETAKER','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN'];
    if(!publicRoles.includes(requestedRole))return json(400,{error:'Select a valid account role'});
    if(displayName.length<2)return json(400,{error:'Your name is required'});
    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json(400,{error:'Enter a valid email address'});
@@ -3293,6 +3319,7 @@ async function handler(event){
    try{
      const u=await requireUser(bearer(event));
      let sql='SELECT * FROM bookings',params=[];
+     if(u.role==='CARETAKER')return json(200,{trips:await Promise.all((await require('./_shared/caretaker-access.cjs').listTrips(u.id)).map(mapPatientBooking))});
      if(u.role==='FACILITY'){sql+=' WHERE facility_id=$1';params=[u.scope_id]}
      else if(u.role==='DRIVER'){sql+=' WHERE driver_scope_id=$1';params=[u.scope_id]}
      else if(u.role==='PATIENT'){

@@ -15,7 +15,7 @@ const patientFields = [
   { id:'tripType', label:'Trip schedule', intent:'reveal return or recurring details only when needed' },
   { id:'tripDate', label:'Date', intent:'choose the appointment date' },
   { id:'appointmentTime', label:'Appointment Time', intent:'choose the appointment time' },
-  { id:'tripTime', label:'Pickup Time Estimate', intent:'show the automatically calculated pickup time' }
+  { id:'tripTime', label:'Pickup Time', intent:'show the automatically calculated pickup time' }
 ];
 
 test('every patient booking field has a readable label and stays inside its card', async ({ page }) => {
