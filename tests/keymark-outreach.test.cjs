@@ -22,3 +22,18 @@ test('Twilio requires all three credential values',()=>{
  assert.equal(twilioConfigured(),true);
  for(const [key,value] of Object.entries({TWILIO_ACCOUNT_SID:previous.sid,TWILIO_AUTH_TOKEN:previous.token,TWILIO_PHONE_NUMBER:previous.phone})){if(value===undefined)delete process.env[key];else process.env[key]=value}
 });
+
+const {buildDailyOutreachBatch}=require('../netlify/functions/_shared/outreach-campaign.cjs');
+
+test('daily outreach only sends unsent recipients and respects the 25-recipient pilot cap',()=>{
+ const recipients=[
+  {prospectId:'p1',email:'a@example.com',optOut:false},
+  {prospectId:'p2',email:'b@example.com',optOut:false},
+  {prospectId:'p3',email:'c@example.com',optOut:false},
+  {prospectId:'p4',email:'d@example.com',optOut:false},
+  {prospectId:'p5',email:'e@example.com',optOut:false},
+  {prospectId:'p6',email:'f@example.com',optOut:true}
+ ];
+ const batch=buildDailyOutreachBatch(recipients,[{email:'B@example.com'}],25);
+ assert.deepEqual(batch.map(r=>r.prospectId),['p1','p3','p4','p5']);
+});
