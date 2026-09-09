@@ -12,6 +12,7 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(js,/textContent='Sign Up'/);
  assert.match(js,/Sign In/);
  assert.match(js,/nav\.querySelectorAll\(':scope>a\[href\*="booking-app"\]'\)\.forEach\(link=>link\.remove\(\)\)/);
+ assert.doesNotMatch(js,/textContent='Caretakers'/);
  assert.match(js,/\.globalActions,\.navRight/);
  assert.match(js,/nexusMenuDismiss/);
  assert.match(js,/if\(!group\.contains\(event\.target\)\)group\.removeAttribute\('open'\)/);
