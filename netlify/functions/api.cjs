@@ -1,4 +1,5 @@
 const crypto=require('crypto');
+const {isDuplicateTrip,duplicateTripResponse}=require('./_shared/booking-duplicate.cjs');
 const fs=require('fs');
 const path=require('path');
 const {query,getPool}=require('./_shared/db.cjs');
@@ -4791,7 +4792,7 @@ async function handler(event){
   }
   if(p[0]==='ready'&&method==='GET'){const r=await query("SELECT version FROM schema_migrations WHERE version IN ('040.001','041.001','042.001','044.001','045.001','046.001') ORDER BY version");return json(r.rowCount===6?200:503,{ready:r.rowCount===6,migrations:r.rows.map(x=>x.version)})}
   return json(404,{error:'Route not found'});
- }catch(err){console.error(err);return json(err.statusCode||500,{error:err.statusCode?err.message:'Internal server error',requestId:crypto.randomUUID()})}
+ }catch(err){if(isDuplicateTrip(err))return json(409,duplicateTripResponse);console.error(err);return json(err.statusCode||500,{error:err.statusCode?err.message:'Internal server error',requestId:crypto.randomUUID()})}
 }
 function mapBooking(b){
  const submittedAppointmentTime=getSubmittedAppointmentTime(b);

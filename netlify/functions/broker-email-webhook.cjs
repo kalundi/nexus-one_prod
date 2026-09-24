@@ -1609,6 +1609,8 @@ exports.handler=async(event)=>{
    message:'Broker request processed and routed for dispatch/Admin_NMT review.'
   });
  }catch(error){
+  const {isDuplicateTrip,duplicateTripResponse}=require('./_shared/booking-duplicate.cjs');
+  if(isDuplicateTrip(error))return json(409,duplicateTripResponse);
   console.error('[BROKER_EMAIL] Error:',error.message);
   return json(500,{error:'Internal server error',message:error.message});
  }
