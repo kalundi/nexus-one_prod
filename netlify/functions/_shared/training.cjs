@@ -28,6 +28,17 @@ function createTrainingHandler({query,requireUser}){
   if(admin&&me.role!=='ADMIN')fail('Administrator access required',403);
   if(admin&&String(p[2]||'').startsWith('contract'))return handleContract({query,me,event,p,method});
   if(p.length===1&&method==='GET'){
+   // Enroll drivers on access, including accounts with an approved driver role.
+   // Keep existing cycles and signed records; concurrent loads cannot duplicate enrollment.
+   await query(`INSERT INTO training_assignments(user_id,material_id,cycle,due_at,assigned_by,requires_verification)
+    SELECT u.id,m.id,'Driver onboarding',now()+interval '30 days',u.id,true
+    FROM users u CROSS JOIN training_materials m WHERE u.id=$1 AND u.active=true
+    AND (u.role='DRIVER' OR EXISTS(SELECT 1 FROM user_role_requests r WHERE r.user_id=u.id AND r.role='DRIVER' AND r.status='APPROVED'))
+    AND NOT EXISTS(SELECT 1 FROM training_assignments a WHERE a.user_id=u.id AND a.material_id=m.id)
+    ON CONFLICT(user_id,material_id,cycle) DO NOTHING`,[me.id]);
+   await query(`UPDATE training_assignments a SET requires_verification=true FROM users u
+    WHERE a.user_id=u.id AND u.id=$1 AND a.verified_at IS NULL AND a.requires_verification=false
+    AND (u.role='DRIVER' OR EXISTS(SELECT 1 FROM user_role_requests r WHERE r.user_id=u.id AND r.role='DRIVER' AND r.status='APPROVED'))`,[me.id]);
    const result=await query(`SELECT a.*,m.title,m.description,m.kind,m.version,m.policy_key,m.content_hash,
     CASE WHEN a.acknowledged_at IS NOT NULL AND (NOT a.requires_verification OR a.verified_at IS NOT NULL) THEN 'COMPLETE'
      WHEN a.acknowledged_at IS NOT NULL THEN 'AWAITING_VERIFICATION' WHEN a.due_at<now() THEN 'OVERDUE' ELSE 'ASSIGNED' END AS status
@@ -50,7 +61,8 @@ function createTrainingHandler({query,requireUser}){
    const b=parseBody(event),cycle=clean(b.cycle,100),date=new Date(b.dueAt);
    if(!uuid(b.materialId)||!cycle||!Number.isFinite(date.getTime())||!Array.isArray(b.userIds)||!b.userIds.length||b.userIds.length>1000||!b.userIds.every(uuid)||typeof b.requiresVerification!=='boolean')fail('Choose a material, staff, cycle, due date and verification requirement');
    const result=await query(`INSERT INTO training_assignments(user_id,material_id,cycle,due_at,assigned_by,requires_verification)
-    SELECT u.id,m.id,$3,$4,$5,($6 OR m.requires_external_evidence) FROM users u CROSS JOIN training_materials m
+    SELECT u.id,m.id,$3,$4,$5,($6 OR m.requires_external_evidence OR u.role='DRIVER'
+     OR EXISTS(SELECT 1 FROM user_role_requests r WHERE r.user_id=u.id AND r.role='DRIVER' AND r.status='APPROVED')) FROM users u CROSS JOIN training_materials m
     WHERE m.id=$1 AND u.id=ANY($2::uuid[]) AND u.active=true AND
     (u.role=ANY($7::text[]) OR EXISTS(SELECT 1 FROM user_role_requests r WHERE r.user_id=u.id AND r.status='APPROVED' AND r.role=ANY($7::text[])))
     ON CONFLICT(user_id,material_id,cycle) DO NOTHING RETURNING id`,[b.materialId,b.userIds,cycle,date.toISOString(),me.id,b.requiresVerification,STAFF]);

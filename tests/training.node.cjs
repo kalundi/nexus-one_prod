@@ -39,7 +39,7 @@ test('assignment only enrolls active staff and duplicate cycle preserves records
  const data=(await call('driver')).data;assert.equal(data.assignments.length,1);assignment=data.assignments[0].id;assert.equal(data.assignments[0].status,'OVERDUE');
 });
 test('ownership enforced for listing, file access, opening and acknowledgment',async()=>{
- assert.equal((await call('other')).data.assignments.length,0);
+ const own=(await call('other')).data.assignments;assert.equal(own.length,1);assert.equal(own[0].user_id,ids.other);assert.notEqual(own[0].id,assignment);
  await rejected(()=>call('other',`assignments/${assignment}/file`),404);
  await rejected(()=>call('other',`assignments/${assignment}/open`,{}),404);
  await rejected(()=>call('other',`assignments/${assignment}/acknowledge`,{name:'Other',accepted:true}),409);
@@ -120,4 +120,28 @@ test('training-only staff can be assigned without receiving an operational role'
  await db.query("UPDATE users SET role='STAFF' WHERE id=$1",[ids.other]);
  const result=await call('admin','admin/assignments',{materialId:material,userIds:[ids.other],cycle:'staff-access',dueAt:'2027-01-01',requiresVerification:false});assert.equal(result.data.assigned,1);
  await db.query("INSERT INTO user_role_requests(user_id,role,status) VALUES($1,'STAFF','APPROVED')",[ids.other]);
+});
+
+test('drivers receive every material once and submissions remain pending administrator approval',async()=>{
+ const created=await call('admin','admin/materials',{title:'New driver policy',policyKey:'auto-driver',version:'1',kind:'POLICY',resourceUrl:'https://example.test/policy'});
+ const first=(await call('driver')).data.assignments;
+ const row=first.find(a=>a.material_id===created.data.material.id);
+ assert(row);assert.equal(row.requires_verification,true);assert.equal(row.status,'ASSIGNED');
+ assert.equal((await call('driver')).data.assignments.length,first.length);
+ await call('driver',`assignments/${row.id}/open`,{});
+ await call('driver',`assignments/${row.id}/acknowledge`,{name:'Driver',accepted:true});
+ assert.equal((await call('driver')).data.assignments.find(a=>a.id===row.id).status,'AWAITING_VERIFICATION');
+ await call('admin',`admin/verify/${row.id}`,{notes:'Reviewed submitted policy acknowledgment'});
+ const approved=(await call('driver')).data.assignments.find(a=>a.id===row.id);
+ assert.equal(approved.status,'COMPLETE');assert.equal(approved.verified_by,ids.admin);
+});
+
+test('approved driver roles enroll automatically and legacy unverified acknowledgments require approval',async()=>{
+ await db.query("INSERT INTO user_role_requests(user_id,role,status) VALUES($1,'DRIVER','APPROVED')",[ids.other]);
+ await db.query('UPDATE training_assignments SET requires_verification=false WHERE user_id=$1',[ids.other]);
+ const rows=(await call('other')).data.assignments;
+ const count=await db.query('SELECT count(*)::int AS total FROM training_materials');
+ assert.equal(new Set(rows.map(a=>a.material_id)).size,count.rows[0].total);
+ assert(rows.every(a=>a.requires_verification));
+ assert.equal((await call('admin')).data.assignments.length,0);
 });
