@@ -2,7 +2,11 @@ ALTER TABLE booking_promotions ALTER COLUMN service DROP NOT NULL;
 ALTER TABLE booking_promotions ALTER COLUMN trip_date DROP NOT NULL;
 ALTER TABLE booking_promotions ALTER COLUMN fixed_total DROP NOT NULL;
 ALTER TABLE booking_promotions ADD COLUMN IF NOT EXISTS percent_off numeric(5,2);
-ALTER TABLE booking_promotions ADD CONSTRAINT booking_promotions_value_check CHECK (fixed_total IS NOT NULL OR (percent_off > 0 AND percent_off < 100));
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='booking_promotions_value_check' AND conrelid='booking_promotions'::regclass) THEN
+  ALTER TABLE booking_promotions ADD CONSTRAINT booking_promotions_value_check CHECK (fixed_total IS NOT NULL OR (percent_off > 0 AND percent_off < 100));
+ END IF;
+END $$;
 
 INSERT INTO booking_promotions(code_hash,display_code,description,service,trip_date,fixed_total,percent_off)
 VALUES
@@ -57,3 +61,5 @@ VALUES
 ('6203afef7cb01a364203bfd234485f31b3e2986e1a577d914b5cabddfba9c7df','NEXUS40-D1D27501','Single-use 40% coupon',NULL,NULL,NULL,40),
 ('a18b2bab380e9cdaaf1a0edbdae905f3cf309a460a598647dca0049a7ee55767','NEXUS40-EF84EDB9','Single-use 40% coupon',NULL,NULL,NULL,40)
 ON CONFLICT(code_hash) DO NOTHING;
+
+INSERT INTO schema_migrations(version,description) VALUES('076.001','Percentage coupon pool') ON CONFLICT DO NOTHING;

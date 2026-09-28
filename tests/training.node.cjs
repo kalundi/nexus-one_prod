@@ -12,8 +12,8 @@ before(async()=>{
  CREATE TABLE user_role_requests(user_id uuid,role text,status text);CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
  CREATE ROLE anon;CREATE ROLE authenticated;`);
  for(const [name,id] of Object.entries(ids))await db.query('INSERT INTO users(id,display_name,email,role) VALUES($1,$2,$3,$4)',[id,name,name+'@example.test',name==='other'?'DRIVER':name.toUpperCase()]);
- for(const file of ['080.001_staff_training.sql','080.002_contract_evidence.sql','080.003_training_staff_role.sql'])await db.exec(fs.readFileSync('database/migrations/'+file,'utf8'));
- handler=createTrainingHandler({query:async(sql,params)=>{const r=await db.query(sql,params);for(const row of r.rows)if(row.file_data)row.file_data=Buffer.from(row.file_data);return r},requireUser:async(token,roles)=>{const name=token;if(!ids[name])throw Object.assign(Error('Authentication required'),{statusCode:401});const role=name==='other'?'DRIVER':name.toUpperCase();if(!roles.includes(role))throw Object.assign(Error('Forbidden'),{statusCode:403});return {id:ids[name],role}}});
+ for(const file of ['080.001_staff_training.sql','080.002_contract_evidence.sql','080.003_training_staff_role.sql','080.004_training_review.sql'])await db.exec(fs.readFileSync('database/migrations/'+file,'utf8'));
+ handler=createTrainingHandler({sendEmail:async()=>({status:"sent"}),query:async(sql,params)=>{const r=await db.query(sql,params);for(const row of r.rows)if(row.file_data)row.file_data=Buffer.from(row.file_data);return r},requireUser:async(token,roles)=>{const name=token;if(!ids[name])throw Object.assign(Error('Authentication required'),{statusCode:401});const role=name==='other'?'DRIVER':name.toUpperCase();if(!roles.includes(role))throw Object.assign(Error('Forbidden'),{statusCode:403});return {id:ids[name],role}}});
 });
 after(async()=>{await db?.close()});
 async function call(user,path='',body){const r=await handler({headers:{authorization:'Bearer '+user},body:body===undefined?undefined:JSON.stringify(body)},['training',...path.split('/').filter(Boolean)],body===undefined?'GET':'POST');return {...r,data:r.headers['content-type'].includes('json')?JSON.parse(r.body):null}}
@@ -86,7 +86,7 @@ test('renewal dates, daily expiry, initial freshness and confirmation gates',()=
  assert.equal(dueDate({renewMonths:24},{completed_on:'2026-01-01',expires_on:'2027-01-01'}),'2027-01-01');
 });
 test('RLS and grants deny direct public reads of staff and evidence records',async()=>{
- for(const table of ['training_materials','training_assignments','training_contract_subjects','training_contract_evidence']){
+ for(const table of ['training_materials','training_assignments','training_contract_subjects','training_contract_evidence','training_documents']){
   const result=await db.query('SELECT relrowsecurity FROM pg_class WHERE relname=$1',[table]);assert.equal(result.rows[0].relrowsecurity,true);
   await db.exec('SET ROLE anon');try{await assert.rejects(()=>db.query('SELECT * FROM '+table),/permission denied/)}finally{await db.exec('RESET ROLE')}
  }
@@ -144,4 +144,44 @@ test('approved driver roles enroll automatically and legacy unverified acknowled
  assert.equal(new Set(rows.map(a=>a.material_id)).size,count.rows[0].total);
  assert(rows.every(a=>a.requires_verification));
  assert.equal((await call('admin')).data.assignments.length,0);
+});
+
+test('central documents enforce ownership, preserve uploaded bytes and lock after submission',async()=>{
+ const row=(await call('driver')).data.assignments.find(a=>!a.acknowledged_at);
+ const body={filename:'certificate.pdf',dataBase64:Buffer.from('%PDF-1.4\nEvidence test').toString('base64')};
+ await rejected(()=>call('other',`assignments/${row.id}/documents`,body),409);
+ const doc=(await call('driver',`assignments/${row.id}/documents`,body)).data.document;
+ assert.equal((await call('driver',`assignments/${row.id}/documents`)).data.documents.length,1);
+ await rejected(()=>call('other',`documents/${doc.id}/file`),404);
+ const file=await call('admin',`documents/${doc.id}/file`);assert.equal(file.body,body.dataBase64);assert.equal(file.headers['cache-control'],'private, no-store');
+ assert((await call('admin','admin/documents')).data.documents.some(d=>d.id===doc.id));
+ await rejected(()=>call('driver','admin/documents'),403);
+ assert.equal((await call('admin',`admin/materials/${material}/file`)).statusCode,200);
+ await call('driver',`assignments/${row.id}/open`,{});await call('driver',`assignments/${row.id}/acknowledge`,{name:'Driver',accepted:true});
+ await rejected(()=>call('driver',`assignments/${row.id}/documents`,body),409);
+ const stored=(await db.query('SELECT notification_sent_at FROM training_assignments WHERE id=$1',[row.id])).rows[0];assert(stored.notification_sent_at);
+});
+
+test('submission alerts retry failures, deduplicate delivery and stop after approval',async()=>{
+ const {notifyTrainingAdmins}=require('../netlify/functions/_shared/training-notifications.cjs');
+ const row=(await call('driver')).data.assignments.find(a=>a.status==='AWAITING_VERIFICATION');
+ await db.query("UPDATE training_assignments SET notification_sent_at=NULL,reminder_sent_at=NULL,due_at=now()+interval '2 days' WHERE id=$1",[row.id]);
+ const options={query:(sql,args)=>db.query(sql,args),assignmentId:row.id};let sent=0;
+ await notifyTrainingAdmins({...options,sendEmail:async()=>({status:'skipped'})});
+ assert.equal((await db.query('SELECT notification_sent_at FROM training_assignments WHERE id=$1',[row.id])).rows[0].notification_sent_at,null);
+ const sendEmail=async(to,subject,html)=>{sent++;assert.deepEqual(to,['admin@example.test']);assert.match(html,/Approval deadline/);return {status:'sent'}};
+ await notifyTrainingAdmins({...options,sendEmail});await notifyTrainingAdmins({...options,sendEmail});assert.equal(sent,1);
+ await db.query("UPDATE training_assignments SET reminder_sent_at=now()-interval '2 days' WHERE id=$1",[row.id]);
+ await notifyTrainingAdmins({...options,sendEmail});assert.equal(sent,2);
+ await call('admin',`admin/verify/${row.id}`,{notes:'Reviewed supporting document'});
+ await db.query("UPDATE training_assignments SET reminder_sent_at=now()-interval '2 days' WHERE id=$1",[row.id]);
+ await notifyTrainingAdmins({...options,sendEmail});assert.equal(sent,2);
+});
+
+test('coupon migration can rerun with existing constraint and records its version',async()=>{
+ await db.exec(`CREATE TABLE booking_promotions(code_hash text UNIQUE,display_code text,description text,service text NOT NULL,trip_date date NOT NULL,fixed_total numeric NOT NULL)`);
+ const sql=fs.readFileSync('database/migrations/076.001_percentage_coupon_pool.sql','utf8');await db.exec(sql);await db.exec(sql);
+ assert.equal((await db.query("SELECT count(*)::int AS n FROM pg_constraint WHERE conname='booking_promotions_value_check' AND conrelid='booking_promotions'::regclass")).rows[0].n,1);
+ assert.equal((await db.query("SELECT count(*)::int AS n FROM schema_migrations WHERE version='076.001'")).rows[0].n,1);
+ assert.equal((await db.query('SELECT count(*)::int AS n FROM booking_promotions')).rows[0].n,50);
 });

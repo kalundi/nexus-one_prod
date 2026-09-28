@@ -1,6 +1,8 @@
 const crypto=require('crypto');
 const {json,parseBody,bearer}=require('./http.cjs');
 const handleContract=require('./training-contract.cjs');
+const {notifyTrainingAdmins}=require('./training-notifications.cjs');
+const pdfResponse=file=>({statusCode:200,isBase64Encoded:true,headers:{'content-type':'application/pdf','cache-control':'private, no-store','content-disposition':'inline; filename="training.pdf"','x-content-type-options':'nosniff'},body:Buffer.from(file).toString('base64')});
 const STAFF=['STAFF','ADMIN','DRIVER','DISPATCHER','BILLING','QA','EXECUTIVE'];
 const ACK='I acknowledge that I have read or watched this assigned material, understand my responsibilities, and will ask my supervisor about anything unclear. This acknowledgment does not replace required practical training or supervisor approval.';
 const fail=(message,statusCode=400)=>{throw Object.assign(new Error(message),{statusCode})};
@@ -21,7 +23,7 @@ function materialInput(body){
  if(Boolean(file)===Boolean(url))fail('Provide either a PDF or an HTTPS training link');
  return {title,policyKey,version,kind,description:clean(body.description,2000),file,url,external:body.requiresExternalEvidence===true,hash:crypto.createHash('sha256').update(file||url).digest('hex')};
 }
-function createTrainingHandler({query,requireUser}){
+function createTrainingHandler({query,requireUser,sendEmail}){
  return async function training(event,p,method){
   const me=await requireUser(bearer(event),STAFF);
   const admin=p[1]==='admin';
@@ -52,6 +54,16 @@ function createTrainingHandler({query,requireUser}){
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(policy_key,version) DO NOTHING RETURNING id`,[m.policyKey,m.version,m.title,m.description,m.kind,m.file,m.url,m.hash,me.id,m.external]);
    if(!result.rows.length)fail('This policy version already exists. Use a new version to preserve acknowledgment history.',409);
    return json(201,{material:result.rows[0]});
+  }
+  if(admin&&p[2]==='materials'&&p.length===5&&uuid(p[3])&&p[4]==='file'&&method==='GET'){
+   const row=(await query('SELECT file_data,resource_url FROM training_materials WHERE id=$1',[p[3]])).rows[0];
+   if(!row)fail('Material not found',404);return row.file_data?pdfResponse(row.file_data):json(200,{resourceUrl:row.resource_url});
+  }
+  if(admin&&p[2]==='documents'&&p.length===3&&method==='GET')return json(200,{documents:(await query(`SELECT d.id,d.assignment_id,d.filename,d.content_hash,d.created_at,u.display_name,m.title,m.version
+   FROM training_documents d JOIN training_assignments a ON a.id=d.assignment_id JOIN users u ON u.id=a.user_id JOIN training_materials m ON m.id=a.material_id ORDER BY d.created_at DESC`)).rows});
+  if(p[1]==='documents'&&p.length===4&&uuid(p[2])&&p[3]==='file'&&method==='GET'){
+   const row=(await query(`SELECT d.file_data FROM training_documents d JOIN training_assignments a ON a.id=d.assignment_id WHERE d.id=$1 AND (a.user_id=$2 OR $3='ADMIN')`,[p[2],me.id,me.role])).rows[0];
+   if(!row)fail('Document not found',404);return pdfResponse(row.file_data);
   }
   if(admin&&p[2]==='staff'&&method==='GET'&&p.length===3){
    return json(200,{staff:(await query(`SELECT id,display_name,email,role FROM users WHERE active=true AND
@@ -85,6 +97,19 @@ function createTrainingHandler({query,requireUser}){
    return json(200,{verified:true});
   }
   if(p[1]==='assignments'&&p.length===4&&uuid(p[2])){
+   if(p[3]==='documents'&&method==='GET'){
+    const owner=(await query('SELECT id FROM training_assignments WHERE id=$1 AND user_id=$2',[p[2],me.id])).rows[0];if(!owner)fail('Assignment not found',404);
+    return json(200,{documents:(await query('SELECT id,filename,content_hash,created_at FROM training_documents WHERE assignment_id=$1 ORDER BY created_at',[p[2]])).rows});
+   }
+   if(p[3]==='documents'&&method==='POST'){
+    const b=parseBody(event),filename=clean(b.filename,200);if(!filename)fail('Document name required');
+    const m=materialInput({title:filename,policyKey:'evidence',version:'1',kind:'TRAINING',dataBase64:b.dataBase64});
+    const result=await query(`WITH editable AS (SELECT id FROM training_assignments WHERE id=$1 AND user_id=$2 AND acknowledged_at IS NULL FOR UPDATE)
+     INSERT INTO training_documents(assignment_id,uploaded_by,filename,file_data,content_hash)
+     SELECT id,$2,$3,$4,$5 FROM editable RETURNING id`,[p[2],me.id,filename,m.file,m.hash]);
+    if(!result.rows.length)fail('Upload evidence before submitting your acknowledgment',409);
+    return json(201,{document:result.rows[0]});
+   }
    if(p[3]==='open'&&method==='POST'){
     const result=await query(`UPDATE training_assignments a SET opened_at=COALESCE(a.opened_at,now()) FROM training_materials m
      WHERE a.id=$1 AND a.user_id=$2 AND m.id=a.material_id RETURNING a.id,m.resource_url`,[p[2],me.id]);
@@ -101,6 +126,7 @@ function createTrainingHandler({query,requireUser}){
     const result=await query(`UPDATE training_assignments SET acknowledged_at=now(),acknowledged_name=$3,acknowledgment_text=$4
      WHERE id=$1 AND user_id=$2 AND opened_at IS NOT NULL AND acknowledged_at IS NULL RETURNING id,acknowledged_at`,[p[2],me.id,name,ACK]);
     if(!result.rows.length)fail('Open the assigned material before acknowledging. A recorded acknowledgment cannot be changed.',409);
+    await notifyTrainingAdmins({query,sendEmail,assignmentId:p[2]}).catch(error=>console.error('[TRAINING_NOTIFICATION]',error.message));
     return json(200,{acknowledgment:result.rows[0]});
    }
   }

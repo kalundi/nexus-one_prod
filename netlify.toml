@@ -271,3 +271,6 @@
     Permissions-Policy = "accelerometer=(), camera=(), geolocation=(self), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
     # HSTS - enforce HTTPS for future connections
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+
+[functions.training-reminders]
+  schedule = "*/15 * * * *"
