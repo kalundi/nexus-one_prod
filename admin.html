@@ -238,7 +238,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
             <div class="formField"><label for="newEmail">Email address *</label><input id="newEmail" type="email" placeholder="user@example.com" autocomplete="off"></div>
             <div class="formField"><label for="newPhone">Phone number *</label><input id="newPhone" type="tel" placeholder="8886395766" autocomplete="off"></div>
             <div class="formField"><label for="newName">Full name *</label><input id="newName" type="text" placeholder="Full name"></div>
-            <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a role...</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option></select></div>
+            <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a role...</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="STAFF">Staff / attendant (training)</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option></select></div>
           </div>
           <div class="formRow" style="margin-top:14px">
             <div class="formField wide"><label>Temporary password policy</label><input type="text" value="System-generated temp password. User must change it within 2 hours." readonly></div>
@@ -299,6 +299,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
     <details class="userModuleCard" id="documentAccessModule" data-user-module>
       <summary><div class="userModuleTitle"><strong>Secure document access</strong><small>Grant a facility manager time-limited, view-only access.</small></div><span class="userModuleCaret" aria-hidden="true">&gt;</span></summary>
       <div class="userModuleBody"><div class="createUserForm" style="margin:0">
+        <p><a href="/training.html#administration">Manage staff policies, training assignments and acknowledgments in Nexus Academy &#8594;</a></p>
         <h3>Add a secure document</h3>
         <p style="color:var(--muted)">Upload the protected display version shown in the customer vault. Use a PNG or JPG up to 4 MB; the original source document remains outside the public website.</p>
         <div class="formRow triple">

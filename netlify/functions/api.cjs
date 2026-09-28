@@ -3,8 +3,10 @@ const {isDuplicateTrip,duplicateTripResponse}=require('./_shared/booking-duplica
 const fs=require('fs');
 const path=require('path');
 const {query,getPool}=require('./_shared/db.cjs');
+const {createTrainingHandler}=require('./_shared/training.cjs');
 const {json,parseBody,bearer,routePath}=require('./_shared/http.cjs');
 const {digest,safeUser,requireUser,audit}=require('./_shared/auth.cjs');
+const handleTraining=createTrainingHandler({query,requireUser});
 const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestStatus}=require('./_shared/broker-auto-book.cjs');
 const {canAdvanceBookingForAvailability}=require('./_shared/dispatch-approval.cjs');
 const {buildEmailRecipients,buildSmsRecipients}=require('./_shared/notification-routing.cjs');
@@ -35,7 +37,7 @@ function ensureMultiRoleSchema(){
   await query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS active_role text');
   await query(`CREATE TABLE IF NOT EXISTS user_role_requests (
    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-   role text NOT NULL CHECK (role IN ('PATIENT','CARETAKER','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN')),
+   role text NOT NULL CHECK (role IN ('PATIENT','CARETAKER','STAFF','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN')),
    status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED')),
    requested_at timestamptz NOT NULL DEFAULT now(),reviewed_at timestamptz,reviewed_by uuid REFERENCES users(id) ON DELETE SET NULL,
    scope_id text,notes text,UNIQUE(user_id,role))`);
@@ -1993,6 +1995,7 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p[0]==='training')return await handleTraining(event,p,method);
   if(p[0]==='caretaker'){
    const access=require('./_shared/caretaker-access.cjs');
    if(['access','permissions','alerts'].includes(p[1]))return await access.accessRoutes(event,p);
@@ -3092,7 +3095,7 @@ async function handler(event){
   if(p[0]==='auth'&&p[1]==='register'&&method==='POST'){
    await ensureMultiRoleSchema();
    const b=parseBody(event),displayName=clean(b.displayName),email=clean(b.email).toLowerCase(),password=String(b.password||''),phoneDigits=normalizeE164(b.phone),requestedRole=String(b.role||'PATIENT').toUpperCase();
-   const publicRoles=['PATIENT','CARETAKER','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN'];
+   const publicRoles=['PATIENT','CARETAKER','STAFF','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN'];
    if(!publicRoles.includes(requestedRole))return json(400,{error:'Select a valid account role'});
    if(displayName.length<2)return json(400,{error:'Your name is required'});
    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json(400,{error:'Enter a valid email address'});
@@ -4231,7 +4234,7 @@ async function handler(event){
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz').catch(()=>{});
     const b=parseBody(event);required(b,['email','phone','name','role']);
-   const validRoles=['ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT'];
+   const validRoles=['STAFF','ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT'];
    if(!validRoles.includes(String(b.role).toUpperCase()))return json(400,{error:'Invalid role'});
    const phoneDigits=normalizeE164(b.phone);
    if(!phoneDigits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});

@@ -305,7 +305,7 @@ function initUserSectionDashboard(){
 }
 
 // Users
-const ROLE_COLORS={ADMIN:'red',DISPATCHER:'blue',FACILITY:'blue',DRIVER:'green',BILLING:'amber',QA:'amber',EXECUTIVE:'blue',PATIENT:'muted'};
+const ROLE_COLORS={STAFF:'green',ADMIN:'red',DISPATCHER:'blue',FACILITY:'blue',DRIVER:'green',BILLING:'amber',QA:'amber',EXECUTIVE:'blue',PATIENT:'muted'};
 let latestAuditEntries=[];
 
 async function loadUsers(){

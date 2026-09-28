@@ -13,6 +13,8 @@
     "build:prod": "npm run driver:repair && node scripts/build-static.mjs && node scripts/obfuscate-code.mjs",
     "obfuscate": "node scripts/obfuscate-code.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
+    "training:seed": "node scripts/import-training-materials.mjs",
+    "test:training": "node --test tests/training.node.cjs && playwright test --config playwright.training.config.cjs",
     "db:check": "node scripts/db-check.mjs",
     "verify": "node scripts/verify-build042.mjs",
     "verify:keymark:staging": "node scripts/verify-keymark-staging.mjs",
@@ -44,6 +46,7 @@
     "pg": "8.16.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@playwright/test": "^1.62.1",
     "http-server": "^14.1.1",
     "javascript-obfuscator": "^4.2.0"

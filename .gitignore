@@ -3,6 +3,10 @@
 
 # Dependencies
 node_modules/
+netlify/contract-sources/
+netlify/training-seed/*.pdf
+netlify/functions/training-release.cjs
+docs/mtm-contract-readiness.md
 database/coupon-codes.csv
 
 # Build artifacts
