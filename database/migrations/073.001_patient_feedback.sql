@@ -14,4 +14,12 @@ CREATE TABLE IF NOT EXISTS patient_feedback (
 CREATE INDEX IF NOT EXISTS idx_patient_feedback_created ON patient_feedback(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_patient_feedback_status ON patient_feedback(status,created_at DESC);
 ALTER TABLE patient_feedback ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE patient_feedback FROM anon, authenticated;
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON TABLE patient_feedback FROM anon;
+  END IF;
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON TABLE patient_feedback FROM authenticated;
+  END IF;
+END $$;

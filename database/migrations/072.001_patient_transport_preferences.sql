@@ -15,7 +15,15 @@ CREATE TABLE IF NOT EXISTS patient_transport_preferences (
 );
 
 ALTER TABLE patient_transport_preferences ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE patient_transport_preferences FROM anon, authenticated;
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON TABLE patient_transport_preferences FROM anon;
+  END IF;
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON TABLE patient_transport_preferences FROM authenticated;
+  END IF;
+END $$;
 INSERT INTO schema_migrations(version,description) VALUES('072.001','Persistent patient transportation and accessibility preferences') ON CONFLICT(version) DO NOTHING;
 
 COMMIT;

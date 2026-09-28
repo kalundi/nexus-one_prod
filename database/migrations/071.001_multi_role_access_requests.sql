@@ -18,7 +18,15 @@ CREATE TABLE IF NOT EXISTS user_role_requests (
 CREATE INDEX IF NOT EXISTS idx_user_role_requests_status ON user_role_requests(status, requested_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_role_requests_user ON user_role_requests(user_id, status);
 ALTER TABLE user_role_requests ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE user_role_requests FROM anon, authenticated;
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON TABLE user_role_requests FROM anon;
+  END IF;
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON TABLE user_role_requests FROM authenticated;
+  END IF;
+END $$;
 
 INSERT INTO user_role_requests(user_id,role,status,reviewed_at,scope_id)
 SELECT id,role,'APPROVED',now(),scope_id FROM users
