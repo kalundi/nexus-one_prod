@@ -22,7 +22,7 @@ function buildPostText(post,feed,channel){
  const baseCaption=String(post.caption||post.shortCaption||'').trim();
  const cta=String(post.cta||'Learn more').trim();
  const link=String(post.url||'https://nexusmt.com/').trim();
- const phone=String(feed.primaryPhone||'(888) 639-5766').trim();
+ const phone=String(post.primaryPhone||feed.primaryPhone||'(888) 639-5766').trim();
  const hashtags=formatHashtags(post,feed);
 
  if(channel==='instagram'){

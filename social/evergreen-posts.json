@@ -10,6 +10,22 @@
   ],
   "posts": [
     {
+      "id": "emt-recruitment-001",
+      "pillar": "recruitment",
+      "channels": ["facebook", "instagram", "bluesky", "x", "youtube"],
+      "asset": "/assets/nexus-emt-recruitment.jpg",
+      "videoAsset": "/assets/nexus-emt-recruitment-youtube.mp4",
+      "url": "https://nexusmt.com/careers.html",
+      "primaryPhone": "301-500-7946",
+      "headline": "Maryland-certified EMTs: join Nexus Medical Transit.",
+      "youtubeTitle": "Maryland EMT Opportunities | Join Nexus Medical Transit",
+      "caption": "Independent contractor opportunities in Clarksburg / Montgomery County, Maryland. Help patients reach medical appointments with dignity, compassion and safe mobility assistance. Flexible schedules. Requirements: current Maryland EMT certification; current First Aid and CPR certifications; signed training affidavits listing training types and completion dates; safe patient lifting, transfers, positioning and equipment securement skills; professionalism, reliability and compassionate care. Crews have at least TWO qualified personnel onboard when transporting non-ambulatory patients. Staffing and assignments match the authorized service level and patient needs. Operating hours: 7 a.m.-7 p.m., seven days a week. Apply online or email your resume and certification details to contact@nexusmt.com. Include your availability. Questions? 301-500-7946.",
+      "shortCaption": "Maryland EMTs: independent contractor opportunities in Clarksburg / Montgomery County. Apply online; include availability.",
+      "cta": "Apply today",
+      "hashtags": ["#EMT", "#Maryland"],
+      "altText": "Nexus Medical Transit seeks certified Maryland EMTs for independent contractor opportunities in Clarksburg / Montgomery County. Current EMT, First Aid and CPR certifications and documented training required. Apply at nexusmt.com/careers.html or email contact@nexusmt.com. Questions: 301-500-7946."
+    },
+    {
       "id": "svc-wheelchair-001",
       "pillar": "service-awareness",
       "channels": ["facebook", "instagram", "bluesky", "youtube-shorts"],
