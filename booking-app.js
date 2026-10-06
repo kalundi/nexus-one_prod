@@ -242,6 +242,7 @@
   let currentBookingReference = '';
   let currentBookingFare = 0;
   let bookingSubmitted = false;
+  let bookingSubmissionPending = false;
   let editingBookingReference = '';
   let paymentRequiredForBooking = false;
   let fareEstimateSignature = '';
@@ -1157,7 +1158,7 @@
       : !progress.rideTypeSection
         ? 'rideTypeSection'
         : 'rideTypeSection';
-    const paymentView=Boolean(bookingSubmitted&&paymentSection&&!paymentSection.hidden&&(!journeyNavigationOverride||journeyNavigationOverride==='paymentSection'));
+    const paymentView=Boolean((bookingSubmitted||bookingSubmissionPending)&&paymentSection&&!paymentSection.hidden&&(!journeyNavigationOverride||journeyNavigationOverride==='paymentSection'));
     const overrideSection=$(journeyNavigationOverride);
     const currentBookingCardId=journeyNavigationOverride&&overrideSection?.classList.contains('unlocked')?journeyNavigationOverride:(paymentView?'paymentSection':calculatedBookingCardId);
     if(currentBookingCardId===calculatedBookingCardId)journeyNavigationOverride='';
@@ -1188,7 +1189,9 @@
 
     if(paymentSection){
       const hasBookingReference = Boolean(String(currentBookingReference || '').trim());
-      if(bookingSubmitted && hasBookingReference){
+      if(bookingSubmissionPending){
+        paymentSection.hidden = false;
+      }else if(bookingSubmitted && hasBookingReference){
         paymentSection.hidden = !paymentRequiredForBooking||Boolean(journeyNavigationOverride&&journeyNavigationOverride!=='paymentSection');
       }else if(finalView){
         paymentSection.hidden = true;
@@ -1236,7 +1239,7 @@
 
     if(submitBtn){
       submitBtn.hidden = bookingSubmitted && Boolean(String(currentBookingReference || '').trim());
-      if(!bookingSubmitted) submitBtn.disabled = !fareEstimateSignature;
+      if(!bookingSubmitted) submitBtn.disabled = bookingSubmissionPending || !fareEstimateSignature;
     }
     updateNextStepGuide();
     const trackedStep = currentDraftStep();
@@ -1254,7 +1257,7 @@
     const rideComplete=rideChoiceConfirmed&&Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&isPrimaryScheduleInputComplete()&&$('tripTime')?.value);
     if(riderDetailsConfirmed&&destinationConfirmed&&rideComplete){targetId='fareSummarySection';focusId='reviewFareBtn';message=fareEstimateSignature?'Review and confirm the fare estimate.':'Wait for the route and fare estimate, then review it.';}
     if(fareEstimateSignature&&confirmedFareSignature===fareEstimateSignature){targetId='submitBtn';focusId='submitBtn';message='Fare confirmed. Book the ride when you are ready.';}
-    if(bookingSubmitted){
+    if(bookingSubmitted||bookingSubmissionPending){
       nextStepGuide.hidden=true;
       updateJourneyHeader('paymentSection','paymentSection');
       if(journeyCurrent)journeyCurrent.textContent='Confirmation';
@@ -1280,7 +1283,7 @@
     if(riderReady)step=2;
     if(routeReady)step=3;
     if(rideReady)step=4;
-    if(bookingSubmitted)step=5;
+    if(bookingSubmitted||bookingSubmissionPending)step=5;
     const labels=['Rider details','Route & schedule','Choose ride','Review','Payment & confirmation'];
     const journeyTargets=['riderDetailsSection','pickupDropoffSection','rideTypeSection','fareSummarySection','paymentSection'];
     const overrideStep=journeyTargets.indexOf(journeyNavigationOverride);
@@ -2155,6 +2158,12 @@
     }
   }
 
+  function expandPaymentOptions(){
+    document.body.classList.remove('paymentSheetCollapsed');
+    $('paymentSheetHandle')?.setAttribute('aria-expanded', 'true');
+    $('paymentSheetHandle')?.setAttribute('aria-label', 'Collapse payment options');
+  }
+
   function showPaymentOptions(reference, fare, requiresOnlinePayment = true){
     currentBookingReference = String(reference || '').trim();
     currentBookingFare = Number(fare || 0);
@@ -2168,6 +2177,7 @@
       return;
     }
     paymentSection.hidden = false;
+    expandPaymentOptions();
     const depositAmt = Math.round(currentBookingFare * 0.25 * 100) / 100;
     const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const discountText = estimateState.memberSavings > 0
@@ -2184,8 +2194,8 @@
     if(depositAmountLabel) depositAmountLabel.textContent = `$${depositAmt.toFixed(2)}`;
     if(fullAmountLabel) fullAmountLabel.textContent = `$${currentBookingFare.toFixed(2)}`;
     // Show deposit/full buttons; hide legacy single-provider buttons
-    if(payDepositBtn) payDepositBtn.hidden = false;
-    if(payFullBtn) payFullBtn.hidden = false;
+    if(payDepositBtn){ payDepositBtn.hidden = false; payDepositBtn.disabled = !(stripeEnabled || squareEnabled); }
+    if(payFullBtn){ payFullBtn.hidden = false; payFullBtn.disabled = !(stripeEnabled || squareEnabled); }
     if(payStripeBtn) payStripeBtn.hidden = true;
     if(paySquareBtn) paySquareBtn.hidden = true;
     updatePaymentButtonState();
@@ -2203,6 +2213,7 @@
   }
 
   async function startHostedPayment(provider, paymentMode){
+    if(bookingSubmissionPending) return;
     if(!currentBookingReference){
       setPaymentMessage('Create a booking before starting payment.', true);
       return;
@@ -3468,6 +3479,7 @@
 
   async function submitBooking(event){
     event.preventDefault();
+    if(bookingSubmissionPending) return;
     clearStatus();
     setBookingOutcome('', 'pending');
     updateFareConfirmationState();
@@ -3565,6 +3577,17 @@
       return;
     }
 
+    bookingSubmissionPending = true;
+    journeyNavigationOverride = '';
+    paymentSection.hidden = false;
+    expandPaymentOptions();
+    paymentSummary.textContent = 'Preparing your booking. Payment options will be ready shortly.';
+    if(depositAmountLabel) depositAmountLabel.textContent = `$${(Math.round(Number(payload.estimatedFare || 0) * 25) / 100).toFixed(2)}`;
+    if(fullAmountLabel) fullAmountLabel.textContent = `$${Number(payload.estimatedFare || 0).toFixed(2)}`;
+    [payDepositBtn, payFullBtn].forEach(button => { if(button){ button.hidden = false; button.disabled = true; } });
+    [payStripeBtn, paySquareBtn].forEach(button => { if(button) button.hidden = true; });
+    setPaymentMessage('Creating your booking before opening secure checkout...');
+    syncSectionProgressUi();
     setBusy(submitBtn, true, 'Booking...', 'Book My Ride');
 
     try{
@@ -3623,6 +3646,7 @@
       window.scrollTo(0,0);
       document.documentElement.scrollTop=0;
       document.body.scrollTop=0;
+      bookingSubmissionPending = false;
       showPaymentOptions(ref, Number(data.booking?.estimatedFare ?? payload.estimatedFare ?? 0), data.requiresOnlinePayment !== false);
       bookingSubmitted = true;
       editingBookingReference = '';
@@ -3637,6 +3661,8 @@
       syncSectionProgressUi();
       setBookingOutcome(outcomeText, isPending ? 'pending' : 'confirmed');
     }catch(err){
+      bookingSubmissionPending = false;
+      paymentSection.hidden = true;
       setStatus(err.message, 'err');
       setBookingOutcome(String(err.message || 'Booking request failed'), 'pending');
       revealSectionForAction('riderDetailsSection', 'statusMsg');
