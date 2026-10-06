@@ -243,6 +243,7 @@
   let currentBookingFare = 0;
   let bookingSubmitted = false;
   let bookingSubmissionPending = false;
+  let routeEstimateVersion = 0;
   let editingBookingReference = '';
   let paymentRequiredForBooking = false;
   let fareEstimateSignature = '';
@@ -473,6 +474,7 @@
   }
 
   const autoEstimate = debounce(async() => {
+    if(bookingSubmitted || bookingSubmissionPending) return;
     const pickup = $('pickup').value.trim();
     const destination = $('destination').value.trim();
     if(!pickup || !destination){
@@ -577,11 +579,14 @@
       return;
     }
     setBusy(applyPromotionBtn,true,'Applying...','Apply');
+    autoEstimate.cancel();
+    routeEstimateVersion++;
+    const originalFare=Number(appliedPromotion?.originalFare ?? estimateState.fare ?? 0);
     try{
-      const r=await fetch('/api/promotions/validate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code,service,date,currentFare:Number(estimateState.fare||0)})});
+      const r=await fetch('/api/promotions/validate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code,service,date,currentFare:originalFare})});
       const data=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(data.error||'Coupon could not be applied');
-      appliedPromotion={code,total:Number(data.total),savings:Number(data.savings||0),percentOff:Number(data.percentOff||0)};
+      appliedPromotion={code,originalFare,total:Number(data.total),savings:Number(data.savings||0),percentOff:Number(data.percentOff||0)};
       estimateState.fare=appliedPromotion.total;
       if(estFare)estFare.textContent=`$${appliedPromotion.total.toFixed(2)}`;
       if(fareSummaryAmount)fareSummaryAmount.textContent=`$${appliedPromotion.total.toFixed(2)}`;
@@ -591,8 +596,12 @@
       confirmedFareSignature=''; fareSubmissionAuthorized=false; updateFareConfirmationState(); syncSectionProgressUi();
     }catch(err){
       appliedPromotion=null;
+      estimateState.fare=originalFare;
+      if(estFare)estFare.textContent=`$${originalFare.toFixed(2)}`;
+      if(fareSummaryAmount)fareSummaryAmount.textContent=`$${originalFare.toFixed(2)}`;
       if(farePromotionSavingsRow)farePromotionSavingsRow.hidden=true;
       if(promotionMessage)promotionMessage.textContent=err.message;
+      confirmedFareSignature=''; fareSubmissionAuthorized=false; updateFareConfirmationState(); syncSectionProgressUi();
     }finally{setBusy(applyPromotionBtn,false,'Applying...','Apply');}
   }
 
@@ -1755,10 +1764,12 @@
 
   function debounce(fn, waitMs){
     let timer = null;
-    return (...args) => {
+    const debounced = (...args) => {
       clearTimeout(timer);
       timer = setTimeout(() => fn(...args), waitMs);
     };
+    debounced.cancel = () => clearTimeout(timer);
+    return debounced;
   }
 
   function normalizeService(value){
@@ -2178,6 +2189,8 @@
     }
     paymentSection.hidden = false;
     expandPaymentOptions();
+    paymentSection.querySelector('h2').textContent='Complete Payment';
+    if(paymentChoiceHint)paymentChoiceHint.hidden=false;
     const depositAmt = Math.round(currentBookingFare * 0.25 * 100) / 100;
     const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const discountText = estimateState.memberSavings > 0
@@ -2241,11 +2254,55 @@
       const data = await r.json().catch(() => ({}));
       if(!r.ok) throw new Error(data.error || `Failed to start ${resolvedProvider} checkout`);
       if(!data.url) throw new Error(`${resolvedProvider} checkout URL was not returned`);
+      try{sessionStorage.setItem('nexusCheckoutBooking',JSON.stringify({reference:currentBookingReference,phone:String($('phone')?.value||managePhone?.value||'')}));}catch{}
       window.location.href = data.url;
     }catch(err){
       setPaymentMessage(err.message, true);
       setBusy(button, false, busyText, idleText);
       return;
+    }
+  }
+
+  async function restoreCheckoutBooking(){
+    const params=new URLSearchParams(window.location.search);
+    const result=params.get('payment'),reference=params.get('bookingReference');
+    if(!['success','cancelled'].includes(result)||!reference)return;
+    let saved;
+    try{saved=JSON.parse(sessionStorage.getItem('nexusCheckoutBooking')||'null');}catch{}
+    if(manageReference)manageReference.value=reference;
+    if(saved?.reference!==reference||!saved.phone){
+      if(manageTripPanel)manageTripPanel.hidden=false;
+      setManageTripMessage('Enter the phone used for this booking and choose Find Trip to verify its status.');
+      return;
+    }
+    if(managePhone)managePhone.value=saved.phone;
+    try{
+      const response=await fetch(`/api/bookings/${encodeURIComponent(reference)}?phone=${encodeURIComponent(saved.phone)}`,{cache:'no-store'});
+      const data=await response.json();
+      if(!response.ok||!data.booking)throw new Error(data.error||'Unable to verify payment status.');
+      const booking=data.booking;
+      const paid=['DEPOSIT_PAID','PAID_IN_FULL'].includes(String(booking.paymentStatus||'').toUpperCase());
+      const cancelled=String(booking.status||'').toUpperCase()==='CANCELLED';
+      bookingSubmitted=true;
+      journeyNavigationOverride='';
+      if($('phone'))$('phone').value=saved.phone;
+      showPaymentOptions(reference,Number(booking.estimatedFare||0),true);
+      syncSectionProgressUi();
+      if(paid||cancelled||result==='success'){
+        paymentSection.querySelector('h2').textContent='Payment status';
+        [payDepositBtn,payFullBtn,payStripeBtn,paySquareBtn].forEach(button=>{if(button)button.hidden=true;});
+        if(paymentChoiceHint)paymentChoiceHint.hidden=true;
+        const message=cancelled?'This booking has been cancelled.':paid
+          ?(booking.paymentStatus==='DEPOSIT_PAID'?'Your deposit has been received.':'Your payment has been received in full.')
+          :'Your payment is still being confirmed. Refresh this page to check its status. Please do not pay again.';
+        paymentSummary.textContent=`Booking ${reference}. ${message}`;
+        setPaymentMessage(paid?'Payment verified with Nexus.':cancelled?'No payment is required.':'Awaiting payment confirmation.');
+      }else{
+        setPaymentMessage('Checkout was cancelled. Choose a payment option to try again for this same booking.');
+      }
+    }catch(error){
+      if(manageTripPanel)manageTripPanel.hidden=false;
+      setManageTripMessage(`${error.message} Use Find Trip to try again.`,true);
     }
   }
 
@@ -2799,6 +2856,7 @@
   }
 
   async function estimateRouteAndFare(options={}){
+    const estimateVersion=++routeEstimateVersion;
     const shouldPromptConfirmation=options.promptConfirmation!==false;
     clearStatus();
 
@@ -2860,12 +2918,14 @@
         durationText = `${durationText} (traffic ${trafficText})`;
       }
       const yardRoute = await estimateYardToPickupRoute(pickup, tripDate, String(appointmentTimeInput?.value || '').trim());
+      if(estimateVersion!==routeEstimateVersion)return estimateState;
       yardToPickupDurationMinutes = Math.max(0, Number(yardRoute.minutes || 0));
       yardToPickupTrafficDurationMinutes = Math.max(0, Number(yardRoute.trafficMinutes || 0));
       renderCustomerRoute(result, pickup, destinations);
       renderMultiStopFeasibility();
     }catch(err){
       const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations]);
+      if(estimateVersion!==routeEstimateVersion)return estimateState;
       if(fallbackMiles){
         const fallbackDurationMinutes = Math.max(15, Math.round((fallbackMiles / 25) * 60));
         const fallbackBreakdown = calculateFareBreakdown(service, fallbackMiles, tripDate, fareTime, { durationMinutes: 0, trafficDurationMinutes: 0 });
@@ -2903,6 +2963,8 @@
     form.addEventListener('submit', submitBooking);
     fareConfirmCancel?.addEventListener('click',()=>fareConfirmDialog?.close());
     fareConfirmAccept?.addEventListener('click',()=>{
+      autoEstimate.cancel();
+      routeEstimateVersion++;
       updateFareConfirmationState();
       confirmedFareSignature=fareEstimateSignature;
       fareSubmissionAuthorized=true;
@@ -3524,7 +3586,8 @@
       distanceMiles: Number(estimateState.miles || 0),
       estimatedDuration: estimateState.durationText || null,
       estimatedFareBeforeDiscount: Number(estimateState.preDiscountFare || estimateState.fare || 0),
-      estimatedFare: Number(estimateState.fare || 0),
+      // The server redeems the coupon and applies its discount exactly once.
+      estimatedFare: Number((!editingBookingReference ? appliedPromotion?.originalFare : null) ?? estimateState.fare ?? 0),
       memberDiscountPct: token() ? MEMBER_DISCOUNT_PCT : 0,
       memberDiscountAmount: Number(estimateState.memberSavings || 0),
       promotionCode: appliedPromotion?.code || '',
@@ -3582,8 +3645,8 @@
     paymentSection.hidden = false;
     expandPaymentOptions();
     paymentSummary.textContent = 'Preparing your booking. Payment options will be ready shortly.';
-    if(depositAmountLabel) depositAmountLabel.textContent = `$${(Math.round(Number(payload.estimatedFare || 0) * 25) / 100).toFixed(2)}`;
-    if(fullAmountLabel) fullAmountLabel.textContent = `$${Number(payload.estimatedFare || 0).toFixed(2)}`;
+    if(depositAmountLabel) depositAmountLabel.textContent = `$${(Math.round(Number(estimateState.fare || 0) * 25) / 100).toFixed(2)}`;
+    if(fullAmountLabel) fullAmountLabel.textContent = `$${Number(estimateState.fare || 0).toFixed(2)}`;
     [payDepositBtn, payFullBtn].forEach(button => { if(button){ button.hidden = false; button.disabled = true; } });
     [payStripeBtn, paySquareBtn].forEach(button => { if(button) button.hidden = true; });
     setPaymentMessage('Creating your booking before opening secure checkout...');
@@ -4145,6 +4208,7 @@
         }
       }
     });
+    await restoreCheckoutBooking();
   }
 
   if(document.readyState === 'loading'){

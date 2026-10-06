@@ -343,7 +343,7 @@
     body.bookingPaymentMapView.paymentSheetCollapsed #paymentSection>:not(.paymentSheetHandle){display:none!important}
     .paymentSheetHandle{display:block;width:64px;height:20px;margin:-6px auto 4px;padding:0;border:0;background:transparent;position:relative}.paymentSheetHandle::before{content:'';position:absolute;left:11px;right:11px;top:7px;height:5px;border-radius:999px;background:#aebbc4}
     body.bookingRideMarketplaceView #nextStepGuide,body.bookingReviewMapView #nextStepGuide,body.bookingPaymentMapView #nextStepGuide,body.bookingRideMarketplaceView .bottomBar,body.bookingReviewMapView .bottomBar,body.bookingPaymentMapView .bottomBar{display:none!important}
-    body.bookingRideMarketplaceView .bookingHelpCall{display:none!important}
+    body.bookingRideMarketplaceView .bookingHelpCall,body.bookingPaymentMapView .bookingHelpCall{display:none!important}
     body.bookingRideMarketplaceView .telemetryFallbackOverlay,body.bookingReviewMapView .telemetryFallbackOverlay,body.bookingPaymentMapView .telemetryFallbackOverlay{display:none!important}
     body.bookingRideMarketplaceView .appTabBar,body.bookingReviewMapView .appTabBar{position:fixed;left:50%;right:auto;bottom:0;z-index:80;width:min(780px,calc(100% - 40px));height:64px;transform:translateX(-50%);border-radius:0}
     body.bookingPaymentMapView .appTabBar{position:fixed;top:var(--booking-tabs-top,calc(100dvh - 64px));left:50%;right:auto;bottom:auto;z-index:80;width:min(780px,calc(100% - 40px));height:64px;transform:translateX(-50%);border-radius:0;transition:top .2s ease}
@@ -1169,7 +1169,8 @@ Destination: -</p>
           <button type="button" class="secondaryPay" id="paySquareBtn" hidden>Pay with Square</button>
         </div>
         <p class="paymentChoiceHint" id="paymentChoiceHint">Self-pay guest bookings require a 25% deposit or full payment to be confirmed. Facility bookings are invoiced after trip completion.</p>
-        <p class="subtle" id="paymentStatusMsg"></p>
+        <p class="subtle" id="paymentStatusMsg" role="status" aria-live="polite"></p>
+        <p class="subtle"><a href="tel:+18886395766">Need help with payment? Call Nexus</a></p>
       </section>
 
       <div class="bottomBar">
@@ -1225,7 +1226,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=69"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-  <script src="./booking-app.js?v=20261005-confirm-fare-payment"></script>
+  <script src="./booking-app.js?v=20261005-checkout-journey"></script>
 </body>
 </html>
 
