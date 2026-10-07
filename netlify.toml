@@ -63,6 +63,10 @@
 [functions.graph-mail-sync]
   schedule = "*/10 * * * *"
 
+# Retry failed booking-to-calendar synchronization without recreating bookings.
+[functions.booking-calendar-sync]
+  schedule = "*/10 * * * *"
+
 # Process consent-verified KeyMark SMS and voice outreach.
 [functions.keymark-outreach]
   schedule = "*/5 * * * *"

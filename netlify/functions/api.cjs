@@ -24,12 +24,18 @@ const {bookingPaymentPolicy,requiresFullPaymentBeforeBoarding}=require('./_share
 const {getSecureDocument,listSecureDocuments}=require('./_shared/secure-document-registry.cjs');
 const {sendSms}=require('./_shared/sms-consent.cjs');
 const {canPatientSeeDriverLocation,distanceMiles}=require('./_shared/patient-driver-location.cjs');
+const {syncBookingCalendar,cancelBookingCalendar}=require('./_shared/booking-calendar.cjs');
 const montgomeryOutreachPilot=require('../../data/montgomery-tier-a-outreach-pilot.json');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_APPROVAL:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
 const clean=v=>String(v??'').trim();
 const isTestMode=()=>String(process.env.NEXUS_TEST_MODE||'').toLowerCase()==='true';
+async function syncCalendarLifecycle(booking){
+ if(isTestMode())return {status:'skipped',reason:'test-mode'};
+ if(clean(booking?.status).toUpperCase().replaceAll('-','_')==='CANCELLED')return cancelBookingCalendar(booking.reference||booking.id);
+ return syncBookingCalendar(booking);
+}
 let multiRoleSchemaPromise=null;
 function ensureMultiRoleSchema(){
  if(multiRoleSchemaPromise)return multiRoleSchemaPromise;
@@ -342,9 +348,10 @@ async function createBookingFromBrokerRequest(requestBody,requestRow){
  await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[booking.reference,JSON.stringify({teams:teamsNotification})]).catch(()=>{});
  await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[booking.reference,'SUBMITTED','submitted','Broker request materialized into a booking','DISPATCH']);
  const autoAssignResult=await autoAssign(booking);
+ const calendarSync=await syncCalendarLifecycle(booking);
  const requestStatus=resolveBrokerRequestStatus({bookingCreated:true,autoAssigned:autoAssignResult.assigned});
  await query('UPDATE broker_requests SET booking_reference=$2,request_status=$3,updated_at=now() WHERE id=$1',[requestRow.id,booking.reference,requestStatus]);
- return {booking,requestStatus,autoAssignResult};
+ return {booking,requestStatus,autoAssignResult,calendarSync};
 }
 
 const DEFAULT_PRICING={
@@ -2824,6 +2831,7 @@ async function handler(event){
   await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource,requestedByRole,appointmentTime:appointmentTime||null,appointmentTimes,pickupTimeEstimate:pickupTimeEstimate||null,referralIncentiveEligible:bookingSource==='DRIVER_REFERRAL'});
   const mappedBooking=mapBooking(r.rows[0]);
   const booking={...mappedBooking,appointmentTime,appointmentTimes,pickupTime:pickupTimeEstimate||mappedBooking.time,requestedByRole,requestedByUser:clean(b.requestedByUser||bookingActor?.email||'')};
+  const calendarSync=await syncCalendarLifecycle(booking);
    // Auto-assign driver + vehicle (fire-and-forget, does not block response)
    if(!paymentPolicy.requiresDeposit&&!paymentPolicy.requiresApproval)autoAssign(r.rows[0]).catch(()=>{});
    let notifications;
@@ -2835,7 +2843,7 @@ async function handler(event){
     const direct=await notifyBookingPending(booking,{subject:`Facility booking received — ${ref}`,statusText:'was received',detail:'The trip is on the facility account. A detailed invoice will be sent after completion.'});
     const facilityNotifications={...direct,teams:facilityTeams};
     await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[ref,JSON.stringify(facilityNotifications)]).catch(()=>{});
-    return json(201,{booking:{...booking,notifications:facilityNotifications},invoiceSent:false,invoiceAfterCompletion:true,requiresOnlinePayment:false,clientMessage:'Booking created. A detailed invoice will be sent to facility managers after the trip is complete.'});
+    return json(201,{booking:{...booking,notifications:facilityNotifications},invoiceSent:false,invoiceAfterCompletion:true,requiresOnlinePayment:false,calendarSync,clientMessage:'Booking created. A detailed invoice will be sent to facility managers after the trip is complete.'});
     /* Legacy pre-trip invoicing retained below only for deployment rollback reference.
     const invoiceTargetEmail=bookingSource==='FACILITY'
       ? clean(bookingActor?.email||booking.email)
@@ -2852,13 +2860,13 @@ async function handler(event){
    const teamsNotification=await sendBookingTeamsAlert(booking,'New Trip Awaiting Deposit','Deposit Required');
    const detail=paymentPolicy.coverageNotAvailable?`${paymentPolicy.coverageMessage} A 25% self-pay deposit is required to confirm.`:'A 25% deposit or full payment is required to confirm this booking.';
    const direct=await notifyBookingPending(booking,{subject:`Deposit required — ${ref}`,statusText:'is awaiting payment',detail});
-   return json(201,{booking,requiresOnlinePayment:true,depositRequired:true,coverageNotAvailable:paymentPolicy.coverageNotAvailable,coverageStatus:paymentPolicy.coverageStatus,clientMessage:paymentPolicy.coverageNotAvailable?`${paymentPolicy.coverageMessage} Pay the 25% self-pay deposit to confirm booking ${ref}.`:`Ride request created. Pay the 25% deposit to confirm booking ${ref}.`,notifications:{...direct,teams:teamsNotification}});
+  return json(201,{booking,requiresOnlinePayment:true,depositRequired:true,coverageNotAvailable:paymentPolicy.coverageNotAvailable,coverageStatus:paymentPolicy.coverageStatus,calendarSync,clientMessage:paymentPolicy.coverageNotAvailable?`${paymentPolicy.coverageMessage} Pay the 25% self-pay deposit to confirm booking ${ref}.`:`Ride request created. Pay the 25% deposit to confirm booking ${ref}.`,notifications:{...direct,teams:teamsNotification}});
   }
 
   if(paymentPolicy.requiresApproval){
    const teamsNotification=await sendBookingTeamsAlert(booking,'New Trip Pending Payer Approval','Approval Required');
    const direct=await notifyBookingPending(booking,{subject:`Booking pending approval — ${ref}`,statusText:'is pending approval',detail:paymentPolicy.coverageMessage});
-   return json(202,{booking,requiresOnlinePayment:false,pendingApproval:true,coverageStatus:paymentPolicy.coverageStatus,clientMessage:`Booking ${ref} is pending approval. ${paymentPolicy.coverageMessage}`,notifications:{...direct,teams:teamsNotification}});
+  return json(202,{booking,requiresOnlinePayment:false,pendingApproval:true,coverageStatus:paymentPolicy.coverageStatus,calendarSync,clientMessage:`Booking ${ref} is pending approval. ${paymentPolicy.coverageMessage}`,notifications:{...direct,teams:teamsNotification}});
   }
 
   notifications=await notifyBooking(booking);
@@ -2867,7 +2875,7 @@ async function handler(event){
     extra.driverReferral=await sendDriverReferralIncentiveAlert(booking,bookingActor?.email).catch((err)=>({email:{status:'failed',error:err.message}}));
     await audit('BOOKING',ref,'DRIVER_REFERRAL_INCENTIVE',{amount:10,currency:'USD',driverEmail:clean(bookingActor?.email||''),status:extra.driverReferral?.email?.status||'queued'});
    }
-   const mergedNotifications={...notifications,...extra};
+  const mergedNotifications={...notifications,...extra,calendar:calendarSync};
    await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[ref,JSON.stringify(mergedNotifications)]).catch(()=>{});
    const paymentNotice='A secure payment link will be sent to the rider 60 to 30 minutes before pickup.';
   return json(201,{booking:{...booking,notifications:mergedNotifications},requiresOnlinePayment:false,clientMessage:`Booking created. ${paymentNotice}`});
@@ -2944,7 +2952,8 @@ async function handler(event){
        process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Trip cancellation: ${ref}`,`<h2>Trip Cancelled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>Original Date/Time:</strong> ${booking.date} at ${booking.time}</p><p><strong>Reason:</strong> ${clean(b.reason)||'Passenger request'}</p>`):Promise.resolve(),
        driverAlert
    ]);
-  return json(200,{booking,cancellationFee:{applied:cancellationFeeApplied,amount:cancellationFeeAmount,policyKey,windowHours,leadHours},message:'Booking cancelled successfully'});
+  const calendarSync=await syncCalendarLifecycle(updated.rows[0]);
+  return json(200,{booking,calendarSync,cancellationFee:{applied:cancellationFeeApplied,amount:cancellationFeeAmount,policyKey,windowHours,leadHours},message:'Booking cancelled successfully'});
   }
   // Reschedule booking
   if(p[0]==='bookings'&&p[1]&&p[2]==='reschedule'&&method==='POST'){
@@ -2955,6 +2964,7 @@ async function handler(event){
    if(!r.rows[0])return json(404,{error:'Booking not found or phone number does not match'});
    if(['CANCELLED','COMPLETED','IN_TRANSIT','ARRIVED'].includes(r.rows[0].status))return json(400,{error:`Cannot reschedule a booking with status: ${r.rows[0].status}`});
    const updated=await query('UPDATE bookings SET trip_date=$2,trip_time=$3,reminder_sent=false,updated_at=now() WHERE reference=$1 RETURNING *',[ref,b.date,b.time]);
+  const calendarSync=await syncCalendarLifecycle(updated.rows[0]);
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),`Rescheduled to ${b.date} at ${b.time}`,'PASSENGER']);
    await audit('BOOKING',ref,'RESCHEDULED',{newDate:b.date,newTime:b.time});
    const booking=mapBooking(updated.rows[0]);
@@ -2968,7 +2978,7 @@ async function handler(event){
      process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Trip rescheduled: ${ref}`,`<h2>Trip Rescheduled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>New Date/Time:</strong> ${b.date} at ${b.time}</p><p><strong>Service:</strong> ${booking.service}</p>`):Promise.resolve(),
      driverAlert
    ]);
-   return json(200,{booking,message:'Booking rescheduled successfully'});
+  return json(200,{booking,calendarSync,message:'Booking rescheduled successfully'});
   }
   if(p.join('/')==='payments/create-intent'&&method==='POST'){
    const b=parseBody(event);required(b,['bookingReference']);const r=await query('SELECT reference,estimated_fare,payment_status FROM bookings WHERE reference=$1',[b.bookingReference]);if(!r.rows[0])return json(404,{error:'Booking not found'});
@@ -3010,6 +3020,7 @@ async function handler(event){
        :"UPDATE bookings SET payment_status=$2,paid_in_full_at=now(),balance_due=0,status=CASE WHEN status='PENDING_PAYMENT' THEN 'SUBMITTED' ELSE status END,updated_at=now() WHERE reference=$1 RETURNING *";
       const paidBookingResult=await query(updateSql,[bookingReference,newStatus]);
       const paidBooking=paidBookingResult.rows[0]||{...bk,payment_status:newStatus};
+      const calendarSync=await syncCalendarLifecycle(paidBooking);
       if(clean(bk.status).toUpperCase()==='PENDING_PAYMENT'){
        const confirmedRow={...paidBooking,status:'SUBMITTED'};
        autoAssign(confirmedRow).catch(()=>{});
@@ -3140,7 +3151,8 @@ async function handler(event){
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),'Rider updated booking details','PASSENGER']);
    await audit('BOOKING',ref,'RIDER_UPDATED',{service:b.service,date:b.date,time:b.time});
    const notifications=await sendTripStakeholderUpdate(found.rows[0],updated.rows[0],{display_name:'Passenger'},'Booking details updated online').catch(()=>({status:'failed'}));
-   return json(200,{booking:mapBooking(updated.rows[0]),notifications,requiresOnlinePayment:Boolean(updated.rows[0].requires_deposit),depositRequired:Boolean(updated.rows[0].requires_deposit),clientMessage:`Booking ${ref} updated. Review the new details and complete payment.`});
+  const calendarSync=await syncCalendarLifecycle(updated.rows[0]);
+  return json(200,{booking:mapBooking(updated.rows[0]),notifications,calendarSync,requiresOnlinePayment:Boolean(updated.rows[0].requires_deposit),depositRequired:Boolean(updated.rows[0].requires_deposit),clientMessage:`Booking ${ref} updated. Review the new details and complete payment.`});
   }
   if(p[0]==='auth'&&p[1]==='switch-role'&&method==='POST'){
    await ensureMultiRoleSchema();
@@ -3777,7 +3789,8 @@ async function handler(event){
    });
 
   const notifications=await sendTripStakeholderUpdate(before.rows[0],afterRow,u,noteValue||'').catch(()=>({status:'failed'}));
-  return json(200,{booking:mapBooking(afterRow),notifications});
+  const calendarSync=await syncCalendarLifecycle(afterRow);
+  return json(200,{booking:mapBooking(afterRow),notifications,calendarSync});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const currentStatus=String(current.rows[0].status||'').toUpperCase();const next=STATUS_FLOW[currentStatus]||currentStatus;
@@ -3807,6 +3820,7 @@ async function handler(event){
    const approval=canAdvanceBookingForAvailability({currentStatus:current.rows[0].status,nextStatus:next,availability});
    if(!approval.allowed){return json(409,{error:approval.message,approval,booking:mapBooking(current.rows[0])});}
   const r=await query('UPDATE bookings SET status=$2,updated_at=now() WHERE reference=$1 RETURNING *',[ref,next]);await query('INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,$2,$3,$4)',[ref,next,statusLabel(next),u.display_name||u.email||u.role]);await audit('BOOKING',ref,'STATUS_ADVANCED',{from:current.rows[0].status,to:next});
+  const calendarSync=await syncCalendarLifecycle(r.rows[0]);
   if(next==='COMPLETED')await issueFacilityCompletionInvoice(r.rows[0]).catch(err=>console.error('[FACILITY_INVOICE]',err.message));
   const advanceNote=`Status advanced from ${statusLabel(current.rows[0].status)} to ${statusLabel(next)} by ${u.display_name||u.email||u.role}.`;
   const advanceNotifications=await sendTripStakeholderUpdate(current.rows[0],r.rows[0],u,advanceNote).catch(()=>({status:'failed'}));
@@ -3816,7 +3830,7 @@ async function handler(event){
     await sendBalanceDueReminder(bk,current.rows[0].balance_due).catch(e=>console.error('[BALANCE_REMINDER]',e.message));
     await query('UPDATE bookings SET payment_status=$2,balance_reminder_sent_at=now(),updated_at=now() WHERE reference=$1',[ref,'BALANCE_REMINDER_SENT']);
    }
-  return json(200,{booking:mapBooking(r.rows[0]),approval,notifications:advanceNotifications});
+  return json(200,{booking:mapBooking(r.rows[0]),approval,notifications:advanceNotifications,calendarSync});
   }
   if(p[0]==='fleet'&&p[1]==='live'&&method==='GET'){
     let u=null;try{if(bearer(event))u=await requireUser(bearer(event))}catch{}

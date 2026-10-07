@@ -2,24 +2,36 @@ const GRAPH_ROOT='https://graph.microsoft.com/v1.0';
 
 const clean=(value)=>String(value??'').trim();
 
-function graphConfig(){
+function graphCredentials(){
  const tenantId=clean(process.env.M365_TENANT_ID||process.env.MICROSOFT_TENANT_ID);
  const clientId=clean(process.env.M365_CLIENT_ID||process.env.MICROSOFT_CLIENT_ID);
  const clientSecret=clean(process.env.M365_CLIENT_SECRET||process.env.MICROSOFT_CLIENT_SECRET);
+ return {tenantId,clientId,clientSecret};
+}
+
+function graphConfig(){
+ const {tenantId,clientId,clientSecret}=graphCredentials();
  const mailbox=clean(process.env.M365_MAILBOX_ADDRESS||process.env.MICROSOFT_MAILBOX_ADDRESS||process.env.M365_INBOX_ADDRESS||'');
  return {tenantId,clientId,clientSecret,mailbox};
 }
 
-function requireGraphConfig(){
- const config=graphConfig();
- if(!config.tenantId||!config.clientId||!config.clientSecret||!config.mailbox){
-  throw new Error('M365_TENANT_ID, M365_CLIENT_ID, M365_CLIENT_SECRET, and M365_MAILBOX_ADDRESS are required');
+function requireGraphCredentials(){
+ const config=graphCredentials();
+ if(!config.tenantId||!config.clientId||!config.clientSecret){
+    throw new Error('M365_TENANT_ID, M365_CLIENT_ID, and M365_CLIENT_SECRET are required');
  }
  return config;
 }
 
+function requireGraphConfig(){
+ const config=graphConfig();
+ if(!config.mailbox)throw new Error('M365_MAILBOX_ADDRESS is required for mail operations');
+ requireGraphCredentials();
+ return config;
+}
+
 async function getGraphAccessToken(){
- const {tenantId,clientId,clientSecret}=requireGraphConfig();
+ const {tenantId,clientId,clientSecret}=requireGraphCredentials();
  const body=new URLSearchParams({
   client_id:clientId,
   client_secret:clientSecret,
@@ -126,7 +138,9 @@ function isFileAttachment(attachment){
 
 module.exports={
  GRAPH_ROOT,
+ graphCredentials,
  graphConfig,
+ requireGraphCredentials,
  requireGraphConfig,
  getGraphAccessToken,
  graphFetch,
