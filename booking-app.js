@@ -15,6 +15,7 @@
   const estFare = $('estFare');
   const estMemberSavingsRow = $('estMemberSavingsRow');
   const estMemberSavings = $('estMemberSavings');
+  const estSavingsLabel = $('estSavingsLabel');
   const rateSourceLabel = $('rateSourceLabel');
   const memberDiscountNote = $('memberDiscountNote');
   const rateSettingsSection = $('rateSettingsSection');
@@ -48,6 +49,7 @@
   const distanceEtaSection = $('distanceEtaSection');
   const fareMemberSavingsRow = $('fareMemberSavingsRow');
   const fareMemberSavings = $('fareMemberSavings');
+  const fareSavingsLabel = $('fareSavingsLabel');
   const promotionCode = $('promotionCode');
   const applyPromotionBtn = $('applyPromotionBtn');
   const promotionMessage = $('promotionMessage');
@@ -216,10 +218,12 @@
   let mapsEnabled = false;
   let mapsBrowserKey = '';
   let stripeEnabled = false;
+  let previewPaymentsEnabled = false;
   let squareEnabled = false;
   let estimateState = { miles: 0, durationText: '', durationMinutes: 0, trafficDurationMinutes: 0, subtotal: 0, taxAmount: 0, preDiscountFare: 0, memberSavings: 0, discountPct: 0, fare: 0 };
   let pickupAutocomplete = null;
   let destinationAutocomplete = null;
+  let selectedFlightInfo = null;
   let telemetryMap = null;
   let telemetryMarkers = new Map();
   let telemetryTimer = null;
@@ -558,21 +562,21 @@
     if(farePromotionSavingsRow) farePromotionSavingsRow.hidden = true;
     if(promotionMessage) promotionMessage.textContent = promotionCode?.value ? 'Reapply the coupon after ride details or pricing change.' : '';
     const discountView = pricingWithMembership(breakdown.total);
+    updateTripScheduleSavingsMessage(discountView.signedIn);
     estimateState = {
       miles: Math.max(0, Number(miles || 0)),
       durationText: String(durationText || ''),
       durationMinutes: Math.max(0, Number(durationMinutes || 0)),
-    updateTripScheduleSavingsMessage(discountView.signedIn);
       trafficDurationMinutes: Math.max(0, Number(trafficDurationMinutes || 0)),
       subtotal: Number(breakdown.subtotal || 0),
       taxAmount: Number(breakdown.taxAmount || 0),
       preDiscountFare: discountView.fullFare,
       memberSavings: discountView.memberSavings,
+      discountPct: discountView.discountPct,
       fare: discountView.total
     };
 
     estMiles.textContent = `${estimateState.miles.toFixed(1)} mi`;
-      discountPct: discountView.discountPct,
     estDuration.textContent = durationText || '-';
     if(estSubtotal) estSubtotal.textContent = `$${Number(breakdown.subtotal || 0).toFixed(2)}`;
     if(estTax) estTax.textContent = `$${Number(breakdown.taxAmount || 0).toFixed(2)}${Number(breakdown.taxRatePct || 0) > 0 ? ` (${Number(breakdown.taxRatePct || 0).toFixed(2)}%)` : ''}`;
@@ -689,11 +693,11 @@
   }
 
   function refreshFareForMembership(){
+    updateTripScheduleSavingsMessage();
     const subtotal = Number(estimateState.subtotal || 0);
     const taxAmount = Number(estimateState.taxAmount || 0);
     if(subtotal <= 0 && taxAmount <= 0 && Number(estimateState.fare || 0) <= 0) return;
     renderFareEstimateBreakdown({
-    updateTripScheduleSavingsMessage();
       subtotal,
       taxAmount,
       total: subtotal + taxAmount,
@@ -2011,6 +2015,7 @@
       mapsEnabled = !!cfg.googleMapsEnabled;
       mapsBrowserKey = String(cfg.googleMapsBrowserKey || '').trim();
       stripeEnabled = !!cfg.stripeEnabled;
+      previewPaymentsEnabled = cfg.testMode === true;
       squareEnabled = !!cfg.squareEnabled;
       if(cfg.testMode && !document.getElementById('testModeBanner')){
         const banner=document.createElement('div');
@@ -2087,8 +2092,9 @@
       script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsBrowserKey)}&libraries=places`;
       script.async = true;
       script.defer = true;
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error('Could not load Google Maps.'));
+      const timeout = window.setTimeout(() => reject(new Error('Google Maps took too long to load.')), 8000);
+      script.onload = () => { window.clearTimeout(timeout); resolve(); };
+      script.onerror = () => { window.clearTimeout(timeout); reject(new Error('Could not load Google Maps.')); };
       document.head.appendChild(script);
     });
     return mapsReadyPromise;
@@ -2277,7 +2283,7 @@
       const data = await r.json().catch(() => ({}));
       if(!r.ok) throw new Error(data.error || `Failed to start ${resolvedProvider} checkout`);
       if(!data.url) throw new Error(`${resolvedProvider} checkout URL was not returned`);
-      try{sessionStorage.setItem('nexusCheckoutBooking',JSON.stringify({reference:currentBookingReference,phone:String($('phone')?.value||managePhone?.value||'')}));}catch{}
+      try{sessionStorage.setItem('nexusCheckoutBooking',JSON.stringify({reference:currentBookingReference,fare:currentBookingFare,phone:String($('phone')?.value||managePhone?.value||'')}));}catch{}
       window.location.href = data.url;
     }catch(err){
       setPaymentMessage(err.message, true);
@@ -2300,10 +2306,18 @@
     }
     if(managePhone)managePhone.value=saved.phone;
     try{
-      const response=await fetch(`/api/bookings/${encodeURIComponent(reference)}?phone=${encodeURIComponent(saved.phone)}`,{cache:'no-store'});
-      const data=await response.json();
-      if(!response.ok||!data.booking)throw new Error(data.error||'Unable to verify payment status.');
-      const booking=data.booking;
+      let booking;
+      if(previewPaymentsEnabled){
+        // Preview bookings are deliberately not persisted. Never use this receipt in production.
+        let receipt;
+        try{receipt=JSON.parse(sessionStorage.getItem('nexusPreviewPayment')||'null');}catch{}
+        booking={reference,estimatedFare:Number(saved.fare||0),status:'pending-payment',paymentStatus:receipt?.reference===reference?receipt.paymentStatus:'UNPAID'};
+      }else{
+        const response=await fetch(`/api/bookings/${encodeURIComponent(reference)}?phone=${encodeURIComponent(saved.phone)}`,{cache:'no-store'});
+        const data=await response.json();
+        if(!response.ok||!data.booking)throw new Error(data.error||'Unable to verify payment status.');
+        booking=data.booking;
+      }
       const paid=['DEPOSIT_PAID','PAID_IN_FULL'].includes(String(booking.paymentStatus||'').toUpperCase());
       const cancelled=String(booking.status||'').toUpperCase()==='CANCELLED';
       bookingSubmitted=true;
@@ -2319,7 +2333,7 @@
           ?(booking.paymentStatus==='DEPOSIT_PAID'?'Your deposit has been received.':'Your payment has been received in full.')
           :'Your payment is still being confirmed. Refresh this page to check its status. Please do not pay again.';
         paymentSummary.textContent=`Booking ${reference}. ${message}`;
-        setPaymentMessage(paid?'Payment verified with Nexus.':cancelled?'No payment is required.':'Awaiting payment confirmation.');
+        setPaymentMessage(paid?(previewPaymentsEnabled?'Test payment verified. No card was charged.':'Payment verified with Nexus.'):cancelled?'No payment is required.':'Awaiting payment confirmation.');
       }else{
         setPaymentMessage('Checkout was cancelled. Choose a payment option to try again for this same booking.');
       }
@@ -3393,6 +3407,7 @@
     if(recurrenceEndDate)recurrenceEndDate.required=type==='RECURRING';
     if(type!=='ROUND_TRIP'){if(returnTripDate)returnTripDate.value='';if(returnTripTime)returnTripTime.value='';}
     if(type!=='RECURRING'){if(recurrenceEndDate)recurrenceEndDate.value='';document.querySelectorAll('input[name="recurrenceDay"]').forEach((input)=>{input.checked=false;});}
+    updateTripScheduleSavingsMessage();
   }
 
   function isTripScheduleComplete(){
@@ -3406,7 +3421,6 @@
     const tab=['book','manifest','contact'].includes(tabName)?tabName:'book';
     document.body.dataset.activeTab=tab;
     form.hidden=tab!=='book';
-    updateTripScheduleSavingsMessage();
     if(journeyHeader)journeyHeader.hidden=tab!=='book';
     if(manifestTabPanel)manifestTabPanel.hidden=tab!=='manifest';
     if(contactTabPanel)contactTabPanel.hidden=tab!=='contact';
@@ -4172,7 +4186,6 @@
 
     await loadIntegrationConfig();
     await loadPlatformSettings();
-    await initAddressAutocomplete();
     await resolveUserAccess();
     applyAuthUi();
     bindServiceChips();
@@ -4221,8 +4234,6 @@
       saveRateBtn.addEventListener('click', saveCurrentServiceRate);
       resetRateBtn.addEventListener('click', resetCurrentServiceRate);
     }
-    await initTelemetry();
-
     bindCoreActions();
     bindSectionProgressTracking();
     bindRouteFieldListeners($('pickup'), 'pickup');
@@ -4242,7 +4253,11 @@
       });
     }
     syncMultipleStopsUi();
-    if(confirmRiderBtn) confirmRiderBtn.addEventListener('click', confirmRiderDetails);
+    if(confirmRiderBtn){
+      confirmRiderBtn.addEventListener('click', confirmRiderDetails);
+      confirmRiderBtn.disabled=false;
+      confirmRiderBtn.textContent='Confirm Details';
+    }
     if(confirmPickupDropoffBtn) confirmPickupDropoffBtn.addEventListener('click', confirmPickupDropoffDetails);
     $('continueRideBtn')?.addEventListener('click',async()=>{
       const continueButton=$('continueRideBtn');
@@ -4338,6 +4353,9 @@
         }
       }
     });
+    // Optional map services must not block the section controls or checkout return.
+    void initAddressAutocomplete();
+    void initTelemetry();
     await restoreCheckoutBooking();
   }
 

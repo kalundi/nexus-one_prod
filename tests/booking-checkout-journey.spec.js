@@ -83,6 +83,8 @@ for(const scenario of [
   {result:'success',status:'DEPOSIT_PAID',message:'Payment verified',canPay:false},
   {result:'success',status:'PAID_IN_FULL',message:'Payment verified',canPay:false}
 ]) test(`checkout return: ${scenario.result}, ${scenario.status}`,async({page})=>{
+  // Production must ignore client-side simulated receipts and read the server status.
+  await page.addInitScript(()=>sessionStorage.setItem('nexusPreviewPayment',JSON.stringify({reference:'RETURN-1',paymentStatus:'PAID_IN_FULL'})));
   await prepareRide(page);
   let bookings=0;
   await page.route('**/api/bookings',route=>{

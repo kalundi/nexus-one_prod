@@ -197,6 +197,11 @@
   status = 200
 
 [[redirects]]
+  from = "/booking-app.htm"
+  to = "/booking-app.html"
+  status = 301
+
+[[redirects]]
   from = "/ai-operations"
   to = "/ai-operations.html"
   status = 200

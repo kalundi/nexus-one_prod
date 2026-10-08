@@ -22,7 +22,11 @@
     const q=new URLSearchParams(location.search),ref=q.get('bookingReference')||'TEST',mode=q.get('mode')||'full',cents=Number(q.get('amount')||0),provider=q.get('provider')||'stripe';
     document.getElementById('amount').textContent=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
     document.getElementById('reference').textContent=ref;document.getElementById('mode').textContent=mode==='deposit'?'25% deposit':'Full payment';document.getElementById('provider').textContent=provider[0].toUpperCase()+provider.slice(1);
-    document.getElementById('complete').addEventListener('click',()=>{document.getElementById('actions').innerHTML='<div class="success">Test payment completed. No card was charged.</div><a class="button" href="/booking-app.html?payment=success&testMode=1&bookingReference='+encodeURIComponent(ref)+'">Return to booking app</a>'});
+    document.querySelector('#actions a').href='/booking-app.html?payment=cancelled&bookingReference='+encodeURIComponent(ref);
+    document.getElementById('complete').addEventListener('click',()=>{
+      sessionStorage.setItem('nexusPreviewPayment',JSON.stringify({reference:ref,paymentStatus:mode==='deposit'?'DEPOSIT_PAID':'PAID_IN_FULL'}));
+      document.getElementById('actions').innerHTML='<div class="success">Test payment completed. No card was charged.</div><a class="button" href="/booking-app.html?payment=success&testMode=1&bookingReference='+encodeURIComponent(ref)+'">Return to booking app</a>';
+    });
   </script>
 </body>
 </html>
