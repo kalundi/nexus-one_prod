@@ -1,5 +1,6 @@
 const crypto=require('crypto');
 const {isDuplicateTrip,duplicateTripResponse}=require('./_shared/booking-duplicate.cjs');
+const {lookupFlight}=require('./_shared/flightaware.cjs');
 const fs=require('fs');
 const path=require('path');
 const {query,getPool}=require('./_shared/db.cjs');
@@ -31,6 +32,61 @@ const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
 const clean=v=>String(v??'').trim();
 const isTestMode=()=>String(process.env.NEXUS_TEST_MODE||'').toLowerCase()==='true';
+let flightLookupRateLimitSchemaPromise=null;
+function ensureFlightLookupRateLimitSchema(){
+ if(flightLookupRateLimitSchemaPromise)return flightLookupRateLimitSchemaPromise;
+ flightLookupRateLimitSchemaPromise=query(`CREATE TABLE IF NOT EXISTS flight_lookup_rate_limits (
+  ip_hash text PRIMARY KEY,window_start timestamptz NOT NULL,request_count integer NOT NULL DEFAULT 0
+ )`).then(()=>query('ALTER TABLE flight_lookup_rate_limits ENABLE ROW LEVEL SECURITY'))
+  .then(()=>query('REVOKE ALL ON TABLE flight_lookup_rate_limits FROM anon, authenticated').catch(()=>{}))
+  .catch(error=>{flightLookupRateLimitSchemaPromise=null;throw error});
+ return flightLookupRateLimitSchemaPromise;
+}
+async function claimFlightLookup(event){
+ await ensureFlightLookupRateLimitSchema();
+ const headers=event.headers||{};
+ const clientIp=clean(headers['x-nf-client-connection-ip']||headers['X-Nf-Client-Connection-Ip']||headers['x-forwarded-for']?.split(',')[0]||'unknown');
+ const ipHash=crypto.createHmac('sha256',process.env.FLIGHTAWARE_API_KEY||'flight-lookup').update(clientIp).digest('hex');
+ const result=await query(`INSERT INTO flight_lookup_rate_limits(ip_hash,window_start,request_count) VALUES($1,now(),1)
+  ON CONFLICT(ip_hash) DO UPDATE SET
+   window_start=CASE WHEN flight_lookup_rate_limits.window_start<now()-interval '1 minute' THEN now() ELSE flight_lookup_rate_limits.window_start END,
+   request_count=CASE WHEN flight_lookup_rate_limits.window_start<now()-interval '1 minute' THEN 1 ELSE flight_lookup_rate_limits.request_count+1 END
+  RETURNING request_count`,[ipHash]);
+ return Number(result.rows[0]?.request_count||0)<=10;
+}
+let bookingFlightSchemaPromise=null;
+function ensureBookingFlightSchema(){
+ if(bookingFlightSchemaPromise)return bookingFlightSchemaPromise;
+ bookingFlightSchemaPromise=query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS flight_info jsonb')
+  .catch(error=>{bookingFlightSchemaPromise=null;throw error});
+ return bookingFlightSchemaPromise;
+}
+function normalizeBookingFlightInfo(value,tripDate){
+ if(!value||typeof value!=='object'||Array.isArray(value))return null;
+ const flightNumber=clean(value.flightNumber).toUpperCase().slice(0,12);
+ const terminal=clean(value.terminal).slice(0,80);
+ if(!flightNumber&&!terminal)return null;
+ const airportStop=clean(value.airportStop).toUpperCase();
+ if(!['PICKUP','DESTINATION'].includes(airportStop))throw Object.assign(new Error('Choose whether the airport is the pickup or destination.'),{statusCode:400});
+ const date=clean(value.date||tripDate);
+ if(date!==clean(tripDate))throw Object.assign(new Error('Flight date must match the ride date.'),{statusCode:400});
+ const summary=(item)=>({name:clean(item?.name).slice(0,180),code:clean(item?.code).toUpperCase().slice(0,8)});
+ return {
+  flightNumber,
+  date,
+  airportStop,
+  movement:airportStop==='PICKUP'?'ARRIVAL':'DEPARTURE',
+  airportName:clean(value.airportName).slice(0,240),
+  airport:summary(value.airport),
+  terminal:terminal||null,
+  terminalSource:value.terminalSource==='FLIGHTAWARE'?'FLIGHTAWARE':'MANUAL',
+  gate:clean(value.gate).slice(0,40)||null,
+  scheduledTime:clean(value.scheduledTime).slice(0,40)||null,
+  status:clean(value.status).slice(0,80)||null,
+  origin:summary(value.origin),
+  destination:summary(value.destination)
+ };
+}
 async function syncCalendarLifecycle(booking){
  if(isTestMode())return {status:'skipped',reason:'test-mode'};
  if(clean(booking?.status).toUpperCase().replaceAll('-','_')==='CANCELLED')return cancelBookingCalendar(booking.reference||booking.id);
@@ -2055,6 +2111,11 @@ async function handler(event){
    }
    if(route==='integrations/config'&&method==='GET')return json(200,{build:'test',testMode:true,googleMapsEnabled:false,googleMapsBrowserKey:'',stripeEnabled:true,stripePublishableKey:'',squareEnabled:false});
    if(route==='integrations/health'&&method==='GET')return json(200,{testMode:true,googleMaps:'simulated',twilio:'disabled',sendGrid:'disabled',stripe:'simulated',square:'disabled',gps:'simulated',checkedAt:new Date().toISOString()});
+  if(route==='flights/lookup'&&method==='POST'){
+   const b=parseBody(event),airportStop=clean(b.airportStop).toUpperCase();
+   if(!['PICKUP','DESTINATION'].includes(airportStop))return json(400,{error:'Choose whether the airport is the pickup or destination.'});
+   return json(200,{testMode:true,flight:{flightNumber:clean(b.flightNumber).toUpperCase(),status:'TEST MODE',airportStop,movement:airportStop==='PICKUP'?'ARRIVAL':'DEPARTURE',airport:{name:airportStop==='PICKUP'?'Sample Arrival Airport':'Sample Departure Airport',code:airportStop==='PICKUP'?'ORD':'IAD'},terminal:airportStop==='PICKUP'?'1':'C',gate:null,scheduledTime:'',origin:{name:'Sample Departure Airport',code:'IAD'},destination:{name:'Sample Arrival Airport',code:'ORD'}}});
+  }
    if(route==='locations/search'&&method==='GET'){
     const q=clean(event.queryStringParameters?.q);
     return json(200,{locations:q.length<2?[]:[{id:`test-${crypto.createHash('sha1').update(q).digest('hex').slice(0,8)}`,name:q,address:q,type:'test'}]});
@@ -2063,11 +2124,11 @@ async function handler(event){
    if(p[0]==='bookings'&&method==='POST'&&p.length===1){
     const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
     const ref=`TEST-${Date.now().toString(36).toUpperCase()}-${crypto.randomInt(100,999)}`;
-    return json(201,{testMode:true,persisted:false,booking:{reference:ref,name:clean(b.name),service:clean(b.service),pickup:clean(b.pickup),destination:clean(b.destination),date:clean(b.date),time:clean(b.time),estimatedFare:Number(b.estimatedFare||0),status:'PENDING_PAYMENT'},requiresOnlinePayment:true,depositRequired:true,clientMessage:`Test booking created. Reference: ${ref}. No live booking was saved.`});
+    return json(201,{testMode:true,persisted:false,booking:{reference:ref,name:clean(b.name),service:clean(b.service),pickup:clean(b.pickup),destination:clean(b.destination),date:clean(b.date),time:clean(b.time),estimatedFare:Number(b.estimatedFare||0),flightInfo:b.flightInfo||null,status:'PENDING_PAYMENT'},requiresOnlinePayment:true,depositRequired:true,clientMessage:`Test booking created. Reference: ${ref}. No live booking was saved.`});
    }
    if(p[0]==='bookings'&&p[1]&&p[2]==='update'&&method==='POST'){
     const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
-    return json(200,{testMode:true,persisted:false,booking:{reference:decodeURIComponent(p[1]),name:clean(b.name),service:clean(b.service),pickup:clean(b.pickup),destination:clean(b.destination),date:clean(b.date),time:clean(b.time),estimatedFare:Number(b.estimatedFare||0),status:'PENDING_PAYMENT'},requiresOnlinePayment:true,depositRequired:true,clientMessage:`Test booking ${decodeURIComponent(p[1])} updated. No live booking was changed.`});
+    return json(200,{testMode:true,persisted:false,booking:{reference:decodeURIComponent(p[1]),name:clean(b.name),service:clean(b.service),pickup:clean(b.pickup),destination:clean(b.destination),date:clean(b.date),time:clean(b.time),estimatedFare:Number(b.estimatedFare||0),flightInfo:b.flightInfo||null,status:'PENDING_PAYMENT'},requiresOnlinePayment:true,depositRequired:true,clientMessage:`Test booking ${decodeURIComponent(p[1])} updated. No live booking was changed.`});
    }
    if((route==='payments/stripe/checkout'||route==='payments/square/checkout')&&method==='POST'){
     const b=parseBody(event);required(b,['bookingReference']);
@@ -2696,6 +2757,14 @@ async function handler(event){
    await audit('SETTINGS','platform','UPDATED',{by:me.email,sections:Object.keys(body||{})});
    return json(200,{settings:saved});
   }
+  if(p.join('/')==='flights/lookup'&&method==='POST'){
+   const b=parseBody(event);
+   if(!envEnabled('FLIGHTAWARE_API_KEY'))return json(503,{error:'Flight lookup is not configured yet.'});
+   if(!await claimFlightLookup(event))return json(429,{error:'Too many flight lookups. Try again in a minute.'});
+   const flight=await lookupFlight({flightNumber:b.flightNumber,date:b.date,airportStop:b.airportStop,apiKey:process.env.FLIGHTAWARE_API_KEY});
+   if(!flight)return json(404,{error:'No matching flight was found for that number and date.'});
+   return json(200,{flight});
+  }
   if(p.join('/')==='locations/search'&&method==='GET'){
    const q=clean(event.queryStringParameters?.q);if(q.length<2)return json(200,{locations:[]});
    const r=await query(`SELECT facility_code AS id,name,address,'facility' AS type FROM facilities WHERE active=true AND (name ILIKE $1 OR address ILIKE $1) ORDER BY CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END,name LIMIT 12`,[`%${q}%`,`${q}%`]);
@@ -2754,6 +2823,7 @@ async function handler(event){
   const appointmentTime=normalizeOptionalTripTime(b.appointmentTime||'');
   if(scheduleBasis==='APPOINTMENT'&&!appointmentTime)return json(400,{error:'Appointment time is required and must be valid (for example 2:00 PM).'});
   const destinations=(Array.isArray(b.destinations)?b.destinations:[b.destination]).map((value)=>clean(value)).filter(Boolean);
+  const flightInfo=normalizeBookingFlightInfo(b.flightInfo,b.date);
   const submittedAppointments=Array.isArray(b.appointmentTimes)?b.appointmentTimes:[];
   const appointmentTimes=(submittedAppointments.length?submittedAppointments:[{leg:1,destination:destinations[0]||clean(b.destination),appointmentTime}]).map((item,index)=>({leg:index+1,destination:clean(item?.destination||destinations[index]||''),appointmentTime:normalizeOptionalTripTime(item?.appointmentTime||'')}));
   if(destinations.length>1&&(appointmentTimes.length!==destinations.length||appointmentTimes.some((item)=>!item.appointmentTime)))return json(400,{error:'An appointment time is required for every destination stop.'});
@@ -2799,6 +2869,7 @@ async function handler(event){
     Number.isFinite(preTripInspectionMinutes)&&preTripInspectionMinutes>=0?`Pre-trip inspection buffer: ${Math.round(preTripInspectionMinutes)} min`:'',
    requestedByRole?`Requested by role: ${requestedByRole}`:'',
    `Schedule basis: ${scheduleBasis}`,
+  flightInfo?`Airport flight: ${flightInfo.flightNumber||'unspecified'} ${flightInfo.movement.toLowerCase()} at ${flightInfo.airport.name||flightInfo.airport.code||flightInfo.airportName||'selected airport'}${flightInfo.terminal?`, terminal ${flightInfo.terminal}`:''}${flightInfo.gate?`, gate ${flightInfo.gate}`:''} (${flightInfo.terminalSource})`:'',
    paymentPolicy.payerType==='INSURANCE'&&clean(b.insuranceCarrier)?`Insurance carrier: ${clean(b.insuranceCarrier)}`:'',
    tripType==='ROUND_TRIP'?`Round trip return: ${returnTripDate} ${returnTripTime}`:'',
    tripType==='RECURRING'?`Recurring schedule: ${recurrenceDays.join(', ')} through ${recurrenceEndDate}`:'',
@@ -2811,10 +2882,11 @@ async function handler(event){
    const submittedFare=Math.max(0,Number(b.estimatedFare||0));
    const codeHash=clean(b.promotionCode)?promotionHash(b.promotionCode):'';
    if(codeHash)await ensureBookingPromotionsSchema();
+  await ensureBookingFlightSchema();
    let fare=submittedFare,promotionLabel=null,promotionDiscount=0,r;
-   const insertSql=`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,trip_type,return_trip_date,return_trip_time,recurrence_days,recurrence_end_date,promotion_code,fare_before_promotion,promotion_discount,caretaker_owner_id,caretaker_patient_id,caretaker_subject_id,created_at,updated_at)
-  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,$35,$36,$37,$38,$39,$40,now(),now()) RETURNING *`;
-   const insertParams=()=>[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null,tripType,returnTripDate,returnTripTime,JSON.stringify(recurrenceDays),recurrenceEndDate,promotionLabel,codeHash?submittedFare:null,promotionDiscount,caretakerSubject?.ownerId||null,caretakerSubject?.profileId||null,caretakerSubject?.subjectId||null];
+  const insertSql=`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,trip_type,return_trip_date,return_trip_time,recurrence_days,recurrence_end_date,promotion_code,fare_before_promotion,promotion_discount,caretaker_owner_id,caretaker_patient_id,caretaker_subject_id,created_at,updated_at,flight_info)
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,$35,$36,$37,$38,$39,$40,now(),now(),$41::jsonb) RETURNING *`;
+  const insertParams=()=>[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null,tripType,returnTripDate,returnTripTime,JSON.stringify(recurrenceDays),recurrenceEndDate,promotionLabel,codeHash?submittedFare:null,promotionDiscount,caretakerSubject?.ownerId||null,caretakerSubject?.profileId||null,caretakerSubject?.subjectId||null,flightInfo?JSON.stringify(flightInfo):null];
    if(codeHash){
     const client=await getPool().connect();
     try{
@@ -3146,8 +3218,12 @@ async function handler(event){
    if(!found.rows[0])return json(404,{error:'Booking not found or phone number does not match'});
    if(!['PENDING_PAYMENT','PENDING_APPROVAL','SUBMITTED','REQUESTED','SCHEDULED'].includes(clean(found.rows[0].status).toUpperCase()))return json(409,{error:'This trip can no longer be changed online. Please call dispatch.'});
    if(found.rows[0].driver_name||found.rows[0].driver_scope_id)return json(409,{error:'A driver is already assigned. Please call dispatch to change this trip.'});
+  const flightInfo=normalizeBookingFlightInfo(b.flightInfo,b.date);
+  await ensureBookingFlightSchema();
    const fare=Math.max(0,Number(b.estimatedFare||0));
-   const updated=await query(`UPDATE bookings SET name=$2,email=$3,service=$4,pickup=$5,destination=$6,trip_date=$7,trip_time=$8,notes=$9,distance_miles=$10,estimated_duration=$11,estimated_fare=$12,deposit_amount=CASE WHEN requires_deposit THEN $12*.25 ELSE deposit_amount END,balance_due=CASE WHEN requires_deposit THEN $12*.75 ELSE $12 END,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,clean(b.name),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,clean(b.time),upsertAppointmentNote(clean(b.notes),clean(b.appointmentTime)),b.distanceMiles||null,clean(b.estimatedDuration)||null,fare]);
+  const flightNote=flightInfo?`Airport flight: ${flightInfo.flightNumber||'unspecified'} ${flightInfo.movement.toLowerCase()} at ${flightInfo.airport.name||flightInfo.airport.code||flightInfo.airportName||'selected airport'}${flightInfo.terminal?`, terminal ${flightInfo.terminal}`:''}${flightInfo.gate?`, gate ${flightInfo.gate}`:''} (${flightInfo.terminalSource})`:'';
+  const updatedNotes=upsertAppointmentNote([clean(b.notes),flightNote].filter(Boolean).join('\n'),clean(b.appointmentTime));
+  const updated=await query(`UPDATE bookings SET name=$2,email=$3,service=$4,pickup=$5,destination=$6,trip_date=$7,trip_time=$8,notes=$9,distance_miles=$10,estimated_duration=$11,estimated_fare=$12,deposit_amount=CASE WHEN requires_deposit THEN $12*.25 ELSE deposit_amount END,balance_due=CASE WHEN requires_deposit THEN $12*.75 ELSE $12 END,flight_info=$13::jsonb,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,clean(b.name),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,clean(b.time),updatedNotes,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,flightInfo?JSON.stringify(flightInfo):null]);
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),'Rider updated booking details','PASSENGER']);
    await audit('BOOKING',ref,'RIDER_UPDATED',{service:b.service,date:b.date,time:b.time});
    const notifications=await sendTripStakeholderUpdate(found.rows[0],updated.rows[0],{display_name:'Passenger'},'Booking details updated online').catch(()=>({status:'failed'}));
@@ -4828,6 +4904,7 @@ function mapBooking(b){
   pickupLocation:b.pickup_location||b.pickupLocation||null,
   pickup:b.pickup,
   destination:b.destination,
+  flightInfo:b.flight_info||b.flightInfo||null,
   destinationLocation:b.dropoff_location||b.destinationLocation||null,
   pickupLat:b.pickup_lat!=null?Number(b.pickup_lat):b.pickupLat!=null?Number(b.pickupLat):null,
   pickupLng:b.pickup_lng!=null?Number(b.pickup_lng):b.pickupLng!=null?Number(b.pickupLng):null,

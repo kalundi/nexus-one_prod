@@ -2670,6 +2670,7 @@
         pickupAutocomplete.addListener('place_changed', () => {
           const place = pickupAutocomplete.getPlace();
           if(place?.formatted_address || place?.name) $('pickup').value = place.formatted_address || place.name;
+          clearFlightLookup();
           resetEstimateUi();
         });
       }
@@ -2682,12 +2683,90 @@
         destinationAutocomplete.addListener('place_changed', () => {
           const place = destinationAutocomplete.getPlace();
           if(place?.formatted_address || place?.name) $('destination').value = place.formatted_address || place.name;
+          clearFlightLookup();
           resetEstimateUi();
         });
       }
       return true;
     }catch{
       return false;
+    }
+  }
+
+  function clearFlightLookup(clearTerminal=true){
+    selectedFlightInfo = null;
+    const result = $('flightTerminalResult');
+    const confirmationRow = $('flightAirportConfirmRow');
+    const confirmation = $('flightAirportConfirmed');
+    if(result){ result.hidden = true; result.textContent = ''; }
+    if(confirmationRow) confirmationRow.hidden = true;
+    if(confirmation) confirmation.checked = false;
+    if($('flightLookupStatus')) $('flightLookupStatus').textContent = '';
+    if(clearTerminal && $('flightTerminalInput')) $('flightTerminalInput').value = '';
+  }
+
+  function getFlightDetailsPayload(){
+    const flightNumber = String($('flightNumber')?.value || '').trim().toUpperCase();
+    const terminal = String($('flightTerminalInput')?.value || '').trim();
+    if(!flightNumber && !terminal) return null;
+    const airportStop = String($('flightAirportStop')?.value || 'PICKUP').toUpperCase();
+    const destinations = getRouteDestinations();
+    const airportName = airportStop === 'PICKUP' ? $('pickup')?.value.trim() : (destinations[destinations.length - 1] || '');
+    return {
+      flightNumber,
+      date: String($('tripDate')?.value || ''),
+      airportStop,
+      movement: selectedFlightInfo?.movement || (airportStop === 'PICKUP' ? 'ARRIVAL' : 'DEPARTURE'),
+      airportName,
+      airport: selectedFlightInfo?.airport || null,
+      terminal: terminal || null,
+      terminalSource: selectedFlightInfo && terminal === String(selectedFlightInfo.terminal || '') ? 'FLIGHTAWARE' : 'MANUAL',
+      gate: selectedFlightInfo?.gate || null,
+      scheduledTime: selectedFlightInfo?.scheduledTime || null,
+      status: selectedFlightInfo?.status || null,
+      origin: selectedFlightInfo?.origin || null,
+      destination: selectedFlightInfo?.destination || null
+    };
+  }
+
+  async function lookupFlightTerminal(){
+    const flightNumber = String($('flightNumber')?.value || '').trim();
+    const date = String($('tripDate')?.value || '').trim();
+    const airportStop = String($('flightAirportStop')?.value || 'PICKUP').toUpperCase();
+    const lookupButton = $('lookupFlightBtn');
+    const status = $('flightLookupStatus');
+    const result = $('flightTerminalResult');
+    if(!flightNumber){ if(status) status.textContent = 'Enter the airline flight number first.'; return; }
+    if(!date){ if(status) status.textContent = 'Choose the ride date, then look up the flight.'; return; }
+    clearFlightLookup();
+    if(lookupButton) lookupButton.disabled = true;
+    if(status) status.textContent = 'Checking the flight and airport terminal...';
+    try{
+      const response = await fetch('/api/flights/lookup', {
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({flightNumber,date,airportStop})
+      });
+      const data = await response.json().catch(()=>({}));
+      if(!response.ok || !data.flight) throw new Error(data.error || 'Flight lookup did not return a match.');
+      selectedFlightInfo = data.flight;
+      const flight = data.flight;
+      const route = [flight.origin?.code || flight.origin?.name, flight.destination?.code || flight.destination?.name].filter(Boolean).join(' to ');
+      const airport = [flight.airport?.name,flight.airport?.code ? `(${flight.airport.code})` : ''].filter(Boolean).join(' ');
+      const terminal = flight.terminal ? `Terminal ${flight.terminal}` : 'Terminal not reported';
+      const gate = flight.gate ? `, gate ${flight.gate}` : '';
+      const scheduled = flight.scheduledTime ? `, scheduled ${new Date(flight.scheduledTime).toLocaleString()}` : '';
+      if(result){
+        result.textContent = `${flight.flightNumber} ${flight.movement.toLowerCase()} at ${airport || 'the airport in the flight record'}: ${terminal}${gate}${scheduled}. Route: ${route || 'not provided'}.`;
+        result.hidden = false;
+      }
+      if($('flightTerminalInput')) $('flightTerminalInput').value = flight.terminal || '';
+      if($('flightAirportConfirmRow')) $('flightAirportConfirmRow').hidden = false;
+      if(status) status.textContent = 'Verify the airport and route above before confirming this flight for the trip.';
+    }catch(error){
+      if(status) status.textContent = String(error.message || 'Flight lookup failed. You can still enter a terminal manually.');
+    }finally{
+      if(lookupButton) lookupButton.disabled = false;
     }
   }
 
@@ -2776,6 +2855,7 @@
       if(nextRequestId !== requestId) return;
       renderSuggestionPanel(panel, suggestions, (selected) => {
         input.value = selected;
+        clearFlightLookup();
         hideSuggestionPanel(panel);
         if(routeField === 'pickup' || String(routeField || '').startsWith('destination')){
           markDestinationUnconfirmed();
@@ -2821,6 +2901,7 @@
       const seededSuggestions = getDefaultMarylandSuggestions('Maryland');
       renderSuggestionPanel(panel, seededSuggestions, (selected) => {
         input.value = selected;
+        clearFlightLookup();
         hideSuggestionPanel(panel);
         if(routeField === 'pickup' || String(routeField || '').startsWith('destination')){
           markDestinationUnconfirmed();
@@ -2837,6 +2918,7 @@
       if(nextRequestId !== requestId) return;
       renderSuggestionPanel(panel, suggestions, (selected) => {
         input.value = selected;
+        clearFlightLookup();
         hideSuggestionPanel(panel);
         if(routeField === 'pickup' || routeField === 'destination'){
           markDestinationUnconfirmed();
@@ -3579,6 +3661,7 @@
       service: normalizeService($('service').value),
       pickup: $('pickup').value.trim(),
       destination: routeDestinations.length > 1 ? routeDestinations.join(' → ') : String(routeDestinations[0] || '').trim(),
+      flightInfo: getFlightDetailsPayload(),
       destinations: routeDestinations,
       multipleStops: routeDestinations.length > 1,
       stopCount: routeDestinations.length,
@@ -3645,6 +3728,11 @@
       setStatus('Confirm pickup and destination details before booking.', 'err');
       setBookingOutcome('Confirm pickup and destination before booking', 'pending');
       revealSectionForAction('pickupDropoffSection', 'confirmPickupDropoffBtn');
+      return;
+    }
+    if(selectedFlightInfo && !$('flightAirportConfirmed')?.checked){
+      setStatus('Confirm that the flight airport matches the selected pickup or destination.', 'err');
+      revealSectionForAction('pickupDropoffSection', 'flightAirportConfirmed');
       return;
     }
 
@@ -4073,6 +4161,14 @@
     syncInsuranceCarrierUi();
     tripType?.addEventListener('change',()=>{syncTripScheduleUi();syncSectionProgressUi();});
     [returnTripDate,returnTripTime,recurrenceEndDate].forEach((input)=>input?.addEventListener('change',syncSectionProgressUi));
+    ['flightNumber','flightAirportStop','tripDate','pickup','destination'].forEach((id)=>{
+      const input=$(id);
+      input?.addEventListener('input',()=>clearFlightLookup());
+      input?.addEventListener('change',()=>clearFlightLookup());
+    });
+    $('destinationRows')?.addEventListener('input',()=>clearFlightLookup());
+    $('destinationRows')?.addEventListener('change',()=>clearFlightLookup());
+    $('lookupFlightBtn')?.addEventListener('click',lookupFlightTerminal);
     document.querySelectorAll('input[name="recurrenceDay"]').forEach((input)=>input.addEventListener('change',syncSectionProgressUi));
     syncTripScheduleUi();
     document.querySelectorAll('[data-app-tab]').forEach((button)=>button.addEventListener('click',()=>switchAppTab(button.dataset.appTab)));
@@ -4109,12 +4205,14 @@
     bindRouteFieldListeners($('destination'), 'destination');
     if(multipleStopsToggle){
       multipleStopsToggle.addEventListener('change', () => {
+        clearFlightLookup();
         markDestinationUnconfirmed();
         syncMultipleStopsUi();
       });
     }
     if(stopCountSelect){
       stopCountSelect.addEventListener('change', () => {
+        clearFlightLookup();
         markDestinationUnconfirmed();
         syncMultipleStopsUi();
       });

@@ -190,6 +190,13 @@
     .field:last-child{margin-bottom:0}
     .field.autocompleteField{position:relative}
     .field.passwordField{position:relative}
+    .flightLookupPanel{margin:12px 0;padding:12px 14px;border:1px solid #d8e5ed;border-radius:12px;background:linear-gradient(145deg,#fff,#f5f9fc)}
+    .flightLookupPanel summary{color:#15364b;font-size:14px;font-weight:800;cursor:pointer}
+    .flightLookupPanel .subtle{margin:8px 0 12px}
+    .flightLookupGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .flightLookupStatus{min-height:20px;margin:8px 0;color:#38566a;font-size:13px}
+    .flightTerminalResult{padding:10px 12px;border-radius:8px;background:#eef6f5;color:#15364b;font-size:13px;line-height:1.5}
+    @media(max-width:560px){.flightLookupGrid{grid-template-columns:1fr}}
     .field label{font-size:var(--text-sm);font-weight:700;color:#15364b}
     .field input,.field textarea{
       width:100%;
@@ -952,6 +959,34 @@ Destination: -</p>
             <input id="destinationSuite" name="destinationSuite" type="text" placeholder="Suite, Apt, Unit #">
           </div>
         </div>
+        <details class="flightLookupPanel" id="flightLookupPanel">
+          <summary>Add airport flight details (optional)</summary>
+          <p class="subtle">Use the ride date to look up the flight terminal. Confirm that the returned airport matches this trip stop.</p>
+          <div class="flightLookupGrid">
+            <div class="field">
+              <label for="flightNumber">Flight number</label>
+              <input id="flightNumber" name="flightNumber" type="text" autocomplete="off" autocapitalize="characters" placeholder="e.g. AA123">
+            </div>
+            <div class="field">
+              <label for="flightAirportStop">Airport is the</label>
+              <select id="flightAirportStop" name="flightAirportStop">
+                <option value="PICKUP">Pickup (arriving flight)</option>
+                <option value="DESTINATION">Destination (departing flight)</option>
+              </select>
+            </div>
+          </div>
+          <button type="button" class="secondary" id="lookupFlightBtn">Look up flight terminal</button>
+          <p class="flightLookupStatus" id="flightLookupStatus" role="status" aria-live="polite"></p>
+          <div class="flightTerminalResult" id="flightTerminalResult" hidden></div>
+          <label id="flightAirportConfirmRow" hidden style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;color:#15364b;font-size:13px;font-weight:700">
+            <input id="flightAirportConfirmed" type="checkbox" style="margin-top:2px">
+            The flight and airport above match this booking stop.
+          </label>
+          <div class="field" style="margin-top:10px">
+            <label for="flightTerminalInput">Terminal <span style="font-size:12px;color:#888">(confirm or enter manually)</span></label>
+            <input id="flightTerminalInput" name="flightTerminal" type="text" autocomplete="off" placeholder="Terminal or pickup area">
+          </div>
+        </details>
         <div class="destinationRows" id="destinationRows"></div>
         <p class="subtle" style="margin-top:-2px">Start typing to see address suggestions.</p>
         <div class="authActions" style="margin-top:8px">
