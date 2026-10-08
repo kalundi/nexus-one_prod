@@ -580,6 +580,7 @@
     .manageTripActions{display:flex;gap:8px;flex-wrap:wrap}
     .manageTripActions button{flex:1 1 140px;padding:10px 12px;font:700 13px Sora,sans-serif}
     .memberNote{margin:8px 0 0;color:#20506a;font:700 12px/1.35 Sora,sans-serif}
+    .scheduleSavingsMessage{margin:0 0 12px;padding:9px 11px;border-left:3px solid #17806f;background:#eff8f5;color:#174e47;font:700 12px/1.4 Sora,sans-serif}
     .bottomBar{
       position:fixed;
       left:0;
@@ -922,6 +923,7 @@
 
       <section class="section sectionProgressive" id="pickupDropoffSection">
         <h2>Rider Pickup and Destination</h2>
+        <p class="scheduleSavingsMessage" id="tripScheduleSavingsMessage" aria-live="polite">Round-trip and recurring rides save 10% when signed in or 5% as a guest.</p>
         <div class="multiStopsRow">
           <label class="multiStopsToggle" for="multipleStopsToggle">
             <input type="checkbox" id="multipleStopsToggle">
@@ -1070,7 +1072,7 @@ Destination: -</p>
           <div class="line"><b>ETA</b><span id="estDuration">-</span></div>
           <div class="line"><b>Subtotal</b><span id="estSubtotal">-</span></div>
           <div class="line"><b>Card Processing Fee (3%)</b><span id="estTax">-</span></div>
-          <div class="line" id="estMemberSavingsRow" hidden><b>Member Savings (5%)</b><span id="estMemberSavings">-</span></div>
+          <div class="line" id="estMemberSavingsRow" hidden><b id="estSavingsLabel">Ride savings</b><span id="estMemberSavings">-</span></div>
           <div class="line" id="farePromotionSavingsRow" hidden><b>Special coupon</b><span id="farePromotionSavings">-</span></div>
           <div class="line total"><b>Fare Estimate</b><span id="estFare">-</span></div>
         </div>
@@ -1182,7 +1184,7 @@ Destination: -</p>
         <div class="fareSummaryCard fareTrustCard" aria-live="polite">
           <div class="fareTrustHeader"><div><span class="fareTrustEyebrow">Clear, compassionate pricing</span><h2 class="fareTrustTitle">Your estimated ride fare</h2></div><div class="fareSummaryAmount" id="fareSummaryAmount">-</div></div>
           <p class="fareTrustMessage">A dependable estimate based on the route, ride support, and schedule you selected—with the same transparent process for every rider.</p>
-          <div class="fareSummaryLine" id="fareMemberSavingsRow" hidden><b>Member Savings (5%)</b><span id="fareMemberSavings">-</span></div>
+          <div class="fareSummaryLine" id="fareMemberSavingsRow" hidden><b id="fareSavingsLabel">Ride savings</b><span id="fareMemberSavings">-</span></div>
           <div class="fareAssurances" aria-label="Nexus fare commitments"><span class="fareAssurance">Reliable route planning</span><span class="fareAssurance">Care-centered service</span><span class="fareAssurance">Fair, transparent estimate</span></div>
           <p class="fareEstimateNote">You will review this estimate before submitting. It changes only if ride details, timing, or requested support change.</p>
         </div>

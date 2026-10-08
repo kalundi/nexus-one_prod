@@ -217,7 +217,7 @@
   let mapsBrowserKey = '';
   let stripeEnabled = false;
   let squareEnabled = false;
-  let estimateState = { miles: 0, durationText: '', durationMinutes: 0, trafficDurationMinutes: 0, subtotal: 0, taxAmount: 0, preDiscountFare: 0, memberSavings: 0, fare: 0 };
+  let estimateState = { miles: 0, durationText: '', durationMinutes: 0, trafficDurationMinutes: 0, subtotal: 0, taxAmount: 0, preDiscountFare: 0, memberSavings: 0, discountPct: 0, fare: 0 };
   let pickupAutocomplete = null;
   let destinationAutocomplete = null;
   let telemetryMap = null;
@@ -293,7 +293,7 @@
   ];
   const MEMBER_DISCOUNT_PCT = 5;
   const CARD_PROCESSING_FEE_PCT = 3;
-  const SIGNUP_CTA_LABEL = 'Sign Up & Save 5%';
+  const SIGNUP_CTA_LABEL = 'Sign Up & Save up to 10%';
 
   function isRiderRole(role){
     const normalized = String(role || '').toUpperCase();
@@ -530,9 +530,27 @@
   function pricingWithMembership(baseTotal){
     const fullFare = Math.max(0, Number(baseTotal || 0));
     const signedIn = Boolean(token());
-    const memberSavings = signedIn ? fullFare * (MEMBER_DISCOUNT_PCT / 100) : 0;
+    const tripSchedule = String(tripType?.value || 'ONE_WAY').toUpperCase();
+    const isRepeatSchedule = tripSchedule === 'ROUND_TRIP' || tripSchedule === 'RECURRING';
+    const discountPct = isRepeatSchedule ? (signedIn ? 10 : 5) : (signedIn ? MEMBER_DISCOUNT_PCT : 0);
+    const memberSavings = fullFare * (discountPct / 100);
     const total = Math.max(0, fullFare - memberSavings);
-    return { fullFare, memberSavings, total, signedIn };
+    return { fullFare, memberSavings, total, signedIn, discountPct, isRepeatSchedule };
+  }
+
+  function updateTripScheduleSavingsMessage(signedIn=Boolean(token())){
+    const message=$('tripScheduleSavingsMessage');
+    const tripSchedule=String(tripType?.value||'ONE_WAY').toUpperCase();
+    const isRepeatSchedule=tripSchedule==='ROUND_TRIP'||tripSchedule==='RECURRING';
+    let copy='';
+    if(isRepeatSchedule){
+      const rideLabel=tripSchedule==='ROUND_TRIP'?'round-trip':'recurring';
+      copy=signedIn?`10% savings applied to this ${rideLabel} ride.`:`Save 5% on this ${rideLabel} ride. Sign in for 10% savings.`;
+    }else{
+      copy=signedIn?'Members save 5% on one-way rides. Choose round-trip or recurring for 10% savings.':'Round-trip and recurring rides save 5%. Sign in to save 10%.';
+    }
+    if(message)message.textContent=copy;
+    if(memberDiscountNote)memberDiscountNote.textContent=copy;
   }
 
   function renderFareEstimateBreakdown(breakdown, miles, durationText, durationMinutes = 0, trafficDurationMinutes = 0){
@@ -544,6 +562,7 @@
       miles: Math.max(0, Number(miles || 0)),
       durationText: String(durationText || ''),
       durationMinutes: Math.max(0, Number(durationMinutes || 0)),
+    updateTripScheduleSavingsMessage(discountView.signedIn);
       trafficDurationMinutes: Math.max(0, Number(trafficDurationMinutes || 0)),
       subtotal: Number(breakdown.subtotal || 0),
       taxAmount: Number(breakdown.taxAmount || 0),
@@ -553,18 +572,21 @@
     };
 
     estMiles.textContent = `${estimateState.miles.toFixed(1)} mi`;
+      discountPct: discountView.discountPct,
     estDuration.textContent = durationText || '-';
     if(estSubtotal) estSubtotal.textContent = `$${Number(breakdown.subtotal || 0).toFixed(2)}`;
     if(estTax) estTax.textContent = `$${Number(breakdown.taxAmount || 0).toFixed(2)}${Number(breakdown.taxRatePct || 0) > 0 ? ` (${Number(breakdown.taxRatePct || 0).toFixed(2)}%)` : ''}`;
-    if(estMemberSavingsRow) estMemberSavingsRow.hidden = !discountView.signedIn;
-    if(estMemberSavings) estMemberSavings.textContent = discountView.signedIn ? `-$${discountView.memberSavings.toFixed(2)}` : '-';
+    if(estMemberSavingsRow) estMemberSavingsRow.hidden = discountView.discountPct <= 0;
+    if(estSavingsLabel) estSavingsLabel.textContent = `${discountView.signedIn?'Member':'Schedule'} Savings (${discountView.discountPct}%)`;
+    if(estMemberSavings) estMemberSavings.textContent = discountView.discountPct > 0 ? `-$${discountView.memberSavings.toFixed(2)}` : '-';
     estFare.textContent = `$${discountView.total.toFixed(2)}`;
-    if(fareMemberSavingsRow) fareMemberSavingsRow.hidden = !discountView.signedIn;
-    if(fareMemberSavings) fareMemberSavings.textContent = discountView.signedIn ? `-$${discountView.memberSavings.toFixed(2)}` : '-';
+    if(fareMemberSavingsRow) fareMemberSavingsRow.hidden = discountView.discountPct <= 0;
+    if(fareSavingsLabel) fareSavingsLabel.textContent = `${discountView.signedIn?'Member':'Schedule'} Savings (${discountView.discountPct}%)`;
+    if(fareMemberSavings) fareMemberSavings.textContent = discountView.discountPct > 0 ? `-$${discountView.memberSavings.toFixed(2)}` : '-';
     if(memberDiscountNote){
-      memberDiscountNote.textContent = discountView.signedIn
-        ? `Member savings active: you are getting ${MEMBER_DISCOUNT_PCT}% off this ride and every ride.`
-        : `Unlock instant ${MEMBER_DISCOUNT_PCT}% savings on every ride. Sign up now.`;
+      memberDiscountNote.textContent = discountView.discountPct > 0
+        ? `${discountView.signedIn?'Member':'Schedule'} savings active: ${discountView.discountPct}% off this ride.`
+        : `Sign in to save ${MEMBER_DISCOUNT_PCT}% on one-way rides, or choose a round-trip or recurring schedule to save 5%.`;
     }
     applyScheduleTimeCalculation();
     renderRideMarketplace();
@@ -671,6 +693,7 @@
     const taxAmount = Number(estimateState.taxAmount || 0);
     if(subtotal <= 0 && taxAmount <= 0 && Number(estimateState.fare || 0) <= 0) return;
     renderFareEstimateBreakdown({
+    updateTripScheduleSavingsMessage();
       subtotal,
       taxAmount,
       total: subtotal + taxAmount,
@@ -1003,8 +1026,8 @@
     if(authRoleBadge) authRoleBadge.textContent = signedIn ? role : 'CUSTOMER';
     if(authStatusText){
       if(isPrivilegedServiceRole(role)) authStatusText.textContent = `Signed in as ${role}. You can view all ride types.`;
-      else if(signedIn) authStatusText.textContent = `Signed in as ${role}. Member rate is active: ${MEMBER_DISCOUNT_PCT}% off every ride.`;
-      else authStatusText.textContent = `Book as guest anytime. Sign up to save ${MEMBER_DISCOUNT_PCT}% on every ride.`;
+      else if(signedIn) authStatusText.textContent = `Signed in as ${role}. Save 5% on one-way and 10% on round-trip or recurring rides.`;
+      else authStatusText.textContent = 'Book as a guest and save 5% on round-trip or recurring rides. Sign up to save 10%.';
     }
     if(authActionBtn){
       authActionBtn.textContent = signedIn ? 'Sign Out' : 'Sign In';
@@ -1017,11 +1040,7 @@
         if(signUpPanel) signUpPanel.hidden = true;
       }
     }
-    if(memberDiscountNote){
-      memberDiscountNote.textContent = signedIn
-        ? `Member savings active: you are getting ${MEMBER_DISCOUNT_PCT}% off this ride and every ride.`
-        : `Unlock instant ${MEMBER_DISCOUNT_PCT}% savings on every ride. Sign up now.`;
-    }
+    updateTripScheduleSavingsMessage(signedIn);
     if(paymentChoiceHint){
       if(role === 'FACILITY' || role === 'ADMIN' || role === 'BILLING'){
         paymentChoiceHint.textContent = 'Facility and staff-entered invoice bookings are sent to the billing email on file.';
@@ -2073,7 +2092,7 @@
   }
 
   function resetEstimateUi(){
-    estimateState = { miles: 0, durationText: '', durationMinutes: 0, trafficDurationMinutes: 0, subtotal: 0, taxAmount: 0, preDiscountFare: 0, memberSavings: 0, fare: 0 };
+    estimateState = { miles: 0, durationText: '', durationMinutes: 0, trafficDurationMinutes: 0, subtotal: 0, taxAmount: 0, preDiscountFare: 0, memberSavings: 0, discountPct: 0, fare: 0 };
     estMiles.textContent = '-';
     estDuration.textContent = '-';
     if(estSubtotal) estSubtotal.textContent = '-';
@@ -2083,7 +2102,8 @@
     estFare.textContent = '-';
     if(fareMemberSavingsRow) fareMemberSavingsRow.hidden = true;
     if(fareMemberSavings) fareMemberSavings.textContent = '-';
-    if(memberDiscountNote) memberDiscountNote.textContent = `Unlock instant ${MEMBER_DISCOUNT_PCT}% savings on every ride. Sign up now.`;
+    updateTripScheduleSavingsMessage();
+    if(memberDiscountNote) memberDiscountNote.textContent = '';
     if($('tripTime')) $('tripTime').value = '';
     clearCustomerRoute();
   }
@@ -2194,8 +2214,8 @@
     const depositAmt = Math.round(currentBookingFare * 0.25 * 100) / 100;
     const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const discountText = estimateState.memberSavings > 0
-      ? ` Includes member savings of $${estimateState.memberSavings.toFixed(2)}.`
-      : ` Guest fare shown. Create a rider account to save ${MEMBER_DISCOUNT_PCT}% every ride.`;
+      ? ` Includes ${estimateState.discountPct}% ${token()?'member':'schedule'} savings of $${estimateState.memberSavings.toFixed(2)}.`
+      : ' Guest fare shown. Sign in to save 5% on one-way or 10% on round-trip and recurring rides.';
     if(taxRatePct > 0){
       const inferredSubtotal = currentBookingFare / (1 + (taxRatePct / 100));
       const inferredTax = Math.max(0, currentBookingFare - inferredSubtotal);
@@ -3383,6 +3403,7 @@
     const tab=['book','manifest','contact'].includes(tabName)?tabName:'book';
     document.body.dataset.activeTab=tab;
     form.hidden=tab!=='book';
+    updateTripScheduleSavingsMessage();
     if(journeyHeader)journeyHeader.hidden=tab!=='book';
     if(manifestTabPanel)manifestTabPanel.hidden=tab!=='manifest';
     if(contactTabPanel)contactTabPanel.hidden=tab!=='contact';
@@ -3679,7 +3700,7 @@
       estimatedFareBeforeDiscount: Number(estimateState.preDiscountFare || estimateState.fare || 0),
       // The server redeems the coupon and applies its discount exactly once.
       estimatedFare: Number((!editingBookingReference ? appliedPromotion?.originalFare : null) ?? estimateState.fare ?? 0),
-      memberDiscountPct: token() ? MEMBER_DISCOUNT_PCT : 0,
+      memberDiscountPct: Number(estimateState.discountPct || 0),
       memberDiscountAmount: Number(estimateState.memberSavings || 0),
       promotionCode: appliedPromotion?.code || '',
       pickupTimeEstimate: String($('tripTime')?.value || '').trim(),
@@ -4159,7 +4180,7 @@
     payerType?.addEventListener('change',()=>{syncInsuranceCarrierUi();syncSectionProgressUi();});
     insuranceCarrier?.addEventListener('change',()=>{riderDetailsConfirmed=false;syncSectionProgressUi();});
     syncInsuranceCarrierUi();
-    tripType?.addEventListener('change',()=>{syncTripScheduleUi();syncSectionProgressUi();});
+    tripType?.addEventListener('change',()=>{syncTripScheduleUi();refreshFareForMembership();syncSectionProgressUi();});
     [returnTripDate,returnTripTime,recurrenceEndDate].forEach((input)=>input?.addEventListener('change',syncSectionProgressUi));
     ['flightNumber','flightAirportStop','tripDate','pickup','destination'].forEach((id)=>{
       const input=$(id);
