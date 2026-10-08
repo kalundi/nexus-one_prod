@@ -1572,6 +1572,9 @@
     if(String(payerType?.value||'').toUpperCase()==='INSURANCE'&&!String(insuranceCarrier?.value||'').trim()){
       setStatus('Select the private insurance provider, then confirm details.', 'err');
       riderDetailsConfirmed=false;
+      if(insuranceCarrierField) insuranceCarrierField.hidden=false;
+      if(insuranceCarrier) insuranceCarrier.required=true;
+      insuranceCarrierField?.scrollIntoView({behavior:'smooth',block:'center'});
       insuranceCarrier?.focus();
       syncSectionProgressUi();
       return;

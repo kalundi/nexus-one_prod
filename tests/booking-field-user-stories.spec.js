@@ -101,3 +101,14 @@ test('conditional fields appear only after the patient makes the matching choice
   await expect(page.locator('#roundTripFields')).toHaveAttribute('hidden', '');
   await expect(page.locator('#recurringRideFields')).not.toHaveAttribute('hidden', '');
 });
+
+test('confirming restored insurance selection reveals the required provider field', async ({ page }) => {
+  await page.goto('/booking-app.html', { waitUntil:'domcontentloaded' });
+  await expect(page.locator('#confirmRiderBtn')).toBeEnabled();
+  await page.locator('#name').fill('Jamie Patient');
+  await page.locator('#phone').fill('(240) 555-0101');
+  await page.locator('#payerType').evaluate((select) => { select.value='INSURANCE'; });
+  await page.locator('#confirmRiderBtn').click();
+  await expect(page.locator('#insuranceCarrierField')).toBeVisible();
+  await expect(page.locator('#statusMsg')).toContainText('Select the private insurance provider');
+});
