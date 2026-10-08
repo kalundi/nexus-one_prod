@@ -7,6 +7,7 @@ for (const width of [390, 1280]) {
     page.on('pageerror', error => errors.push(error.message));
     await page.route('https://maps.googleapis.com/**', () => {});
     await page.route('**/api/**', route => {
+      if (new URL(route.request().url()).hostname !== '127.0.0.1') return route.fallback();
       const path = new URL(route.request().url()).pathname;
       const body = path === '/api/integrations/config'
         ? { stripeEnabled: true, googleMapsEnabled: true, googleMapsBrowserKey: 'test-key' }
@@ -28,7 +29,7 @@ for (const width of [390, 1280]) {
     await page.locator('#tripDate').fill('2030-08-15');
     await page.locator('#appointmentTime').fill('10:30');
     await page.locator('#confirmPickupDropoffBtn').click();
-    await expect(page.locator('[data-service="wheelchair"]')).toBeVisible();
+    await expect(page.locator('[data-service="wheelchair"]')).toBeVisible({ timeout: 15000 });
     await page.locator('[data-service="wheelchair"]').click();
     await page.locator('#continueRideBtn').click();
     await expect(page.locator('#fareConfirmDialog')).toBeVisible({ timeout: 15000 });

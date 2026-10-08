@@ -2092,8 +2092,24 @@
       script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsBrowserKey)}&libraries=places`;
       script.async = true;
       script.defer = true;
-      const timeout = window.setTimeout(() => reject(new Error('Google Maps took too long to load.')), 8000);
-      script.onload = () => { window.clearTimeout(timeout); resolve(); };
+      let timedOut = false;
+      const timeout = window.setTimeout(() => {
+        timedOut = true;
+        reject(new Error('Google Maps took too long to load.'));
+      }, 8000);
+      script.onload = () => {
+        window.clearTimeout(timeout);
+        resolve();
+        if(timedOut && window.google?.maps?.Map){
+          mapsReadyPromise = Promise.resolve();
+          wireGoogleAutocomplete();
+          void initTelemetry().then(() => {
+            if(destinationConfirmed && !confirmedFareSignature && !bookingSubmitted && !bookingSubmissionPending){
+              return estimateRouteAndFare({promptConfirmation:false});
+            }
+          }).catch(() => {});
+        }
+      };
       script.onerror = () => { window.clearTimeout(timeout); reject(new Error('Could not load Google Maps.')); };
       document.head.appendChild(script);
     });
@@ -2362,7 +2378,8 @@
   };
 
   function renderTelemetryFallback(vehicles = [], usingLocalMock = false, routePoints = []){
-    if(!telemetryMapEl) return;
+    // A location lookup started before map initialization may finish afterward.
+    if(!telemetryMapEl || telemetryMap) return;
     const points = vehicles.filter((v) => Number.isFinite(Number(v.lat)) && Number.isFinite(Number(v.lng))).slice(0, 24);
     const pathPoints = routePoints.filter((p) => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)));
     const defaultBounds = { minLat: 38.85, maxLat: 39.25, minLng: -76.95, maxLng: -76.35 };
