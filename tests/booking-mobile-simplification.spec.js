@@ -166,3 +166,12 @@ test('active Book My Ride state shows only the three patient decision cards', as
   await expect(page.locator('#riderDetailsSection')).toBeVisible();
   await expect(page.locator('#toggleCompletedSectionsBtn')).toHaveText('Hide changes');
 });
+
+test('rider details stay visible if the booking script fails to load', async ({ page }) => {
+  await page.setViewportSize({ width: 659, height: 1076 });
+  await page.route('**/booking-app.js*', route => route.abort());
+  await page.goto('/booking-app.html', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#riderDetailsSection')).toBeVisible();
+  await expect(page.locator('#name')).toBeVisible();
+  await expect(page.locator('#phone')).toBeVisible();
+});
