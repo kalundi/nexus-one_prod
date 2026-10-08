@@ -1075,6 +1075,7 @@ Destination: -</p>
         <div class="estimate" aria-live="polite">
           <div class="line"><b>Distance</b><span id="estMiles">-</span></div>
           <div class="line"><b>ETA</b><span id="estDuration">-</span></div>
+          <div class="line" id="estPremiumRow" hidden><b>Schedule premium (included)</b><span id="estPremiumCharge">-</span></div>
           <div class="line" id="estWaitRow" hidden><b id="estWaitLabel">Waiting time</b><span id="estWaitCharge">-</span></div>
           <div class="line"><b>Subtotal</b><span id="estSubtotal">-</span></div>
           <div class="line"><b>Card Processing Fee (3%)</b><span id="estTax">-</span></div>
@@ -1173,6 +1174,8 @@ Destination: -</p>
           <p>Please review and confirm the estimated rate before booking your ride.</p>
           <div class="fareDialogAmount" id="fareConfirmAmount">$0.00</div>
           <p class="subtle" id="fareConfirmWaiting" hidden></p>
+          <p class="subtle" id="fareConfirmPremium" hidden></p>
+          <p class="subtle" id="fareConfirmMileage" hidden></p>
           <p class="subtle" id="fareConfirmDetails"></p>
           <div class="fareDialogActions">
             <button type="button" class="ghost" id="fareConfirmCancel">Review Trip</button>
@@ -1191,6 +1194,8 @@ Destination: -</p>
         <div class="fareSummaryCard fareTrustCard" aria-live="polite">
           <div class="fareTrustHeader"><div><span class="fareTrustEyebrow">Clear, compassionate pricing</span><h2 class="fareTrustTitle">Your estimated ride fare</h2></div><div class="fareSummaryAmount" id="fareSummaryAmount">-</div></div>
           <p class="subtle" id="fareSummaryWaiting" hidden></p>
+          <p class="subtle" id="fareSummaryPremium" hidden></p>
+          <p class="subtle" id="fareSummaryMileage" hidden></p>
           <p class="fareTrustMessage">A dependable estimate based on the route, ride support, and schedule you selected—with the same transparent process for every rider.</p>
           <div class="fareSummaryLine" id="fareMemberSavingsRow" hidden><b id="fareSavingsLabel">Ride savings</b><span id="fareMemberSavings">-</span></div>
           <div class="fareAssurances" aria-label="Nexus fare commitments"><span class="fareAssurance">Reliable route planning</span><span class="fareAssurance">Care-centered service</span><span class="fareAssurance">Fair, transparent estimate</span></div>
@@ -1271,7 +1276,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=69"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-  <script src="./booking-app.js?v=20261008-waiting-fare"></script>
+  <script src="./booking-app.js?v=20261008-complete-fare"></script>
 </body>
 </html>
 

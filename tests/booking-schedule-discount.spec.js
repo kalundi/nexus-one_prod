@@ -106,5 +106,6 @@ for(const signedIn of [false,true]) test(`round-trip charges both legs before ${
  expect(submitted.estimatedFareBeforeDiscount).toBeCloseTo(oneWaySubtotal*2*1.03,1);
  expect(submitted.estimatedFare).toBeCloseTo(roundTripTotal,1);
  await expect(page.locator('#fullAmountLabel')).toHaveText(displayTotal);
- await expect(page.locator('#depositAmountLabel')).toHaveText(`$${(submitted.estimatedFare*.25).toFixed(2)}`);
+ expect(submitted.estimatedFare).toBe(Number(submitted.estimatedFare.toFixed(2)));
+ await expect(page.locator('#depositAmountLabel')).toHaveText(`$${(Math.round(Math.round(submitted.estimatedFare*100)/4)/100).toFixed(2)}`);
 });

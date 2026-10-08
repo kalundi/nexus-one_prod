@@ -607,6 +607,7 @@ function renderPricing(){
       <td><input aria-label="${r.label} included miles" type="number" step="1" min="0" data-field="includedMiles" value="${r.includedMiles}" style="width:80px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
       <td><input aria-label="${r.label} per mile" type="number" step="0.01" min="0" data-field="perMile" value="${r.perMile}" style="width:90px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
       <td><input aria-label="${r.label} wait fee" type="number" step="0.01" min="0" data-field="waitPer15" value="${r.waitPer15}" style="width:90px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
+      <td>Immediately</td>
     </tr>`).join('');
   updateDashboardSignals();
 }
@@ -614,7 +615,7 @@ function getEditedPricing(){
   const p={...(currentSettings?.pricing||NexusCore.getPricing())};
   document.getElementById('pricingRows').querySelectorAll('tr').forEach(tr=>{
     const key=tr.dataset.key;
-    tr.querySelectorAll('input').forEach(i=>{p[key][i.dataset.field]=Number(i.value)});
+    tr.querySelectorAll('input[data-field]').forEach(i=>{p[key][i.dataset.field]=Number(i.value)});
   });
   return p;
 }
@@ -630,6 +631,7 @@ document.getElementById('savePricing').addEventListener('click',async()=>{
   if(!r.ok){showMsg(document.getElementById('pricingSavedMsg'),data.error||'Failed to save pricing.','err');return;}
   currentSettings=data.settings;
   renderPricing();
+  applySettingsToForm(currentSettings);
   const msg=document.getElementById('pricingSavedMsg');
   showMsg(msg,`Pricing saved at ${new Date().toLocaleTimeString()}.`,'ok');
 });
@@ -827,7 +829,7 @@ function renderServicePolicyRows(settings){
     return `<tr data-service-policy="${key}">
       <td><strong>${label}</strong></td>
       <td>$${Number(pricing[key]?.waitPer15||0).toFixed(2)}</td>
-      <td><input type="number" step="1" min="0" max="720" data-field="freeWaitMinutes" value="${p.freeWaitMinutes==null?'':Number(p.freeWaitMinutes)}" placeholder="${Number(rules.freeWaitMinutes||0)}" aria-label="${escapeHtml(label)} free wait minutes" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
+      <td>Immediately</td>
       <td><input type="number" step="0.01" min="0" data-field="cancellationFee" value="${Number(p.cancellationFee||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
       <td><input type="number" step="0.01" min="0" data-field="noShowFee" value="${Number(p.noShowFee||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
       <td><input type="number" step="0.01" min="0" data-field="trafficOverageFeePerHour" value="${Number(p.trafficOverageFeePerHour||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
@@ -847,7 +849,7 @@ function readServicePoliciesFromTable(){
     const row={};
     tr.querySelectorAll('input[data-field]').forEach((input)=>{
       const field=input.getAttribute('data-field');
-      row[field]=field==='freeWaitMinutes'&&input.value.trim()===''?null:Number(input.value||0);
+      row[field]=Number(input.value||0);
     });
     out[key]=row;
   });
@@ -939,7 +941,7 @@ function applySettingsToForm(settings){
   document.getElementById('cancellationWindowHours').value=fare.cancellationWindowHours==null?'':Number(fare.cancellationWindowHours);
   document.getElementById('cancellationLeadHours').value=fare.cancellationLeadHours==null?'':Number(fare.cancellationLeadHours);
   document.getElementById('noShowFee').value=fare.noShowFee==null?'':Number(fare.noShowFee);
-  document.getElementById('freeWaitMinutes').value=fare.freeWaitMinutes==null?'':Number(fare.freeWaitMinutes);
+  document.getElementById('freeWaitMinutes').value=0;
   document.getElementById('mileageRoundingRule').value=fare.mileageRoundingRule||'TENTH_MILE';
   document.getElementById('telemetryRefreshSeconds').value=fare.telemetryRefreshSeconds==null?'':Number(fare.telemetryRefreshSeconds);
   document.getElementById('maxBookingDistanceMiles').value=fare.maxBookingDistanceMiles==null?'':Number(fare.maxBookingDistanceMiles);

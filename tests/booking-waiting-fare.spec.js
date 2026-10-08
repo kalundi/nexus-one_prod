@@ -2,15 +2,19 @@ const { test, expect } = require('@playwright/test');
 
 for (const scenario of [
   { name: 'no waiting', minutes: 0, charge: 0, total: '103.00' },
-  { name: 'free allowance', minutes: 120, charge: 0, total: '103.00' },
-  { name: 'started 15 minute block', minutes: 121, charge: 20, total: '123.60' },
-  { name: 'two waiting blocks', minutes: 150, charge: 40, total: '144.20' },
-  { name: 'round trip adds waiting once before savings', minutes: 150, charge: 40, roundTrip: true, total: '234.84' },
-  { name: 'multi-stop waiting is included', minutes: 0, stopMinutes: 180, charge: 80, total: '185.40' },
-  { name: 'additional and stop waits share one allowance', minutes: 30, stopMinutes: 120, charge: 40, total: '144.20' },
-  { name: 'service-specific free waiting overrides shared allowance', minutes: 45, freeMinutes: 30, charge: 20, total: '123.60' },
+  { name: 'first minute starts the first waiting block', minutes: 1, charge: 20, total: '123.60' },
+  { name: 'exactly 15 minutes charges one block', minutes: 15, charge: 20, total: '123.60' },
+  { name: '16 minutes starts a second block', minutes: 16, charge: 40, total: '144.20' },
+  { name: 'round trip adds waiting once before savings', minutes: 30, charge: 40, roundTrip: true, total: '234.84' },
+  { name: 'multi-stop waiting is included', minutes: 0, stopMinutes: 180, charge: 240, total: '350.20' },
+  { name: 'additional and stop waiting are both billed', minutes: 30, stopMinutes: 120, charge: 200, total: '309.00' },
+  { name: 'stale free allowance does not waive waiting charges', minutes: 45, freeMinutes: 30, charge: 60, total: '164.80' },
   { name: 'zero service allowance bills waiting immediately', minutes: 15, freeMinutes: 0, charge: 20, total: '123.60' },
-  { name: 'changing waiting time refreshes fare and service choice', initialMinutes: 0, minutes: 150, charge: 40, total: '144.20' }
+  { name: 'changing waiting time refreshes fare and service choice', initialMinutes: 0, minutes: 30, charge: 40, total: '144.20' },
+  { name: 'weekend premium reaches review and payment', date:'2030-08-17', minutes:0, charge:0, total:'133.90', premium:'weekend' },
+  { name: 'holiday premium reaches review and payment', date:'2030-07-04', minutes:0, charge:0, total:'133.90', premium:'holiday' },
+  { name: 'fallback route crossing 7 PM receives premium', pickupTime:'18:50', minutes:0, charge:0, total:'133.90', premium:'after-hours' },
+  { name: 'return-only premium reaches review and discounted payment', roundTrip:true, returnTime:'20:00', minutes:0, charge:0, total:'225.06', premium:'Return: +30% after-hours' }
 ]) test(scenario.name, async ({ page }) => {
   let submitted;
   await page.route('**/api/**', route => {
@@ -39,14 +43,17 @@ for (const scenario of [
   }
   if (scenario.roundTrip) {
     await page.locator('#tripType').selectOption('ROUND_TRIP');
-    await page.locator('#returnTripDate').fill('2030-08-15');
-    await page.locator('#returnTripTime').fill('16:00');
+    await page.locator('#returnTripDate').fill(scenario.date||'2030-08-15');
+    await page.locator('#returnTripTime').fill(scenario.returnTime||'16:00');
   }
   await page.locator('#waitMinutes').fill(String(scenario.initialMinutes ?? scenario.minutes));
   await page.locator('#pickup').fill('100 Main Street, Rockville, MD');
   await page.locator('#destination').fill('200 Medical Center Drive, Bethesda, MD');
-  await page.locator('#tripDate').fill('2030-08-15');
-  await page.locator('#appointmentTime').fill('10:30');
+  await page.locator('#tripDate').fill(scenario.date||'2030-08-15');
+  if(scenario.pickupTime){
+    await page.locator('#scheduleBasis').selectOption('PICKUP');
+    await page.locator('#tripTime').fill(scenario.pickupTime);
+  }else await page.locator('#appointmentTime').fill('10:30');
   await page.locator('#confirmPickupDropoffBtn').click();
   await page.locator('[data-service="wheelchair"]').click();
   if (scenario.initialMinutes != null) {
@@ -62,6 +69,7 @@ for (const scenario of [
   } else await expect(page.locator('#estWaitRow')).toBeHidden();
   await page.locator('#continueRideBtn').click();
   await expect(page.locator('#fareConfirmAmount')).toHaveText(`$${scenario.total}`);
+  if(scenario.premium) await expect(page.locator('#fareConfirmPremium')).toContainText(scenario.premium);
   if (scenario.minutes || scenario.stopMinutes) await expect(page.locator('#fareConfirmWaiting')).toContainText(`$${scenario.charge.toFixed(2)}`);
   await page.locator('#fareConfirmAccept').click();
   await expect(page.locator('#paymentSummary')).toContainText('WAIT-1');
@@ -70,5 +78,5 @@ for (const scenario of [
   if (scenario.stopMinutes) expect(submitted.stopWaitMinutes).toEqual([scenario.stopMinutes]);
   expect(submitted.estimatedFare).toBeCloseTo(Number(scenario.total), 2);
   await expect(page.locator('#fullAmountLabel')).toHaveText(`$${scenario.total}`);
-  await expect(page.locator('#depositAmountLabel')).toHaveText(`$${(Number(scenario.total) * .25).toFixed(2)}`);
+  await expect(page.locator('#depositAmountLabel')).toHaveText(`$${(Math.round(Math.round(Number(scenario.total)*100)/4)/100).toFixed(2)}`);
 });

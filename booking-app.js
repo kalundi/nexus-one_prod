@@ -190,7 +190,7 @@
     cancellationWindowHours: 24,
     cancellationLeadHours: 72,
     noShowFee: 50,
-    freeWaitMinutes: 120,
+    freeWaitMinutes: 0,
     mileageRoundingRule: 'TENTH_MILE',
     telemetryRefreshSeconds: 20,
     maxBookingDistanceMiles: 125,
@@ -532,13 +532,13 @@
   }
 
   function pricingWithMembership(baseTotal){
-    const fullFare = Math.max(0, Number(baseTotal || 0));
+    const fullFare = Number(Math.max(0, Number(baseTotal || 0)).toFixed(2));
     const signedIn = Boolean(token());
     const tripSchedule = String(tripType?.value || 'ONE_WAY').toUpperCase();
     const isRepeatSchedule = tripSchedule === 'ROUND_TRIP' || tripSchedule === 'RECURRING';
     const discountPct = isRepeatSchedule ? (signedIn ? 10 : 5) : (signedIn ? MEMBER_DISCOUNT_PCT : 0);
-    const memberSavings = fullFare * (discountPct / 100);
-    const total = Math.max(0, fullFare - memberSavings);
+    const total = Number(Math.max(0, fullFare * (1 - discountPct / 100)).toFixed(2));
+    const memberSavings = Number((fullFare - total).toFixed(2));
     return { fullFare, memberSavings, total, signedIn, discountPct, isRepeatSchedule };
   }
 
@@ -579,15 +579,28 @@
 
     estMiles.textContent = `${estimateState.miles.toFixed(1)} mi`;
     estDuration.textContent = durationText || '-';
+    const selectedRate=getPricing(normalizeService($('service').value));
+    const mileageCopy=`Each leg: $${Number(selectedRate.base||0).toFixed(2)} base includes ${Number(selectedRate.includedMiles||0)} miles; additional miles are $${Number(selectedRate.perMile||0).toFixed(2)} each. This route has ${Number(breakdown.billableMilesPerLeg||0).toFixed(1)} additional miles per leg.`;
+    if(rateSourceLabel)rateSourceLabel.textContent=mileageCopy;
+    ['fareSummaryMileage','fareConfirmMileage'].forEach(id=>{
+      if($(id)){ $(id).textContent=mileageCopy; $(id).hidden=Number(miles||0)<=0; }
+    });
+    const premiumReasons={ 'after-hours':'after-hours', weekend:'weekend', holiday:'holiday' };
+    const premiumLegs=[breakdown.premiumRateReason?`${String(tripType?.value||'')==='ROUND_TRIP'?'Outbound':'Ride'}: +30% ${premiumReasons[breakdown.premiumRateReason]}`:'',breakdown.returnPremiumRateReason?`Return: +30% ${premiumReasons[breakdown.returnPremiumRateReason]}`:''].filter(Boolean);
+    if($('estPremiumRow')) $('estPremiumRow').hidden=!premiumLegs.length;
+    if($('estPremiumCharge')) $('estPremiumCharge').textContent=`$${Number(breakdown.premiumAmount||0).toFixed(2)}`;
+    ['fareSummaryPremium','fareConfirmPremium'].forEach(id=>{
+      if($(id)){ $(id).textContent=premiumLegs.join('. '); $(id).hidden=!premiumLegs.length; }
+    });
     const waiting=getWaitingCharge(normalizeService($('service').value));
     if($('estWaitRow')) $('estWaitRow').hidden=waiting.waitMinutes<=0;
     if($('estWaitLabel')) $('estWaitLabel').textContent=`Waiting (${waiting.waitMinutes} min; ${waiting.billableWaitMinutes} billable)`;
     if($('estWaitCharge')) $('estWaitCharge').textContent=`$${waiting.waitCharge.toFixed(2)}`;
-    const waitingCopy=waiting.waitMinutes>0?`Includes ${waiting.waitMinutes} minutes of driver waiting: $${waiting.waitCharge.toFixed(2)} before savings and card processing. ${waiting.freeWaitMinutes} free minutes; remaining time billed at $${waiting.waitPer15.toFixed(2)} per started 15 minutes.`:'';
+    const waitingCopy=waiting.waitMinutes>0?`Includes ${waiting.waitMinutes} minutes of driver waiting: $${waiting.waitCharge.toFixed(2)} before savings and card processing. Waiting starts immediately at $${waiting.waitPer15.toFixed(2)} per started 15 minutes.`:'';
     ['fareSummaryWaiting','fareConfirmWaiting'].forEach(id=>{
       if($(id)){ $(id).textContent=waitingCopy; $(id).hidden=!waitingCopy; }
     });
-    if($('waitPricingHint')) $('waitPricingHint').textContent=`Enter time the driver stays and waits, in addition to expected time at any stops. ${waiting.freeWaitMinutes} free minutes per booking, then $${waiting.waitPer15.toFixed(2)} per started 15 minutes. Leave 0 when the driver leaves and returns later.`;
+    if($('waitPricingHint')) $('waitPricingHint').textContent=`Enter time the driver stays and waits, in addition to expected time at any stops. Waiting starts immediately at $${waiting.waitPer15.toFixed(2)} per started 15 minutes. Leave 0 when the driver leaves and returns later.`;
     if(estSubtotal) estSubtotal.textContent = `$${Number(breakdown.subtotal || 0).toFixed(2)}`;
     if(estTax) estTax.textContent = `$${Number(breakdown.taxAmount || 0).toFixed(2)}${Number(breakdown.taxRatePct || 0) > 0 ? ` (${Number(breakdown.taxRatePct || 0).toFixed(2)}%)` : ''}`;
     if(estMemberSavingsRow) estMemberSavingsRow.hidden = discountView.discountPct <= 0;
@@ -793,7 +806,7 @@
 
   function getWaitingCharge(service){
     const waitMinutes = getAdditionalWaitMinutes() + getStopWaitMinutes().reduce((sum, minutes) => sum + minutes, 0);
-    const freeWaitMinutes = Math.max(0, Number(getServicePolicy(service).freeWaitMinutes ?? fareRules.freeWaitMinutes) || 0);
+    const freeWaitMinutes = 0;
     const billableWaitMinutes = Math.max(0, waitMinutes - freeWaitMinutes);
     const waitPer15 = Math.max(0, Number(getPricing(service).waitPer15) || 0);
     const waitCharge = Math.ceil(billableWaitMinutes / 15) * waitPer15;
@@ -1896,7 +1909,14 @@
       getNthWeekdayOfMonth(y, 10, 4, 4),
       new Date(y, 11, 25)
     ];
-    return holidays.some((h) => sameCalendarDate(h, d));
+    // Include observed weekdays and next year's New Year when observed on Dec 31.
+    holidays.push(new Date(y + 1, 0, 1));
+    return holidays.some((holiday) => {
+      const observed = new Date(holiday);
+      if(observed.getDay() === 6) observed.setDate(observed.getDate() - 1);
+      if(observed.getDay() === 0) observed.setDate(observed.getDate() + 1);
+      return sameCalendarDate(holiday, d) || sameCalendarDate(observed, d);
+    });
   }
 
   function getTripWindow(dateStr, timeStr, durationMinutes = 0){
@@ -1928,15 +1948,10 @@
     const policy = getServicePolicy(service);
     const distance = Math.max(0, Number(miles) || 0);
     const includedMiles = Number(rate.includedMiles || 0);
-    const outboundBillable = Math.max(0, distance - includedMiles);
-    const returnThreshold = Math.max(0, Number(fareRules.returnMilesThreshold || 0));
-    const returnPct = Math.max(0, Number((policy.returnMilesInclusionPct ?? fareRules.returnMilesInclusionPct) ?? 0)) / 100;
-    const returnMiles = distance > returnThreshold ? (distance * returnPct) : 0;
-    const totalChargedMiles = distance + returnMiles;
-    const billable = outboundBillable + returnMiles;
+    const billable = Math.max(0, distance - includedMiles);
 
     let subtotal = Number(rate.base || 0) + billable * Number(rate.perMile || 0);
-    subtotal += totalChargedMiles * Number(fareRules.fuelSurchargePerMile || 0);
+    subtotal += distance * Number(fareRules.fuelSurchargePerMile || 0);
 
     const scheduledMinutes = Math.max(0, Number(routeMetrics.durationMinutes || 0));
     const trafficMinutes = Math.max(0, Number(routeMetrics.trafficDurationMinutes || 0));
@@ -1947,23 +1962,31 @@
       subtotal += (overageMinutes / 60) * trafficRate;
     }
 
-    const premiumRateReason=getPremiumRateReason(dateStr,timeStr,scheduledMinutes);
-    if(premiumRateReason) subtotal *= 1.30;
-
-    // Rates cover one passenger leg. Charge both legs before applying schedule savings.
+    const routeDurationMinutes=Math.max(scheduledMinutes,trafficMinutes);
+    const premiumRateReason=getPremiumRateReason(dateStr,timeStr,routeDurationMinutes);
+    const outboundSubtotal=Math.max(Number(fareRules.minimumFare || 0),subtotal*(premiumRateReason?1.30:1));
+    // Price each passenger leg at its own scheduled date and pickup time.
     const passengerLegCount = String(tripType?.value || 'ONE_WAY').toUpperCase() === 'ROUND_TRIP' ? 2 : 1;
+    const returnPremiumRateReason=passengerLegCount===2?getPremiumRateReason(returnTripDate?.value||dateStr,returnTripTime?.value||timeStr,routeDurationMinutes):'';
+    const returnSubtotal=passengerLegCount===2?Math.max(Number(fareRules.minimumFare || 0),subtotal*(returnPremiumRateReason?1.30:1)):0;
+    const premiumAmount=(outboundSubtotal-Math.max(Number(fareRules.minimumFare || 0),subtotal))+(returnSubtotal-(passengerLegCount===2?Math.max(Number(fareRules.minimumFare || 0),subtotal):0));
     const waiting = getWaitingCharge(service);
-    const normalizedSubtotal = Math.max(Number(fareRules.minimumFare || 0), subtotal) * passengerLegCount + waiting.waitCharge;
+    const normalizedSubtotal = outboundSubtotal + returnSubtotal + waiting.waitCharge;
     const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const taxAmount = normalizedSubtotal * (taxRatePct / 100);
     return {
       ...waiting,
+      includedMiles,
+      billableMilesPerLeg:billable,
+      mileageChargePerLeg:billable * Number(rate.perMile || 0),
       subtotal: normalizedSubtotal,
       taxAmount,
       total: normalizedSubtotal + taxAmount,
       taxRatePct,
-      premiumRatePct: premiumRateReason ? 30 : 0,
-      premiumRateReason
+      premiumRatePct: premiumRateReason || returnPremiumRateReason ? 30 : 0,
+      premiumRateReason,
+      returnPremiumRateReason,
+      premiumAmount
     };
   }
 
@@ -2149,6 +2172,9 @@
     estimateState = { miles: 0, durationText: '', durationMinutes: 0, trafficDurationMinutes: 0, subtotal: 0, taxAmount: 0, preDiscountFare: 0, memberSavings: 0, discountPct: 0, fare: 0 };
     estMiles.textContent = '-';
     if($('estWaitRow')) $('estWaitRow').hidden=true;
+    if($('estPremiumRow')) $('estPremiumRow').hidden=true;
+    ['fareSummaryMileage','fareConfirmMileage'].forEach(id=>{ if($(id)) $(id).hidden=true; });
+    ['fareSummaryPremium','fareConfirmPremium'].forEach(id=>{ if($(id)) $(id).hidden=true; });
     ['fareSummaryWaiting','fareConfirmWaiting'].forEach(id=>{ if($(id)) $(id).hidden=true; });
     estDuration.textContent = '-';
     if(estSubtotal) estSubtotal.textContent = '-';
@@ -2267,7 +2293,7 @@
     expandPaymentOptions();
     paymentSection.querySelector('h2').textContent='Complete Payment';
     if(paymentChoiceHint)paymentChoiceHint.hidden=false;
-    const depositAmt = Math.round(currentBookingFare * 0.25 * 100) / 100;
+    const depositAmt = Math.round(Math.round(currentBookingFare * 100) / 4) / 100;
     const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const discountText = estimateState.memberSavings > 0
       ? ` Includes ${estimateState.discountPct}% ${token()?'member':'schedule'} savings of $${estimateState.memberSavings.toFixed(2)}.`
@@ -2315,7 +2341,7 @@
     const mode = ['deposit','full'].includes(paymentMode) ? paymentMode : 'full';
     const button = mode === 'deposit' ? payDepositBtn : payFullBtn;
     const idleText = mode === 'deposit'
-      ? `Pay 25% Deposit — $${(Math.round(currentBookingFare * 0.25 * 100) / 100).toFixed(2)}`
+      ? `Pay 25% Deposit — $${(Math.round(Math.round(currentBookingFare * 100) / 4) / 100).toFixed(2)}`
       : `Pay in Full — $${currentBookingFare.toFixed(2)}`;
     const busyText = mode === 'deposit' ? 'Opening deposit checkout...' : 'Opening full payment checkout...';
     setBusy(button, true, busyText, idleText);
@@ -3103,7 +3129,7 @@
       if(estimateVersion!==routeEstimateVersion)return estimateState;
       if(fallbackMiles){
         const fallbackDurationMinutes = Math.max(15, Math.round((fallbackMiles / 25) * 60));
-        const fallbackBreakdown = calculateFareBreakdown(service, fallbackMiles, tripDate, fareTime, { durationMinutes: 0, trafficDurationMinutes: 0 });
+        const fallbackBreakdown = calculateFareBreakdown(service, fallbackMiles, tripDate, fareTime, { durationMinutes: fallbackDurationMinutes, trafficDurationMinutes: fallbackDurationMinutes });
         renderFareEstimateBreakdown(fallbackBreakdown, fallbackMiles, `Estimated locally (~${fallbackDurationMinutes} min)`, fallbackDurationMinutes, fallbackDurationMinutes);
         setStatus('Your route and fare were estimated using the available location information.', 'ok');
         syncSectionProgressUi();
@@ -3829,7 +3855,7 @@
     paymentSection.hidden = false;
     expandPaymentOptions();
     paymentSummary.textContent = 'Preparing your booking. Payment options will be ready shortly.';
-    if(depositAmountLabel) depositAmountLabel.textContent = `$${(Math.round(Number(estimateState.fare || 0) * 25) / 100).toFixed(2)}`;
+    if(depositAmountLabel) depositAmountLabel.textContent = `$${(Math.round(Math.round(Number(estimateState.fare || 0) * 100) / 4) / 100).toFixed(2)}`;
     if(fullAmountLabel) fullAmountLabel.textContent = `$${Number(estimateState.fare || 0).toFixed(2)}`;
     [payDepositBtn, payFullBtn].forEach(button => { if(button){ button.hidden = false; button.disabled = true; } });
     [payStripeBtn, paySquareBtn].forEach(button => { if(button) button.hidden = true; });
@@ -4251,7 +4277,8 @@
       syncSectionProgressUi();
     }));
     tripType?.addEventListener('change',()=>{syncTripScheduleUi();refreshFareForMembership();syncSectionProgressUi();});
-    [returnTripDate,returnTripTime,recurrenceEndDate].forEach((input)=>input?.addEventListener('change',syncSectionProgressUi));
+    [returnTripDate,returnTripTime].forEach((input)=>input?.addEventListener('change',()=>{refreshFareForMembership();syncSectionProgressUi();}));
+    recurrenceEndDate?.addEventListener('change',syncSectionProgressUi);
     ['flightNumber','flightAirportStop','tripDate','pickup','destination'].forEach((id)=>{
       const input=$(id);
       input?.addEventListener('input',()=>clearFlightLookup());

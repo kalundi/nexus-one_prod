@@ -348,7 +348,8 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
     <article class="card"><strong>Holiday: +30%</strong><p class="muted">Trips scheduled or overlapping a recognized federal holiday.</p></article>
   </div>
   <p class="muted" style="margin:0 0 14px">Only one 30% premium is applied when more than one condition applies.</p>
-  <div class="tableWrap"><table class="table configTable" aria-label="Pricing configuration"><thead><tr><th>Service</th><th>Base fare ($)</th><th>Included miles</th><th>Per mile ($)</th><th>Wait / 15 min ($)</th></tr></thead><tbody id="pricingRows"></tbody></table></div>
+  <p class="muted">Waiting charges start immediately. Each service's listed rate applies per started 15-minute block, with no free waiting period.</p>
+  <div class="tableWrap"><table class="table configTable" aria-label="Pricing configuration"><thead><tr><th>Service</th><th>Base fare ($)</th><th>Included miles</th><th>Per mile ($)</th><th>Wait / 15 min ($)</th><th>Waiting starts</th></tr></thead><tbody id="pricingRows"></tbody></table></div>
 </section>
 
 <!-- Manage Trip -->
@@ -483,7 +484,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
   </div>
   <div class="formRow" style="margin-top:14px">
     <div class="formField"><label for="noShowFee">No-show fee ($)</label><input id="noShowFee" type="number" min="0" step="0.01" placeholder="0.00"></div>
-    <div class="formField"><label for="freeWaitMinutes">Free wait minutes</label><input id="freeWaitMinutes" type="number" min="0" max="180" step="1" placeholder="0"></div>
+    <div class="formField"><label for="freeWaitMinutes">Free wait minutes</label><input id="freeWaitMinutes" type="number" value="0" readonly><small>Waiting charges start immediately for every service.</small></div>
   </div>
   <div class="formRow" style="margin-top:14px">
     <div class="formField"><label for="mileageRoundingRule">Mileage rounding rule</label><select id="mileageRoundingRule"><option value="EXACT">Exact</option><option value="TENTH_MILE">Tenth mile</option><option value="WHOLE_MILE">Whole mile</option></select></div>
@@ -502,11 +503,11 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
   </div>
   <div style="margin-top:18px">
     <p style="margin:0 0 10px;font-weight:750">Per-service policy overrides</p>
-    <p style="margin:0 0 10px;color:var(--muted);font-size:12px">Set each service's free waiting minutes. A blank field uses the shared free-wait allowance; 0 starts charging immediately. Waiting rates come from the service pricing matrix.</p>
+    <p style="margin:0 0 10px;color:var(--muted);font-size:12px">Waiting charges start immediately for every service. Rates come from the service pricing matrix and apply per started 15-minute block.</p>
     <p style="margin:0 0 10px;color:var(--muted);font-size:12px">Industry baseline: split interfacility into Routine IFT and High-Acuity IFT. Keep higher cancellation/no-show for High-Acuity, include handoff wait/documentation time in both, and keep return-mile plus traffic-overage charges enabled.</p>
     <div class="tableWrap">
       <table class="table configTable" aria-label="Per-service policy overrides">
-        <thead><tr><th>Service</th><th>Wait ($/15 min)</th><th>Free wait (min)</th><th>Cancellation ($)</th><th>No-show ($)</th><th>Traffic ($/hour)</th><th>Return miles (%)</th><th>After-hours (%)</th><th>Weekend (%)</th><th>Holiday (%)</th></tr></thead>
+        <thead><tr><th>Service</th><th>Wait ($/15 min)</th><th>Waiting starts</th><th>Cancellation ($)</th><th>No-show ($)</th><th>Traffic ($/hour)</th><th>Return miles (%)</th><th>After-hours (%)</th><th>Weekend (%)</th><th>Holiday (%)</th></tr></thead>
         <tbody id="servicePolicyRows"></tbody>
       </table>
     </div>
@@ -658,7 +659,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">&#9855;</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div>
 <div id="adminToast" class="adminToast" role="status" aria-live="polite" hidden></div>
 <script src="./nexus-core.js"></script><script src="./platform.js?v=69"></script>
-<script src="./admin-app.js?v=20261008-waiting-matrix"></script></body></html>
+<script src="./admin-app.js?v=20261008-immediate-waiting"></script></body></html>
 
 
 

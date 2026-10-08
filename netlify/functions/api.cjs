@@ -463,7 +463,7 @@ const DEFAULT_PLATFORM_SETTINGS={
   cancellationWindowHours:24,
   cancellationLeadHours:72,
   noShowFee:50,
-  freeWaitMinutes:120,
+  freeWaitMinutes:0,
   mileageRoundingRule:'TENTH_MILE',
   telemetryRefreshSeconds:20,
   maxBookingDistanceMiles:125,
@@ -1006,7 +1006,7 @@ function mergeServicePolicies(input){
  for(const key of Object.keys(base)){
   const src=input[key]||{};
   base[key]={
-   freeWaitMinutes:src.freeWaitMinutes==null||src.freeWaitMinutes===''?null:clamp(n(src.freeWaitMinutes,0),0,720),
+   freeWaitMinutes:0,
    cancellationFee:clamp(n(src.cancellationFee,base[key].cancellationFee),0,10000),
    noShowFee:clamp(n(src.noShowFee,base[key].noShowFee),0,10000),
    trafficOverageFeePerHour:clamp(n(src.trafficOverageFeePerHour,base[key].trafficOverageFeePerHour),0,1000),
@@ -1073,7 +1073,7 @@ function mergePlatformSettings(raw){
   cancellationWindowHours:clamp(n(fareSrc.cancellationWindowHours,DEFAULT_PLATFORM_SETTINGS.fareRules.cancellationWindowHours),0,240),
   cancellationLeadHours:clamp(n(fareSrc.cancellationLeadHours,DEFAULT_PLATFORM_SETTINGS.fareRules.cancellationLeadHours),0,720),
    noShowFee:clamp(n(fareSrc.noShowFee,DEFAULT_PLATFORM_SETTINGS.fareRules.noShowFee),0,10000),
-   freeWaitMinutes:clamp(n(fareSrc.freeWaitMinutes,DEFAULT_PLATFORM_SETTINGS.fareRules.freeWaitMinutes),0,180),
+   freeWaitMinutes:0,
    mileageRoundingRule:['EXACT','TENTH_MILE','WHOLE_MILE'].includes(String(fareSrc.mileageRoundingRule||''))?String(fareSrc.mileageRoundingRule):DEFAULT_PLATFORM_SETTINGS.fareRules.mileageRoundingRule,
    telemetryRefreshSeconds:clamp(n(fareSrc.telemetryRefreshSeconds,DEFAULT_PLATFORM_SETTINGS.fareRules.telemetryRefreshSeconds),5,120),
   maxBookingDistanceMiles:clamp(n(fareSrc.maxBookingDistanceMiles,DEFAULT_PLATFORM_SETTINGS.fareRules.maxBookingDistanceMiles),5,500),
@@ -2136,7 +2136,7 @@ async function handler(event){
     const provider=route.includes('/square/')?'square':'stripe';
     const paymentMode=['deposit','full'].includes(b.paymentMode)?b.paymentMode:'full';
     const amount=Math.max(0,Number(b.amount||0));
-    const chargeAmount=paymentMode==='deposit'?Math.round(amount*.25*100):Math.round(amount*100);
+    const chargeAmount=paymentMode==='deposit'?Math.round(Math.round(amount*100)/4):Math.round(amount*100);
     const requestHost=clean(event.headers?.host||event.headers?.Host);
     const testBase=requestHost?`https://${requestHost}`:siteBase();
     const url=`${testBase}/test-payment.html?provider=${provider}&mode=${paymentMode}&bookingReference=${encodeURIComponent(clean(b.bookingReference))}&amount=${chargeAmount}`;
@@ -3068,7 +3068,7 @@ async function handler(event){
    const r=await query('SELECT reference,email,estimated_fare,payment_status,booking_source,coverage_status FROM bookings WHERE reference=$1',[b.bookingReference]);
    if(!r.rows[0])return json(404,{error:'Booking not found'});
    const totalFare=Number(r.rows[0].estimated_fare||0);
-   const chargeAmount=paymentMode==='deposit'?Math.round(totalFare*0.25*100):Math.round(totalFare*100);
+   const chargeAmount=paymentMode==='deposit'?Math.round(Math.round(totalFare*100)/4):Math.round(totalFare*100);
    if(chargeAmount<50)return json(400,{error:'A valid payment amount is required'});
    const depositAmount=paymentMode==='deposit'?chargeAmount/100:totalFare;
    const balanceDue=paymentMode==='deposit'?Math.max(0,totalFare-depositAmount):0;
