@@ -6,7 +6,7 @@ The booking form can look up a flight by flight number and ride date. For an air
 
 1. Enable FlightAware AeroAPI access for the account and plan.
 2. Add `FLIGHTAWARE_API_KEY` as a server-side Netlify environment variable for the deploy context.
-3. Deploy the Netlify function and apply database migration `061.001_airport_flight_lookup.sql`.
+3. Deploy the Netlify function and apply database migration `082.001_airport_flight_lookup.sql`.
 
 Keep the key out of browser code and source control. The lookup endpoint applies a limit of 10 requests per minute per client.
 

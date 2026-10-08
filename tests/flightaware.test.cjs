@@ -57,3 +57,21 @@ test('lookup uses the selected airport local date across UTC midnight',async()=>
  assert.equal(result.airport.code,'ORD');
  assert.equal(result.terminal,'1');
 });
+
+test('airport flight migration is idempotent without Supabase roles',async()=>{
+ const {PGlite}=await import('@electric-sql/pglite');
+ const {readFile}=require('node:fs/promises');
+ const database=new PGlite();
+ try{
+  await database.exec('CREATE TABLE bookings(reference text PRIMARY KEY); CREATE TABLE schema_migrations(version varchar(64) PRIMARY KEY,description text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now());');
+  const migration=await readFile(new URL('../database/migrations/082.001_airport_flight_lookup.sql',`file://${__dirname.replaceAll('\\','/')}/`),'utf8');
+  await database.exec(migration);
+  await database.exec(migration);
+  const applied=await database.query("SELECT version FROM schema_migrations WHERE version='082.001'");
+  assert.equal(applied.rows.length,1);
+  const roles=await database.query("SELECT rolname FROM pg_roles WHERE rolname IN ('anon','authenticated')");
+  assert.equal(roles.rows.length,0);
+ }finally{
+  await database.close();
+ }
+});
