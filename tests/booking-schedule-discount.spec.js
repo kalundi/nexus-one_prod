@@ -15,8 +15,8 @@ async function prepareRide(page,{signedIn=false,tripType='ONE_WAY'}={}){
  await page.locator('#confirmRiderBtn').click();
  await page.locator('#tripType').selectOption(tripType);
  if(tripType==='ROUND_TRIP'){
-  await page.locator('#returnTripDate').fill('2030-08-16');
-  await page.locator('#returnTripTime').fill('14:30');
+  await page.locator('#returnTripDate').fill('2030-08-15');
+  await page.locator('#returnTripTime').fill('10:15');
  }
  if(tripType==='RECURRING'){
   await page.locator('#recurrenceEndDate').fill('2030-09-15');
@@ -61,8 +61,8 @@ test('changing schedule after estimating refreshes the signed-in savings rate',a
  await prepareRide(page,{signedIn:true});
  await page.locator('#fareConfirmCancel').click();
  await page.locator('#tripType').evaluate(select=>{select.value='ROUND_TRIP';select.dispatchEvent(new Event('change',{bubbles:true}));});
- await page.locator('#returnTripDate').evaluate(input=>{input.value='2030-08-16';input.dispatchEvent(new Event('change',{bubbles:true}));});
- await page.locator('#returnTripTime').evaluate(input=>{input.value='14:30';input.dispatchEvent(new Event('change',{bubbles:true}));});
+ await page.locator('#returnTripDate').evaluate(input=>{input.value='2030-08-15';input.dispatchEvent(new Event('change',{bubbles:true}));});
+ await page.locator('#returnTripTime').evaluate(input=>{input.value='10:15';input.dispatchEvent(new Event('change',{bubbles:true}));});
  await expect(page.locator('#estSavingsLabel')).toHaveText('Member Savings (10%)');
  await expect(page.locator('#tripScheduleSavingsMessage')).toContainText('10% savings applied');
 });
@@ -87,8 +87,8 @@ for(const signedIn of [false,true]) test(`round-trip charges both legs before ${
   expect(await money('estFare')).toBeCloseTo(oneWayTotal,1);
  }
  await changeSchedule('ROUND_TRIP');
- await page.locator('#returnTripDate').evaluate(input=>{input.value='2030-08-16';input.dispatchEvent(new Event('change',{bubbles:true}));});
- await page.locator('#returnTripTime').evaluate(input=>{input.value='14:30';input.dispatchEvent(new Event('change',{bubbles:true}));});
+ await page.locator('#returnTripDate').evaluate(input=>{input.value='2030-08-15';input.dispatchEvent(new Event('change',{bubbles:true}));});
+ await page.locator('#returnTripTime').evaluate(input=>{input.value='10:15';input.dispatchEvent(new Event('change',{bubbles:true}));});
  await expect(page.locator('#tripScheduleSavingsMessage')).toContainText('both outbound and return legs');
  const displayTotal=await page.locator('#estFare').textContent();
  await expect(page.locator('[data-service="wheelchair"] .serviceCardFare')).toHaveText(displayTotal);

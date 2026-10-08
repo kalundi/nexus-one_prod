@@ -12,9 +12,9 @@ test('one-driver multi-stop schedules account for wait, assistance, traffic, and
 
   assert.match(html, /id="scheduleFeasibility"/);
   assert.match(client, /function evaluateMultiStopFeasibility\(\)/);
-  assert.match(client, /current \+ wait \+ assistanceBuffer \+ travel/);
+  assert.match(client, /current - 15 \+ wait \+ assistanceBuffer \+ travel/);
   assert.match(client, /duration_in_traffic/);
-  assert.match(client, /Expected time at Stop \$\{index\}/);
+  assert.match(client, /Stop \$\{index\} Pickup Time/);
   assert.match(client, /Schedule conflict:/);
   assert.match(client, /minimum \$\{Math\.max\(0, Math\.floor\(tightest\)\)\}-minute cushion/);
 });

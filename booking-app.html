@@ -372,6 +372,7 @@
     .metaRow .field{min-width:0}
     .metaRow input,.metaRow select{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
     .suiteRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:8px;align-items:start}.suiteRow .field{min-width:0;display:grid;grid-template-rows:22px auto;align-content:start;margin:0}.suiteRow .field>label{margin:0;align-self:start;line-height:18px}.suiteRow input{width:100%;min-width:0;box-sizing:border-box;margin:0}
+    .pickupWaitPair{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}.pickupWaitPair.hasWaiting{grid-template-columns:repeat(2,minmax(0,1fr))}.scheduleRow>.pickupWaitPair{grid-column:1/-1}.pickupWaitPair.hasWaiting .systemGeneratedTag{display:none}
     .scheduleRow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.08fr);align-items:start}
     .scheduleRow .field{min-width:0;width:100%;display:grid;grid-template-rows:28px auto auto;align-content:start;margin:0}.scheduleRow .field>label{min-height:28px;margin:0;align-self:start;line-height:18px}.scheduleRow input{min-width:0;width:100%;max-width:100%;box-sizing:border-box;margin:0}
     .legAppointmentTimes{margin-top:12px;padding:14px;border:1px solid #d4e1e8;border-radius:12px;background:#f5f8fa}.legAppointmentTimesTitle{margin:0 0 10px;color:#173f52;font-size:14px}.legAppointmentTimesGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.legAppointmentDestination{display:block;min-height:18px;margin-top:5px;color:#607786;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1054,19 +1055,18 @@ Destination: -</p>
             <label for="appointmentTime">Appointment Time</label>
             <input id="appointmentTime" name="appointmentTime" type="time" required>
           </div>
-          <div class="field">
+          <div class="pickupWaitPair" id="pickupWaitPair"><div class="field">
             <label class="systemGeneratedLabel" for="tripTime"><span>Pickup Time</span><span class="systemGeneratedTag">System calculated</span></label>
             <input class="systemGeneratedField" id="tripTime" name="tripTime" type="time" readonly required aria-describedby="pickupTimeSystemHint">
             <small class="systemGeneratedHint" id="pickupTimeSystemHint">Calculated from the route and appointment time.</small>
-          </div>
-        </div>
-        <div class="field" style="margin-top:12px">
-          <label for="waitMinutes">Additional driver waiting time (minutes)</label>
-          <input id="waitMinutes" name="waitMinutes" type="number" min="0" max="720" step="1" value="0" aria-describedby="waitPricingHint">
-          <small class="subtle" id="waitPricingHint">Enter time the driver stays and waits, in addition to expected time at any stops. Leave 0 when the driver leaves and returns later.</small>
+          </div><div class="field" id="waitTimeField" hidden>
+            <label for="waitMinutes">Waiting (minutes)</label>
+            <input id="waitMinutes" name="waitMinutes" type="number" min="0" value="0" readonly class="systemGeneratedField" aria-describedby="waitPricingHint">
+            <small class="subtle" id="waitPricingHint">Calculated from arrival to the next pickup.</small>
+          </div></div>
         </div>
         <div class="legAppointmentTimes" id="legAppointmentTimes" hidden>
-          <p class="legAppointmentTimesTitle"><strong>Multi-stop schedule check</strong><br><span class="subtle">Enter each appointment time and expected time at the stop. We include travel, traffic, and rider assistance to check whether one driver can make every appointment.</span></p>
+          <p class="legAppointmentTimesTitle"><strong>Multi-stop schedule check</strong><br><span class="subtle">Enter each appointment time. Pickup and waiting at each stop are calculated from the next appointment. We include travel, traffic, and rider assistance to check whether one driver can make every appointment.</span></p>
           <div class="legAppointmentTimesGrid" id="legAppointmentTimesGrid"></div>
           <p class="scheduleFeasibility pending" id="scheduleFeasibility" aria-live="polite">Complete the route and stop schedule to check feasibility.</p>
         </div>
@@ -1276,7 +1276,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=69"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-  <script src="./booking-app.js?v=20261008-complete-fare"></script>
+  <script src="./booking-app.js?v=20261008-auto-wait"></script>
 </body>
 </html>
 

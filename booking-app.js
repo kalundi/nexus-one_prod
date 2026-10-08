@@ -265,7 +265,6 @@
   let activeManagedBooking = null;
   let destinationStopDraftCache = [];
   let legAppointmentTimeDraftCache = [];
-  let stopWaitDraftCache = [];
   let routeLegTravelMinutes = [];
   const locationSuggestionCache = new Map();
   const routePointCache = new Map();
@@ -600,7 +599,8 @@
     ['fareSummaryWaiting','fareConfirmWaiting'].forEach(id=>{
       if($(id)){ $(id).textContent=waitingCopy; $(id).hidden=!waitingCopy; }
     });
-    if($('waitPricingHint')) $('waitPricingHint').textContent=`Enter time the driver stays and waits, in addition to expected time at any stops. Waiting starts immediately at $${waiting.waitPer15.toFixed(2)} per started 15 minutes. Leave 0 when the driver leaves and returns later.`;
+    syncCalculatedWaitingUi();
+    if($('waitPricingHint')) $('waitPricingHint').textContent=`Calculated from arrival to the next pickup. $${waiting.waitPer15.toFixed(2)} per started 15 minutes, starting immediately.`;
     if(estSubtotal) estSubtotal.textContent = `$${Number(breakdown.subtotal || 0).toFixed(2)}`;
     if(estTax) estTax.textContent = `$${Number(breakdown.taxAmount || 0).toFixed(2)}${Number(breakdown.taxRatePct || 0) > 0 ? ` (${Number(breakdown.taxRatePct || 0).toFixed(2)}%)` : ''}`;
     if(estMemberSavingsRow) estMemberSavingsRow.hidden = discountView.discountPct <= 0;
@@ -797,15 +797,62 @@
   }
 
   function getStopWaitMinutes(){
-    return getStopWaitInputs().map((input) => Math.max(0, Number(input.value || 0)));
+    return getCalculatedWaiting().stopWaitMinutes;
   }
 
   function getAdditionalWaitMinutes(){
-    return Math.max(0, Math.min(720, Number($('waitMinutes')?.value) || 0));
+    return getCalculatedWaiting().returnWaitMinutes;
   }
 
-  function getWaitingCharge(service){
-    const waitMinutes = getAdditionalWaitMinutes() + getStopWaitMinutes().reduce((sum, minutes) => sum + minutes, 0);
+  function getCalculatedWaiting(routeMetrics = estimateState, service = normalizeService($('service')?.value)){
+    const appointments = getLegAppointments();
+    const hasRoute = Math.max(Number(routeMetrics.durationMinutes || 0), Number(routeMetrics.trafficDurationMinutes || 0)) > 0;
+    const stopWaitMinutes = appointments.slice(0, -1).map((item, index) => {
+      const current = parseTimeToMinutes(item.appointmentTime);
+      const next = parseTimeToMinutes(appointments[index + 1].appointmentTime);
+      const travel = Number(routeLegTravelMinutes[index + 1] || 0);
+      if(!hasRoute || !travel || current == null || next == null) return 0;
+      const departure = next - 15 - Math.ceil(travel) - serviceTransitionBufferMinutes(service);
+      return Math.max(0, departure - (current - 15));
+    });
+    let returnWaitMinutes = 0;
+    if(hasRoute && String(tripType?.value || '').toUpperCase() === 'ROUND_TRIP'){
+      const appointment = parseTimeToMinutes(appointments[appointments.length - 1]?.appointmentTime || '');
+      const outboundPickup = parseTimeToMinutes($('tripTime')?.value || '');
+      const travel = Math.ceil(Math.max(Number(routeMetrics.durationMinutes || 0), Number(routeMetrics.trafficDurationMinutes || 0)));
+      const arrival = isPickupTimeBasis() && outboundPickup != null ? outboundPickup + travel : (appointment == null ? null : appointment - 15);
+      const pickup = parseTimeToMinutes(returnTripTime?.value || '');
+      const outboundDate = Date.parse(`${$('tripDate')?.value}T00:00:00Z`);
+      const returnDate = Date.parse(`${returnTripDate?.value}T00:00:00Z`);
+      if(arrival != null && pickup != null && Number.isFinite(outboundDate) && Number.isFinite(returnDate)){
+        returnWaitMinutes = Math.max(0, Math.round((returnDate - outboundDate) / 60000) + pickup - arrival);
+      }
+    }
+    return { stopWaitMinutes, returnWaitMinutes, waitMinutes: returnWaitMinutes + stopWaitMinutes.reduce((sum, value) => sum + value, 0) };
+  }
+
+  function syncCalculatedWaitingUi(){
+    const waiting = getCalculatedWaiting();
+    const visible = String(tripType?.value || '').toUpperCase() === 'ROUND_TRIP' || isMultipleStopsEnabled();
+    if($('waitTimeField')) $('waitTimeField').hidden = !visible;
+    $('pickupWaitPair')?.classList.toggle('hasWaiting', visible);
+    if($('waitMinutes')) $('waitMinutes').value = String(waiting.waitMinutes);
+    getStopWaitInputs().forEach((input, index) => { input.value = String(waiting.stopWaitMinutes[index] || 0); });
+    syncStopPickupTimesUi();
+  }
+
+  function syncStopPickupTimesUi(){
+    const appointments = getLegAppointments();
+    appointments.slice(0, -1).forEach((item, index) => {
+      const input = $(`stopPickupTime-${index + 1}`);
+      const next = parseTimeToMinutes(appointments[index + 1].appointmentTime);
+      const travel = Number(routeLegTravelMinutes[index + 1] || 0);
+      if(input) input.value = next != null && travel > 0 ? minutesToTime(next - 15 - Math.ceil(travel) - serviceTransitionBufferMinutes()) : '';
+    });
+  }
+
+  function getWaitingCharge(service, routeMetrics = estimateState){
+    const { waitMinutes } = getCalculatedWaiting(routeMetrics, service);
     const freeWaitMinutes = 0;
     const billableWaitMinutes = Math.max(0, waitMinutes - freeWaitMinutes);
     const waitPer15 = Math.max(0, Number(getPricing(service).waitPer15) || 0);
@@ -813,8 +860,7 @@
     return { waitMinutes, freeWaitMinutes, billableWaitMinutes, waitCharge, waitPer15 };
   }
 
-  function serviceTransitionBufferMinutes(){
-    const service = normalizeService($('service')?.value);
+  function serviceTransitionBufferMinutes(service = normalizeService($('service')?.value)){
     if(service === 'wheelchair') return 15;
     if(service === 'stretcher' || service === 'bariatric') return 25;
     return 10;
@@ -833,8 +879,8 @@
       const next = parseTimeToMinutes(appointments[index + 1].appointmentTime);
       const wait = Math.max(0, Number(waits[index] || 0));
       const travel = Math.max(1, Math.ceil(Number(routeLegTravelMinutes[index + 1] || 0)));
-      const earliestArrival = current + wait + assistanceBuffer + travel;
-      checks.push({ fromLeg: index + 1, toLeg: index + 2, waitMinutes: wait, assistanceBuffer, travelMinutes: travel, earliestArrival, appointmentMinutes: next, cushionMinutes: next - earliestArrival });
+      const earliestArrival = current - 15 + wait + assistanceBuffer + travel;
+      checks.push({ fromLeg: index + 1, toLeg: index + 2, waitMinutes: wait, assistanceBuffer, travelMinutes: travel, earliestArrival, appointmentMinutes: next, cushionMinutes: next - 15 - earliestArrival });
     }
     const conflicts = checks.filter((check) => check.cushionMinutes < 0);
     if(conflicts.length){
@@ -865,9 +911,7 @@
     if(appointmentTimeLabel) appointmentTimeLabel.textContent = enabled ? 'Stop 1 Appointment Time' : 'Appointment Time';
     if(!legAppointmentTimes || !legAppointmentTimesGrid) return;
     const existingTimes = Array.from(legAppointmentTimesGrid.querySelectorAll('[data-leg-appointment-time="true"]')).map((input) => String(input.value || ''));
-    const existingWaits = Array.from(legAppointmentTimesGrid.querySelectorAll('[data-stop-wait-minutes="true"]')).map((input) => String(input.value || '30'));
     if(existingTimes.length) legAppointmentTimeDraftCache = existingTimes;
-    if(existingWaits.length) stopWaitDraftCache = existingWaits;
     legAppointmentTimesGrid.innerHTML = '';
     legAppointmentTimes.hidden = !enabled;
     if(!enabled) return;
@@ -882,6 +926,7 @@
         ['change', 'input', 'blur'].forEach((eventName) => input?.addEventListener(eventName, () => {
           fareEstimateSignature = '';
           confirmedFareSignature = '';
+          refreshFareForMembership();
           renderMultiStopFeasibility();
           syncSectionProgressUi();
         }));
@@ -889,15 +934,13 @@
       }
       if(index < stopCount){
         const waitField = document.createElement('div');
-        waitField.className = 'field stopWaitField';
-        waitField.innerHTML = `<label for="stopWaitMinutes-${index}">Expected time at Stop ${index}</label><select id="stopWaitMinutes-${index}" data-stop-wait-minutes="true" aria-label="Expected time at Stop ${index}"><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="90">1 hour 30 minutes</option><option value="120">2 hours</option><option value="180">3 hours</option></select><small class="subtle">Appointment, treatment, discharge, or other waiting time before leaving for Stop ${index + 1}.</small>`;
-        const waitInput = waitField.querySelector('select');
-        if(waitInput) waitInput.value = stopWaitDraftCache[index - 1] || '30';
-        waitInput?.addEventListener('change', () => { fareEstimateSignature = ''; confirmedFareSignature = ''; refreshFareForMembership(); renderMultiStopFeasibility(); syncSectionProgressUi(); });
+        waitField.className = 'pickupWaitPair hasWaiting stopWaitField';
+        waitField.innerHTML = `<div class="field"><label for="stopPickupTime-${index}">Stop ${index} Pickup Time</label><input id="stopPickupTime-${index}" type="time" readonly class="systemGeneratedField"><small class="subtle">Calculated from the next appointment, travel, and rider assistance.</small></div><div class="field"><label for="stopWaitMinutes-${index}">Waiting (minutes)</label><input id="stopWaitMinutes-${index}" type="number" readonly data-stop-wait-minutes="true" class="systemGeneratedField" value="0"></div>`;
         legAppointmentTimesGrid.appendChild(waitField);
       }
     }
     syncLegAppointmentDestinationLabels();
+    syncCalculatedWaitingUi();
     renderMultiStopFeasibility();
   }
 
@@ -953,6 +996,8 @@
     }
 
     syncLegAppointmentTimesUi();
+    syncCalculatedWaitingUi();
+    refreshFareForMembership();
     updateTelemetryRouteHint();
     syncSectionProgressUi();
   }
@@ -1502,7 +1547,7 @@
   }
 
   function buildFareEstimateSignature(){
-    return [normalizeService($('service')?.value),String($('pickup')?.value||'').trim(),getRouteDestinations().join('|'),String($('tripDate')?.value||''),getLegAppointments().map((item) => item.appointmentTime).join('|'),getStopWaitMinutes().join('|'),Number(estimateState.fare||0).toFixed(2),Number(estimateState.miles||0).toFixed(2)].join('::');
+    return [normalizeService($('service')?.value),String($('pickup')?.value||'').trim(),getRouteDestinations().join('|'),String($('tripDate')?.value||''),String(tripType?.value||''),String(returnTripDate?.value||''),String(returnTripTime?.value||''),getLegAppointments().map((item) => item.appointmentTime).join('|'),getStopWaitMinutes().join('|'),Number(estimateState.fare||0).toFixed(2),Number(estimateState.miles||0).toFixed(2)].join('::');
   }
 
   function updateFareConfirmationState(){
@@ -1583,8 +1628,10 @@
         field.addEventListener(eventName, () => {
           if(id === 'appointmentTime'||(id==='tripTime'&&isPickupTimeBasis())){
             applyScheduleTimeCalculation();
+            refreshFareForMembership();
             renderMultiStopFeasibility();
           }
+          if(id === 'tripDate') refreshFareForMembership();
           if(id === 'name' || id === 'phone' || id === 'email' || id === 'notes'){
             riderDetailsInitiallyCollapsed.delete('riderDetailsSection');
             expandedSections.delete('riderDetailsSection');
@@ -1803,7 +1850,7 @@
     return points;
   }
 
-  async function estimateFallbackRoute(pickupOrStops, destination, waypointStops = []){
+  async function estimateFallbackRoute(pickupOrStops, destination, waypointStops = [], travelMinutes = []){
     const stops = Array.isArray(pickupOrStops)
       ? pickupOrStops
       : [pickupOrStops, ...(Array.isArray(waypointStops) ? waypointStops : []), destination].filter(Boolean);
@@ -1821,7 +1868,9 @@
         straightMiles = haversineMiles(origin, target);
       }
       if(!straightMiles) return null;
-      totalMiles += Math.max(1, straightMiles * 1.18);
+      const legMiles = Math.max(1, straightMiles * 1.18);
+      totalMiles += legMiles;
+      travelMinutes.push(Math.max(15, Math.round((legMiles / 25) * 60)));
     }
     return totalMiles;
   }
@@ -1970,7 +2019,7 @@
     const returnPremiumRateReason=passengerLegCount===2?getPremiumRateReason(returnTripDate?.value||dateStr,returnTripTime?.value||timeStr,routeDurationMinutes):'';
     const returnSubtotal=passengerLegCount===2?Math.max(Number(fareRules.minimumFare || 0),subtotal*(returnPremiumRateReason?1.30:1)):0;
     const premiumAmount=(outboundSubtotal-Math.max(Number(fareRules.minimumFare || 0),subtotal))+(returnSubtotal-(passengerLegCount===2?Math.max(Number(fareRules.minimumFare || 0),subtotal):0));
-    const waiting = getWaitingCharge(service);
+    const waiting = getWaitingCharge(service, routeMetrics);
     const normalizedSubtotal = outboundSubtotal + returnSubtotal + waiting.waitCharge;
     const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const taxAmount = normalizedSubtotal * (taxRatePct / 100);
@@ -2206,6 +2255,7 @@
   }
 
   function getEstimatedRouteMinutes(){
+    if(isMultipleStopsEnabled() && routeLegTravelMinutes[0] > 0) return Number(routeLegTravelMinutes[0]);
     const traffic = Math.max(0, Number(estimateState.trafficDurationMinutes || 0));
     const scheduled = Math.max(0, Number(estimateState.durationMinutes || 0));
     return Math.max(traffic, scheduled);
@@ -2247,7 +2297,7 @@
     if(pickupMinutes==null||!routeMinutes){appointmentTimeInput.value='';return;}
     appointmentTimeInput.value=minutesToTime(pickupMinutes+Math.ceil(routeMinutes)+15);
   }
-  function applyScheduleTimeCalculation(){if(isPickupTimeBasis())applyAppointmentEstimateFromPickup();else applyPickupEstimateFromAppointment();}
+  function applyScheduleTimeCalculation(){if(isPickupTimeBasis())applyAppointmentEstimateFromPickup();else applyPickupEstimateFromAppointment();syncCalculatedWaitingUi();}
   function syncScheduleBasisUi(){
     const pickupBasis=isPickupTimeBasis();
     if(appointmentTimeInput){appointmentTimeInput.readOnly=pickupBasis;appointmentTimeInput.required=!pickupBasis;appointmentTimeInput.classList.toggle('systemGeneratedField',pickupBasis);}
@@ -3125,10 +3175,12 @@
       renderCustomerRoute(result, pickup, destinations);
       renderMultiStopFeasibility();
     }catch(err){
-      const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations]);
+      const fallbackLegTravelMinutes = [];
+      const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations], undefined, [], fallbackLegTravelMinutes);
       if(estimateVersion!==routeEstimateVersion)return estimateState;
       if(fallbackMiles){
-        const fallbackDurationMinutes = Math.max(15, Math.round((fallbackMiles / 25) * 60));
+        const fallbackDurationMinutes = fallbackLegTravelMinutes.reduce((sum, minutes) => sum + minutes, 0);
+        routeLegTravelMinutes = fallbackLegTravelMinutes;
         const fallbackBreakdown = calculateFareBreakdown(service, fallbackMiles, tripDate, fareTime, { durationMinutes: fallbackDurationMinutes, trafficDurationMinutes: fallbackDurationMinutes });
         renderFareEstimateBreakdown(fallbackBreakdown, fallbackMiles, `Estimated locally (~${fallbackDurationMinutes} min)`, fallbackDurationMinutes, fallbackDurationMinutes);
         setStatus('Your route and fare were estimated using the available location information.', 'ok');
@@ -3482,6 +3534,7 @@
     if(type!=='ROUND_TRIP'){if(returnTripDate)returnTripDate.value='';if(returnTripTime)returnTripTime.value='';}
     if(type!=='RECURRING'){if(recurrenceEndDate)recurrenceEndDate.value='';document.querySelectorAll('input[name="recurrenceDay"]').forEach((input)=>{input.checked=false;});}
     updateTripScheduleSavingsMessage();
+    syncCalculatedWaitingUi();
   }
 
   function isTripScheduleComplete(){
@@ -4272,10 +4325,6 @@
     payerType?.addEventListener('change',()=>{syncInsuranceCarrierUi();syncSectionProgressUi();});
     insuranceCarrier?.addEventListener('change',()=>{riderDetailsConfirmed=false;syncSectionProgressUi();});
     syncInsuranceCarrierUi();
-    ['input','change'].forEach(eventName => $('waitMinutes')?.addEventListener(eventName, () => {
-      refreshFareForMembership();
-      syncSectionProgressUi();
-    }));
     tripType?.addEventListener('change',()=>{syncTripScheduleUi();refreshFareForMembership();syncSectionProgressUi();});
     [returnTripDate,returnTripTime].forEach((input)=>input?.addEventListener('change',()=>{refreshFareForMembership();syncSectionProgressUi();}));
     recurrenceEndDate?.addEventListener('change',syncSectionProgressUi);
