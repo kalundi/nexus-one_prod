@@ -66,3 +66,45 @@ test('changing schedule after estimating refreshes the signed-in savings rate',a
  await expect(page.locator('#estSavingsLabel')).toHaveText('Member Savings (10%)');
  await expect(page.locator('#tripScheduleSavingsMessage')).toContainText('10% savings applied');
 });
+
+for(const signedIn of [false,true]) test(`round-trip charges both legs before ${signedIn?'member':'guest'} savings and payment`,async({page})=>{
+ await prepareRide(page,{signedIn});
+ const money=async id=>Number((await page.locator(`#${id}`).textContent()).replace(/[^0-9.]/g,''));
+ const oneWaySubtotal=await money('estSubtotal');
+ const oneWayTotal=await money('estFare');
+ await page.locator('#fareConfirmCancel').click();
+ const changeSchedule=async type=>page.locator('#tripType').evaluate((select,value)=>{
+  select.value=value;
+  select.dispatchEvent(new Event('change',{bubbles:true}));
+ },type);
+ const roundTripTotal=Number((oneWaySubtotal*2*1.03*(signedIn?.90:.95)).toFixed(2));
+ for(let index=0;index<2;index++){
+  await changeSchedule('ROUND_TRIP');
+  expect(await money('estSubtotal')).toBeCloseTo(oneWaySubtotal*2,1);
+  expect(await money('estFare')).toBeCloseTo(roundTripTotal,1);
+  await changeSchedule('ONE_WAY');
+  expect(await money('estSubtotal')).toBeCloseTo(oneWaySubtotal,1);
+  expect(await money('estFare')).toBeCloseTo(oneWayTotal,1);
+ }
+ await changeSchedule('ROUND_TRIP');
+ await page.locator('#returnTripDate').evaluate(input=>{input.value='2030-08-16';input.dispatchEvent(new Event('change',{bubbles:true}));});
+ await page.locator('#returnTripTime').evaluate(input=>{input.value='14:30';input.dispatchEvent(new Event('change',{bubbles:true}));});
+ await expect(page.locator('#tripScheduleSavingsMessage')).toContainText('both outbound and return legs');
+ const displayTotal=await page.locator('#estFare').textContent();
+ await expect(page.locator('[data-service="wheelchair"] .serviceCardFare')).toHaveText(displayTotal);
+ await expect(page.locator('#fareSummaryAmount')).toHaveText(displayTotal);
+ let submitted;
+ await page.route('**/api/bookings',route=>{
+  submitted=route.request().postDataJSON();
+  return route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({booking:{reference:'ROUND-TRIP-1',estimatedFare:submitted.estimatedFare},requiresOnlinePayment:true,persisted:true})});
+ });
+ await page.locator('#reviewFareBtn').click();
+ await expect(page.locator('#fareConfirmAmount')).toHaveText(displayTotal);
+ await page.locator('#fareConfirmAccept').click();
+ await expect(page.locator('#paymentSummary')).toContainText('ROUND-TRIP-1');
+ expect(submitted.tripType).toBe('ROUND_TRIP');
+ expect(submitted.estimatedFareBeforeDiscount).toBeCloseTo(oneWaySubtotal*2*1.03,1);
+ expect(submitted.estimatedFare).toBeCloseTo(roundTripTotal,1);
+ await expect(page.locator('#fullAmountLabel')).toHaveText(displayTotal);
+ await expect(page.locator('#depositAmountLabel')).toHaveText(`$${(submitted.estimatedFare*.25).toFixed(2)}`);
+});

@@ -550,6 +550,7 @@
     if(isRepeatSchedule){
       const rideLabel=tripSchedule==='ROUND_TRIP'?'round-trip':'recurring';
       copy=signedIn?`10% savings applied to this ${rideLabel} ride.`:`Save 5% on this ${rideLabel} ride. Sign in for 10% savings.`;
+      if(tripSchedule==='ROUND_TRIP') copy=`Round-trip fare includes both outbound and return legs. ${copy}`;
     }else{
       copy=signedIn?'Members save 5% on one-way rides. Choose round-trip or recurring for 10% savings.':'Round-trip and recurring rides save 5%. Sign in to save 10%.';
     }
@@ -591,6 +592,9 @@
       memberDiscountNote.textContent = discountView.discountPct > 0
         ? `${discountView.signedIn?'Member':'Schedule'} savings active: ${discountView.discountPct}% off this ride.`
         : `Sign in to save ${MEMBER_DISCOUNT_PCT}% on one-way rides, or choose a round-trip or recurring schedule to save 5%.`;
+      if(String(tripType?.value||'').toUpperCase()==='ROUND_TRIP'){
+        memberDiscountNote.textContent=`Round-trip fare includes both outbound and return legs. ${memberDiscountNote.textContent}`;
+      }
     }
     applyScheduleTimeCalculation();
     renderRideMarketplace();
@@ -697,12 +701,11 @@
     const subtotal = Number(estimateState.subtotal || 0);
     const taxAmount = Number(estimateState.taxAmount || 0);
     if(subtotal <= 0 && taxAmount <= 0 && Number(estimateState.fare || 0) <= 0) return;
-    renderFareEstimateBreakdown({
-      subtotal,
-      taxAmount,
-      total: subtotal + taxAmount,
-      taxRatePct: CARD_PROCESSING_FEE_PCT
-    }, estimateState.miles, estimateState.durationText || '-', estimateState.durationMinutes, estimateState.trafficDurationMinutes);
+    const breakdown=calculateFareBreakdown(normalizeService($('service').value),estimateState.miles,$('tripDate').value,resolveFareTimeForEstimate(),{
+      durationMinutes:estimateState.durationMinutes,
+      trafficDurationMinutes:estimateState.trafficDurationMinutes
+    });
+    renderFareEstimateBreakdown(breakdown, estimateState.miles, estimateState.durationText || '-', estimateState.durationMinutes, estimateState.trafficDurationMinutes);
   }
 
   function setBusy(button, isBusy, busyText, idleText){
@@ -1925,7 +1928,9 @@
     const premiumRateReason=getPremiumRateReason(dateStr,timeStr,scheduledMinutes);
     if(premiumRateReason) subtotal *= 1.30;
 
-    const normalizedSubtotal = Math.max(Number(fareRules.minimumFare || 0), subtotal);
+    // Rates cover one passenger leg. Charge both legs before applying schedule savings.
+    const passengerLegCount = String(tripType?.value || 'ONE_WAY').toUpperCase() === 'ROUND_TRIP' ? 2 : 1;
+    const normalizedSubtotal = Math.max(Number(fareRules.minimumFare || 0), subtotal) * passengerLegCount;
     const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const taxAmount = normalizedSubtotal * (taxRatePct / 100);
     return {
