@@ -2662,18 +2662,26 @@
     try{
       if(!window.google?.maps?.places?.Autocomplete) return false;
       if(!pickupAutocomplete){
-        pickupAutocomplete = new google.maps.places.Autocomplete($('pickup'), { types:['geocode'] });
+        pickupAutocomplete = new google.maps.places.Autocomplete($('pickup'), {
+          fields:['formatted_address','geometry','place_id','name'],
+          componentRestrictions:{country:'us'},
+          types:['geocode','establishment']
+        });
         pickupAutocomplete.addListener('place_changed', () => {
           const place = pickupAutocomplete.getPlace();
-          if(place?.formatted_address) $('pickup').value = place.formatted_address;
+          if(place?.formatted_address || place?.name) $('pickup').value = place.formatted_address || place.name;
           resetEstimateUi();
         });
       }
       if(!destinationAutocomplete){
-        destinationAutocomplete = new google.maps.places.Autocomplete($('destination'), { types:['geocode'] });
+        destinationAutocomplete = new google.maps.places.Autocomplete($('destination'), {
+          fields:['formatted_address','geometry','place_id','name'],
+          componentRestrictions:{country:'us'},
+          types:['geocode','establishment']
+        });
         destinationAutocomplete.addListener('place_changed', () => {
           const place = destinationAutocomplete.getPlace();
-          if(place?.formatted_address) $('destination').value = place.formatted_address;
+          if(place?.formatted_address || place?.name) $('destination').value = place.formatted_address || place.name;
           resetEstimateUi();
         });
       }
