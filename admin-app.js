@@ -826,6 +826,8 @@ function renderServicePolicyRows(settings){
     const p=policies[key]||{};
     return `<tr data-service-policy="${key}">
       <td><strong>${label}</strong></td>
+      <td>$${Number(pricing[key]?.waitPer15||0).toFixed(2)}</td>
+      <td><input type="number" step="1" min="0" max="720" data-field="freeWaitMinutes" value="${p.freeWaitMinutes==null?'':Number(p.freeWaitMinutes)}" placeholder="${Number(rules.freeWaitMinutes||0)}" aria-label="${escapeHtml(label)} free wait minutes" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
       <td><input type="number" step="0.01" min="0" data-field="cancellationFee" value="${Number(p.cancellationFee||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
       <td><input type="number" step="0.01" min="0" data-field="noShowFee" value="${Number(p.noShowFee||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
       <td><input type="number" step="0.01" min="0" data-field="trafficOverageFeePerHour" value="${Number(p.trafficOverageFeePerHour||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
@@ -844,7 +846,8 @@ function readServicePoliciesFromTable(){
     if(!key)return;
     const row={};
     tr.querySelectorAll('input[data-field]').forEach((input)=>{
-      row[input.getAttribute('data-field')]=Number(input.value||0);
+      const field=input.getAttribute('data-field');
+      row[field]=field==='freeWaitMinutes'&&input.value.trim()===''?null:Number(input.value||0);
     });
     out[key]=row;
   });

@@ -1006,6 +1006,7 @@ function mergeServicePolicies(input){
  for(const key of Object.keys(base)){
   const src=input[key]||{};
   base[key]={
+   freeWaitMinutes:src.freeWaitMinutes==null||src.freeWaitMinutes===''?null:clamp(n(src.freeWaitMinutes,0),0,720),
    cancellationFee:clamp(n(src.cancellationFee,base[key].cancellationFee),0,10000),
    noShowFee:clamp(n(src.noShowFee,base[key].noShowFee),0,10000),
    trafficOverageFeePerHour:clamp(n(src.trafficOverageFeePerHour,base[key].trafficOverageFeePerHour),0,1000),
@@ -2828,6 +2829,7 @@ async function handler(event){
   const appointmentTimes=(submittedAppointments.length?submittedAppointments:[{leg:1,destination:destinations[0]||clean(b.destination),appointmentTime}]).map((item,index)=>({leg:index+1,destination:clean(item?.destination||destinations[index]||''),appointmentTime:normalizeOptionalTripTime(item?.appointmentTime||'')}));
   if(destinations.length>1&&(appointmentTimes.length!==destinations.length||appointmentTimes.some((item)=>!item.appointmentTime)))return json(400,{error:'An appointment time is required for every destination stop.'});
   const stopWaitMinutes=(Array.isArray(b.stopWaitMinutes)?b.stopWaitMinutes:[]).map((value)=>Math.max(0,Math.min(720,Number(value)||0)));
+  const additionalWaitMinutes=Math.max(0,Math.min(720,Number(b.waitMinutes)||0));
   const scheduleFeasibility=b.scheduleFeasibility&&typeof b.scheduleFeasibility==='object'?b.scheduleFeasibility:null;
   if(destinations.length>1&&scheduleFeasibility?.feasible===false&&!scheduleFeasibility?.pending)return json(400,{error:clean(scheduleFeasibility.message)||'The multi-stop schedule is not feasible for one driver.'});
   const tripType=['ONE_WAY','ROUND_TRIP','RECURRING'].includes(clean(b.tripType).toUpperCase())?clean(b.tripType).toUpperCase():'ONE_WAY';
@@ -2860,6 +2862,8 @@ async function handler(event){
   const metadataNotes=[
    appointmentTimes.length>1?`Stop appointments: ${appointmentTimes.map((item)=>`Stop ${item.leg} (${item.destination}): ${item.appointmentTime}`).join('; ')}`:'',
    stopWaitMinutes.length?`Expected stop times: ${stopWaitMinutes.map((minutes,index)=>`Stop ${index+1}: ${Math.round(minutes)} min`).join('; ')}`:'',
+   additionalWaitMinutes?`Additional driver waiting: ${additionalWaitMinutes} min`:'',
+   Number(b.waitingCharge)>0?`Estimated waiting charge before discounts and card processing: $${Number(b.waitingCharge).toFixed(2)}`:'',
    appointmentTimes.length>1&&scheduleFeasibility?.message?`One-driver schedule check: ${clean(scheduleFeasibility.message)}`:'',
    pickupTimeEstimate?`Pickup estimate: ${pickupTimeEstimate}`:'',
     yardAddress?`Yard start: ${yardAddress}`:'',
@@ -3222,7 +3226,9 @@ async function handler(event){
   await ensureBookingFlightSchema();
    const fare=Math.max(0,Number(b.estimatedFare||0));
   const flightNote=flightInfo?`Airport flight: ${flightInfo.flightNumber||'unspecified'} ${flightInfo.movement.toLowerCase()} at ${flightInfo.airport.name||flightInfo.airport.code||flightInfo.airportName||'selected airport'}${flightInfo.terminal?`, terminal ${flightInfo.terminal}`:''}${flightInfo.gate?`, gate ${flightInfo.gate}`:''} (${flightInfo.terminalSource})`:'';
-  const updatedNotes=upsertAppointmentNote([clean(b.notes),flightNote].filter(Boolean).join('\n'),clean(b.appointmentTime));
+  const waitingNote=Number(b.waitMinutes)>0?`Additional driver waiting: ${Math.max(0,Math.min(720,Number(b.waitMinutes)||0))} min`:'';
+  const stopWaitingNote=Array.isArray(b.stopWaitMinutes)&&b.stopWaitMinutes.length?`Expected stop times: ${b.stopWaitMinutes.map((minutes,index)=>`Stop ${index+1}: ${Math.max(0,Math.min(720,Number(minutes)||0))} min`).join('; ')}`:'';
+  const updatedNotes=upsertAppointmentNote([clean(b.notes),flightNote,waitingNote,stopWaitingNote].filter(Boolean).join('\n'),clean(b.appointmentTime));
   const updated=await query(`UPDATE bookings SET name=$2,email=$3,service=$4,pickup=$5,destination=$6,trip_date=$7,trip_time=$8,notes=$9,distance_miles=$10,estimated_duration=$11,estimated_fare=$12,deposit_amount=CASE WHEN requires_deposit THEN $12*.25 ELSE deposit_amount END,balance_due=CASE WHEN requires_deposit THEN $12*.75 ELSE $12 END,flight_info=$13::jsonb,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,clean(b.name),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,clean(b.time),updatedNotes,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,flightInfo?JSON.stringify(flightInfo):null]);
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),'Rider updated booking details','PASSENGER']);
    await audit('BOOKING',ref,'RIDER_UPDATED',{service:b.service,date:b.date,time:b.time});
