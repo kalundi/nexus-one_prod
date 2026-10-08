@@ -373,6 +373,7 @@
     .metaRow input,.metaRow select{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
     .suiteRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:8px;align-items:start}.suiteRow .field{min-width:0;display:grid;grid-template-rows:22px auto;align-content:start;margin:0}.suiteRow .field>label{margin:0;align-self:start;line-height:18px}.suiteRow input{width:100%;min-width:0;box-sizing:border-box;margin:0}
     .pickupWaitPair{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}.pickupWaitPair.hasWaiting{grid-template-columns:repeat(2,minmax(0,1fr))}.scheduleRow>.pickupWaitPair{grid-column:1/-1}.pickupWaitPair.hasWaiting .systemGeneratedTag{display:none}
+    .scheduleGroup{margin-top:16px;padding:16px;border:1px solid #d4e1e8;border-radius:14px;background:#fff}.scheduleGroupTitle{margin:0;color:#173f52;font:800 16px/1.4 Sora,sans-serif}.scheduleGroupHint{margin:5px 0 12px;color:#607786;font-size:13px;line-height:1.5}.returnScheduleRow{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.returnScheduleRow .field{margin:0}.scheduleGroup select,#tripType{min-height:48px;width:100%;border:1px solid #c7d3da;border-radius:8px;padding:10px;background:#fff;font:inherit;color:#173f52}
     .scheduleRow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.08fr);align-items:start}
     .scheduleRow .field{min-width:0;width:100%;display:grid;grid-template-rows:28px auto auto;align-content:start;margin:0}.scheduleRow .field>label{min-height:28px;margin:0;align-self:start;line-height:18px}.scheduleRow input{min-width:0;width:100%;max-width:100%;box-sizing:border-box;margin:0}
     .legAppointmentTimes{margin-top:12px;padding:14px;border:1px solid #d4e1e8;border-radius:12px;background:#f5f8fa}.legAppointmentTimesTitle{margin:0 0 10px;color:#173f52;font-size:14px}.legAppointmentTimesGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.legAppointmentDestination{display:block;min-height:18px;margin-top:5px;color:#607786;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1030,25 +1031,17 @@ Destination: -</p>
           <label for="tripType">Trip schedule</label>
           <select id="tripType" name="tripType"><option value="ONE_WAY">One-way ride</option><option value="ROUND_TRIP">Round trip</option><option value="RECURRING">Recurring rides</option></select>
         </div>
-        <div id="roundTripFields" class="metaRow" hidden>
-          <div class="field"><label for="returnTripDate">Return date</label><input id="returnTripDate" name="returnTripDate" type="date"></div>
-          <div class="field"><label for="returnTripTime">Return pickup time</label><input id="returnTripTime" name="returnTripTime" type="time"></div>
-        </div>
-        <div id="recurringRideFields" hidden>
-          <fieldset class="guidanceQuestion"><legend>Repeat on</legend><div class="accessibilityControls" id="recurrenceDays">
-            <label><input type="checkbox" name="recurrenceDay" value="MON"> Mon</label><label><input type="checkbox" name="recurrenceDay" value="TUE"> Tue</label><label><input type="checkbox" name="recurrenceDay" value="WED"> Wed</label><label><input type="checkbox" name="recurrenceDay" value="THU"> Thu</label><label><input type="checkbox" name="recurrenceDay" value="FRI"> Fri</label><label><input type="checkbox" name="recurrenceDay" value="SAT"> Sat</label><label><input type="checkbox" name="recurrenceDay" value="SUN"> Sun</label>
-          </div></fieldset>
-          <div class="field"><label for="recurrenceEndDate">Repeat through</label><input id="recurrenceEndDate" name="recurrenceEndDate" type="date"><small class="subtle">Recurring schedules can be requested for up to 12 weeks.</small></div>
-        </div>
-
+        <div class="scheduleGroup" id="outboundScheduleGroup" aria-labelledby="outboundScheduleTitle">
+        <h3 class="scheduleGroupTitle" id="outboundScheduleTitle">Outbound ride</h3>
+        <p class="scheduleGroupHint">Set the date and time for the ride to your destination.</p>
         <div class="metaRow scheduleRow" style="margin-top:12px">
           <div class="field">
-            <label for="scheduleBasis">I know the</label>
+            <label for="scheduleBasis">Schedule using</label>
             <select id="scheduleBasis" name="scheduleBasis"><option value="APPOINTMENT">Appointment time</option><option value="PICKUP">Pickup time</option></select>
             <small class="subtle">Enter either time. We calculate the other from the route.</small>
           </div>
           <div class="field">
-            <label for="tripDate">Date</label>
+            <label for="tripDate">Outbound date</label>
             <input id="tripDate" name="tripDate" type="date" required>
           </div>
           <div class="field">
@@ -1069,6 +1062,23 @@ Destination: -</p>
           <p class="legAppointmentTimesTitle"><strong>Multi-stop schedule check</strong><br><span class="subtle">Enter each appointment time. Pickup and waiting at each stop are calculated from the next appointment. We include travel, traffic, and rider assistance to check whether one driver can make every appointment.</span></p>
           <div class="legAppointmentTimesGrid" id="legAppointmentTimesGrid"></div>
           <p class="scheduleFeasibility pending" id="scheduleFeasibility" aria-live="polite">Complete the route and stop schedule to check feasibility.</p>
+        </div>
+        </div>
+        <div id="roundTripFields" class="scheduleGroup" aria-labelledby="returnScheduleTitle" hidden>
+          <h3 class="scheduleGroupTitle" id="returnScheduleTitle">Return ride</h3>
+          <p class="scheduleGroupHint">Choose when the rider should be picked up for the ride back. Waiting is calculated from estimated arrival until this pickup.</p>
+          <div class="metaRow returnScheduleRow">
+            <div class="field"><label for="returnTripDate">Return date</label><input id="returnTripDate" name="returnTripDate" type="date"></div>
+            <div class="field"><label for="returnTripTime">Return pickup time</label><input id="returnTripTime" name="returnTripTime" type="time"></div>
+          </div>
+        </div>
+        <div id="recurringRideFields" class="scheduleGroup" aria-labelledby="recurringScheduleTitle" hidden>
+          <h3 class="scheduleGroupTitle" id="recurringScheduleTitle">Repeat this ride</h3>
+          <p class="scheduleGroupHint">Repeat the outbound schedule on the days selected below.</p>
+          <fieldset class="guidanceQuestion"><legend>Repeat on</legend><div class="accessibilityControls" id="recurrenceDays">
+            <label><input type="checkbox" name="recurrenceDay" value="MON"> Mon</label><label><input type="checkbox" name="recurrenceDay" value="TUE"> Tue</label><label><input type="checkbox" name="recurrenceDay" value="WED"> Wed</label><label><input type="checkbox" name="recurrenceDay" value="THU"> Thu</label><label><input type="checkbox" name="recurrenceDay" value="FRI"> Fri</label><label><input type="checkbox" name="recurrenceDay" value="SAT"> Sat</label><label><input type="checkbox" name="recurrenceDay" value="SUN"> Sun</label>
+          </div></fieldset>
+          <div class="field"><label for="recurrenceEndDate">Repeat through</label><input id="recurrenceEndDate" name="recurrenceEndDate" type="date"><small class="subtle">Recurring schedules can be requested for up to 12 weeks.</small></div>
         </div>
         </div>
 

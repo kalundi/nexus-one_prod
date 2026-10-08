@@ -63,6 +63,10 @@ for (const scenario of [
     await page.locator('#scheduleBasis').selectOption('PICKUP');
     await page.locator('#tripTime').fill(scenario.pickupTime);
   }else await page.locator('#appointmentTime').fill('10:30');
+  if(scenario.initialReturnTime){
+    expect(await page.evaluate(()=>Boolean(document.getElementById('outboundScheduleGroup').compareDocumentPosition(document.getElementById('roundTripFields')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+    await page.locator('#routeScheduleFields').screenshot({path:'output/booking-schedule-redesign.png'});
+  }
   await page.locator('#confirmPickupDropoffBtn').click();
   await page.locator('[data-service="wheelchair"]').click();
   if(scenario.initialReturnTime) await page.locator('#returnTripTime').evaluate((input,time)=>{
