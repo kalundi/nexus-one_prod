@@ -1077,6 +1077,9 @@ async function insertBrokerRequest({brokerId,brokerName,service,pickup,destinati
  if(sourceMessageId){
   const existing=await query('SELECT * FROM broker_requests WHERE source_message_id=$1 LIMIT 1',[sourceMessageId]).catch(()=>({rows:[]}));
   if(existing.rows?.[0]){
+   // A replay of the same message must not undo dispatch edits or measured
+   // routes. A new broker message can still describe an actual schedule change.
+   if(existing.rows[0].booking_reference)return {...existing.rows[0],isReplay:true};
    const dispatchNote=`Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Fare uses saved outbound and return schedule.`;
    const updated=await query(`UPDATE broker_requests SET
     broker_id=$2,
@@ -1500,6 +1503,10 @@ exports.handler=async(event)=>{
   if(request?.booking_reference){
    const existingBooking=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[request.booking_reference]).catch(()=>({rows:[]}));
    booking=existingBooking.rows?.[0]||null;
+   if(booking?.duplicate_of){
+    const canonical=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[booking.duplicate_of]);
+    booking=canonical.rows[0]||booking;
+   }
   }
   if(booking&&attachments.length>0){
    await saveBookingAttachments({
@@ -1508,7 +1515,7 @@ exports.handler=async(event)=>{
     attachments
    });
   }
-  if(booking&&hasConfirmationSubject&&attachments.length>0&&!parsed.subject_fallback){
+  if(booking&&!request.isReplay&&hasConfirmationSubject&&attachments.length>0&&!parsed.subject_fallback){
    booking=await enrichExistingBookingFromBrokerRequest({
     bookingReference:booking.reference,
     parsed,

@@ -1,5 +1,7 @@
 const crypto=require('crypto');
 const NexusFare=require('../../nexus-fare.js');
+const NexusRoute=require('../../nexus-route.js');
+const RouteFares=require('./_shared/route-fares.cjs');
 const {isDuplicateTrip,duplicateTripResponse}=require('./_shared/booking-duplicate.cjs');
 const {lookupFlight}=require('./_shared/flightaware.cjs');
 const fs=require('fs');
@@ -3579,6 +3581,24 @@ async function handler(event){
     body:binary.toString('base64')
    };
   }
+  if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='route-fare-inputs'&&method==='POST'){
+   await requireUser(bearer(event),['ADMIN','DISPATCHER']);
+   const ref=decodeURIComponent(p[2]),body=parseBody(event),settings=await readPlatformSettings();
+   const client=await getPool().connect();
+   let updated;
+   try{
+    await client.query('BEGIN');
+    const found=await client.query('SELECT * FROM bookings WHERE reference=$1 FOR UPDATE',[ref]);
+    if(!found.rows[0])throw Object.assign(Error('Booking not found'),{statusCode:404});
+    if(found.rows[0].duplicate_of)throw Object.assign(Error('This record is a duplicate. Open '+found.rows[0].duplicate_of+' instead.'),{statusCode:409});
+    const booking=mapBooking(found.rows[0]),inputs=body.routeFareInputs;
+    try{NexusRoute.validate(inputs,{...booking,...NexusFare.resolveTripSchedule(booking)},settings.organization?.yardAddress);}catch(error){throw Object.assign(error,{statusCode:400});}
+    await client.query(`INSERT INTO fare_route_cache(route_key,inputs) VALUES($1,$2::jsonb) ON CONFLICT(route_key) DO UPDATE SET inputs=EXCLUDED.inputs,updated_at=now()`,[RouteFares.cacheKey(booking,settings.organization?.yardAddress),JSON.stringify(inputs)]);
+    updated=await client.query('UPDATE bookings SET route_fare_inputs=$2::jsonb,distance_miles=$3,estimated_duration=$4,updated_at=now() WHERE reference=$1 RETURNING *',[ref,JSON.stringify(inputs),inputs.miles,Math.ceil(inputs.durationMinutes)+' min']);
+    await client.query('COMMIT');
+   }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+   return json(200,{booking:withCurrentEstimate(mapBooking(updated.rows[0]),settings)});
+  }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='GET'){
    await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);
    const ref=decodeURIComponent(p[2]);
@@ -3612,7 +3632,9 @@ async function handler(event){
    if(intakePickupTime)mappedBooking.pickupTime=intakePickupTime;
   }
   mappedBooking.intakePayload=intakeAudit?.parsedPayload||{};
-  const estimatedBooking=withCurrentEstimate(mappedBooking,await readPlatformSettings());
+  const estimateSettings=await readPlatformSettings();
+  const [routedBooking]=await RouteFares.hydrate([mappedBooking],estimateSettings,query);
+  const estimatedBooking=withCurrentEstimate(routedBooking,estimateSettings);
   return json(200,{booking:estimatedBooking,intakeAudit});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='DELETE'){
@@ -3689,6 +3711,7 @@ async function handler(event){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','DRIVER']);
    const b=parseBody(event),ref=decodeURIComponent(p[2]);
    const before=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
+   if(before.rows[0]?.duplicate_of)return json(409,{error:'This booking is a duplicate of '+before.rows[0].duplicate_of+'. Open that trip to make changes.'});
    if(!before.rows[0])return json(404,{error:'Booking not found'});
    const editingMock=String(before.rows[0].booking_source||'').toUpperCase()==='MOCK'||String(before.rows[0].status||'').toUpperCase()==='MOCK';
    if(editingMock&&u.role!=='DRIVER'){b.bookingSource='MOCK';b.status='MOCK';}
@@ -3712,8 +3735,9 @@ async function handler(event){
    if(hasCalculatedFare){
     const saved=mapBooking(before.rows[0]);
     try{
-     const edited={...saved,service:b.service??saved.service,date:b.date??saved.date,time:b.time??saved.time,pickupTime:b.time??saved.pickupTime,appointmentTime:b.appointmentTime??saved.appointmentTime,...(hasTripSchedule?{tripScheduleExplicit:true,tripType:tripTypeValue,returnTripDate:returnDateValue,returnTripTime:returnTimeValue}:{})};
+     const edited={...saved,service:b.service??saved.service,pickup:b.pickup??saved.pickup,destination:b.destination??saved.destination,date:b.date??saved.date,time:b.time??saved.time,pickupTime:b.time??saved.pickupTime,appointmentTime:b.appointmentTime??saved.appointmentTime,...(b.fareInputs?{fareInputs:b.fareInputs,routeFareInputs:b.fareInputs.routeVerified?b.fareInputs:saved.routeFareInputs}:{}),...(hasTripSchedule?{tripScheduleExplicit:true,tripType:tripTypeValue,returnTripDate:returnDateValue,returnTripTime:returnTimeValue}:{})};
      const settings=await readPlatformSettings();
+     if(b.fareInputs?.routeVerified)NexusRoute.validate(b.fareInputs,edited,settings.organization?.yardAddress);
      calculatedFare=b.recalculateEstimate===true?NexusFare.calculateEstimate(edited,settings):NexusFare.calculateBooking(edited,b.fareInputs,settings);
      if(b.recalculateEstimate===true)b.fareInputs=calculatedFare.inputs;
     }catch(error){return json(400,{error:error.message});}
@@ -3867,6 +3891,11 @@ async function handler(event){
 
   if(!r.rows[0])return json(404,{error:'Booking not found'});
   if(hasTripSchedule)await query(`UPDATE broker_requests SET parsed_payload=COALESCE(parsed_payload,'{}'::jsonb)||$2::jsonb,updated_at=now() WHERE booking_reference=$1`,[ref,JSON.stringify({trip_type:tripTypeValue,is_return_trip:tripTypeValue==='ROUND_TRIP',return_trip_date:returnDateValue,return_trip_time:returnTimeValue})]);
+  if(calculatedFare?.inputs?.routeVerified){
+    const inputs=calculatedFare.inputs;
+    const routed=await query('UPDATE bookings SET route_fare_inputs=$2::jsonb,distance_miles=$3,estimated_duration=$4 WHERE reference=$1 RETURNING *',[ref,JSON.stringify(inputs),inputs.miles,Math.ceil(inputs.durationMinutes)+' min']);
+    r.rows[0]=routed.rows[0];
+  }
 
   if(hasPickupTime){
     await query('UPDATE bookings SET pickup_time=$2::time,updated_at=now() WHERE reference=$1',[ref,pickupTimeValue]).catch(()=>{});
@@ -4589,7 +4618,7 @@ async function handler(event){
    );
   const sql=`SELECT * FROM bookings WHERE ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)) AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION','EN_ROUTE','ARRIVED_PICKUP','PATIENT_ON_BOARD','DEPARTED','ARRIVED_DESTINATION','DELIVERED','COMPLETED','NO_SHOW','MISSED','CANCELLED') ORDER BY trip_date,trip_time,created_at`;
    const r=await query(sql,[driverName,scopeId]);
-   return json(200,{assignments:r.rows.map(mapBooking)});
+   return json(200,{assignments:r.rows.filter(row=>!row.duplicate_of).map(mapBooking)});
   }
   // Admin: toggle user active/inactive
   if(p[0]==='admin'&&p[1]==='users'&&p[2]&&method==='PATCH'){
@@ -4998,6 +5027,8 @@ function mapBooking(b){
   vehicleUnit:b.vehicle_unit,
   facilityId:b.facility_id,
   distanceMiles:b.distance_miles!=null?Number(b.distance_miles):b.distanceMiles!=null?Number(b.distanceMiles):null,
+  routeFareInputs:b.route_fare_inputs||b.routeFareInputs||null,
+  duplicateOf:b.duplicate_of||b.duplicateOf||null,
   estimatedDuration:b.estimated_duration,
   estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,
   promotionCode:b.promotion_code||null,
@@ -5057,7 +5088,7 @@ function mapParseSourceLabel(method){
 }
 
 async function mapBookingsWithIntakeAudit(rows){
- const mapped=(Array.isArray(rows)?rows:[]).map(mapBooking);
+ let mapped=(Array.isArray(rows)?rows:[]).filter(row=>!row.duplicate_of&&!row.duplicateOf).map(mapBooking);
  const references=[...new Set(mapped.map((b)=>clean(b.reference)).filter(Boolean))];
  if(!references.length) return mapped;
 
@@ -5087,6 +5118,7 @@ async function mapBookingsWithIntakeAudit(rows){
  const intakeByRef=new Map((intakeRows.rows||[]).map((row)=>[String(row.booking_reference),row]));
  const attachmentByRef=new Map((attachmentCounts.rows||[]).map((row)=>[String(row.booking_reference),Number(row.count||0)]));
  const estimateSettings=await readPlatformSettings();
+ mapped=await RouteFares.hydrate(mapped,estimateSettings,query);
 
  return mapped.map((booking)=>{
   const intake=intakeByRef.get(String(booking.reference||''))||null;
@@ -5114,6 +5146,7 @@ async function mapBookingsWithIntakeAudit(rows){
 }
 
 function withCurrentEstimate(booking,settings){
+ booking=RouteFares.currentBooking(booking,settings);
  const {intakePayload,...publicBooking}=booking;
  const schedule=NexusFare.resolveTripSchedule(booking);
  try{

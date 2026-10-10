@@ -67,7 +67,7 @@ test('all historical trips receive refreshed estimates on the API list path',asy
  const start=source.indexOf('async function mapBookingsWithIntakeAudit('),end=source.indexOf('exports.handler=',start);
  let reads=0;
  const trips=[legacy,{...legacy,reference:'OLD-2',distanceMiles:8},{...legacy,reference:'OLD-3',date:'2030-08-17'}];
- const context=vm.createContext({NexusFare:Fare,mapBooking:b=>({...b}),mapParseSourceLabel:()=>null,clean:v=>String(v||''),normalizeOptionalTripTime:v=>v||'',query:async()=>({rows:[]}),readPlatformSettings:async()=>{reads++;return settings;}});
+ const context=vm.createContext({NexusFare:Fare,RouteFares:require('../netlify/functions/_shared/route-fares.cjs'),mapBooking:b=>({...b}),mapParseSourceLabel:()=>null,clean:v=>String(v||''),normalizeOptionalTripTime:v=>v||'',query:async()=>({rows:[]}),readPlatformSettings:async()=>{reads++;return settings;}});
  vm.runInContext(source.slice(start,end),context);
  const result=await context.mapBookingsWithIntakeAudit(trips);
  assert.equal(reads,1);

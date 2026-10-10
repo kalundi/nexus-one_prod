@@ -74,3 +74,16 @@ test('email platform estimate uses current fare rules with scheduled waiting ins
  assert.equal(oneWay.platformRate,173.91);
  assert.equal(oneWay.fareCalculation.waitMinutes,0);
 });
+test('replaying an already materialized broker email cannot overwrite dispatch corrections',async()=>{
+ const existing={id:123,booking_reference:'CORRECTED-TRIP',source_message_id:'same-email',parsed_payload:{trip_type:'ROUND_TRIP',return_trip_time:'12:00'}};
+ const reads=[];
+ const context=vm.createContext({query:async(sql)=>{reads.push(sql);if(sql.startsWith('SELECT * FROM broker_requests'))return {rows:[existing]};return {rows:[]};},clean:value=>String(value||''),ensureBrokerEmailReplayColumns:async()=>{}});
+ const source=fs.readFileSync(webhookPath,'utf8');
+ const start=source.indexOf('async function insertBrokerRequest('),end=source.indexOf('function buildBrokerBookingNotes',start);
+ vm.runInContext(source.slice(start,end),context);
+ const request=await context.insertBrokerRequest({sourceMessageId:'same-email',parsedPayload:{trip_type:'ONE_WAY'}});
+ assert.equal(request.isReplay,true);
+ assert.equal(request.booking_reference,'CORRECTED-TRIP');
+ assert.equal(reads.length,1);
+ assert.equal(request.parsed_payload.trip_type,'ROUND_TRIP');
+});

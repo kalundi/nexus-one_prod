@@ -6,7 +6,7 @@ const error=(statusCode,message)=>Object.assign(new Error(message),{statusCode})
 // confer access only to bookings actually created for that profile.
 const patientMatch=`(b.caretaker_subject_id=u.id OR (b.caretaker_subject_id IS NULL AND (lower(b.email)=lower(u.email) OR (length(regexp_replace(coalesce(u.phone,''),'\\D','','g'))>=10 AND right(regexp_replace(b.phone,'\\D','','g'),10)=right(regexp_replace(u.phone,'\\D','','g'),10)))))`;
 const accessWhere=`((b.caretaker_owner_id=$1 AND b.caretaker_subject_id IS NULL) OR EXISTS(SELECT 1 FROM caretaker_access a JOIN users u ON u.id=a.patient_id WHERE a.caretaker_id=$1 AND a.status='APPROVED' AND u.active=true AND ${patientMatch}))`;
-async function listTrips(userId,run=query){return (await run(`SELECT b.* FROM bookings b WHERE ${accessWhere} ORDER BY b.trip_date DESC,b.trip_time DESC LIMIT 250`,[userId])).rows;}
+async function listTrips(userId,run=query){return (await run(`SELECT b.* FROM bookings b WHERE b.duplicate_of IS NULL AND ${accessWhere} ORDER BY b.trip_date DESC,b.trip_time DESC LIMIT 250`,[userId])).rows;}
 async function getTrip(userId,reference,run=query){const row=(await run(`SELECT b.* FROM bookings b WHERE b.reference=$2 AND ${accessWhere}`,[userId,reference])).rows[0];if(!row)throw error(404,'Trip not found or patient access has been revoked');return row;}
 async function bookingSubject(user,body,run=query){
  if(!body.caretakerPatientId&&!body.caretakerSubjectId)return null;

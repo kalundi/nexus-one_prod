@@ -17,6 +17,7 @@ function calendarConfig(env = process.env) {
 }
 
 function isCalendarEligible(booking = {}) {
+  if(booking.duplicate_of||booking.duplicateOf)return false;
   const status = clean(booking.status).toUpperCase().replaceAll('-', '_');
   const paymentStatus = clean(booking.payment_status || booking.paymentStatus).toUpperCase();
   if (!status || ['PENDING_PAYMENT', 'PENDING_APPROVAL', 'PENDING_DISPATCH_CONFIRMATION', 'REQUESTED', 'CANCELLED'].includes(status)) return false;

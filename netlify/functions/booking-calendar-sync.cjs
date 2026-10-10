@@ -12,7 +12,7 @@ exports.handler = async () => {
     const result = await query(`SELECT b.*,s.booking_reference
       FROM booking_calendar_sync s
       JOIN bookings b ON b.reference=s.booking_reference
-      WHERE s.sync_status='FAILED' AND s.attempt_count<10
+      WHERE s.sync_status='FAILED' AND s.attempt_count<10 AND b.duplicate_of IS NULL
       ORDER BY s.updated_at ASC LIMIT 50`);
     const outcomes = [];
     for (const booking of result.rows || []) {

@@ -267,6 +267,7 @@
   let destinationStopDraftCache = [];
   let legAppointmentTimeDraftCache = [];
   let routeLegTravelMinutes = [];
+  let measuredRouteInputs=null;
   const locationSuggestionCache = new Map();
   const routePointCache = new Map();
   let lastTelemetryVehicles = [];
@@ -574,12 +575,14 @@
       discountPct: discountView.discountPct,
       fare: discountView.total,
       deadheadCharge:Number(breakdown.deadheadCharge || 0), shortNoticeCharge:Number(breakdown.shortNoticeCharge || 0), deadheadSegments:breakdown.deadheadSegments || []
+      ,routeFareInputs:measuredRouteInputs
     };
 
-    estMiles.textContent = `${estimateState.miles.toFixed(1)} mi`;
+    estMiles.textContent = `${Number(breakdown.passengerMilesTotal||estimateState.miles).toFixed(1)} mi total`;
     estDuration.textContent = durationText || '-';
     const selectedRate=getPricing(normalizeService($('service').value));
-    const mileageCopy=`Each leg: $${Number(selectedRate.base||0).toFixed(2)} base includes ${Number(selectedRate.includedMiles||0)} miles; additional miles are $${Number(selectedRate.perMile||0).toFixed(2)} each. This route has ${Number(breakdown.billableMilesPerLeg||0).toFixed(1)} additional miles per leg.`;
+    const legCopy=(breakdown.passengerLegs||[]).map(leg=>`${leg.kind==='RETURN'?'Return':'Outbound'}: ${leg.miles.toFixed(2)} miles (${leg.billableMiles.toFixed(2)} billable)`).join('. ');
+    const mileageCopy=`Each leg: $${Number(selectedRate.base||0).toFixed(2)} base includes ${Number(selectedRate.includedMiles||0)} miles; additional miles are $${Number(selectedRate.perMile||0).toFixed(2)} each. ${legCopy}.`;
     if(rateSourceLabel)rateSourceLabel.textContent=mileageCopy;
     ['fareSummaryMileage','fareConfirmMileage'].forEach(id=>{
       if($(id)){ $(id).textContent=mileageCopy; $(id).hidden=Number(miles||0)<=0; }
@@ -1942,7 +1945,7 @@
     return NexusFare.calculate({service,miles,date:dateStr,time:pickupTime,rate:getPricing(service),rules:fareRules,
       tripType:tripType?.value,returnDate:returnTripDate?.value,returnTime:returnTripTime?.value,
       waitMinutes:getWaitingCharge(service,routeMetrics).waitMinutes||0,
-      metrics:{...routeMetrics,deadheadSegments:routeMetrics.deadheadSegments||[deadheadRouteMiles.toPickup,String(tripType?.value).toUpperCase()==='ROUND_TRIP'?deadheadRouteMiles.fromReturn:deadheadRouteMiles.fromDestination]}});
+      metrics:{...(typeof measuredRouteInputs!=='undefined'?measuredRouteInputs:null),...routeMetrics,deadheadSegments:routeMetrics.deadheadSegments||[deadheadRouteMiles.toPickup,String(tripType?.value).toUpperCase()==='ROUND_TRIP'?deadheadRouteMiles.fromReturn:deadheadRouteMiles.fromDestination]}});
   }
 
   function calculateFare(service, miles, dateStr, timeStr, routeMetrics = {}){
@@ -2136,6 +2139,7 @@
   }
 
   function resetEstimateUi(){
+    measuredRouteInputs=null;
     estimateState = { miles: 0, durationText: '', durationMinutes: 0, trafficDurationMinutes: 0, subtotal: 0, taxAmount: 0, preDiscountFare: 0, memberSavings: 0, discountPct: 0, fare: 0 };
     estMiles.textContent = '-';
     if($('estWaitRow')) $('estWaitRow').hidden=true;
@@ -3058,6 +3062,7 @@
     yardToPickupDurationMinutes = 0;
     yardToPickupTrafficDurationMinutes = 0;
     routeLegTravelMinutes = [];
+    measuredRouteInputs=null;
     deadheadRouteMiles = { toPickup:0, fromDestination:0, fromReturn:0 };
 
     try{
@@ -3087,13 +3092,15 @@
       if(trafficText && trafficDurationMinutes > durationMinutes){
         durationText = `${durationText} (traffic ${trafficText})`;
       }
-      const yardRoute = await estimateYardToPickupRoute(pickup, tripDate, String(appointmentTimeInput?.value || '').trim());
+      const routeBooking={pickup,destinations,tripType:tripType?.value,date:tripDate,time:fareTime,returnTripDate:returnTripDate?.value,returnTripTime:returnTripTime?.value};
+      const provider=NexusRoute.googleProvider(google.maps,routeBooking);
+      const measured=await NexusRoute.measure(routeBooking,companyYardAddress,segment=>segment.kind==='OUTBOUND'?Promise.resolve(result):provider(segment));
       if(estimateVersion!==routeEstimateVersion)return estimateState;
-      yardToPickupDurationMinutes = Math.max(0, Number(yardRoute.minutes || 0));
-      yardToPickupTrafficDurationMinutes = Math.max(0, Number(yardRoute.trafficMinutes || 0));
-      const deadhead = await estimateDeadheadMiles(pickup, destination, tripDate, fareTime);
-      if(estimateVersion!==routeEstimateVersion)return estimateState;
-      deadheadRouteMiles = deadhead;
+      measuredRouteInputs=measured;
+      miles=measured.miles;
+      yardToPickupDurationMinutes=measured.deadheadRoutes[0].durationMinutes;
+      yardToPickupTrafficDurationMinutes=measured.deadheadRoutes[0].trafficDurationMinutes;
+      deadheadRouteMiles={toPickup:measured.deadheadSegments[0],fromDestination:measured.deadheadSegments[1],fromReturn:measured.deadheadSegments[1]};
       renderCustomerRoute(result, pickup, destinations);
       renderMultiStopFeasibility();
     }catch(err){
@@ -3776,7 +3783,7 @@
       // The server redeems the coupon and applies its discount exactly once.
       estimatedFare: Number((!editingBookingReference ? appliedPromotion?.originalFare : null) ?? estimateState.fare ?? 0),
       memberDiscountPct: Number(estimateState.discountPct || 0),
-      fareInputs:{miles:Number(estimateState.miles||0),durationMinutes:Number(estimateState.durationMinutes||0),trafficDurationMinutes:Number(estimateState.trafficDurationMinutes||0),stopWaitMinutes:getStopWaitMinutes().reduce((sum,value)=>sum+Number(value||0),0),deadheadSegments:estimateState.deadheadSegments||[0,0],discountPct:Number(estimateState.discountPct||0),scheduleBasis:isPickupTimeBasis()?'PICKUP':'APPOINTMENT',finalAppointmentTime:getLegAppointments().at(-1)?.appointmentTime||''},
+      fareInputs:{...estimateState.routeFareInputs,miles:Number(estimateState.miles||0),durationMinutes:Number(estimateState.durationMinutes||0),trafficDurationMinutes:Number(estimateState.trafficDurationMinutes||0),stopWaitMinutes:getStopWaitMinutes().reduce((sum,value)=>sum+Number(value||0),0),deadheadSegments:estimateState.deadheadSegments||[0,0],discountPct:Number(estimateState.discountPct||0),scheduleBasis:isPickupTimeBasis()?'PICKUP':'APPOINTMENT',finalAppointmentTime:getLegAppointments().at(-1)?.appointmentTime||''},
       memberDiscountAmount: Number(estimateState.memberSavings || 0),
       promotionCode: appliedPromotion?.code || '',
       pickupTimeEstimate: String($('tripTime')?.value || '').trim(),
@@ -4255,7 +4262,7 @@
     payerType?.addEventListener('change',()=>{syncInsuranceCarrierUi();syncSectionProgressUi();});
     insuranceCarrier?.addEventListener('change',()=>{riderDetailsConfirmed=false;syncSectionProgressUi();});
     syncInsuranceCarrierUi();
-    tripType?.addEventListener('change',()=>{syncTripScheduleUi();refreshFareForMembership();syncSectionProgressUi();});
+    tripType?.addEventListener('change',()=>{syncTripScheduleUi();measuredRouteInputs=null;refreshFareForMembership();autoEstimate();syncSectionProgressUi();});
     [returnTripDate,returnTripTime].forEach((input)=>input?.addEventListener('change',()=>{refreshFareForMembership();syncSectionProgressUi();}));
     recurrenceEndDate?.addEventListener('change',syncSectionProgressUi);
     ['flightNumber','flightAirportStop','tripDate','pickup','destination'].forEach((id)=>{

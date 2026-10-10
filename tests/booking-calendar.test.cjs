@@ -36,6 +36,7 @@ test('calendar eligibility waits for payment or approval and blocks cancelled/pe
   assert.equal(isCalendarEligible({ ...eligibleBooking, status: 'PENDING_APPROVAL', coverage_status: 'PENDING_PLAN_VERIFICATION' }), false);
   assert.equal(isCalendarEligible({ ...eligibleBooking, status: 'SUBMITTED', coverage_status: 'PENDING_PLAN_VERIFICATION' }), true);
   assert.equal(isCalendarEligible({ ...eligibleBooking, status: 'CANCELLED' }), false);
+  assert.equal(isCalendarEligible({ ...eligibleBooking, duplicate_of: 'CANONICAL-TRIP' }), false);
   assert.equal(isCalendarEligible({ ...eligibleBooking, status: 'SUBMITTED', requires_deposit: true, payment_status: 'UNPAID' }), false);
   assert.equal(isCalendarEligible({ ...eligibleBooking, status: 'SUBMITTED', requires_deposit: true, payment_status: 'DEPOSIT_PAID' }), true);
 });
