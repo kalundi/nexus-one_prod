@@ -172,7 +172,7 @@ function isDemoReference(value){
 }
 function normalizeBookingSource(value){
  const source=clean(value).toUpperCase()||'CUSTOMER';
- return DEMO_SOURCES.has(source)?'CUSTOMER':source;
+ return source==='MOCK'?'MOCK':DEMO_SOURCES.has(source)?'CUSTOMER':source;
 }
 function tripStartWindowHours(distanceMiles){return Number(distanceMiles)>=30?2:1;}
 function normalizeTripDate(value){
@@ -2819,6 +2819,8 @@ async function handler(event){
    let bookingActor=null;
    try{if(bearer(event))bookingActor=await requireUser(bearer(event))}catch{}
   const actorRole=String(bookingActor?.role||'CUSTOMER').toUpperCase();
+  const isMockTrip=clean(b.tripMode).toUpperCase()==='MOCK';
+  if(isMockTrip&&!['ADMIN','DISPATCHER'].includes(actorRole))return json(403,{error:'Only Admin or Dispatch can create mock trips.'});
   const caretakerSubject=await require('./_shared/caretaker-access.cjs').bookingSubject(bookingActor,b);
   const scheduleBasis=clean(b.scheduleBasis).toUpperCase()==='PICKUP'?'PICKUP':'APPOINTMENT';
   const appointmentTime=normalizeOptionalTripTime(b.appointmentTime||'');
@@ -2855,10 +2857,11 @@ async function handler(event){
   else if(actorRole==='PATIENT'||actorRole==='RIDER') bookingSource='PATIENT';
   else if(actorRole==='ADMIN'||actorRole==='BILLING') bookingSource='STAFF';
   bookingSource=normalizeBookingSource(bookingSource);
-  const paymentPolicy=bookingPaymentPolicy({authenticated:Boolean(bookingActor),bookingSource,payerType:b.payerType,service:b.service});
-  const initialStatus=paymentPolicy.requiresDeposit?'PENDING_PAYMENT':paymentPolicy.requiresApproval?'PENDING_APPROVAL':'SUBMITTED';
+  if(isMockTrip)bookingSource='MOCK';
+  const paymentPolicy=isMockTrip?{payerType:'SELF_PAY',requiresDeposit:false,requiresApproval:false,coverageStatus:'MOCK',coverageMessage:'MOCK TRIP — pricing test only'}:bookingPaymentPolicy({authenticated:Boolean(bookingActor),bookingSource,payerType:b.payerType,service:b.service});
+  const initialStatus=isMockTrip?'MOCK':paymentPolicy.requiresDeposit?'PENDING_PAYMENT':paymentPolicy.requiresApproval?'PENDING_APPROVAL':'SUBMITTED';
 
-  const baseNotes=clean(b.notes)||'';
+  const baseNotes=(isMockTrip?'MOCK TRIP — pricing test only. No live transport, reminders, or payments.\n':'')+(clean(b.notes)||'');
   const metadataNotes=[
    appointmentTimes.length>1?`Stop appointments: ${appointmentTimes.map((item)=>`Stop ${item.leg} (${item.destination}): ${item.appointmentTime}`).join('; ')}`:'',
    stopWaitMinutes.length?`Expected stop times: ${stopWaitMinutes.map((minutes,index)=>`Stop ${index+1}: ${Math.round(minutes)} min`).join('; ')}`:'',
@@ -2884,7 +2887,7 @@ async function handler(event){
   const notesWithAppointment=scheduleBasis==='APPOINTMENT'?upsertAppointmentNote([baseNotes,metadataNotes].filter(Boolean).join(baseNotes&&metadataNotes?'\n':''),appointmentTime):[baseNotes,metadataNotes,appointmentTime?`Estimated arrival time: ${appointmentNoteLabel(appointmentTime)}`:''].filter(Boolean).join(baseNotes?'\n':'');
   const composedNotes=upsertCheckInNote(notesWithAppointment,checkInTime);
 
-   const ref=reference();
+   const ref=(isMockTrip?'MOCK-':'')+reference();
    const submittedFare=Math.max(0,Number(b.estimatedFare||0));
    const codeHash=clean(b.promotionCode)?promotionHash(b.promotionCode):'';
    if(codeHash)await ensureBookingPromotionsSchema();
@@ -2905,6 +2908,11 @@ async function handler(event){
     }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
    }else r=await query(insertSql,insertParams());
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,initialStatus,statusLabel(initialStatus),paymentPolicy.coverageMessage||(paymentPolicy.requiresDeposit?'Awaiting required 25% deposit':paymentPolicy.requiresApproval?'Awaiting payer eligibility approval':'Online transportation request received'),bookingActor?.display_name||bookingSource||'PUBLIC']);
+   if(isMockTrip){
+    await query("UPDATE bookings SET reminder_sent=true,payment_status='MOCK',balance_due=0 WHERE reference=$1",[ref]);
+    await audit('BOOKING',ref,'MOCK_CREATED',{actor:bookingActor.email,bookingSource:'MOCK'});
+    return json(201,{booking:{...mapBooking(r.rows[0]),bookingSource:'MOCK',status:'MOCK',paymentStatus:'MOCK',balanceDue:0},persisted:true,isMockTrip:true,requiresOnlinePayment:false,clientMessage:`MOCK TRIP ${ref} created. No transport or payment requested.`});
+   }
    await query("UPDATE booking_drafts SET completed_at=now(),updated_at=now() WHERE completed_at IS NULL AND regexp_replace(phone,'\\D','','g')=$1",[phoneDigits.replace(/\D/g,'')]).catch(()=>{});
   await audit('BOOKING',ref,'CREATED',{source:'UNIFIED_BOOKING',service:b.service,bookingSource,requestedByRole,appointmentTime:appointmentTime||null,appointmentTimes,pickupTimeEstimate:pickupTimeEstimate||null,referralIncentiveEligible:bookingSource==='DRIVER_REFERRAL'});
   const mappedBooking=mapBooking(r.rows[0]);
@@ -3057,6 +3065,13 @@ async function handler(event){
      driverAlert
    ]);
   return json(200,{booking,calendarSync,message:'Booking rescheduled successfully'});
+  }
+  if(p[0]==='payments'&&method==='POST'){
+   const paymentRequest=parseBody(event);
+   if(paymentRequest.bookingReference){
+    const mockCheck=await query('SELECT status,booking_source,payment_status FROM bookings WHERE reference=$1',[paymentRequest.bookingReference]);
+    if(mockCheck.rows[0]&&[mockCheck.rows[0].status,mockCheck.rows[0].booking_source,mockCheck.rows[0].payment_status].some(value=>clean(value).toUpperCase()==='MOCK'))return json(409,{error:'Mock trips cannot collect payment.'});
+   }
   }
   if(p.join('/')==='payments/create-intent'&&method==='POST'){
    const b=parseBody(event);required(b,['bookingReference']);const r=await query('SELECT reference,estimated_fare,payment_status FROM bookings WHERE reference=$1',[b.bookingReference]);if(!r.rows[0])return json(404,{error:'Booking not found'});
@@ -3454,7 +3469,7 @@ async function handler(event){
      SELECT reference
      FROM bookings
      WHERE reference ~* '^NMT(?:-DRV)?-DEMO-'
-       OR upper(COALESCE(booking_source,'')) IN ('DEMO','LOCAL','MOCK','TEST')
+       OR upper(COALESCE(booking_source,'')) IN ('DEMO','LOCAL','TEST')
        OR upper(COALESCE(name,'')) LIKE '%DEMO RIDER%'
        OR upper(COALESCE(name,'')) LIKE 'FLETCHER DEMO%'
        OR upper(COALESCE(name,'')) LIKE 'PREVIEW RIDER%'

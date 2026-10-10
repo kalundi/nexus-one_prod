@@ -1,7 +1,7 @@
 {
   "email": "patient@nexusmt.com",
   "batch": "MOCK-20261010",
-  "pricingSource": "Local default rates; recalculated from production settings when inserted",
+  "pricingSource": "Production pricing settings",
   "mileage": "Simulated test distances, not measured routes",
   "trips": [
     {
@@ -14,7 +14,7 @@
       "duration": 15,
       "created": "2026-10-08T13:00:00.000Z",
       "shortNotice": false,
-      "fare": 97.14,
+      "fare": 98.36,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -27,14 +27,14 @@
         "includedMiles": 5,
         "billableMilesPerLeg": 0,
         "mileageChargePerLeg": 0,
-        "subtotal": 99.275,
-        "taxAmount": 2.97825,
-        "total": 102.25325000000001,
+        "subtotal": 100.523,
+        "taxAmount": 3.0156899999999998,
+        "total": 103.53869,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "weekend",
         "returnPremiumRateReason": "",
-        "premiumAmount": 22.5
+        "premiumAmount": 22.787999999999997
       }
     },
     {
@@ -47,7 +47,7 @@
       "duration": 21,
       "created": "2026-10-13T15:30:00.000Z",
       "shortNotice": true,
-      "fare": 186.33,
+      "fare": 189.99,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -60,14 +60,14 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 4,
         "mileageChargePerLeg": 16.4,
-        "subtotal": 190.42000000000002,
-        "taxAmount": 5.7126,
-        "total": 196.13260000000002,
+        "subtotal": 194.16400000000002,
+        "taxAmount": 5.8249200000000005,
+        "total": 199.98892,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "after-hours",
         "returnPremiumRateReason": "",
-        "premiumAmount": 34.31999999999999
+        "premiumAmount": 35.184
       }
     },
     {
@@ -80,7 +80,7 @@
       "duration": 48,
       "created": "2026-10-14T17:15:00.000Z",
       "shortNotice": false,
-      "fare": 251.03,
+      "fare": 259.58,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -93,14 +93,14 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 20,
         "mileageChargePerLeg": 82,
-        "subtotal": 256.55,
-        "taxAmount": 7.6965,
-        "total": 264.2465,
+        "subtotal": 265.286,
+        "taxAmount": 7.9585799999999995,
+        "total": 273.24458,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "weekend",
         "returnPremiumRateReason": "",
-        "premiumAmount": 54
+        "premiumAmount": 56.01600000000002
       }
     },
     {
@@ -113,7 +113,7 @@
       "duration": 15,
       "created": "2026-10-17T14:00:00.000Z",
       "shortNotice": false,
-      "fare": 82.07,
+      "fare": 83.72,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -126,9 +126,9 @@
         "includedMiles": 5,
         "billableMilesPerLeg": 2,
         "mileageChargePerLeg": 7.1,
-        "subtotal": 83.875,
-        "taxAmount": 2.51625,
-        "total": 86.39125,
+        "subtotal": 85.555,
+        "taxAmount": 2.56665,
+        "total": 88.12165,
         "taxRatePct": 3,
         "premiumRatePct": 0,
         "premiumRateReason": "",
@@ -146,7 +146,7 @@
       "duration": 77,
       "created": "2026-10-21T00:30:00.000Z",
       "shortNotice": false,
-      "fare": 1092.98,
+      "fare": 1106.72,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -159,14 +159,14 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 37,
         "mileageChargePerLeg": 294.15000000000003,
-        "subtotal": 1116.9950000000001,
-        "taxAmount": 33.50985,
-        "total": 1150.50485,
+        "subtotal": 1131.035,
+        "taxAmount": 33.93105,
+        "total": 1164.96605,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "after-hours",
         "returnPremiumRateReason": "",
-        "premiumAmount": 224.745
+        "premiumAmount": 227.985
       }
     },
     {
@@ -179,7 +179,7 @@
       "duration": 15,
       "created": "2026-10-23T11:00:00.000Z",
       "shortNotice": false,
-      "fare": 95.89,
+      "fare": 97.77,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -192,9 +192,9 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 0,
         "mileageChargePerLeg": 0,
-        "subtotal": 98,
-        "taxAmount": 2.94,
-        "total": 100.94,
+        "subtotal": 99.92,
+        "taxAmount": 2.9976,
+        "total": 102.91760000000001,
         "taxRatePct": 3,
         "premiumRatePct": 0,
         "premiumRateReason": "",
@@ -212,7 +212,7 @@
       "duration": 111,
       "created": "2026-10-26T20:00:00.000Z",
       "shortNotice": false,
-      "fare": 1258.06,
+      "fare": 1273.32,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -225,9 +225,9 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 57,
         "mileageChargePerLeg": 567.15,
-        "subtotal": 1285.6999999999998,
-        "taxAmount": 38.57099999999999,
-        "total": 1324.2709999999997,
+        "subtotal": 1301.3,
+        "taxAmount": 39.038999999999994,
+        "total": 1340.339,
         "taxRatePct": 3,
         "premiumRatePct": 0,
         "premiumRateReason": "",
@@ -245,7 +245,7 @@
       "duration": 31,
       "created": "2026-10-30T04:15:00.000Z",
       "shortNotice": false,
-      "fare": 178.42,
+      "fare": 183.92,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -258,14 +258,14 @@
         "includedMiles": 5,
         "billableMilesPerLeg": 13,
         "mileageChargePerLeg": 46.15,
-        "subtotal": 182.345,
-        "taxAmount": 5.47035,
-        "total": 187.81535,
+        "subtotal": 187.96099999999998,
+        "taxAmount": 5.63883,
+        "total": 193.59983,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "weekend",
         "returnPremiumRateReason": "",
-        "premiumAmount": 36.345
+        "premiumAmount": 37.64099999999999
       }
     },
     {
@@ -278,7 +278,7 @@
       "duration": 34,
       "created": "2026-11-03T22:00:00.000Z",
       "shortNotice": true,
-      "fare": 184.84,
+      "fare": 189.54,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -291,9 +291,9 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 12,
         "mileageChargePerLeg": 49.199999999999996,
-        "subtotal": 188.9,
-        "taxAmount": 5.667,
-        "total": 194.567,
+        "subtotal": 193.70000000000002,
+        "taxAmount": 5.811,
+        "total": 199.51100000000002,
         "taxRatePct": 3,
         "premiumRatePct": 0,
         "premiumRateReason": "",
@@ -311,7 +311,7 @@
       "duration": 163,
       "created": "2026-11-04T19:00:00.000Z",
       "shortNotice": false,
-      "fare": 1044.6,
+      "fare": 1073.6,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -324,14 +324,14 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 87,
         "mileageChargePerLeg": 478.5,
-        "subtotal": 1067.5500000000002,
-        "taxAmount": 32.026500000000006,
-        "total": 1099.5765000000001,
+        "subtotal": 1097.19,
+        "taxAmount": 32.9157,
+        "total": 1130.1057,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "weekend",
         "returnPremiumRateReason": "",
-        "premiumAmount": 193.05000000000007
+        "premiumAmount": 199.89
       }
     },
     {
@@ -344,7 +344,7 @@
       "duration": 60,
       "created": "2026-11-08T14:30:00.000Z",
       "shortNotice": false,
-      "fare": 305.6,
+      "fare": 316.28,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -357,14 +357,14 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 27,
         "mileageChargePerLeg": 110.69999999999999,
-        "subtotal": 312.31,
-        "taxAmount": 9.369299999999999,
-        "total": 321.6793,
+        "subtotal": 323.23,
+        "taxAmount": 9.6969,
+        "total": 332.92690000000005,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "holiday",
         "returnPremiumRateReason": "",
-        "premiumAmount": 62.610000000000014
+        "premiumAmount": 65.13000000000002
       }
     },
     {
@@ -377,7 +377,7 @@
       "duration": 38,
       "created": "2026-11-11T23:50:00.000Z",
       "shortNotice": false,
-      "fare": 205.17,
+      "fare": 211.89,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -390,14 +390,14 @@
         "includedMiles": 5,
         "billableMilesPerLeg": 17,
         "mileageChargePerLeg": 60.349999999999994,
-        "subtotal": 209.68,
-        "taxAmount": 6.2904,
-        "total": 215.9704,
+        "subtotal": 216.54399999999998,
+        "taxAmount": 6.496319999999999,
+        "total": 223.04031999999998,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "weekend",
         "returnPremiumRateReason": "",
-        "premiumAmount": 40.60500000000002
+        "premiumAmount": 42.18899999999999
       }
     },
     {
@@ -410,7 +410,7 @@
       "duration": 249,
       "created": "2026-11-14T13:00:00.000Z",
       "shortNotice": false,
-      "fare": 2012.7,
+      "fare": 2046.75,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -423,9 +423,9 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 137,
         "mileageChargePerLeg": 1089.15,
-        "subtotal": 2056.925,
-        "taxAmount": 61.707750000000004,
-        "total": 2118.63275,
+        "subtotal": 2091.725,
+        "taxAmount": 62.751749999999994,
+        "total": 2154.47675,
         "taxRatePct": 3,
         "premiumRatePct": 0,
         "premiumRateReason": "",
@@ -443,7 +443,7 @@
       "duration": 223,
       "created": "2026-11-17T17:00:00.000Z",
       "shortNotice": false,
-      "fare": 822.04,
+      "fare": 852.57,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -456,9 +456,9 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 122,
         "mileageChargePerLeg": 500.19999999999993,
-        "subtotal": 840.0999999999999,
-        "taxAmount": 25.202999999999996,
-        "total": 865.3029999999999,
+        "subtotal": 871.3,
+        "taxAmount": 26.139,
+        "total": 897.439,
         "taxRatePct": 3,
         "premiumRatePct": 0,
         "premiumRateReason": "",
@@ -476,7 +476,7 @@
       "duration": 82,
       "created": "2026-11-20T11:00:00.000Z",
       "shortNotice": false,
-      "fare": 1247.98,
+      "fare": 1262.63,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -489,14 +489,14 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 40,
         "mileageChargePerLeg": 398,
-        "subtotal": 1275.4,
-        "taxAmount": 38.262,
-        "total": 1313.662,
+        "subtotal": 1290.376,
+        "taxAmount": 38.711279999999995,
+        "total": 1329.08728,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "after-hours",
         "returnPremiumRateReason": "",
-        "premiumAmount": 248.4000000000001
+        "premiumAmount": 251.856
       }
     },
     {
@@ -509,7 +509,7 @@
       "duration": 26,
       "created": "2026-11-23T15:00:00.000Z",
       "shortNotice": false,
-      "fare": 161.4,
+      "fare": 165.98,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -522,14 +522,14 @@
         "includedMiles": 5,
         "billableMilesPerLeg": 10,
         "mileageChargePerLeg": 35.5,
-        "subtotal": 164.95,
-        "taxAmount": 4.948499999999999,
-        "total": 169.89849999999998,
+        "subtotal": 169.63,
+        "taxAmount": 5.0889,
+        "total": 174.7189,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "holiday",
         "returnPremiumRateReason": "",
-        "premiumAmount": 33.150000000000006
+        "premiumAmount": 34.22999999999999
       }
     },
     {
@@ -542,7 +542,7 @@
       "duration": 283,
       "created": "2026-11-27T02:00:00.000Z",
       "shortNotice": false,
-      "fare": 6852.68,
+      "fare": 6903.05,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -555,14 +555,14 @@
         "includedMiles": 0,
         "billableMilesPerLeg": 165,
         "mileageChargePerLeg": 3052.5,
-        "subtotal": 7003.25,
-        "taxAmount": 210.0975,
-        "total": 7213.3475,
+        "subtotal": 7054.7300000000005,
+        "taxAmount": 211.6419,
+        "total": 7266.3719,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "weekend",
         "returnPremiumRateReason": "",
-        "premiumAmount": 1253.25
+        "premiumAmount": 1265.13
       }
     },
     {
@@ -575,7 +575,7 @@
       "duration": 300,
       "created": "2026-11-29T18:30:00.000Z",
       "shortNotice": false,
-      "fare": 1078.8,
+      "fare": 1119.89,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -588,9 +588,9 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 167,
         "mileageChargePerLeg": 684.6999999999999,
-        "subtotal": 1102.5,
-        "taxAmount": 33.074999999999996,
-        "total": 1135.575,
+        "subtotal": 1144.5,
+        "taxAmount": 34.335,
+        "total": 1178.835,
         "taxRatePct": 3,
         "premiumRatePct": 0,
         "premiumRateReason": "",
@@ -608,7 +608,7 @@
       "duration": 94,
       "created": "2026-12-02T07:00:00.000Z",
       "shortNotice": false,
-      "fare": 1229.11,
+      "fare": 1245.9,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -621,14 +621,14 @@
         "includedMiles": 8,
         "billableMilesPerLeg": 47,
         "mileageChargePerLeg": 373.65000000000003,
-        "subtotal": 1256.1200000000001,
-        "taxAmount": 37.683600000000006,
-        "total": 1293.8036000000002,
+        "subtotal": 1273.2800000000002,
+        "taxAmount": 38.19840000000001,
+        "total": 1311.4784000000002,
         "taxRatePct": 3,
         "premiumRatePct": 30,
         "premiumRateReason": "weekend",
         "returnPremiumRateReason": "",
-        "premiumAmount": 248.59500000000003
+        "premiumAmount": 252.55500000000006
       }
     },
     {
@@ -641,7 +641,7 @@
       "duration": 15,
       "created": "2026-12-05T22:30:00.000Z",
       "shortNotice": false,
-      "fare": 76.86,
+      "fare": 78.27,
       "breakdown": {
         "waitCharge": 0,
         "deadheadSegments": [
@@ -654,9 +654,9 @@
         "includedMiles": 5,
         "billableMilesPerLeg": 1,
         "mileageChargePerLeg": 3.55,
-        "subtotal": 78.55,
-        "taxAmount": 2.3565,
-        "total": 80.9065,
+        "subtotal": 79.99,
+        "taxAmount": 2.3996999999999997,
+        "total": 82.38969999999999,
         "taxRatePct": 3,
         "premiumRatePct": 0,
         "premiumRateReason": "",

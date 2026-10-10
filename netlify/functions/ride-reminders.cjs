@@ -58,7 +58,8 @@ exports.handler = async () => {
             AND lower(trim(u.display_name)) = lower(trim(b.driver_name))
           )
         )
-      WHERE b.status NOT IN ('CANCELLED', 'COMPLETED', 'DELIVERED')
+      WHERE b.status NOT IN ('CANCELLED', 'COMPLETED', 'DELIVERED', 'MOCK')
+        AND upper(COALESCE(b.booking_source,'')) <> 'MOCK'
         AND (b.reminder_sent IS NULL OR b.reminder_sent = false)
         AND b.trip_date IS NOT NULL
         AND b.trip_time IS NOT NULL

@@ -485,6 +485,7 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <span id="tripAttentionNotice" class="tripAttentionBadge"><span class="dot" aria-hidden="true"></span><span id="tripAttentionText">No trips need attention</span></span>
       <button id="tripBoardToggle" class="button secondary" type="button" aria-expanded="false" aria-controls="tripBoardBody">Show Trip Management</button>
+      <a class="button primary" href="/booking-app.html?staffTrip=1">Create real or mock trip</a>
       <button id="normalizeTripAddresses" class="button ghost" type="button">Normalize trip addresses</button>
       <button id="loadTrips" class="button primary">Refresh from API</button><button id="loadLocal" class="button" hidden>Load local</button>
     </div>
@@ -511,6 +512,7 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
       <select id="tripSourceFilter" style="min-width:180px">
         <option value="ALL">All trips</option>
         <option value="REAL">Real bookings only</option>
+        <option value="MOCK">Mock Trips</option>
       </select>
     </label>
     <label class="field" style="margin:0">Parse source
@@ -1619,6 +1621,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const ref = refOf(trip).toUpperCase();
     const name = String(trip?.name || '').toUpperCase();
     const notes = String(trip?.notes || '').toUpperCase();
+    if(source==='MOCK' || String(trip?.status||'').toUpperCase()==='MOCK' || ref.startsWith('MOCK-') || notes.includes('MOCK TRIP')) return 'MOCK';
     const isDemo =
       source.includes('DEMO') || source.includes('LOCAL') || source.includes('MOCK') || source.includes('TEST') ||
       ref.includes('DEMO') || ref.includes('LOCAL') ||
@@ -2029,6 +2032,12 @@ $('saveCustomCompany').addEventListener('click',()=>{
       const isChecked = selectedRefs.has(ref);
       row.classList.toggle('selected', isChecked);
       cell.innerHTML = `<label style="display:flex;align-items:flex-start;gap:8px"><input class="dispatch-bulk-select" data-ref="${ref}" type="checkbox" ${isChecked?'checked':''} aria-label="Select ${ref} for bulk updates"><span>${ref}<div style="margin-top:4px"><span class="status ${tone}" style="font-size:10px">${kind === 'REAL' ? 'REAL' : 'DEMO'}</span></div></span></label>`;
+      if(kind==='MOCK'){
+        const badge=cell.querySelector('.status');
+        if(badge)badge.textContent='MOCK TRIP';
+        const selection=cell.querySelector('.dispatch-bulk-select');
+        if(selection){selection.disabled=true;selection.checked=false;selectedRefs.delete(ref);}
+      }
       const deleteBtn = row.querySelector('[data-delete]');
       if(deleteBtn){
         deleteBtn.disabled = kind === 'DEMO';
@@ -2041,7 +2050,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
   function updateSummary(filtered){
     const total = state.allTrips.length;
     const realCount = state.allTrips.filter((trip) => classifyTrip(trip) === 'REAL').length;
-    const demoCount = total - realCount;
+    const mockCount = state.allTrips.filter((trip)=>classifyTrip(trip)==='MOCK').length;
+    const demoCount = total - realCount - mockCount;
     const fallbackCount=state.allTrips.filter((trip)=>String(trip?.intakeParseSource||'').toUpperCase()==='SUBJECT_FALLBACK').length;
     const parseMode=String(parseSourceFilter.value||'ALL').toUpperCase();
     const parseFilterLabel=parseMode==='SUBJECT_FALLBACK'
@@ -2050,7 +2060,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         ?'Attachment parsed only'
         :'All parse sources';
     if(summaryEl){
-      summaryEl.textContent = `Showing ${filtered.length} of ${total} trips | Operational: ${realCount} | Demo excluded: ${demoCount} | Fallback total: ${fallbackCount} | Parse filter: ${parseFilterLabel}`;
+      summaryEl.textContent = `Showing ${filtered.length} of ${total} trips | Operational: ${realCount} | Mock Trips: ${mockCount} | Demo excluded: ${demoCount} | Fallback total: ${fallbackCount} | Parse filter: ${parseFilterLabel}`;
     }
   }
 
@@ -2145,7 +2155,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   async function refreshTripsFromApi(){
     const apiTrips = await fetchApiTrips();
-    state.allTrips = mergeTrips(apiTrips, []).filter((trip)=>classifyTrip(trip)==='REAL');
+    state.allTrips = mergeTrips(apiTrips, []).filter((trip)=>classifyTrip(trip)!=='DEMO');
     renderFiltered();
   }
 
@@ -2224,7 +2234,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function refreshTripsLocalOnly(){
     // Demo/local trip loading is disabled to keep dispatch view operationally clean.
-    state.allTrips = state.allTrips.filter((trip)=>classifyTrip(trip)==='REAL');
+    state.allTrips = state.allTrips.filter((trip)=>classifyTrip(trip)!=='DEMO');
     renderFiltered();
   }
 

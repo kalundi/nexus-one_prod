@@ -1120,6 +1120,7 @@
   }
 
   function applyAuthUi(){
+    if($('staffTripModeField')) $('staffTripModeField').hidden = !['ADMIN','DISPATCHER'].includes(String(currentUserRole||'').toUpperCase());
     const role = String(currentUserRole || 'CUSTOMER').toUpperCase();
     const signedIn = Boolean(token());
     if(authRoleBadge) authRoleBadge.textContent = signedIn ? role : 'CUSTOMER';
@@ -3860,6 +3861,7 @@
     const destinationReady = isMultipleStopsEnabled() ? areDestinationRowsFilled() : Boolean(routeDestinations[0]);
 
     const payload = {
+      tripMode:['ADMIN','DISPATCHER'].includes(String(currentUserRole||'').toUpperCase()) ? ($('staffTripMode')?.value || 'REAL') : 'REAL',
       name: $('name').value.trim(),
       phone: formatPhone($('phone').value.trim()),
       email: $('email').value.trim(),
@@ -3999,7 +4001,7 @@
         : '';
       const onlinePaymentEnabled = stripeEnabled || squareEnabled;
       const confirmationBase = (confirmationMessage || `Booking created. Reference: ${ref}`) + pendingNotice;
-      if(onlinePaymentEnabled){
+      if(data.isMockTrip || onlinePaymentEnabled){
         setStatus(confirmationBase, 'ok');
       }else{
         setStatus(`${confirmationBase} Dispatch will contact you shortly to finalize payment.`, 'ok');

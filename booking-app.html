@@ -1027,6 +1027,11 @@ Destination: -</p>
         <input id="service" name="service" type="hidden" value="">
 
         <div id="routeScheduleFields">
+        <div class="field" id="staffTripModeField" hidden>
+          <label for="staffTripMode">Create a real or mock trip</label>
+          <select id="staffTripMode"><option value="REAL">Real trip</option><option value="MOCK">Mock trip — pricing test only</option></select>
+          <small class="subtle">Mock trips appear in Trip Management under Mock Trips. They do not request transport or collect payment.</small>
+        </div>
         <div class="field" style="margin-top:12px">
           <label for="tripType">Trip schedule</label>
           <select id="tripType" name="tripType"><option value="ONE_WAY">One-way ride</option><option value="ROUND_TRIP">Round trip</option><option value="RECURRING">Recurring rides</option></select>
@@ -1290,7 +1295,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=69"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-  <script src="./booking-app.js?v=20261009-deadhead"></script>
+  <script src="./booking-app.js?v=20261010-staff-mock"></script>
 </body>
 </html>
 
