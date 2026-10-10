@@ -48,7 +48,7 @@ test('MOCK trips retain their explicit simulation clock; real trips ignore it',(
 test('API computes the fare from current settings and ignores a submitted dollar amount',async()=>{
  const fs=require('node:fs'),vm=require('node:vm');
  const source=fs.readFileSync(require.resolve('../netlify/functions/api.cjs'),'utf8');
- const start=source.indexOf('   const hasCalculatedFare=b.fareInputs!=null;');
+ const start=source.indexOf('   const hasCalculatedFare=');
  const end=source.indexOf('   const statusValue=',start);
  const context=vm.createContext({b:{fareInputs:inputs,estimatedFare:1},u:{role:'DISPATCHER'},before:{rows:[booking]},mapBooking:b=>b,readPlatformSettings:async()=>settings,NexusFare:Fare,json:(status,body)=>({status,body})});
  const result=await vm.runInContext(`(async()=>{${source.slice(start,end)};return {estimatedFareRaw};})()`,context);

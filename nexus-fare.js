@@ -191,5 +191,77 @@
     const savings=applySavings(result.total,inputs.discountPct);
     return {...result,discountPct:Number(inputs.discountPct),discountAmount:savings.memberSavings,discountedTotal:savings.total};
   }
-  return {calculate,calculateBooking,applySavings,roundMoney,scheduledEpoch,getPremiumRateReason};
+  function durationMinutes(text){
+    const value=String(text||'');
+    let total=0;
+    for(const match of value.matchAll(/(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m)\b/gi))total+=Number(match[1])*(match[2].toLowerCase().startsWith('h')?60:1);
+    return total||Math.max(0,Number(value)||0);
+  }
+  function normalizeService(value){
+    const raw=String(value||'').trim().toLowerCase().replace(/[ -]+/g,'_');
+    if(raw==='wc'||raw.startsWith('wheelchair'))return 'wheelchair';
+    if(raw==='amb'||raw.startsWith('ambulatory'))return 'ambulatory';
+    if(raw.startsWith('stretcher'))return 'stretcher';
+    if(raw.startsWith('bariatric'))return 'bariatric';
+    if(raw.startsWith('broda'))return 'broda';
+    if(raw==='als_1'||raw==='als')return 'als1';
+    if(raw==='als_2')return 'als2';
+    if(raw==='ift'||raw==='interfacility')return 'facility_transfer';
+    if(raw==='cct'||raw.includes('critical'))return 'facility_transfer_critical';
+    return raw;
+  }
+  // Read current and legacy bookings directly. Extra charges that were not entered
+  // default to zero; they never prevent producing a fare from the available data.
+  function resolveBookingInputs(booking){
+    const notes=String(booking.notes||'');
+    let saved=booking.fareInputs&&typeof booking.fareInputs==='object'?booking.fareInputs:booking.fareCalculation?.inputs||{};
+    if(!Object.keys(saved).length){try{saved=JSON.parse(notes.match(/Fare inputs: (\{[^\n|]*\})/)?.[1]||'{}');}catch{}}
+    let legacy={};
+    try{legacy=JSON.parse(notes.match(/Fare breakdown: (\{.*\})\. Member savings:/)?.[1]||'{}');}catch{}
+    const intake=booking.intakePayload||{};
+    const number=(...values)=>{
+      for(const value of values)if(value!=null&&value!==''&&Number.isFinite(Number(value))&&Number(value)>=0)return Number(value);
+      return 0;
+    };
+    const source=String(booking.bookingSource||booking.booking_source||'CUSTOMER').toUpperCase();
+    const repeat=['ROUND_TRIP','RECURRING'].includes(String(booking.tripType||booking.trip_type||'').toUpperCase());
+    const member=['PATIENT','STAFF','DISPATCH','FACILITY','DRIVER_REFERRAL'].includes(source);
+    const discountPct=number(saved.discountPct,booking.memberDiscountPct,intake.member_discount_pct,notes.match(/Member savings: (\d+)%/)?.[1],source==='BROKER'?0:repeat?(member?10:5):member?5:0);
+    const emptyText=notes.match(/empty segments:\s*([^|\n]+)/i)?.[1]||'';
+    const emptySegments=Array.from(emptyText.matchAll(/(\d+(?:\.\d+)?)\s*mi/g),match=>Number(match[1]));
+    const segments=saved.deadheadSegments||booking.deadheadSegments||legacy.deadheadSegments||intake.deadhead_segments||emptySegments;
+    const time=value=>{const m=String(value||'').match(/\b(\d{2}:\d{2})/);return m?.[1]||'';};
+    const pickupTime=time(booking.pickupTime||booking.time||booking.trip_time||intake.pickup_time||notes.match(/Pickup estimate: (\d{2}:\d{2})/)?.[1]);
+    const appointmentTime=time(booking.appointmentTime||booking.submittedAppointmentTime||intake.appointment_time);
+    const elapsed=(start,end)=>{const minutes=value=>Number(value.slice(0,2))*60+Number(value.slice(3,5));return start&&end?Math.max(0,minutes(end)-minutes(start)-15):0;};
+    const durationText=String(booking.estimatedDuration||booking.estimated_duration||intake.estimated_duration||'');
+    const appointments=Array.from(notes.matchAll(/Stop \d+ \([^)]*\): (\d{2}:\d{2})/g),match=>match[1]);
+    const stops=Array.from(notes.matchAll(/Stop \d+: (\d+(?:\.\d+)?) min/g),match=>Number(match[1]));
+    const explicitStopWait=Array.isArray(booking.stopWaitMinutes)?booking.stopWaitMinutes.reduce((sum,value)=>sum+number(value),0):booking.stopWaitMinutes;
+    const oneWayWait=repeat?undefined:booking.waitMinutes??intake.wait_minutes??notes.match(/Additional driver waiting:\s*(\d+(?:\.\d+)?) min/)?.[1];
+    return {
+      miles:number(booking.distanceMiles,booking.distance_miles,saved.miles,intake.distance_miles,intake.miles),
+      durationMinutes:number(saved.durationMinutes,booking.durationMinutes,intake.duration_minutes,durationText?durationMinutes(durationText.split(/traffic/i)[0]):undefined,elapsed(pickupTime,appointmentTime)),
+      trafficDurationMinutes:number(saved.trafficDurationMinutes,booking.trafficDurationMinutes,intake.traffic_duration_minutes,durationText.match(/traffic[^\d]*([^)]*)/i)?.[1]?durationMinutes(durationText.match(/traffic[^\d]*([^)]*)/i)[1]):undefined),
+      stopWaitMinutes:number(saved.stopWaitMinutes,explicitStopWait,oneWayWait,stops.length?stops.reduce((sum,value)=>sum+value,0):undefined,repeat?undefined:legacy.waitMinutes),
+      deadheadSegments:Array.isArray(segments)&&segments.length?segments.map(value=>number(value)):[number(booking.deadheadToPickupMiles,intake.deadhead_to_pickup_miles),number(booking.deadheadAfterTripMiles,intake.deadhead_after_trip_miles)],
+      discountPct:[0,5,10].includes(discountPct)?discountPct:0,
+      scheduleBasis:saved.scheduleBasis||booking.scheduleBasis||(/Schedule basis:\s*PICKUP/i.test(notes)?'PICKUP':'APPOINTMENT'),
+      finalAppointmentTime:appointments.at(-1)||appointmentTime||saved.finalAppointmentTime||'',
+      pickupTime
+    };
+  }
+  function calculateEstimate(booking,settings){
+    const inputs=resolveBookingInputs(booking);
+    if(inputs.deadheadSegments.length<2)inputs.deadheadSegments.push(0);
+    const date=String(booking.date||booking.trip_date||'2000-01-03').slice(0,10);
+    const returnNote=String(booking.notes||'').match(/Round trip return:\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
+    const normalized={...booking,service:normalizeService(booking.service),date,time:inputs.pickupTime||'12:00',createdAt:booking.createdAt||booking.created_at||booking.sourceReceivedAt||'1970-01-01T00:00:00Z',
+      tripType:String(booking.tripType||booking.trip_type||'ONE_WAY').toUpperCase(),returnTripDate:booking.returnTripDate||booking.return_trip_date||returnNote?.[1]||date,
+      returnTripTime:booking.returnTripTime||booking.return_trip_time||returnNote?.[2]||inputs.pickupTime||'12:00'};
+    if(!inputs.finalAppointmentTime)inputs.scheduleBasis='PICKUP';
+    const fare=calculateBooking(normalized,inputs,settings);
+    return {...fare,inputs};
+  }
+  return {calculate,calculateBooking,calculateEstimate,resolveBookingInputs,applySavings,roundMoney,scheduledEpoch,getPremiumRateReason};
 });

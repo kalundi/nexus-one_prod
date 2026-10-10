@@ -3599,7 +3599,9 @@ async function handler(event){
    const intakePickupTime=normalizeOptionalTripTime(parsedPayload.pickup_time||'');
    if(intakePickupTime)mappedBooking.pickupTime=intakePickupTime;
   }
-  return json(200,{booking:mappedBooking,intakeAudit});
+  mappedBooking.intakePayload=intakeAudit?.parsedPayload||{};
+  const estimatedBooking=withCurrentEstimate(mappedBooking,await readPlatformSettings());
+  return json(200,{booking:estimatedBooking,intakeAudit});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='DELETE'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);
@@ -3681,16 +3683,19 @@ async function handler(event){
 
    // DRIVER role: only allowed to update trip status.
    if(u.role==='DRIVER'){
-    const forbidden=['fareInputs','driverName','vehicleUnit','estimatedFare','pickup','destination','pickupLocation','destinationLocation','pickup_location','dropoff_location','date','time','service','name','phone','email','submitterEntity','bookingSource','brokerCompanyName','brokerAcceptedRate','checkInTime'];
+    const forbidden=['recalculateEstimate','fareInputs','driverName','vehicleUnit','estimatedFare','pickup','destination','pickupLocation','destinationLocation','pickup_location','dropoff_location','date','time','service','name','phone','email','submitterEntity','bookingSource','brokerCompanyName','brokerAcceptedRate','checkInTime'];
     if(forbidden.some((key)=>Object.prototype.hasOwnProperty.call(b,key)))return json(403,{error:'Drivers may only update trip status'});
    }
 
-   const hasCalculatedFare=b.fareInputs!=null;
+   const hasCalculatedFare=b.recalculateEstimate===true||b.fareInputs!=null;
    let calculatedFare=null;
    if(hasCalculatedFare){
     const saved=mapBooking(before.rows[0]);
     try{
-     calculatedFare=NexusFare.calculateBooking({...saved,service:b.service??saved.service,date:b.date??saved.date,time:b.time??saved.time},b.fareInputs,await readPlatformSettings());
+     const edited={...saved,service:b.service??saved.service,date:b.date??saved.date,time:b.time??saved.time,pickupTime:b.time??saved.pickupTime,appointmentTime:b.appointmentTime??saved.appointmentTime};
+     const settings=await readPlatformSettings();
+     calculatedFare=b.recalculateEstimate===true?NexusFare.calculateEstimate(edited,settings):NexusFare.calculateBooking(edited,b.fareInputs,settings);
+     if(b.recalculateEstimate===true)b.fareInputs=calculatedFare.inputs;
     }catch(error){return json(400,{error:error.message});}
    }
    const hasEstimatedFare=hasCalculatedFare||Object.prototype.hasOwnProperty.call(b,'estimatedFare');
@@ -3902,7 +3907,7 @@ async function handler(event){
 
   const notifications=editingMock?{status:'skipped',reason:'MOCK TRIP'}:await sendTripStakeholderUpdate(before.rows[0],afterRow,u,noteValue||'').catch(()=>({status:'failed'}));
   const calendarSync=editingMock?{status:'skipped',reason:'MOCK TRIP'}:await syncCalendarLifecycle(afterRow);
-  return json(200,{booking:mapBooking(afterRow),notifications,calendarSync});
+  return json(200,{booking:withCurrentEstimate(mapBooking(afterRow),await readPlatformSettings()),notifications,calendarSync});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);const ref=decodeURIComponent(p[2]);const current=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);if(!current.rows[0])return json(404,{error:'Booking not found'});const currentStatus=String(current.rows[0].status||'').toUpperCase();const next=STATUS_FLOW[currentStatus]||currentStatus;
@@ -5051,6 +5056,7 @@ async function mapBookingsWithIntakeAudit(rows){
 
  const intakeByRef=new Map((intakeRows.rows||[]).map((row)=>[String(row.booking_reference),row]));
  const attachmentByRef=new Map((attachmentCounts.rows||[]).map((row)=>[String(row.booking_reference),Number(row.count||0)]));
+ const estimateSettings=await readPlatformSettings();
 
  return mapped.map((booking)=>{
   const intake=intakeByRef.get(String(booking.reference||''))||null;
@@ -5059,8 +5065,9 @@ async function mapBookingsWithIntakeAudit(rows){
     const intakePickupTime=normalizeOptionalTripTime(parsedPayload?.pickup_time||'')||null;
   const parseDiagnostics=parsedPayload?.parse_diagnostics&&typeof parsedPayload.parse_diagnostics==='object'?parsedPayload.parse_diagnostics:{};
   const intakeBrokerQuotedRate=intake?.broker_quoted_rate!=null?Number(intake.broker_quoted_rate):null;
-  return {
+  return withCurrentEstimate({
    ...booking,
+   intakePayload:parsedPayload,
      pickupTime:booking.pickupTime||intakePickupTime,
    brokerQuotedRate:booking.brokerQuotedRate==null&&intakeBrokerQuotedRate!=null?intakeBrokerQuotedRate:booking.brokerQuotedRate,
    intakeSubmissionMethod:method,
@@ -5072,8 +5079,18 @@ async function mapBookingsWithIntakeAudit(rows){
    intakeParseFailureReason:clean(parseDiagnostics.parse_failure_reason||'',240)||null,
    intakeParseDiagnostics:parseDiagnostics,
    intakeParseAttachmentSummary:parseDiagnostics?.attachment_summary||null
-  };
+  },estimateSettings);
  });
+}
+
+function withCurrentEstimate(booking,settings){
+ const {intakePayload,...publicBooking}=booking;
+ try{
+  const fare=NexusFare.calculateEstimate(booking,settings);
+  return {...publicBooking,ourEstimate:fare.discountedTotal,fareCalculation:fare};
+ }catch{
+  return {...publicBooking,ourEstimate:booking.estimatedFare??0};
+ }
 }
 
 exports.handler=handler;

@@ -560,7 +560,7 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
 </section>
 <section class="grid cols2 dispatchSection" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Driver coverage</p><h2>Driver roster (on-duty + off-duty)</h2></div><span id="driversOnDutyCount" class="status blue">Loading</span></div><div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-top:10px"><label class="field" style="margin:0">Plan date<input id="driverStatusDate" type="date"></label><label class="field" style="margin:0">Plan time<input id="driverStatusTime" type="time"></label><button id="refreshDrivers" class="button secondary" style="min-height:40px;font-size:13px;align-self:end">Apply</button></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Fleet visibility</p><h2>Fleet + staffing details</h2></div><button id="resetDriverStatusNow" class="button secondary" style="min-height:36px;font-size:13px">Now</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading</p></div></article></section>
 <section id="aiSection" class="grid cols2 dispatchSection" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
-</main><footer class="footer"><div class="shell footerGrid" data-unified-footer-applied="1" data-compact-redesign-applied="1"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Patients</strong><a href="/booking-app.html">Book Transportation</a><a href="/livecare.html">Track a Ride</a></div><div><strong>Authorized portals</strong><a href="/facility.html">Facility</a><a href="/dispatch.html">Dispatch</a><a href="/driver-app.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18886395766">Main line: (888) 639-5766</a><a href="tel:+18887604990">Customer service: (888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true"></span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-fare.js?v=20261010"></script><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js?v=69"></script><script>
+</main><footer class="footer"><div class="shell footerGrid" data-unified-footer-applied="1" data-compact-redesign-applied="1"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Patients</strong><a href="/booking-app.html">Book Transportation</a><a href="/livecare.html">Track a Ride</a></div><div><strong>Authorized portals</strong><a href="/facility.html">Facility</a><a href="/dispatch.html">Dispatch</a><a href="/driver-app.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18886395766">Main line: (888) 639-5766</a><a href="tel:+18887604990">Customer service: (888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true"></span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><script src="./nexus-fare.js?v=20261010-auto-estimates"></script><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js?v=69"></script><script>
 let dispatchHeroMap=null;
 
 function createDispatchHeroMap(el){
@@ -1348,7 +1348,7 @@ function renderTrips(trips){
     rowsEl.innerHTML=list.map(t=>{
       const ref=t.reference||t.id||'';
       const safeRef=String(ref).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
-      const estimateNumber=Number(t.estimatedFare ?? t.estimated_fare ?? t.estimate ?? t.fare);
+      const estimateNumber=Number(t.ourEstimate ?? t.estimatedFare ?? t.estimated_fare ?? t.estimate ?? t.fare);
       const estimate=Number.isFinite(estimateNumber)?`$${estimateNumber.toFixed(2)}`:'--';
       const shortDateTime=formatShortDateTime(t.date,t.submittedAppointmentTime||t.appointmentTime||t.time);
       const brokerQuotedNumber=Number(t.brokerQuotedRate ?? t.broker_quoted_rate ?? t.quotedRate);
@@ -2495,21 +2495,12 @@ $('saveCustomCompany').addEventListener('click',()=>{
       <div class="formField"><label>Broker quoted rate</label><input id="dispatchEditBrokerQuotedRate" type="number" min="0" step="0.01" placeholder="0.00" readonly style="background:var(--soft,#f8fafc)"></div>
       <div class="formField"><label>Driver confirmed rate</label><input id="dispatchEditBrokerAcceptedRate" type="number" min="0" step="0.01" placeholder="0.00"></div>
     </div>
-    <fieldset style="margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:12px">
-      <legend>Our estimate · current fare calculation</legend>
-      <div class="formRow" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
-        <div class="formField"><label for="dispatchEditFareMiles">Passenger miles per leg</label><input id="dispatchEditFareMiles" type="number" min="0" step="0.01"></div>
-        <div class="formField"><label for="dispatchEditFareDuration">Travel minutes</label><input id="dispatchEditFareDuration" type="number" min="0" step="1"></div>
-        <div class="formField"><label for="dispatchEditFareTraffic">Travel with traffic (min)</label><input id="dispatchEditFareTraffic" type="number" min="0" step="1"></div>
-        <div class="formField"><label for="dispatchEditFareStops">Waiting at stops (min)</label><input id="dispatchEditFareStops" type="number" min="0" step="1"></div>
-        <div class="formField"><label for="dispatchEditFareDeadhead">Empty miles to pickup</label><input id="dispatchEditFareDeadhead" type="number" min="0" step="0.01"></div>
-        <div class="formField"><label for="dispatchEditFareEnd">Empty miles after last leg</label><input id="dispatchEditFareEnd" type="number" min="0" step="0.01"></div>
-        <div class="formField"><label for="dispatchEditFareDiscount">Booking savings</label><select id="dispatchEditFareDiscount"><option value="0">None</option><option value="5">5%</option><option value="10">10%</option></select></div>
-        <div class="formField"><label for="dispatchEditOurEstimate">Our estimate</label><input id="dispatchEditOurEstimate" type="text" readonly></div>
-      </div>
-      <button id="dispatchEditRefreshFareRoute" class="button" type="button">Refresh route miles</button>
-      <p id="dispatchEditFareBreakdown" class="subtle" aria-live="polite"></p>
-    </fieldset>
+    <div class="formField" style="margin-top:12px">
+      <label for="dispatchEditOurEstimate">Our estimate</label>
+      <input id="dispatchEditOurEstimate" type="text" readonly>
+      <small class="subtle">Calculated automatically from this booking using current service rates.</small>
+      <details style="margin-top:8px"><summary>Fare breakdown</summary><p id="dispatchEditFareBreakdown" class="subtle" aria-live="polite"></p></details>
+    </div>
     <div class="formRow" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">
       <div class="formField"><label>Patient name</label><input id="dispatchEditName" type="text"></div>
       <div class="formField"><label>Patient phone</label><input id="dispatchEditPhone" type="text"></div>
@@ -2635,35 +2626,24 @@ $('saveCustomCompany').addEventListener('click',()=>{
   let currentRouteContext={distanceMiles:0,durationMinutes:0,trafficDurationMinutes:0,liveRouteMinutes:0,liveYardMinutes:0,liveYardTrafficMinutes:0};
   let currentFareBooking=null;
   let currentFareSettings=null;
-  let currentFareInputs=null;
-  let currentFareSchedule={};
-  const fareFieldIds=['dispatchEditFareMiles','dispatchEditFareDuration','dispatchEditFareTraffic','dispatchEditFareStops','dispatchEditFareDeadhead','dispatchEditFareEnd','dispatchEditFareDiscount'];
-
   function refreshEditorFare(){
-    currentFareInputs=null;
-    if(!currentFareBooking)return;
-    const estimate=get('dispatchEditOurEstimate'),summary=get('dispatchEditFareBreakdown');
-    const service=String(get('dispatchEditService').value||'').trim().toLowerCase();
-    const rate=currentFareSettings?.pricing?.[service];
-    const fields=fareFieldIds.slice(0,6).map(id=>get(id).value);
-    const missing=fields.some(value=>value===''||!Number.isFinite(Number(value))||Number(value)<0);
-    if(!rate||missing||!get('dispatchEditDate').value||!get('dispatchEditTime').value||!currentFareBooking.createdAt){
-      estimate.value='Needs fare inputs';
-      summary.textContent=!rate?'Current service pricing is unavailable.':!currentFareBooking.createdAt?'Booking creation time is missing; the 24-hour surcharge cannot be verified.':'Enter verified passenger miles, travel, waiting and both empty-mile segments (enter 0 when none).';
-      return null;
+    if(!currentFareBooking)return null;
+    const service=get('dispatchEditService').value||currentFareBooking.service;
+    const booking={...currentFareBooking,service,date:get('dispatchEditDate').value||currentFareBooking.date,
+      time:get('dispatchEditTime').value||currentFareBooking.time,pickupTime:get('dispatchEditTime').value||currentFareBooking.pickupTime,
+      appointmentTime:get('dispatchEditAppointmentTime').value||currentFareBooking.appointmentTime};
+    const settings=currentFareSettings?.pricing?currentFareSettings:{pricing:window.NexusCore?.getPricing?.()||{},fareRules:{}};
+    try{
+      const fare=NexusFare.calculateEstimate(booking,settings);
+      get('dispatchEditOurEstimate').value='$'+fare.discountedTotal.toFixed(2);
+      get('dispatchEditFareBreakdown').textContent='Passenger miles: '+fare.inputs.miles+' · '+fare.includedMiles+' included miles per leg · Passenger mileage $'+(fare.mileageChargePerLeg*fare.passengerLegCount).toFixed(2)+' · Waiting '+fare.waitMinutes+' min: $'+fare.waitCharge.toFixed(2)+' · Empty miles $'+fare.deadheadCharge.toFixed(2)+' · Schedule premium $'+fare.premiumAmount.toFixed(2)+' · Within 24 hours $'+fare.shortNoticeCharge.toFixed(2)+' · Fuel $'+(fare.fuelChargePerLeg*fare.passengerLegCount).toFixed(2)+' · Traffic $'+(fare.trafficChargePerLeg*fare.passengerLegCount).toFixed(2)+' · Card processing $'+fare.taxAmount.toFixed(2)+' · Savings '+fare.discountPct+'% · Total $'+fare.discountedTotal.toFixed(2);
+      return fare.discountedTotal;
+    }catch(error){
+      const existing=currentFareBooking.ourEstimate??currentFareBooking.estimatedFare??0;
+      get('dispatchEditOurEstimate').value='$'+Number(existing).toFixed(2);
+      get('dispatchEditFareBreakdown').textContent='Estimate from the saved booking. '+error.message;
+      return Number(existing);
     }
-    const [miles,durationMinutes,trafficDurationMinutes,stopWaitMinutes,toPickup,afterLast]=fields.map(Number);
-    const tripType=currentFareBooking.tripType||'ONE_WAY';
-    const discountPct=Number(get('dispatchEditFareDiscount').value);
-    let breakdown;
-    const schedule={...currentFareSchedule};
-    if(!schedule.multipleStops)schedule.finalAppointmentTime=get('dispatchEditAppointmentTime').value;
-    try{breakdown=NexusFare.calculateBooking({...currentFareBooking,service,date:get('dispatchEditDate').value,time:get('dispatchEditTime').value},{...schedule,miles,durationMinutes,trafficDurationMinutes,stopWaitMinutes,deadheadSegments:[toPickup,afterLast],discountPct},currentFareSettings);}catch(error){estimate.value='Needs fare inputs';summary.textContent=error.message;return null;}
-    const total=breakdown.discountedTotal;
-    estimate.value=`$${total.toFixed(2)}`;
-    currentFareInputs={...schedule,miles,durationMinutes,trafficDurationMinutes,stopWaitMinutes,deadheadSegments:[toPickup,afterLast],discountPct};
-    summary.textContent=`Base $${Number(rate.base).toFixed(2)} per leg · ${breakdown.includedMiles} included miles per leg and empty segment · $${Number(rate.perMile).toFixed(2)}/extra passenger mile · Passenger mileage $${(breakdown.mileageChargePerLeg*breakdown.passengerLegCount).toFixed(2)} · Fuel $${(breakdown.fuelChargePerLeg*breakdown.passengerLegCount).toFixed(2)} · Traffic $${(breakdown.trafficChargePerLeg*breakdown.passengerLegCount).toFixed(2)} · Waiting ${breakdown.waitMinutes} min: $${breakdown.waitCharge.toFixed(2)} ($${breakdown.waitPer15.toFixed(2)}/started 15 min) · Empty miles $${breakdown.deadheadCharge.toFixed(2)} · Schedule premium $${breakdown.premiumAmount.toFixed(2)} · Within 24 hours $${breakdown.shortNoticeCharge.toFixed(2)} · Subtotal $${breakdown.subtotal.toFixed(2)} · Card processing 3% $${breakdown.taxAmount.toFixed(2)} · Savings ${discountPct}% · Calculated $${total.toFixed(2)}. Saved estimate: ${currentFareBooking.estimatedFare==null?'unavailable':`$${Number(currentFareBooking.estimatedFare).toFixed(2)}`}.`;
-    return total;
   }
   let currentPersistedTripState={status:'',submitterType:'',brokerCompany:''};
 
@@ -2764,7 +2744,6 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function currentEditorSnapshot(){
     const fields=[
-      ...fareFieldIds,
       'dispatchEditStatus','dispatchEditService','dispatchEditPickup','dispatchEditDestination','dispatchEditDate',
       'dispatchEditAppointmentTime','dispatchEditTime','dispatchEditCheckInTime','dispatchEditDriver','dispatchEditVehicle',
       'dispatchEditSubmitterType','dispatchEditSubmitter','dispatchEditBrokerCompany','dispatchEditBrokerAcceptedRate',
@@ -3422,17 +3401,6 @@ $('saveCustomCompany').addEventListener('click',()=>{
     setSelectValueWithFallback(get('dispatchEditSubmitterType'),String(b.bookingSource||'CUSTOMER').toUpperCase());
     get('dispatchEditSubmitter').value=b.submitterEntity||'';
     get('dispatchEditBrokerCompany').value=b.brokerCompanyName||'';
-    let savedFare={};
-    try{savedFare=JSON.parse(String(b.notes||'').match(/Fare inputs: (\{[^\n|]*\})/)?.[1]||'{}');}catch{}
-    if(!Object.keys(savedFare).length&&String(b.bookingSource).toUpperCase()==='MOCK'){
-      try{const mockBreakdown=JSON.parse(String(b.notes||'').match(/Fare breakdown: (\{.*\})\. Member savings:/)?.[1]||'{}');savedFare={deadheadSegments:mockBreakdown.deadheadSegments,discountPct:Number(String(b.notes||'').match(/Member savings: (\d+)%/)?.[1]||0)};}catch{}
-    }
-    const emptyMiles=String(b.notes||'').match(/empty segments:\s*([^|\n]+)/i)?.[1]?.match(/\d+(?:\.\d+)?(?=\s*mi)/g)?.map(Number)||[];
-    const stopWait=Array.from(String(b.notes||'').matchAll(/Stop \d+: (\d+) min/g)).reduce((sum,match)=>sum+Number(match[1]),0);
-    const stopAppointments=Array.from(String(b.notes||'').matchAll(/Stop \d+ \([^)]*\): (\d{2}:\d{2})/g));
-    currentFareSchedule={scheduleBasis:savedFare.scheduleBasis||(/Schedule basis:\s*PICKUP/i.test(String(b.notes||''))?'PICKUP':'APPOINTMENT'),finalAppointmentTime:savedFare.finalAppointmentTime||stopAppointments.at(-1)?.[1]||b.appointmentTime,multipleStops:stopAppointments.length>1};
-    const values=[savedFare.miles??b.distanceMiles??'',savedFare.durationMinutes??currentRouteContext.durationMinutes,savedFare.trafficDurationMinutes??(currentRouteContext.trafficDurationMinutes||currentRouteContext.durationMinutes),savedFare.stopWaitMinutes??stopWait,savedFare.deadheadSegments?.[0]??emptyMiles[0]??'',savedFare.deadheadSegments?.at(-1)??emptyMiles.at(-1)??'',savedFare.discountPct??0];
-    fareFieldIds.forEach((id,index)=>get(id).value=String(values[index]));
     const intakeBrokerQuoted=currentBookingIntakeAudit?.brokerQuotedRate;
     const effectiveBrokerQuoted=b.brokerQuotedRate!=null?b.brokerQuotedRate:(b.broker_quoted_rate!=null?b.broker_quoted_rate:intakeBrokerQuoted);
     get('dispatchEditBrokerQuotedRate').value=effectiveBrokerQuoted!=null&&effectiveBrokerQuoted!==''?String(Number(effectiveBrokerQuoted).toFixed(2)):'';
@@ -3537,7 +3505,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       ['Pre-trip inspection (min)', String(Math.round(preTripInspectionMinutes||0))],
       ['Check-in Time', get('dispatchEditCheckInTime')?.value || getDriverYardReportTime()],
       ['Payment status', b.paymentStatus || 'UNPAID'],
-      ['Estimated fare', b.estimatedFare!=null?`$${Number(b.estimatedFare).toFixed(2)}`:'N/A'],
+      ['Our estimate', (b.ourEstimate??b.estimatedFare)!=null?`$${Number(b.ourEstimate??b.estimatedFare).toFixed(2)}`:'N/A'],
       ['Distance miles', b.distanceMiles!=null?String(b.distanceMiles):'N/A'],
       ['Estimated duration', b.estimatedDuration || 'N/A'],
       ['Deposit amount', b.depositAmount!=null?`$${Number(b.depositAmount).toFixed(2)}`:'N/A'],
@@ -3725,7 +3693,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const appointmentTime=get('dispatchEditAppointmentTime').value;
     if(!appointmentTime){setMsg('Appointment time is required. Enter appointment time to proceed.','err');return;}
     await ensureScheduleDefaultsBeforeSave();
-    if(refreshEditorFare()==null){setMsg('Verify the fare inputs before saving this trip.','err');return;}
+    refreshEditorFare();
     const confirmUpdate=window.confirm(
       `Confirm trip update for ${currentRef}?\n\n`+
       `Appointment: ${get('dispatchEditAppointmentTime').value || '--:--'}\n`+
@@ -3738,7 +3706,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       return;
     }
     const payload={
-      fareInputs:currentFareInputs,
+      recalculateEstimate:true,
       status:get('dispatchEditStatus').value,
       service:get('dispatchEditService').value,
       pickupLocation:get('dispatchEditPickupLocation').value,
@@ -3978,28 +3946,6 @@ $('saveCustomCompany').addEventListener('click',()=>{
   });
 
   get('dispatchEditAppointmentTime').addEventListener('input',updatePickupFromAppointment);
-  get('dispatchEditRefreshFareRoute').addEventListener('click',async()=>{
-    const button=get('dispatchEditRefreshFareRoute');
-    button.disabled=true;
-    const ref=currentRef,pickup=get('dispatchEditPickup').value,destination=get('dispatchEditDestination').value;
-    const date=get('dispatchEditDate').value,time=get('dispatchEditTime').value;
-    try{
-      const [passenger,toPickup,afterLast]=await Promise.all([
-        estimateTripRouteMinutes(pickup,destination,date,time),
-        estimateTripRouteMinutes(companyYardAddress,pickup,date,time),
-        estimateTripRouteMinutes(currentFareBooking?.tripType==='ROUND_TRIP'?pickup:destination,companyYardAddress,date,time)
-      ]);
-      if(ref!==currentRef||pickup!==get('dispatchEditPickup').value||destination!==get('dispatchEditDestination').value)return;
-      if([passenger,toPickup,afterLast].some(route=>!Number.isFinite(route.miles)))throw Error('Route miles unavailable. Enter verified values or check the map configuration.');
-      get('dispatchEditFareMiles').value=passenger.miles.toFixed(2);
-      get('dispatchEditFareDuration').value=passenger.minutes;
-      get('dispatchEditFareTraffic').value=passenger.trafficMinutes;
-      get('dispatchEditFareDeadhead').value=toPickup.miles.toFixed(2);
-      get('dispatchEditFareEnd').value=afterLast.miles.toFixed(2);
-      refreshEditorFare();refreshUnsavedState();
-    }catch(error){get('dispatchEditFareBreakdown').textContent=error.message;}
-    finally{button.disabled=false;}
-  });
   get('dispatchEditService').addEventListener('input',updatePickupFromAppointment);
   get('dispatchEditPickup').addEventListener('input',updatePickupFromAppointment);
   get('dispatchEditDestination').addEventListener('input',updatePickupFromAppointment);
@@ -4009,10 +3955,6 @@ $('saveCustomCompany').addEventListener('click',()=>{
   get('dispatchEditDriver').addEventListener('change',()=>applyDispatchAssignmentFilters('driver'));
   get('dispatchEditVehicle').addEventListener('change',()=>applyDispatchAssignmentFilters('vehicle'));
   panel.addEventListener('input',refreshUnsavedState);
-  ['dispatchEditPickup','dispatchEditDestination'].forEach(id=>get(id).addEventListener('input',()=>{
-    ['dispatchEditFareMiles','dispatchEditFareDuration','dispatchEditFareTraffic','dispatchEditFareDeadhead','dispatchEditFareEnd'].forEach(field=>get(field).value='');
-    refreshEditorFare();
-  }));
   panel.addEventListener('input',refreshEditorFare);
   panel.addEventListener('change',refreshEditorFare);
   panel.addEventListener('change',refreshUnsavedState);
