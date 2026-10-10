@@ -2,6 +2,7 @@ const {Client}=require('pg');
 const crypto=require('crypto');
 const {buildEmailRecipients}=require('./_shared/notification-routing.cjs');
 const pdfParse=require('pdf-parse');
+const NexusFare=require('../../nexus-fare.js');
 
 const pool=new Client({connectionString:process.env.DATABASE_URL});
 let connected=false;
@@ -793,6 +794,14 @@ function parseBrokerIntakeText(input){
 
  result.trip_date=normalizeTripDate(result.trip_date);
  result.trip_time=normalizeTripTime(result.trip_time);
+ const returnDate=firstField(labeledFields,['return_trip_date','return_date','return_pickup_date']);
+ const returnTime=firstField(labeledFields,['return_trip_time','return_pickup_time','return_time','return_pickup']);
+ const tripType=firstField(labeledFields,['trip_type','trip_schedule','journey_type']);
+ result.trip_type=/round[ _-]?trip|return[ _-]?trip|^rt$/i.test(tripType)||returnDate||returnTime?'ROUND_TRIP':'ONE_WAY';
+ result.return_trip_date=result.trip_type==='ROUND_TRIP'?normalizeTripDate(returnDate)||result.trip_date:null;
+ result.return_trip_time=result.trip_type==='ROUND_TRIP'?normalizeTripTime(returnTime)||null:null;
+ result.return_timing=result.trip_type==='ROUND_TRIP'&&!result.return_trip_time?'WILL_CALL':'SCHEDULED';
+ result.wait_minutes=n(firstField(labeledFields,['wait_minutes','waiting_minutes','stop_wait_minutes']),0);
 
  const looksLikeLayoutLabel=(value)=>{
   const text=clean(value,260).toLowerCase();
@@ -1004,17 +1013,12 @@ function computePlatformRate(parsed,settings){
  const fallback=pricing.ambulatory||{base:65,includedMiles:5,perMile:3.25,waitPer15:20};
  const selected=pricing[serviceKey]||fallback;
  const distance=n(parsed.distance_miles,n(selected.includedMiles,0));
- const base=n(selected.base,0);
- const includedMiles=n(selected.includedMiles,0);
- const perMile=n(selected.perMile,0);
- const waitPer15=n(selected.waitPer15,0);
- const twoHourWaitCost=waitPer15*8;
- const mileageCost=Math.max(0,distance-includedMiles)*perMile;
+ const fare=NexusFare.calculateEstimate({service:serviceKey,date:parsed.trip_date,time:parsed.pickup_time||parsed.trip_time,appointmentTime:parsed.trip_time,createdAt:parsed.created_at||new Date().toISOString(),bookingSource:'BROKER',tripType:parsed.trip_type||'ONE_WAY',returnTripDate:parsed.return_trip_date,returnTripTime:parsed.return_trip_time,distanceMiles:distance,intakePayload:parsed},{...settings,pricing:{...pricing,[serviceKey]:selected}});
  return {
   serviceKey,
   distanceMiles:distance,
-  twoHourWaitCost:Number(twoHourWaitCost.toFixed(2)),
-  platformRate:Number((base+mileageCost+twoHourWaitCost).toFixed(2))
+  fareCalculation:fare,
+  platformRate:fare.discountedTotal
  };
 }
 
@@ -1073,7 +1077,7 @@ async function insertBrokerRequest({brokerId,brokerName,service,pickup,destinati
  if(sourceMessageId){
   const existing=await query('SELECT * FROM broker_requests WHERE source_message_id=$1 LIMIT 1',[sourceMessageId]).catch(()=>({rows:[]}));
   if(existing.rows?.[0]){
-   const dispatchNote=`Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Includes 2h wait time in broker/platform rate calculations.`;
+   const dispatchNote=`Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Fare uses saved outbound and return schedule.`;
    const updated=await query(`UPDATE broker_requests SET
     broker_id=$2,
     broker_name=$3,
@@ -1131,7 +1135,7 @@ async function insertBrokerRequest({brokerId,brokerName,service,pickup,destinati
   patient_name,referral_id,crm_reference,parsed_payload,parse_source_method
  ) VALUES($1,null,$2,$3,$4,$5,null,null,null,null,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22)
  RETURNING *`;
- const dispatchNote=`Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Includes 2h wait time in broker/platform rate calculations.`;
+ const dispatchNote=`Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Fare uses saved outbound and return schedule.`;
  const result=await query(insertSql,[
   brokerId,
   brokerName,
@@ -1162,8 +1166,12 @@ async function insertBrokerRequest({brokerId,brokerName,service,pickup,destinati
 function buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimate}){
  return [
   'Broker confirmation intake created from inbound email attachment.',
-  `Broker quoted (including wait): $${Number(brokerRate||0).toFixed(2)}`,
-  `Platform rate (with 2h wait): $${Number(platformRate||0).toFixed(2)}`,
+  `Broker quoted: $${Number(brokerRate||0).toFixed(2)}`,
+  `Platform rate: $${Number(platformRate||0).toFixed(2)}`,
+  `Trip type: ${parsed.trip_type||'ONE_WAY'}`,
+  parsed.trip_time?`Appointment time: ${String(parsed.trip_time).slice(0,5)}`:'',
+  parsed.fare_inputs?`Fare inputs: ${JSON.stringify(parsed.fare_inputs)}`:'',
+  parsed.return_trip_time?`Round trip return: ${parsed.return_trip_date||parsed.trip_date} ${String(parsed.return_trip_time).slice(0,5)}`:(parsed.trip_type==='ROUND_TRIP'?'Return pickup time pending':''),
   `Variance: $${Number((brokerRate-platformRate)||0).toFixed(2)}`,
   `Estimated operating cost: $${Number(tripCostEstimate||0).toFixed(2)}`,
   parsed.referral_id?`Referral ID: ${parsed.referral_id}`:'',
@@ -1176,8 +1184,8 @@ function buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimat
 async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,platformRate,tripCostEstimate,tripDate,tripTime,brokerRequestId,attachments=[]}){
  const bookingReference=reference();
  const notes=buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimate});
- const result=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,pickup_location,dropoff_location,pickup_time,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
- VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,null,null,null,null,$15,null,$16,$17,$18,$19,$20,now(),now()) RETURNING *`,[
+ const result=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,pickup_location,dropoff_location,pickup_time,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at,trip_type,return_trip_date,return_trip_time)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,null,null,null,null,$15,null,$16,$17,$18,$19,$20,now(),now(),$21,$22,$23) RETURNING *`,[
   bookingReference,
   parsed.patient_name||brokerName||'Broker Request',
   parsed.patient_phone||null,
@@ -1189,7 +1197,7 @@ async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,plat
   parsed.destination_location||null,
   buildPickupTimestamp(tripDate,parsed.pickup_time),
   tripDate,
-  tripTime,
+  parsed.pickup_time||tripTime,
   'PENDING_DISPATCH_CONFIRMATION',
   notes,
   Number(parsed.distance_miles||0),
@@ -1197,7 +1205,8 @@ async function createBookingFromBrokerRequest(parsed,{brokerName,brokerRate,plat
   normalizeBookingSource('BROKER'),
   clean(parsed.submitter_email||'BROKER_INTAKE'),
   clean(brokerName||'Unknown Broker',120),
-  Number(brokerRate||0)
+  null,
+  parsed.trip_type||'ONE_WAY',parsed.return_trip_date||null,parsed.return_trip_time||null
  ]);
  await saveBookingAttachments({bookingReference,brokerRequestId,attachments});
  return result.rows[0];
@@ -1223,7 +1232,10 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
   distance_miles=$14,
   estimated_fare=$15,
   broker_company_name=$16,
-  broker_accepted_rate=$17,
+  broker_accepted_rate=COALESCE($17::numeric,broker_accepted_rate),
+  trip_type=$18,
+  return_trip_date=$19,
+  return_trip_time=$20,
   updated_at=now()
   WHERE reference=$1`,[
   bookingReference,
@@ -1242,7 +1254,8 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
   Number(distanceMiles||0),
   Number(platformRate||0),
   clean(brokerName||'Unknown Broker',120),
-  Number(brokerRate||0)
+  null,
+  parsed.trip_type||'ONE_WAY',parsed.return_trip_date||null,parsed.return_trip_time||null
  ]).catch(()=>{});
  await query(`UPDATE broker_requests SET
   service=$2,
@@ -1272,7 +1285,7 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
   Number(brokerRate||0),
   Number(platformRate||0),
   Number((brokerRate-platformRate)||0),
-  `Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Includes 2h wait time in broker/platform rate calculations.`,
+  `Distance miles: ${Number(distanceMiles||0).toFixed(2)} | Fare uses saved outbound and return schedule.`,
   clean(parsed.patient_name,160)||null,
   clean(parsed.referral_id,120)||null,
   clean(parsed.crm_reference,120)||null,
@@ -1281,6 +1294,7 @@ async function enrichExistingBookingFromBrokerRequest({bookingReference,parsed,b
    destination:parsed.destination,
    trip_date:tripDate,
    trip_time:tripTime,
+   trip_type:parsed.trip_type||'ONE_WAY',return_trip_date:parsed.return_trip_date||null,return_trip_time:parsed.return_trip_time||null,return_timing:parsed.return_timing||null,wait_minutes:parsed.wait_minutes||0,
     pickup_time:parsed.pickup_time||null,
    service:parsed.service,
    patient_name:parsed.patient_name||null,
@@ -1423,12 +1437,13 @@ exports.handler=async(event)=>{
   const brokerName=resolvedBroker.brokerName;
 
   const settings=await readPlatformSettings();
+  parsed.created_at=normalizedReceivedAt;
   const rateInfo=computePlatformRate(parsed,settings);
-  const waitCost=rateInfo.twoHourWaitCost;
+  parsed.fare_inputs=rateInfo.fareCalculation.inputs;
   const normalizedBrokerQuote=Number(n(parsed.broker_quoted_rate,0).toFixed(2));
   const brokerRateWithWait=parsed.subject_fallback
    ?0
-   :(normalizedBrokerQuote>0?Number((normalizedBrokerQuote+waitCost).toFixed(2)):0);
+   :normalizedBrokerQuote;
   const platformRate=Number(rateInfo.platformRate.toFixed(2));
   const variance=Number((brokerRateWithWait-platformRate).toFixed(2));
   const costBreakdown=estimateTripOperatingCost({...parsed,distance_miles:rateInfo.distanceMiles},settings);
@@ -1442,6 +1457,8 @@ exports.handler=async(event)=>{
    destination:parsed.destination,
    trip_date:tripDate,
    trip_time:tripTime,
+   pickup_time:parsed.pickup_time||null,
+   trip_type:parsed.trip_type||'ONE_WAY',return_trip_date:parsed.return_trip_date||null,return_trip_time:parsed.return_trip_time||null,return_timing:parsed.return_timing||null,wait_minutes:parsed.wait_minutes||0,
    service:parsed.service,
    patient_name:parsed.patient_name||null,
    referral_id:parsed.referral_id||null,

@@ -20,8 +20,8 @@ test('a booking made more than 24 hours before pickup stays nonurgent on review'
 test('round trip includes each leg, calculated return waiting and selected savings',()=>{
  const fare=Fare.calculateBooking({...booking,createdAt:'2030-08-12T20:00:00Z',tripType:'ROUND_TRIP',returnTripDate:'2030-08-15',returnTripTime:'12:00'}, {...inputs,discountPct:10},settings);
  assert.equal(fare.waitMinutes,90);
- assert.equal(fare.waitCharge,112.5);
- assert.equal(fare.discountedTotal,388.60);
+ assert.equal(fare.waitCharge,93.75);
+ assert.equal(fare.discountedTotal,371.21);
 });
 test('multiple-stop waiting adds stop waits and uses the final appointment for return waiting',()=>{
  const fare=Fare.calculateBooking({...booking,tripType:'ROUND_TRIP',returnTripDate:'2030-08-15',returnTripTime:'12:00'}, {...inputs,stopWaitMinutes:35,scheduleBasis:'APPOINTMENT',finalAppointmentTime:'11:30'},settings);
@@ -29,7 +29,7 @@ test('multiple-stop waiting adds stop waits and uses the final appointment for r
 });
 test('each started 15-minute waiting block uses the selected service rate',()=>{
  const fare=Fare.calculateBooking(booking,{...inputs,stopWaitMinutes:16},settings);
- assert.equal(fare.waitCharge,37.5);
+ assert.equal(fare.waitCharge,18.75);
 });
 test('DST timezone is consistent on server and browser',()=>{
  assert.equal(new Date(Fare.scheduledEpoch('2030-08-15','10:00')).toISOString(),'2030-08-15T14:00:00.000Z');
@@ -50,7 +50,7 @@ test('API computes the fare from current settings and ignores a submitted dollar
  const source=fs.readFileSync(require.resolve('../netlify/functions/api.cjs'),'utf8');
  const start=source.indexOf('   const hasCalculatedFare=');
  const end=source.indexOf('   const statusValue=',start);
- const context=vm.createContext({b:{fareInputs:inputs,estimatedFare:1},u:{role:'DISPATCHER'},before:{rows:[booking]},mapBooking:b=>b,readPlatformSettings:async()=>settings,NexusFare:Fare,json:(status,body)=>({status,body})});
+ const context=vm.createContext({hasTripSchedule:false,b:{fareInputs:inputs,estimatedFare:1},u:{role:'DISPATCHER'},before:{rows:[booking]},mapBooking:b=>b,readPlatformSettings:async()=>settings,NexusFare:Fare,json:(status,body)=>({status,body})});
  const result=await vm.runInContext(`(async()=>{${source.slice(start,end)};return {estimatedFareRaw};})()`,context);
  assert.equal(result.estimatedFareRaw,194.57);
  context.b={estimatedFare:1};

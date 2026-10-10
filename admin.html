@@ -105,6 +105,7 @@ body.adminFocusMode #main.shell{max-width:100%;padding-left:20px;padding-right:2
 body.adminFocusMode .sectionTab{display:none}
 body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh - 130px);padding:18px;border-radius:18px;background:#fff;border:1px solid #d8e6f2;box-shadow:0 24px 42px rgba(6,24,44,.12);margin:0}
 @media(max-width:900px){.adminHeroInner{grid-template-columns:1fr}.adminStatPanel{display:none}.formRow,.formRow.triple{grid-template-columns:1fr}.adminShortcuts{gap:8px}}
+.pricingFieldGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(210px,100%),1fr));gap:14px;margin:14px 0}.pricingFieldGrid input,.pricingFieldGrid select{width:100%;min-width:0}#pricingSection .sectionTitle h2{font-size:clamp(24px,3vw,34px);line-height:1.2}#pricingSection .sectionTitle p{font-size:15px;line-height:1.5}#pricingSection h3{margin:24px 0 8px}#pricingSection details>summary{font-weight:750;cursor:pointer}#pricingSection li{margin:6px 0}
 </style>
   <link rel="stylesheet" href="./platform.css?v=66">
   <script src="/trustedsite.js?v=2" defer></script>
@@ -340,16 +341,43 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 
 <!-- Pricing Manager -->
 <section class="sectionTab card" id="pricingSection" style="margin-top:32px">
-  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">Configuration Center</div><h2>Nexus Pricing Manager</h2><p>Edit rates once and apply across Booking, Dispatch and Billing.</p></div><div style="display:flex;gap:10px;align-items:center"><button class="button" id="resetPricing">Restore defaults</button><button class="button primary" id="savePricing">Save configuration</button></div></div>
+  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">Configuration Center</div><h2>Nexus Pricing Manager</h2><p>Current fare rules for Booking, Dispatch and our estimate on existing trips.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="button" id="resetPricing">Restore service rates</button><button class="button primary" id="savePricing">Save configuration</button></div></div>
   <div id="pricingSavedMsg" hidden></div>
-  <div class="grid cols3" style="margin:16px 0" aria-label="Premium rate rules">
-    <article class="card"><strong>After hours: +30%</strong><p class="muted">Weekday trips scheduled or overlapping outside 7:00 AM–7:00 PM.</p></article>
-    <article class="card"><strong>Weekend: +30%</strong><p class="muted">Trips scheduled or overlapping Saturday or Sunday.</p></article>
-    <article class="card"><strong>Holiday: +30%</strong><p class="muted">Trips scheduled or overlapping a recognized federal holiday.</p></article>
+  <p class="muted">Base fare and included passenger miles apply to each leg. Round trips include both legs before savings. Each service charges its waiting rate per started 15-minute block after the free waiting period.</p>
+  <div class="tableWrap"><table class="table configTable" aria-label="Pricing configuration"><thead><tr><th>Service</th><th>Base fare ($)</th><th>Included miles / leg</th><th>Excess mile ($)</th><th>Wait / 15 min ($)</th><th>Waiting starts</th></tr></thead><tbody id="pricingRows"></tbody></table></div>
+  <h3>Fare calculation rules</h3>
+  <p class="muted">These defaults apply to every service. Service overrides appear below.</p>
+  <div class="pricingFieldGrid"><div class="formField"><label for="minimumFare">Minimum fare per leg ($)</label><input id="minimumFare" data-fare-rule="minimumFare" type="number" min="0" step="0.01"></div>
+<div class="formField"><label for="fuelSurchargePerMile">Fuel surcharge per passenger mile ($)</label><input id="fuelSurchargePerMile" data-fare-rule="fuelSurchargePerMile" type="number" min="0" max="25" step="0.001"></div>
+<div class="formField"><label for="freeWaitMinutes">Free waiting (minutes)</label><input id="freeWaitMinutes" data-fare-rule="freeWaitMinutes" type="number" min="0" max="240" step="1" value="15"></div>
+<div class="formField"><label for="deadheadRatePct">Deadhead rate (% of service per-mile rate)</label><input id="deadheadRatePct" data-fare-rule="deadheadRatePct" type="number" min="0" max="100" step="0.1" value="50"></div>
+<div class="formField"><label for="shortNoticeHours">Short-notice window (hours)</label><input id="shortNoticeHours" data-fare-rule="shortNoticeHours" type="number" min="0" max="168" step="0.1" value="24"></div>
+<div class="formField"><label for="shortNoticeSurchargePct">Short-notice surcharge (% of base)</label><input id="shortNoticeSurchargePct" data-fare-rule="shortNoticeSurchargePct" type="number" min="0" max="100" step="0.1" value="30"></div>
+<div class="formField"><label for="cardProcessingFeePct">Card processing fee (%)</label><input id="cardProcessingFeePct" data-fare-rule="cardProcessingFeePct" type="number" min="0" max="20" step="0.1" value="3"></div>
+<div class="formField"><label for="afterHoursSurchargePct">After-hours premium (%)</label><input id="afterHoursSurchargePct" data-fare-rule="afterHoursSurchargePct" type="number" min="0" max="100" step="0.1" value="30"></div>
+<div class="formField"><label for="weekendSurchargePct">Weekend premium (%)</label><input id="weekendSurchargePct" data-fare-rule="weekendSurchargePct" type="number" min="0" max="100" step="0.1" value="30"></div>
+<div class="formField"><label for="holidaySurchargePct">Federal holiday premium (%)</label><input id="holidaySurchargePct" data-fare-rule="holidaySurchargePct" type="number" min="0" max="100" step="0.1" value="30"></div>
+<div class="formField"><label for="trafficOverageFeePerHour">Traffic overage ($/hour)</label><input id="trafficOverageFeePerHour" data-fare-rule="trafficOverageFeePerHour" type="number" min="0" max="1000" step="0.01"></div>
+<div class="formField"><label for="trafficOverageGraceMinutes">Traffic overage grace (minutes)</label><input id="trafficOverageGraceMinutes" data-fare-rule="trafficOverageGraceMinutes" type="number" min="0" max="180" step="1"></div></div>
+  <div class="card" style="margin-top:18px;background:#f8fbfd" aria-label="Fare calculation method">
+    <strong>How the fare is calculated</strong>
+    <p class="muted">Passenger fare per leg = base + miles beyond the service allowance × per-mile rate + fuel + traffic overage. Apply one schedule premium per leg and its minimum fare. Then add waiting, deadhead and short notice, add card processing, and apply booking savings.</p>
+    <ul class="muted"><li>Deadhead: each empty segment gets the service's included-mile allowance separately. Only excess miles use the deadhead percentage.</li><li>Short notice: compare the original booking time with each leg's pickup time; the surcharge applies to that leg's base fare.</li><li>Schedule premium: weekday hours are 7:00 AM–7:00 PM. Trips overlapping a weekend, federal holiday or after-hours period receive one premium. Weekend takes priority, then holiday, then after hours.</li><li>Waiting: calculated from arrival to the next pickup, including intermediate stops and the scheduled return. The first 15 minutes are free by default; remaining minutes round up to 15-minute blocks.</li><li>Booking savings: members save 5% one way or 10% round trip / recurring; guests save 5% round trip / recurring; broker trips have no automatic savings. An explicitly saved booking discount is retained.</li><li>Trip inputs: service, passenger miles per leg, pickup date/time, appointment and return schedule, travel time, traffic time, stop waiting, each empty-mile segment, booking creation time and savings. Distances use exact miles; money rounds to cents.</li></ul>
   </div>
-  <p class="muted" style="margin:0 0 14px">Only one 30% premium is applied when more than one condition applies.</p>
-  <p class="muted">Waiting charges start immediately. Each service's listed rate applies per started 15-minute block, with no free waiting period.</p>
-  <div class="tableWrap"><table class="table configTable" aria-label="Pricing configuration"><thead><tr><th>Service</th><th>Base fare ($)</th><th>Included miles</th><th>Per mile ($)</th><th>Wait / 15 min ($)</th><th>Waiting starts</th></tr></thead><tbody id="pricingRows"></tbody></table></div>
+  <h3>Service policy matrix</h3>
+  <p class="muted">Overrides use the service's own waiting allowance, traffic rate and premiums. Cancellation and no-show fees apply only to those events.</p>
+  <div class="tableWrap"><table class="table configTable" aria-label="Per-service policy overrides"><thead><tr><th>Service</th><th>Free wait (min)</th><th>Traffic ($/hour)</th><th>After-hours (%)</th><th>Weekend (%)</th><th>Holiday (%)</th><th>Cancellation ($)</th><th>No-show ($)</th></tr></thead><tbody id="servicePolicyRows"></tbody></table></div>
+  <details style="margin-top:18px"><summary>Fuel index settings</summary><p class="muted">Automatic mode derives the per-mile fuel surcharge from the fuel index, baseline, fleet MPG and buffer.</p><div class="pricingFieldGrid"><div class="formField"><label for="fuelPricingMode">Fuel pricing mode</label><select id="fuelPricingMode" data-fare-rule="fuelPricingMode"><option value="MANUAL">Manual override</option><option value="AUTO">Auto weekly update</option></select></div>
+<div class="formField"><label for="fuelIndexPricePerGallon">Fuel index ($/gallon)</label><input id="fuelIndexPricePerGallon" data-fare-rule="fuelIndexPricePerGallon" type="number" min="0" max="25" step="0.001"></div>
+<div class="formField"><label for="fuelBaselinePricePerGallon">Baseline fuel ($/gallon)</label><input id="fuelBaselinePricePerGallon" data-fare-rule="fuelBaselinePricePerGallon" type="number" min="0" max="25" step="0.001"></div>
+<div class="formField"><label for="fuelEfficiencyMpg">Fleet fuel efficiency (MPG)</label><input id="fuelEfficiencyMpg" data-fare-rule="fuelEfficiencyMpg" type="number" min="1" max="50" step="0.1"></div>
+<div class="formField"><label for="fuelOperationalBufferPct">Fuel operations buffer (%)</label><input id="fuelOperationalBufferPct" data-fare-rule="fuelOperationalBufferPct" type="number" min="0" max="200" step="0.1"></div>
+<div class="formField"><label for="fuelLastUpdatedAt">Fuel index last updated</label><input id="fuelLastUpdatedAt" type="text" readonly></div></div><div style="margin-top:12px"><button class="button" id="refreshFuelIndexBtn" type="button">Refresh fuel index now</button><small id="refreshFuelIndexMsg" style="margin-left:10px;color:var(--muted)"></small></div></details>
+  <details style="margin-top:18px"><summary>Cancellation, no-show and booking limits</summary><div class="pricingFieldGrid"><div class="formField"><label for="cancellationFee">Default cancellation fee ($)</label><input id="cancellationFee" data-fare-rule="cancellationFee" type="number" min="0" step="0.01"></div>
+<div class="formField"><label for="noShowFee">Default no-show fee ($)</label><input id="noShowFee" data-fare-rule="noShowFee" type="number" min="0" step="0.01"></div>
+<div class="formField"><label for="cancellationWindowHours">Cancellation window (hours before pickup)</label><input id="cancellationWindowHours" data-fare-rule="cancellationWindowHours" type="number" min="0" max="240" step="1"></div>
+<div class="formField"><label for="cancellationLeadHours">Cancellation policy: booking lead (hours)</label><input id="cancellationLeadHours" data-fare-rule="cancellationLeadHours" type="number" min="0" max="720" step="1"></div>
+<div class="formField"><label for="maxBookingDistanceMiles">Maximum booking distance (miles)</label><input id="maxBookingDistanceMiles" data-fare-rule="maxBookingDistanceMiles" type="number" min="5" max="500" step="1"></div></div></details>
 </section>
 
 <!-- Manage Trip -->
@@ -434,84 +462,14 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="FACILITY_TRANSFER"> IFT routine transfer</label>
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" value="FACILITY_TRANSFER_CRITICAL"> IFT high-acuity transfer</label>
   </div></div>
-  <div class="formRow" style="margin-top:18px">
-    <div class="formField"><label for="minimumFare">Minimum fare ($)</label><input id="minimumFare" type="number" min="0" step="0.01" placeholder="0.00"></div>
-    <div class="formField"><label for="fuelSurchargePerMile">Fuel surcharge ($/mile)</label><input id="fuelSurchargePerMile" type="number" min="0" step="0.01" placeholder="0.00"></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="fuelPricingMode">Fuel pricing mode</label><select id="fuelPricingMode"><option value="MANUAL">Manual override</option><option value="AUTO">Auto weekly update</option></select></div>
-    <div class="formField"><label for="fuelIndexPricePerGallon">Fuel index price ($/gallon)</label><input id="fuelIndexPricePerGallon" type="number" min="0" step="0.001" placeholder="0.000"></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="fuelBaselinePricePerGallon">Baseline fuel price ($/gallon)</label><input id="fuelBaselinePricePerGallon" type="number" min="0" step="0.001" placeholder="0.000"></div>
-    <div class="formField"><label for="fuelEfficiencyMpg">Fleet fuel efficiency (MPG)</label><input id="fuelEfficiencyMpg" type="number" min="1" max="50" step="0.1" placeholder="0.0"></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="fuelOperationalBufferPct">Fuel ops buffer (%)</label><input id="fuelOperationalBufferPct" type="number" min="0" max="200" step="0.1" placeholder="0.0"></div>
-    <div class="formField"><label for="fuelLastUpdatedAt">Fuel index last updated</label><input id="fuelLastUpdatedAt" type="text" placeholder="Not updated" readonly></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="tollCostPerTrip">Toll cost per trip ($)</label><input id="tollCostPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
-    <div class="formField"><label for="maintenanceCostPerMile">Maintenance cost per mile ($)</label><input id="maintenanceCostPerMile" type="number" min="0" step="0.0001" placeholder="0.0000"></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="insuranceCostPerTrip">Insurance cost per trip ($)</label><input id="insuranceCostPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
-    <div class="formField"><label for="dispatchOverheadPerTrip">Dispatch overhead per trip ($)</label><input id="dispatchOverheadPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="cleaningCostPerTrip">Cleaning / sanitize per trip ($)</label><input id="cleaningCostPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
-    <div class="formField"><label for="complianceCostPerTrip">Compliance / admin per trip ($)</label><input id="complianceCostPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="otherVariableCostPerTrip">Other variable cost per trip ($)</label><input id="otherVariableCostPerTrip" type="number" min="0" step="0.01" placeholder="0.00"></div>
-  </div>
-  <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
-    <button class="button" id="refreshFuelIndexBtn" type="button">Refresh fuel index now</button>
-    <small id="refreshFuelIndexMsg" style="color:var(--muted)"></small>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="afterHoursSurchargePct">After-hours surcharge (%) (outside 7:00 AM–7:00 PM, including overlap)</label><input id="afterHoursSurchargePct" type="number" min="0" max="100" step="0.1" placeholder="30.0"></div>
-    <div class="formField"><label for="weekendSurchargePct">Weekend surcharge (%)</label><input id="weekendSurchargePct" type="number" min="0" max="100" step="0.1" placeholder="0.0"></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="holidaySurchargePct">Holiday surcharge (%)</label><input id="holidaySurchargePct" type="number" min="0" max="100" step="0.1" placeholder="0.0"></div>
-    <div class="formField"><label for="cancellationFee">Cancellation fee ($)</label><input id="cancellationFee" type="number" min="0" step="0.01" placeholder="0.00"></div>
-  </div>
-  <p style="margin:8px 0 0;color:var(--muted);font-size:12px">Holidays: New Year, MLK Day, President's Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus / Indigenous Peoples' Day, Veterans Day, Thanksgiving Day, Christmas Day.</p>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="cancellationWindowHours">Cancellation window (hours before trip)</label><input id="cancellationWindowHours" type="number" min="0" max="240" step="1" placeholder="0"></div>
-    <div class="formField"><label for="cancellationLeadHours">Minimum booking lead (hours before trip)</label><input id="cancellationLeadHours" type="number" min="0" max="720" step="1" placeholder="0"></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="noShowFee">No-show fee ($)</label><input id="noShowFee" type="number" min="0" step="0.01" placeholder="0.00"></div>
-    <div class="formField"><label for="freeWaitMinutes">Free wait minutes</label><input id="freeWaitMinutes" type="number" value="0" readonly><small>Waiting charges start immediately for every service.</small></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="mileageRoundingRule">Mileage rounding rule</label><select id="mileageRoundingRule"><option value="EXACT">Exact</option><option value="TENTH_MILE">Tenth mile</option><option value="WHOLE_MILE">Whole mile</option></select></div>
-    <div class="formField"><label for="telemetryRefreshSeconds">Telemetry refresh (seconds)</label><input id="telemetryRefreshSeconds" type="number" min="5" max="120" step="1" placeholder="0"></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="maxBookingDistanceMiles">Max booking distance (miles)</label><input id="maxBookingDistanceMiles" type="number" min="5" max="500" step="1" placeholder="0"></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="returnMilesThreshold">Return-mile threshold (miles)</label><input id="returnMilesThreshold" type="number" min="0" max="500" step="0.1" placeholder="0.0"></div>
-    <div class="formField"><label for="returnMilesInclusionPct">Return-mile inclusion (%)</label><input id="returnMilesInclusionPct" type="number" min="0" max="100" step="1" placeholder="0"></div>
-  </div>
-  <div class="formRow" style="margin-top:14px">
-    <div class="formField"><label for="trafficOverageFeePerHour">Traffic overage fee ($/hour)</label><input id="trafficOverageFeePerHour" type="number" min="0" max="1000" step="0.01" placeholder="0.00"></div>
-    <div class="formField"><label for="trafficOverageGraceMinutes">Traffic overage grace (minutes)</label><input id="trafficOverageGraceMinutes" type="number" min="0" max="180" step="1" placeholder="0"></div>
-  </div>
-  <div style="margin-top:18px">
-    <p style="margin:0 0 10px;font-weight:750">Per-service policy overrides</p>
-    <p style="margin:0 0 10px;color:var(--muted);font-size:12px">Waiting charges start immediately for every service. Rates come from the service pricing matrix and apply per started 15-minute block.</p>
-    <p style="margin:0 0 10px;color:var(--muted);font-size:12px">Industry baseline: split interfacility into Routine IFT and High-Acuity IFT. Keep higher cancellation/no-show for High-Acuity, include handoff wait/documentation time in both, and keep return-mile plus traffic-overage charges enabled.</p>
-    <div class="tableWrap">
-      <table class="table configTable" aria-label="Per-service policy overrides">
-        <thead><tr><th>Service</th><th>Wait ($/15 min)</th><th>Waiting starts</th><th>Cancellation ($)</th><th>No-show ($)</th><th>Traffic ($/hour)</th><th>Return miles (%)</th><th>After-hours (%)</th><th>Weekend (%)</th><th>Holiday (%)</th></tr></thead>
-        <tbody id="servicePolicyRows"></tbody>
-      </table>
-    </div>
-  </div>
+  <div class="formRow" style="margin-top:18px"><div class="formField"><label for="telemetryRefreshSeconds">Telemetry refresh (seconds)</label><input id="telemetryRefreshSeconds" type="number" min="5" max="120" step="1"></div></div>
+  <details style="margin-top:18px"><summary>Operating cost assumptions</summary><p class="muted">Used by Cost Analyzer to measure operating cost and profit.</p><div class="pricingFieldGrid"><div class="formField"><label for="tollCostPerTrip">Toll cost per trip ($)</label><input id="tollCostPerTrip" type="number" min="0" step="0.01"></div>
+<div class="formField"><label for="maintenanceCostPerMile">Maintenance cost per mile ($)</label><input id="maintenanceCostPerMile" type="number" min="0" step="0.01"></div>
+<div class="formField"><label for="insuranceCostPerTrip">Insurance cost per trip ($)</label><input id="insuranceCostPerTrip" type="number" min="0" step="0.01"></div>
+<div class="formField"><label for="dispatchOverheadPerTrip">Dispatch overhead per trip ($)</label><input id="dispatchOverheadPerTrip" type="number" min="0" step="0.01"></div>
+<div class="formField"><label for="cleaningCostPerTrip">Cleaning cost per trip ($)</label><input id="cleaningCostPerTrip" type="number" min="0" step="0.01"></div>
+<div class="formField"><label for="complianceCostPerTrip">Compliance cost per trip ($)</label><input id="complianceCostPerTrip" type="number" min="0" step="0.01"></div>
+<div class="formField"><label for="otherVariableCostPerTrip">Other variable cost per trip ($)</label><input id="otherVariableCostPerTrip" type="number" min="0" step="0.01"></div></div></details>
   <div style="margin-top:22px"><button class="button primary" id="saveSettings">Save settings</button><span id="settingsSavedMsg" style="margin-left:12px;color:var(--green);font-weight:700;display:none">Settings saved.</span></div>
 </section>
 
@@ -659,7 +617,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">&#9855;</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div>
 <div id="adminToast" class="adminToast" role="status" aria-live="polite" hidden></div>
 <script src="./nexus-core.js"></script><script src="./platform.js?v=69"></script>
-<script src="./admin-app.js?v=20261008-immediate-waiting"></script></body></html>
+<script src="./admin-app.js?v=20261010-pricing-rules"></script></body></html>
 
 
 

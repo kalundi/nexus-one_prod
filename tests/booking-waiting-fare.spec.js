@@ -4,24 +4,26 @@ for (const scenario of [
   { name:'one way hides waiting', minutes:0, charge:0, total:'103.00' },
   { name:'booking within 24 hours adds 30 percent of base through payment', shortNotice:true, minutes:0, charge:0, total:'133.90' },
   { name:'immediate return pickup', returnTime:'10:15', minutes:0, charge:0, total:'195.70' },
-  { name:'first minute charges a block', returnTime:'10:16', minutes:1, charge:20, total:'215.27' },
-  { name:'15 minutes charges one block', returnTime:'10:30', minutes:15, charge:20, total:'215.27' },
-  { name:'16 minutes charges two blocks', returnTime:'10:31', minutes:16, charge:40, total:'234.84' },
-  { name:'return pickup changes refresh fare', initialReturnTime:'10:15', returnTime:'11:00', minutes:45, charge:60, total:'254.41' },
-  { name:'overnight return', returnDate:'2030-08-16', returnTime:'08:00', minutes:1305, charge:1740, total:'1898.29' },
-  { name:'next appointment determines waiting', stopTime:'11:30', stopMinutes:30, minutes:0, charge:40, total:'144.20' },
-  { name:'stop and final return waiting counted once', stopTime:'11:30', stopMinutes:30, returnTime:'11:45', minutes:30, charge:80, total:'273.98' },
+  { name:'first minute is free', returnTime:'10:16', minutes:1, charge:0, total:'195.70' },
+  { name:'15 minutes is free', returnTime:'10:30', minutes:15, charge:0, total:'195.70' },
+  { name:'16 minutes charges one block', returnTime:'10:31', minutes:16, charge:20, total:'215.27' },
+  { name:'return pickup changes refresh fare', initialReturnTime:'10:15', returnTime:'11:00', minutes:45, charge:40, total:'234.84' },
+  { name:'overnight return', returnDate:'2030-08-16', returnTime:'08:00', minutes:1305, charge:1720, total:'1878.72' },
+  { name:'next appointment determines waiting', stopTime:'11:30', stopMinutes:30, minutes:0, charge:20, total:'123.60' },
+  { name:'stop and final return waiting counted once', stopTime:'11:30', stopMinutes:30, returnTime:'11:45', minutes:30, charge:60, total:'254.41' },
   { name:'weekend premium', date:'2030-08-17', minutes:0, charge:0, total:'133.90' },
   { name:'holiday premium', date:'2030-07-04', minutes:0, charge:0, total:'133.90' },
   { name:'pickup basis crossing 7 PM', pickupTime:'18:50', minutes:0, charge:0, total:'133.90' },
-  { name:'return premium and waiting', returnTime:'20:00', minutes:585, charge:780, total:'988.29' }
+  { name:'return premium and waiting', returnTime:'20:00', minutes:585, charge:760, total:'968.72' },
+  { name:'configured card processing remains consistent through payment', returnTime:'10:31', minutes:16, charge:20, total:'217.36',rules:{cardProcessingFeePct:4} },
+  { name:'configured service weekend premium reaches the booking estimate', date:'2030-08-17',minutes:0,charge:0,total:'118.45',rules:{servicePolicies:{wheelchair:{weekendSurchargePct:15}}} }
 ]) test(scenario.name, async ({ page }) => {
   let submitted;
   if(scenario.shortNotice) await page.addInitScript(()=>{Date.now=()=>new Date('2030-08-14T16:00:00').getTime();});
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     const body = path === '/api/integrations/config' ? { stripeEnabled:true, googleMapsEnabled:false }
-      : path === '/api/settings/public' ? { pricing:{wheelchair:{base:100,includedMiles:99999,perMile:0,waitPer15:20}},fareRules:{freeWaitMinutes:120,minimumFare:0,fuelSurchargePerMile:0} }
+      : path === '/api/settings/public' ? { pricing:{wheelchair:{base:100,includedMiles:99999,perMile:0,waitPer15:20}},fareRules:{freeWaitMinutes:120,minimumFare:0,fuelSurchargePerMile:0,...scenario.rules} }
       : path === '/api/locations/search' ? { locations:[{lat:39,lng:-76}] }
       : path === '/api/bookings' ? (() => {
         submitted = route.request().postDataJSON();
@@ -91,7 +93,7 @@ for (const scenario of [
     await changeAppointment('12:00');
     await expect(page.locator('#stopWaitMinutes-1')).toHaveValue('60');
     await expect(page.locator('#stopPickupTime-1')).toHaveValue('11:15');
-    await expect(page.locator('#estFare')).toHaveText('$185.40');
+    await expect(page.locator('#estFare')).toHaveText('$164.80');
     await changeAppointment(scenario.stopTime);
     await expect(page.locator('#estFare')).toHaveText(`$${scenario.total}`);
   }

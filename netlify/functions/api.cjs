@@ -397,9 +397,11 @@ async function createBookingFromBrokerRequest(requestBody,requestRow){
  const bookingReference=isDemoReference(requestedReference)?reference():requestedReference;
  const payload=buildBrokerBookingPayload(requestRow||{},requestBody||{},bookingReference);
  payload.booking_source=normalizeBookingSource(payload.booking_source);
- const brokerNotes=upsertAppointmentNote(payload.notes||'',payload.trip_time||'');
- const bookingResult=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at)
-  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,now(),now()) RETURNING *`,[payload.reference,payload.name,payload.phone,payload.email,payload.service,payload.pickup,payload.destination,payload.trip_date,payload.trip_time,brokerNotes,payload.pickup_lat,payload.pickup_lng,payload.destination_lat,payload.destination_lng,null,null,payload.estimated_fare||null,payload.booking_source,clean(requestBody?.submitted_by||requestRow?.submitted_by||payload.email||'')||null,clean(requestBody?.broker_name||requestRow?.broker_name||'')||null,payload.estimated_fare||null]);
+ let brokerNotes=upsertAppointmentNote(payload.notes||'',payload.trip_time||'');
+ const fare=NexusFare.calculateEstimate({service:payload.service,date:payload.trip_date,time:payload.pickup_time,appointmentTime:payload.trip_time,createdAt:requestRow?.created_at||new Date().toISOString(),bookingSource:'BROKER',tripType:payload.trip_type,returnTripDate:payload.return_trip_date,returnTripTime:payload.return_trip_time,distanceMiles:requestBody.distance_miles||requestRow?.parsed_payload?.distance_miles||0,intakePayload:{...(requestRow?.parsed_payload||{}),...requestBody}},await readPlatformSettings());
+ brokerNotes+=' | Fare inputs: '+JSON.stringify(fare.inputs);
+ const bookingResult=await query(`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,created_at,updated_at,trip_type,return_trip_date,return_trip_time,pickup_time)
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SUBMITTED',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,now(),now(),$22,$23,$24,$25) RETURNING *`,[payload.reference,payload.name,payload.phone,payload.email,payload.service,payload.pickup,payload.destination,payload.trip_date,payload.pickup_time||payload.trip_time,brokerNotes,payload.pickup_lat,payload.pickup_lng,payload.destination_lat,payload.destination_lng,fare.inputs.miles,null,fare.discountedTotal,payload.booking_source,clean(requestBody?.submitted_by||requestRow?.submitted_by||payload.email||'')||null,clean(requestBody?.broker_name||requestRow?.broker_name||'')||null,null,payload.trip_type,payload.return_trip_date,payload.return_trip_time,payload.pickup_time?`${payload.trip_date} ${payload.pickup_time}`:null]);
  const booking=bookingResult.rows[0];
  const teamsNotification=await sendBookingTeamsAlert(booking,'🚐 New Broker Trip Booked — Admin_NMT','New Broker Trip Booked');
  await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[booking.reference,JSON.stringify({teams:teamsNotification})]).catch(()=>{});
@@ -464,7 +466,12 @@ const DEFAULT_PLATFORM_SETTINGS={
   cancellationWindowHours:24,
   cancellationLeadHours:72,
   noShowFee:50,
-  freeWaitMinutes:0,
+  freeWaitMinutes:15,
+  waitingPolicyVersion:2,
+  deadheadRatePct:50,
+  shortNoticeHours:24,
+  shortNoticeSurchargePct:30,
+  cardProcessingFeePct:3,
   mileageRoundingRule:'TENTH_MILE',
   telemetryRefreshSeconds:20,
   maxBookingDistanceMiles:125,
@@ -1001,13 +1008,13 @@ function mergePricing(input){
  return base;
 }
 
-function mergeServicePolicies(input){
+function mergeServicePolicies(input,freeWaitMinutes=15,waitingPolicyVersion=2){
  const base=JSON.parse(JSON.stringify(DEFAULT_SERVICE_POLICIES));
- if(!input||typeof input!=='object')return base;
+ if(!input||typeof input!=='object')input={};
  for(const key of Object.keys(base)){
   const src=input[key]||{};
   base[key]={
-   freeWaitMinutes:0,
+   freeWaitMinutes:waitingPolicyVersion>=2?clamp(n(src.freeWaitMinutes,freeWaitMinutes),0,240):15,
    cancellationFee:clamp(n(src.cancellationFee,base[key].cancellationFee),0,10000),
    noShowFee:clamp(n(src.noShowFee,base[key].noShowFee),0,10000),
    trafficOverageFeePerHour:clamp(n(src.trafficOverageFeePerHour,base[key].trafficOverageFeePerHour),0,1000),
@@ -1074,7 +1081,12 @@ function mergePlatformSettings(raw){
   cancellationWindowHours:clamp(n(fareSrc.cancellationWindowHours,DEFAULT_PLATFORM_SETTINGS.fareRules.cancellationWindowHours),0,240),
   cancellationLeadHours:clamp(n(fareSrc.cancellationLeadHours,DEFAULT_PLATFORM_SETTINGS.fareRules.cancellationLeadHours),0,720),
    noShowFee:clamp(n(fareSrc.noShowFee,DEFAULT_PLATFORM_SETTINGS.fareRules.noShowFee),0,10000),
-   freeWaitMinutes:0,
+   freeWaitMinutes:Number(fareSrc.waitingPolicyVersion)>=2?clamp(n(fareSrc.freeWaitMinutes,15),0,240):15,
+   waitingPolicyVersion:2,
+   deadheadRatePct:clamp(n(fareSrc.deadheadRatePct,50),0,100),
+   shortNoticeHours:clamp(n(fareSrc.shortNoticeHours,24),0,168),
+   shortNoticeSurchargePct:clamp(n(fareSrc.shortNoticeSurchargePct,30),0,100),
+   cardProcessingFeePct:clamp(n(fareSrc.cardProcessingFeePct,3),0,20),
    mileageRoundingRule:['EXACT','TENTH_MILE','WHOLE_MILE'].includes(String(fareSrc.mileageRoundingRule||''))?String(fareSrc.mileageRoundingRule):DEFAULT_PLATFORM_SETTINGS.fareRules.mileageRoundingRule,
    telemetryRefreshSeconds:clamp(n(fareSrc.telemetryRefreshSeconds,DEFAULT_PLATFORM_SETTINGS.fareRules.telemetryRefreshSeconds),5,120),
   maxBookingDistanceMiles:clamp(n(fareSrc.maxBookingDistanceMiles,DEFAULT_PLATFORM_SETTINGS.fareRules.maxBookingDistanceMiles),5,500),
@@ -1082,7 +1094,7 @@ function mergePlatformSettings(raw){
   returnMilesInclusionPct:clamp(n(fareSrc.returnMilesInclusionPct,DEFAULT_PLATFORM_SETTINGS.fareRules.returnMilesInclusionPct),0,100),
   trafficOverageFeePerHour:clamp(n(fareSrc.trafficOverageFeePerHour,DEFAULT_PLATFORM_SETTINGS.fareRules.trafficOverageFeePerHour),0,1000),
   trafficOverageGraceMinutes:clamp(n(fareSrc.trafficOverageGraceMinutes,DEFAULT_PLATFORM_SETTINGS.fareRules.trafficOverageGraceMinutes),0,180),
-  servicePolicies:mergeServicePolicies(fareSrc.servicePolicies)
+  servicePolicies:mergeServicePolicies(fareSrc.servicePolicies,clamp(n(fareSrc.freeWaitMinutes,15),0,240),Number(fareSrc.waitingPolicyVersion)||0)
   },
   organization:{
    name:clean(orgSrc.name)||DEFAULT_PLATFORM_SETTINGS.organization.name,
@@ -2751,7 +2763,7 @@ async function handler(event){
    const current=await readPlatformSettings();
    const next=writePlatformSettings({
     pricing:body.pricing||current.pricing,
-    fareRules:body.fareRules||current.fareRules,
+    fareRules:{...current.fareRules,...(body.fareRules||{}),servicePolicies:Object.fromEntries(Object.entries(current.fareRules.servicePolicies).map(([service,policy])=>[service,{...policy,...(body.fareRules?.servicePolicies?.[service]||{})}]))},
     organization:body.organization||current.organization,
     activeServices:body.activeServices||current.activeServices
    },me.id);
@@ -3683,16 +3695,24 @@ async function handler(event){
 
    // DRIVER role: only allowed to update trip status.
    if(u.role==='DRIVER'){
-    const forbidden=['recalculateEstimate','fareInputs','driverName','vehicleUnit','estimatedFare','pickup','destination','pickupLocation','destinationLocation','pickup_location','dropoff_location','date','time','service','name','phone','email','submitterEntity','bookingSource','brokerCompanyName','brokerAcceptedRate','checkInTime'];
+    const forbidden=['recalculateEstimate','fareInputs','driverName','vehicleUnit','estimatedFare','pickup','destination','pickupLocation','destinationLocation','pickup_location','dropoff_location','date','time','service','name','phone','email','submitterEntity','bookingSource','brokerCompanyName','brokerAcceptedRate','checkInTime','tripType','returnTripDate','returnTripTime'];
     if(forbidden.some((key)=>Object.prototype.hasOwnProperty.call(b,key)))return json(403,{error:'Drivers may only update trip status'});
    }
 
+   const hasTripSchedule=['tripType','returnTripDate','returnTripTime'].some(key=>Object.prototype.hasOwnProperty.call(b,key));
+   const tripTypeValue=String(b.tripType??before.rows[0].trip_type??'ONE_WAY').toUpperCase();
+   if(hasTripSchedule&&!['ONE_WAY','ROUND_TRIP','RECURRING'].includes(tripTypeValue))return json(400,{error:'Invalid trip type'});
+   const returnDateValue=tripTypeValue==='ROUND_TRIP'?normalizeTripDate(b.returnTripDate??before.rows[0].return_trip_date??b.date??before.rows[0].trip_date):null;
+   const returnTimeInput=Object.prototype.hasOwnProperty.call(b,'returnTripTime')?b.returnTripTime:before.rows[0].return_trip_time;
+   const returnTimeValue=tripTypeValue==='ROUND_TRIP'?normalizeOptionalTripTime(returnTimeInput)||null:null;
+   if(hasTripSchedule&&tripTypeValue==='ROUND_TRIP'&&!returnDateValue)return json(400,{error:'Return date is required'});
+   if(hasTripSchedule&&tripTypeValue==='ROUND_TRIP'&&clean(returnTimeInput)&&!returnTimeValue)return json(400,{error:'Invalid return pickup time'});
    const hasCalculatedFare=b.recalculateEstimate===true||b.fareInputs!=null;
    let calculatedFare=null;
    if(hasCalculatedFare){
     const saved=mapBooking(before.rows[0]);
     try{
-     const edited={...saved,service:b.service??saved.service,date:b.date??saved.date,time:b.time??saved.time,pickupTime:b.time??saved.pickupTime,appointmentTime:b.appointmentTime??saved.appointmentTime};
+     const edited={...saved,service:b.service??saved.service,date:b.date??saved.date,time:b.time??saved.time,pickupTime:b.time??saved.pickupTime,appointmentTime:b.appointmentTime??saved.appointmentTime,...(hasTripSchedule?{tripScheduleExplicit:true,tripType:tripTypeValue,returnTripDate:returnDateValue,returnTripTime:returnTimeValue}:{})};
      const settings=await readPlatformSettings();
      calculatedFare=b.recalculateEstimate===true?NexusFare.calculateEstimate(edited,settings):NexusFare.calculateBooking(edited,b.fareInputs,settings);
      if(b.recalculateEstimate===true)b.fareInputs=calculatedFare.inputs;
@@ -3776,6 +3796,7 @@ async function handler(event){
   const notesBase=hasNotes?clean(b.notes)||null:before.rows[0].notes;
   const notesWithAppointment=(hasAppointmentTime||(!existingAppointmentTime&&proposedTripTime))?upsertAppointmentNote(notesBase,effectiveAppointmentTime):notesBase;
   let notesValue=hasCheckInTime?upsertCheckInNote(notesWithAppointment,checkInTimeValue):notesWithAppointment;
+  if(hasTripSchedule)notesValue=String(notesValue||'').replace(/\s*\|?\s*Round trip return:\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/g,'').trim();
   if(hasCalculatedFare)notesValue=String(notesValue||'').replace(/\s*\|?\s*Fare inputs: \{[^\n|]*\}/g,'').trim()+` | Fare inputs: ${JSON.stringify(b.fareInputs)}`;
 
    const r=await query(`
@@ -3799,6 +3820,9 @@ async function handler(event){
       submitter_entity=CASE WHEN $31 THEN $32 ELSE submitter_entity END,
       broker_company_name=CASE WHEN $33 THEN $34 ELSE broker_company_name END,
       broker_accepted_rate=CASE WHEN $35 THEN $36 ELSE broker_accepted_rate END,
+      trip_type=CASE WHEN $37 THEN $38 ELSE trip_type END,
+      return_trip_date=CASE WHEN $37 THEN $39 ELSE return_trip_date END,
+      return_trip_time=CASE WHEN $37 THEN $40 ELSE return_trip_time END,
         updated_at=now()
     WHERE reference=$1
     RETURNING *`,[
@@ -3822,8 +3846,8 @@ async function handler(event){
       hasDate?clean(b.date)||before.rows[0].trip_date:null,
       hasTime,
       hasTime?clean(b.time)||before.rows[0].trip_time:null,
-      hasNotes||hasAppointmentTime||hasCheckInTime||hasCalculatedFare,
-      hasNotes||hasAppointmentTime||hasCheckInTime||hasCalculatedFare?notesValue:null,
+      hasNotes||hasAppointmentTime||hasCheckInTime||hasCalculatedFare||hasTripSchedule,
+      hasNotes||hasAppointmentTime||hasCheckInTime||hasCalculatedFare||hasTripSchedule?notesValue:null,
       hasName,
       hasName?clean(b.name)||before.rows[0].name:null,
       hasPhone,
@@ -3837,10 +3861,12 @@ async function handler(event){
       hasBrokerCompanyName,
       hasBrokerCompanyName?clean(brokerCompanyNameInput)||null:null,
       hasBrokerAcceptedRate,
-      hasBrokerAcceptedRate?brokerAcceptedRateValue:null
+      hasBrokerAcceptedRate?brokerAcceptedRateValue:null,
+      hasTripSchedule,tripTypeValue,returnDateValue,returnTimeValue
     ]);
 
   if(!r.rows[0])return json(404,{error:'Booking not found'});
+  if(hasTripSchedule)await query(`UPDATE broker_requests SET parsed_payload=COALESCE(parsed_payload,'{}'::jsonb)||$2::jsonb,updated_at=now() WHERE booking_reference=$1`,[ref,JSON.stringify({trip_type:tripTypeValue,is_return_trip:tripTypeValue==='ROUND_TRIP',return_trip_date:returnDateValue,return_trip_time:returnTimeValue})]);
 
   if(hasPickupTime){
     await query('UPDATE bookings SET pickup_time=$2::time,updated_at=now() WHERE reference=$1',[ref,pickupTimeValue]).catch(()=>{});
@@ -4735,12 +4761,16 @@ async function handler(event){
   }
   if(p.join('/')==='broker-requests'&&method==='POST'){
    const b=parseBody(event);required(b,['pickup','destination','trip_date','trip_time','service','broker_quoted_rate']);
+   const schedule=NexusFare.resolveTripSchedule({date:b.trip_date,intakePayload:b});
+   if(schedule.tripType==='ROUND_TRIP'&&schedule.returnTimePending&&b.return_timing!=='WILL_CALL')return json(400,{error:'Enter the broker return pickup time or select will-call.'});
+   if(schedule.tripType==='ROUND_TRIP'&&!schedule.returnTripDate)return json(400,{error:'Return date is required.'});
    let brokerId=null;
    if(b.broker_id)brokerId=Number(b.broker_id);
-   const platformRate=Number(b.platform_calculated_rate)||0;
+   const platformRate=NexusFare.calculateEstimate({service:b.service,date:b.trip_date,time:b.pickup_time||b.trip_time,appointmentTime:b.trip_time,createdAt:new Date().toISOString(),bookingSource:'BROKER',...schedule,intakePayload:b,distanceMiles:b.distance_miles||0},await readPlatformSettings()).discountedTotal;
+   b.platform_calculated_rate=platformRate;
    const brokerRate=Number(b.broker_quoted_rate)||0;
    const delta=brokerRate-platformRate;
-    const r=await query('INSERT INTO broker_requests(broker_id,booking_reference,broker_name,service,pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,trip_date,trip_time,broker_quoted_rate,platform_calculated_rate,rate_delta,variance,submission_method,submitted_by,request_status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *',[brokerId,clean(b.booking_reference)||null,clean(b.broker_name)||'Unknown',clean(b.service),clean(b.pickup),clean(b.destination),Number(b.pickup_lat)||null,Number(b.pickup_lng)||null,Number(b.destination_lat)||null,Number(b.destination_lng)||null,b.trip_date,b.trip_time,brokerRate,platformRate,delta,delta,clean(b.submission_method)||'FORM',clean(b.submitted_by)||'ANONYMOUS','PENDING_DISPATCH_CONFIRMATION']);
+    const r=await query('INSERT INTO broker_requests(broker_id,booking_reference,broker_name,service,pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,trip_date,trip_time,broker_quoted_rate,platform_calculated_rate,rate_delta,variance,submission_method,submitted_by,request_status,parsed_payload,patient_name,referral_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21,$22) RETURNING *',[brokerId,clean(b.booking_reference)||null,clean(b.broker_name)||'Unknown',clean(b.service),clean(b.pickup),clean(b.destination),Number(b.pickup_lat)||null,Number(b.pickup_lng)||null,Number(b.destination_lat)||null,Number(b.destination_lng)||null,b.trip_date,b.trip_time,brokerRate,platformRate,delta,delta,clean(b.submission_method)||'FORM',clean(b.submitted_by||b.submitter_email)||'ANONYMOUS','PENDING_DISPATCH_CONFIRMATION',JSON.stringify({...b,trip_type:schedule.tripType,return_trip_date:schedule.returnTripDate,return_trip_time:schedule.returnTripTime}),clean(b.patient_name)||null,clean(b.referral_id)||null]);
    const req=r.rows[0];
    let requestState=req;
    try{
@@ -5085,9 +5115,10 @@ async function mapBookingsWithIntakeAudit(rows){
 
 function withCurrentEstimate(booking,settings){
  const {intakePayload,...publicBooking}=booking;
+ const schedule=NexusFare.resolveTripSchedule(booking);
  try{
   const fare=NexusFare.calculateEstimate(booking,settings);
-  return {...publicBooking,ourEstimate:fare.discountedTotal,fareCalculation:fare};
+  return {...publicBooking,...schedule,ourEstimate:fare.discountedTotal,fareCalculation:fare};
  }catch{
   return {...publicBooking,ourEstimate:booking.estimatedFare??0};
  }

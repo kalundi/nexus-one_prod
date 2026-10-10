@@ -607,12 +607,13 @@ function renderPricing(){
       <td><input aria-label="${r.label} included miles" type="number" step="1" min="0" data-field="includedMiles" value="${r.includedMiles}" style="width:80px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
       <td><input aria-label="${r.label} per mile" type="number" step="0.01" min="0" data-field="perMile" value="${r.perMile}" style="width:90px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
       <td><input aria-label="${r.label} wait fee" type="number" step="0.01" min="0" data-field="waitPer15" value="${r.waitPer15}" style="width:90px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
-      <td>Immediately</td>
+      <td data-wait-start="${key}">After ${Number(currentSettings?.fareRules?.servicePolicies?.[key]?.freeWaitMinutes??currentSettings?.fareRules?.freeWaitMinutes??15)} min</td>
     </tr>`).join('');
+  document.querySelectorAll('#pricingRows input').forEach(input=>{input.disabled=!canEditSettings();});
   updateDashboardSignals();
 }
 function getEditedPricing(){
-  const p={...(currentSettings?.pricing||NexusCore.getPricing())};
+  const p=JSON.parse(JSON.stringify(currentSettings?.pricing||NexusCore.getPricing()));
   document.getElementById('pricingRows').querySelectorAll('tr').forEach(tr=>{
     const key=tr.dataset.key;
     tr.querySelectorAll('input[data-field]').forEach(i=>{p[key][i.dataset.field]=Number(i.value)});
@@ -625,15 +626,17 @@ document.getElementById('savePricing').addEventListener('click',async()=>{
     showMsg(document.getElementById('pricingSavedMsg'),'Dispatcher access is view-only for settings.','err');
     return;
   }
+  const invalid=Array.from(document.querySelectorAll('#pricingSection input,#pricingSection select')).find(input=>!input.checkValidity());
+  if(invalid){invalid.closest('details')?.setAttribute('open','');invalid.reportValidity();return;}
   const p=getEditedPricing();
-  const r=await fetch('/api/admin/settings',{method:'PATCH',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({pricing:p})});
+  const r=await fetch('/api/admin/settings',{method:'PATCH',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({pricing:p,fareRules:readPricingRules()})});
   const data=await r.json().catch(()=>({}));
   if(!r.ok){showMsg(document.getElementById('pricingSavedMsg'),data.error||'Failed to save pricing.','err');return;}
   currentSettings=data.settings;
   renderPricing();
   applySettingsToForm(currentSettings);
   const msg=document.getElementById('pricingSavedMsg');
-  showMsg(msg,`Pricing saved at ${new Date().toLocaleTimeString()}.`,'ok');
+  showMsg(msg,`Rates and fare rules saved at ${new Date().toLocaleTimeString()}. Existing trip estimates use this configuration.`,'ok');
 });
 
 document.getElementById('resetPricing').addEventListener('click',async()=>{
@@ -647,6 +650,7 @@ document.getElementById('resetPricing').addEventListener('click',async()=>{
   if(!r.ok){showMsg(document.getElementById('pricingSavedMsg'),data.error||'Failed to reset pricing.','err');return;}
   currentSettings=data.settings;
   renderPricing();
+  applySettingsToForm(currentSettings);
   const msg=document.getElementById('pricingSavedMsg');
   showMsg(msg,'Default pricing restored.','ok');
 });
@@ -826,18 +830,8 @@ function renderServicePolicyRows(settings){
   rowsEl.innerHTML=ordered.map((key)=>{
     const label=pricing[key]?.label||key.toUpperCase();
     const p=policies[key]||{};
-    return `<tr data-service-policy="${key}">
-      <td><strong>${label}</strong></td>
-      <td>$${Number(pricing[key]?.waitPer15||0).toFixed(2)}</td>
-      <td>Immediately</td>
-      <td><input type="number" step="0.01" min="0" data-field="cancellationFee" value="${Number(p.cancellationFee||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
-      <td><input type="number" step="0.01" min="0" data-field="noShowFee" value="${Number(p.noShowFee||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
-      <td><input type="number" step="0.01" min="0" data-field="trafficOverageFeePerHour" value="${Number(p.trafficOverageFeePerHour||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
-      <td><input type="number" step="1" min="0" max="100" data-field="returnMilesInclusionPct" value="${Number(p.returnMilesInclusionPct||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
-      <td><input type="number" step="0.1" min="0" max="100" data-field="afterHoursSurchargePct" value="${Number(p.afterHoursSurchargePct||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
-      <td><input type="number" step="0.1" min="0" max="100" data-field="weekendSurchargePct" value="${Number(p.weekendSurchargePct||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
-      <td><input type="number" step="0.1" min="0" max="100" data-field="holidaySurchargePct" value="${Number(p.holidaySurchargePct||0)}" style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>
-    </tr>`;
+    const fields=[['freeWaitMinutes',rules.freeWaitMinutes??15,240,1],['trafficOverageFeePerHour',rules.trafficOverageFeePerHour??0,1000,.01],['afterHoursSurchargePct',rules.afterHoursSurchargePct??30,100,.1],['weekendSurchargePct',rules.weekendSurchargePct??30,100,.1],['holidaySurchargePct',rules.holidaySurchargePct??30,100,.1],['cancellationFee',rules.cancellationFee??0,10000,.01],['noShowFee',rules.noShowFee??0,10000,.01]];
+    return `<tr data-service-policy="${key}"><td><strong>${escapeHtml(label)}</strong></td>${fields.map(([field,fallback,max,step])=>`<td><input aria-label="${escapeHtml(label)} ${field}" type="number" step="${step}" min="0" max="${max}" data-field="${field}" value="${Number(p[field]??fallback)}" ${canEditSettings()?'':'disabled'} style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>`).join('')}</tr>`;
   }).join('');
 }
 
@@ -846,7 +840,7 @@ function readServicePoliciesFromTable(){
   document.querySelectorAll('#servicePolicyRows tr[data-service-policy]').forEach((tr)=>{
     const key=tr.getAttribute('data-service-policy');
     if(!key)return;
-    const row={};
+    const row={...(currentSettings?.fareRules?.servicePolicies?.[key]||{})};
     tr.querySelectorAll('input[data-field]').forEach((input)=>{
       const field=input.getAttribute('data-field');
       row[field]=Number(input.value||0);
@@ -855,6 +849,32 @@ function readServicePoliciesFromTable(){
   });
   return out;
 }
+
+function readPricingRules(){
+  const rules={...(currentSettings?.fareRules||{}),waitingPolicyVersion:2};
+  document.querySelectorAll('#pricingSection [data-fare-rule]').forEach(input=>{
+    rules[input.dataset.fareRule]=input.tagName==='SELECT'?input.value:Number(input.value);
+  });
+  rules.servicePolicies=readServicePoliciesFromTable();
+  return rules;
+}
+
+document.getElementById('pricingSection').addEventListener('input',event=>{
+  const input=event.target;
+  const field=input.dataset.fareRule;
+  if(['freeWaitMinutes','afterHoursSurchargePct','weekendSurchargePct','holidaySurchargePct','trafficOverageFeePerHour'].includes(field)){
+    document.querySelectorAll(`#servicePolicyRows input[data-field="${field}"]`).forEach(override=>{
+      if(Number(override.value)===Number(input.dataset.previousValue))override.value=input.value;
+    });
+    input.dataset.previousValue=input.value;
+  }
+  if(field==='freeWaitMinutes'||input.dataset.field==='freeWaitMinutes'){
+    document.querySelectorAll('#servicePolicyRows tr[data-service-policy]').forEach(row=>{
+      const cell=document.querySelector(`[data-wait-start="${row.dataset.servicePolicy}"]`);
+      if(cell)cell.textContent=`After ${Number(row.querySelector('[data-field="freeWaitMinutes"]').value)} min`;
+    });
+  }
+});
 
 function readSettingsForm(){
   const serviceInputs=Array.from(document.querySelectorAll('#activeServicesGroup input[type="checkbox"]'));
@@ -868,13 +888,7 @@ function readSettingsForm(){
     },
     activeServices,
     fareRules:{
-      minimumFare:Number(document.getElementById('minimumFare').value||0),
-      fuelSurchargePerMile:Number(document.getElementById('fuelSurchargePerMile').value||0),
-      fuelPricingMode:document.getElementById('fuelPricingMode').value,
-      fuelIndexPricePerGallon:Number(document.getElementById('fuelIndexPricePerGallon').value||0),
-      fuelBaselinePricePerGallon:Number(document.getElementById('fuelBaselinePricePerGallon').value||3.25),
-      fuelEfficiencyMpg:Number(document.getElementById('fuelEfficiencyMpg').value||10),
-      fuelOperationalBufferPct:Number(document.getElementById('fuelOperationalBufferPct').value||20),
+      ...readPricingRules(),
       tollCostPerTrip:Number(document.getElementById('tollCostPerTrip').value||0),
       maintenanceCostPerMile:Number(document.getElementById('maintenanceCostPerMile').value||0),
       insuranceCostPerTrip:Number(document.getElementById('insuranceCostPerTrip').value||0),
@@ -882,22 +896,7 @@ function readSettingsForm(){
       cleaningCostPerTrip:Number(document.getElementById('cleaningCostPerTrip').value||0),
       complianceCostPerTrip:Number(document.getElementById('complianceCostPerTrip').value||0),
       otherVariableCostPerTrip:Number(document.getElementById('otherVariableCostPerTrip').value||0),
-      afterHoursSurchargePct:Number(document.getElementById('afterHoursSurchargePct').value||0),
-      weekendSurchargePct:Number(document.getElementById('weekendSurchargePct').value||0),
-      holidaySurchargePct:Number(document.getElementById('holidaySurchargePct').value||0),
-      cancellationFee:Number(document.getElementById('cancellationFee').value||0),
-      cancellationWindowHours:Number(document.getElementById('cancellationWindowHours').value||24),
-      cancellationLeadHours:Number(document.getElementById('cancellationLeadHours').value||72),
-      noShowFee:Number(document.getElementById('noShowFee').value||0),
-      freeWaitMinutes:Number(document.getElementById('freeWaitMinutes').value||0),
-      mileageRoundingRule:document.getElementById('mileageRoundingRule').value,
-      telemetryRefreshSeconds:Number(document.getElementById('telemetryRefreshSeconds').value||20),
-      maxBookingDistanceMiles:Number(document.getElementById('maxBookingDistanceMiles').value||125),
-      returnMilesThreshold:Number(document.getElementById('returnMilesThreshold').value||10),
-      returnMilesInclusionPct:Number(document.getElementById('returnMilesInclusionPct').value||100),
-      trafficOverageFeePerHour:Number(document.getElementById('trafficOverageFeePerHour').value||0),
-      trafficOverageGraceMinutes:Number(document.getElementById('trafficOverageGraceMinutes').value||0),
-      servicePolicies:readServicePoliciesFromTable()
+      telemetryRefreshSeconds:Number(document.getElementById('telemetryRefreshSeconds').value||20)
     }
   };
 }
@@ -905,8 +904,8 @@ function readSettingsForm(){
 function applyFuelModeUi(){
   const mode=(document.getElementById('fuelPricingMode').value||'MANUAL').toUpperCase();
   const isAuto=mode==='AUTO';
-  document.getElementById('fuelSurchargePerMile').disabled=isAuto;
-  document.getElementById('fuelIndexPricePerGallon').disabled=isAuto;
+  document.getElementById('fuelSurchargePerMile').disabled=isAuto||!canEditSettings();
+  document.getElementById('fuelIndexPricePerGallon').disabled=isAuto||!canEditSettings();
   const btn=document.getElementById('refreshFuelIndexBtn');
   if(btn) btn.disabled=!canEditSettings();
 }
@@ -915,6 +914,11 @@ function applySettingsToForm(settings){
   if(!settings)return;
   const org=settings.organization||{};
   const fare=settings.fareRules||{};
+  document.querySelectorAll('#pricingSection [data-fare-rule]').forEach(input=>{
+    if(fare[input.dataset.fareRule]!=null)input.value=fare[input.dataset.fareRule];
+    input.dataset.previousValue=input.value;
+    input.disabled=!canEditSettings();
+  });
   document.getElementById('orgName').value=org.name??'';
   document.getElementById('orgPhone').value=org.phone??'';
   document.getElementById('orgEmail').value=org.email??'';
@@ -941,12 +945,9 @@ function applySettingsToForm(settings){
   document.getElementById('cancellationWindowHours').value=fare.cancellationWindowHours==null?'':Number(fare.cancellationWindowHours);
   document.getElementById('cancellationLeadHours').value=fare.cancellationLeadHours==null?'':Number(fare.cancellationLeadHours);
   document.getElementById('noShowFee').value=fare.noShowFee==null?'':Number(fare.noShowFee);
-  document.getElementById('freeWaitMinutes').value=0;
-  document.getElementById('mileageRoundingRule').value=fare.mileageRoundingRule||'TENTH_MILE';
+  document.getElementById('freeWaitMinutes').value=fare.freeWaitMinutes??15;
   document.getElementById('telemetryRefreshSeconds').value=fare.telemetryRefreshSeconds==null?'':Number(fare.telemetryRefreshSeconds);
   document.getElementById('maxBookingDistanceMiles').value=fare.maxBookingDistanceMiles==null?'':Number(fare.maxBookingDistanceMiles);
-  document.getElementById('returnMilesThreshold').value=fare.returnMilesThreshold==null?'':Number(fare.returnMilesThreshold);
-  document.getElementById('returnMilesInclusionPct').value=fare.returnMilesInclusionPct==null?'':Number(fare.returnMilesInclusionPct);
   document.getElementById('trafficOverageFeePerHour').value=fare.trafficOverageFeePerHour==null?'':Number(fare.trafficOverageFeePerHour);
   document.getElementById('trafficOverageGraceMinutes').value=fare.trafficOverageGraceMinutes==null?'':Number(fare.trafficOverageGraceMinutes);
   renderServicePolicyRows(settings);

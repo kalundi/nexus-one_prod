@@ -190,7 +190,7 @@
     cancellationWindowHours: 24,
     cancellationLeadHours: 72,
     noShowFee: 50,
-    freeWaitMinutes: 0,
+    freeWaitMinutes: 15,
     mileageRoundingRule: 'TENTH_MILE',
     telemetryRefreshSeconds: 20,
     maxBookingDistanceMiles: 125,
@@ -585,7 +585,7 @@
       if($(id)){ $(id).textContent=mileageCopy; $(id).hidden=Number(miles||0)<=0; }
     });
     const premiumReasons={ 'after-hours':'after-hours', weekend:'weekend', holiday:'holiday' };
-    const premiumLegs=[breakdown.premiumRateReason?`${String(tripType?.value||'')==='ROUND_TRIP'?'Outbound':'Ride'}: +30% ${premiumReasons[breakdown.premiumRateReason]}`:'',breakdown.returnPremiumRateReason?`Return: +30% ${premiumReasons[breakdown.returnPremiumRateReason]}`:''].filter(Boolean);
+    const premiumLegs=[breakdown.outboundPremiumPct>0?`${String(tripType?.value||'')==='ROUND_TRIP'?'Outbound':'Ride'}: +${breakdown.outboundPremiumPct}% ${premiumReasons[breakdown.premiumRateReason]}`:'',breakdown.returnPremiumPct>0?`Return: +${breakdown.returnPremiumPct}% ${premiumReasons[breakdown.returnPremiumRateReason]}`:''].filter(Boolean);
     if($('estPremiumRow')) $('estPremiumRow').hidden=!premiumLegs.length;
     if($('estPremiumCharge')) $('estPremiumCharge').textContent=`$${Number(breakdown.premiumAmount||0).toFixed(2)}`;
     ['fareSummaryPremium','fareConfirmPremium'].forEach(id=>{
@@ -598,19 +598,19 @@
     if($('estShortNoticeCharge')) $('estShortNoticeCharge').textContent = `$${Number(breakdown.shortNoticeCharge || 0).toFixed(2)}`;
     ['fareSummaryOperational','fareConfirmOperational'].forEach(id=>{
       if($(id)){
-        $(id).textContent = `Deadhead mileage: $${Number(breakdown.deadheadCharge || 0).toFixed(2)}. Each empty segment includes ${Number(breakdown.includedMiles || 0)} miles; excess miles cost $${Number(breakdown.deadheadRate || 0).toFixed(2)} each. Pickup within 24 hours of booking: $${Number(breakdown.shortNoticeCharge || 0).toFixed(2)} (30% of the base fare for each qualifying leg).`;
+        $(id).textContent = `Deadhead mileage: $${Number(breakdown.deadheadCharge || 0).toFixed(2)}. Each empty segment includes ${Number(breakdown.includedMiles || 0)} miles; excess miles cost $${Number(breakdown.deadheadRate || 0).toFixed(2)} each. Pickup within ${Number(fareRules.shortNoticeHours??24)} hours of booking: $${Number(breakdown.shortNoticeCharge || 0).toFixed(2)} (${Number(fareRules.shortNoticeSurchargePct??30)}% of the base fare for each qualifying leg).`;
         $(id).hidden = !(breakdown.deadheadCharge > 0 || breakdown.shortNoticeCharge > 0);
       }
     });
-    if($('estWaitRow')) $('estWaitRow').hidden=waiting.waitMinutes<=0;
+    if($('estWaitRow')) $('estWaitRow').hidden=waiting.waitCharge<=0;
     if($('estWaitLabel')) $('estWaitLabel').textContent=`Waiting (${waiting.waitMinutes} min; ${waiting.billableWaitMinutes} billable)`;
     if($('estWaitCharge')) $('estWaitCharge').textContent=`$${waiting.waitCharge.toFixed(2)}`;
-    const waitingCopy=waiting.waitMinutes>0?`Includes ${waiting.waitMinutes} minutes of driver waiting: $${waiting.waitCharge.toFixed(2)} before savings and card processing. Waiting starts immediately at $${waiting.waitPer15.toFixed(2)} per started 15 minutes.`:'';
+    const waitingCopy=waiting.waitMinutes>0?`Includes ${waiting.waitMinutes} minutes of driver waiting: $${waiting.waitCharge.toFixed(2)} before savings and card processing. The first ${waiting.freeWaitMinutes} minutes are free; then $${waiting.waitPer15.toFixed(2)} per started 15 minutes.`:'';
     ['fareSummaryWaiting','fareConfirmWaiting'].forEach(id=>{
       if($(id)){ $(id).textContent=waitingCopy; $(id).hidden=!waitingCopy; }
     });
     syncCalculatedWaitingUi();
-    if($('waitPricingHint')) $('waitPricingHint').textContent=`Calculated from arrival to the next pickup. $${waiting.waitPer15.toFixed(2)} per started 15 minutes, starting immediately.`;
+    if($('waitPricingHint')) $('waitPricingHint').textContent=`Calculated from arrival to the next pickup. First ${waiting.freeWaitMinutes} minutes free, then $${waiting.waitPer15.toFixed(2)} per started 15 minutes.`;
     if(estSubtotal) estSubtotal.textContent = `$${Number(breakdown.subtotal || 0).toFixed(2)}`;
     if(estTax) estTax.textContent = `$${Number(breakdown.taxAmount || 0).toFixed(2)}${Number(breakdown.taxRatePct || 0) > 0 ? ` (${Number(breakdown.taxRatePct || 0).toFixed(2)}%)` : ''}`;
     if(estMemberSavingsRow) estMemberSavingsRow.hidden = discountView.discountPct <= 0;
@@ -863,11 +863,7 @@
 
   function getWaitingCharge(service, routeMetrics = estimateState){
     const { waitMinutes } = getCalculatedWaiting(routeMetrics, service);
-    const freeWaitMinutes = 0;
-    const billableWaitMinutes = Math.max(0, waitMinutes - freeWaitMinutes);
-    const waitPer15 = Math.max(0, Number(getPricing(service).waitPer15) || 0);
-    const waitCharge = Math.ceil(billableWaitMinutes / 15) * waitPer15;
-    return { waitMinutes, freeWaitMinutes, billableWaitMinutes, waitCharge, waitPer15 };
+    return NexusFare.getWaitingCharge(waitMinutes,getPricing(service),fareRules,service);
   }
 
   function serviceTransitionBufferMinutes(service = normalizeService($('service')?.value)){
@@ -2266,7 +2262,7 @@
     paymentSection.querySelector('h2').textContent='Complete Payment';
     if(paymentChoiceHint)paymentChoiceHint.hidden=false;
     const depositAmt = Math.round(Math.round(currentBookingFare * 100) / 4) / 100;
-    const taxRatePct = CARD_PROCESSING_FEE_PCT;
+    const taxRatePct = Number(fareRules.cardProcessingFeePct??CARD_PROCESSING_FEE_PCT);
     const discountText = estimateState.memberSavings > 0
       ? ` Includes ${estimateState.discountPct}% ${token()?'member':'schedule'} savings of $${estimateState.memberSavings.toFixed(2)}.`
       : ' Guest fare shown. Sign in to save 5% on one-way or 10% on round-trip and recurring rides.';
@@ -2631,7 +2627,7 @@
   }
 
   function renderRateEditor(service){
-    const taxHint = ` A ${CARD_PROCESSING_FEE_PCT}% card processing fee is included.`;
+    const taxHint = ` A ${Number(fareRules.cardProcessingFeePct??CARD_PROCESSING_FEE_PCT)}% card processing fee is included.`;
     const selectedService = normalizeService(service);
     if(!isAdminUser){
       rateBase.value = '';

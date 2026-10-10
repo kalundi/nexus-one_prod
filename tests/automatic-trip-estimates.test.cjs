@@ -12,14 +12,14 @@ test('legacy trip with only booking variables yields a current dollar estimate',
 test('legacy booking notes recover empty miles, waits and member savings',()=>{
  const result=Fare.calculateEstimate({...legacy,notes:'Expected stop times: Stop 1: 16 min | Deadhead mileage charge: $12.30; empty segments: 12.00 mi; 10.00 mi | Member savings: 5%'},settings);
  assert.ok(Math.abs(result.deadheadCharge-12.3)<1e-8);
- assert.equal(result.waitCharge,37.5);
+ assert.equal(result.waitCharge,18.75);
  assert.equal(result.discountPct,5);
- assert.equal(result.discountedTotal,213.95);
+ assert.equal(result.discountedTotal,195.60);
 });
 test('round-trip waiting is recovered from the existing appointment and return schedule',()=>{
  const result=Fare.calculateEstimate({...legacy,tripType:'ROUND_TRIP',appointmentTime:'10:45',returnTripDate:'2030-08-15',returnTripTime:'12:00'},settings);
  assert.equal(result.waitMinutes,90);
- assert.equal(result.waitCharge,112.5);
+ assert.equal(result.waitCharge,93.75);
  assert.equal(result.passengerLegCount,2);
  assert.equal(result.discountPct,0);
 });
