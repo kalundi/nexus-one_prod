@@ -1,0 +1,105 @@
+#tripTableWrap{container-type:inline-size;container-name:trip-table;border:1px solid #dce6ed;border-radius:12px;overflow:hidden}
+#tripTableWrap .table{width:100%;min-width:0;table-layout:fixed;margin:0;font-size:13px;line-height:1.4}
+#tripTableWrap .table th{padding:12px 9px;background:#f3f7fa;color:#52677c;font-size:11px;font-weight:700;white-space:nowrap;letter-spacing:0;text-transform:none;border-bottom:1px solid #dce6ed}
+#tripTableWrap .tripSummaryRow>td{padding:14px 9px;vertical-align:middle;border-bottom:1px solid #e5edf2;color:#22384c;overflow:hidden}
+#tripTableWrap .tripSummaryRow:hover>td{background:#f8fbfd}
+#tripTableWrap .tripSummaryRow.selected>td{background:#edf6fc}
+#tripTableWrap .tripSummaryRow:has([aria-expanded="true"])>td{background:#f3f8fc;border-bottom-color:transparent}
+#tripTableWrap .tripColReference{width:16%}
+#tripTableWrap .tripColPatient{width:17%}
+#tripTableWrap .tripColService{width:9%}
+#tripTableWrap .tripColSchedule{width:11%}
+#tripTableWrap .tripColStatus{width:12%}
+#tripTableWrap .tripColEstimate{width:9%}
+#tripTableWrap .tripColBroker{width:10%}
+#tripTableWrap .tripColRisk{width:8%}
+#tripTableWrap .tripColActions{width:8%}
+#tripTableWrap th.tripColEstimate,#tripTableWrap th.tripColBroker,#tripTableWrap td.tripColEstimate,#tripTableWrap td.tripColBroker{text-align:right}
+#tripTableWrap .tripColActions,#tripTableWrap .tripColRisk{text-align:center}
+#tripTableWrap .tripTruncate{display:block;max-width:100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;word-break:normal}
+#tripTableWrap .tripReference{display:flex;align-items:center;gap:8px;margin:0;min-width:0;cursor:pointer;font-weight:400}
+#tripTableWrap .dispatch-bulk-select{width:15px;height:15px;min-height:0;margin:0;flex:0 0 15px;accent-color:#056c9c}
+#tripTableWrap .tripReferenceText{display:grid;gap:5px;min-width:0;font-size:12px}
+#tripTableWrap .tripSourceBadge{justify-self:start;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:800;letter-spacing:.03em;white-space:nowrap}
+#tripTableWrap .tripSourceBadge.real{background:#e6f5ef;color:#09764e}
+#tripTableWrap .tripSourceBadge.mock{background:#fff1d6;color:#8a4b06}
+#tripTableWrap .tripPatientButton{width:100%;padding:0;border:0;border-radius:3px;background:transparent;color:#172e42;font:inherit;font-weight:650;text-align:left;cursor:pointer}
+#tripTableWrap .tripPatientButton:hover{color:#056c9c;text-decoration:underline}
+#tripTableWrap button:focus-visible,#tripTableWrap input:focus-visible{outline:2px solid #056c9c;outline-offset:3px}
+#tripTableWrap .tripDate,#tripTableWrap .tripTime{display:block;white-space:nowrap;overflow-wrap:normal}
+#tripTableWrap .tripDate{font-weight:600}
+#tripTableWrap .tripTime{margin-top:3px;font-size:11px;color:#52677c}
+#tripTableWrap .tripTimeBasis{margin-left:5px;font-size:9px;color:#6c8090}
+#tripTableWrap .tripSummaryRow .status{display:inline-block;max-width:100%;box-sizing:border-box;padding:4px 7px;font-size:10px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;vertical-align:middle}
+#tripTableWrap .tripMoney{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+#tripTableWrap .tripColEstimate .tripMoney{font-weight:700;color:#143c55}
+#tripTableWrap .tripTableButton{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:34px;padding:7px 10px;border:1px solid #ccdce7;border-radius:7px;background:#fff;color:#234f6a;font:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
+#tripTableWrap .tripTableButton:hover{background:#eaf3f9;border-color:#a8c6db}
+#tripTableWrap .tripTableButton.primary{background:#056c9c;color:#fff;border-color:#056c9c}
+#tripTableWrap .tripTableButton.primary:hover{background:#075779}
+#tripTableWrap .tripTableButton.danger{margin-left:auto;color:#a13333;border-color:#edd8d8}
+#tripTableWrap .tripTableButton.danger:hover{background:#fff3f3}
+#tripTableWrap .tripTableButton:disabled{opacity:.5;cursor:default}
+#tripTableWrap .tripMoreButton{padding:7px 8px;font-size:11px}
+#tripTableWrap .tripMoreButton[aria-expanded="true"] svg{transform:rotate(180deg)}
+#tripTableWrap .tripDetailsRow[hidden]{display:none}
+#tripTableWrap .tripDetailsRow>td{padding:0 12px 14px;background:#f3f8fc;border-bottom:1px solid #dce6ed;white-space:normal}
+#tripTableWrap .tripDetailsPanel{padding:16px;background:#fff;border:1px solid #dce6ed;border-radius:9px;overflow-wrap:anywhere}
+#tripTableWrap .tripDetailsHeading{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 14px;margin-bottom:14px}
+#tripTableWrap .tripDetailsHeading strong{font-size:14px;color:#153c55}
+#tripTableWrap .tripDetailsHeading>span{font-size:12px;color:#627787}
+#tripTableWrap .tripDetailsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+#tripTableWrap .tripDetailsGrid section{min-width:0}
+#tripTableWrap .tripDetailsGrid h4{margin:0 0 10px;font-size:12px;color:#234f6a}
+#tripTableWrap .tripDetailFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;margin:0}
+#tripTableWrap .tripDetailFields>div{min-width:0}
+#tripTableWrap .tripDetailFields dt{font-size:11px;color:#627787}
+#tripTableWrap .tripDetailFields dd{margin:3px 0 0;font-size:12px;font-weight:600;color:#22384c}
+#tripTableWrap .tripRiskDetails{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin-top:16px;padding-top:12px;border-top:1px solid #e5edf2}
+#tripTableWrap .tripRiskDetails .status{padding:4px 8px;font-size:10px;white-space:nowrap}
+#tripTableWrap .tripRiskLabel{font-size:11px;font-weight:700;color:#52677c}
+#tripTableWrap .tripRiskDetails ul{display:flex;flex-wrap:wrap;gap:4px 18px;width:100%;padding-left:16px;margin:4px 0 0;color:#52677c;font-size:12px}
+#tripTableWrap .tripDetailsNotes{display:grid;gap:4px;margin:14px 0 0;font-size:12px;color:#52677c}
+#tripTableWrap .tripDetailsNotes span{white-space:pre-line}
+#tripTableWrap .tripDetailsActions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid #e5edf2}
+#tripTableWrap .tripEmptyRow td{padding:28px 16px;text-align:center;color:#627787;white-space:normal}
+@container trip-table (max-width:1050px){
+  #tripTableWrap .tripColRisk{display:none}
+  #tripTableWrap .tripColReference{width:18%}#tripTableWrap .tripColPatient{width:18%}#tripTableWrap .tripColService{width:10%}#tripTableWrap .tripColSchedule{width:12%}#tripTableWrap .tripColStatus{width:13%}#tripTableWrap .tripColEstimate{width:10%}#tripTableWrap .tripColBroker{width:11%}#tripTableWrap .tripColActions{width:8%}
+}
+@container trip-table (max-width:1000px){
+  #tripTableWrap .tripColService{display:none}
+  #tripTableWrap .tripColReference{width:21%}#tripTableWrap .tripColPatient{width:23%}#tripTableWrap .tripColSchedule{width:14%}#tripTableWrap .tripColStatus{width:14%}#tripTableWrap .tripColEstimate{width:10%}#tripTableWrap .tripColBroker{width:10%}#tripTableWrap .tripColActions{width:8%}
+}
+@container trip-table (max-width:820px){
+  #tripTableWrap .tripColBroker{display:none}
+  #tripTableWrap .tripColReference{width:22%}#tripTableWrap .tripColPatient{width:24%}#tripTableWrap .tripColSchedule{width:16%}#tripTableWrap .tripColStatus{width:15%}#tripTableWrap .tripColEstimate{width:12%}#tripTableWrap .tripColActions{width:11%}
+}
+@container trip-table (max-width:680px){
+  #tripTableWrap .table,#tripTableWrap .table tbody{display:block}
+  #tripTableWrap .table thead{display:none}
+  #tripTableWrap .tripSummaryRow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;padding:14px;border-bottom:1px solid #dce6ed}
+  #tripTableWrap .tripSummaryRow>td{width:auto;padding:0;border:0;min-width:0}
+  #tripTableWrap .tripSummaryRow:hover,#tripTableWrap .tripSummaryRow.selected,#tripTableWrap .tripSummaryRow:has([aria-expanded="true"]){background:#f3f8fc}
+  #tripTableWrap .tripSummaryRow:hover>td,#tripTableWrap .tripSummaryRow.selected>td,#tripTableWrap .tripSummaryRow:has([aria-expanded="true"])>td{background:transparent}
+  #tripTableWrap .tripSummaryRow .tripColReference{grid-column:1;grid-row:1}
+  #tripTableWrap .tripReferenceText{display:flex;align-items:center;gap:6px}
+  #tripTableWrap .tripReferenceText>.tripTruncate{min-width:0;flex:1}
+  #tripTableWrap .tripReferenceText>.tripSourceBadge{flex-shrink:0}
+  #tripTableWrap .tripSourceBadge.real{display:none}
+  #tripTableWrap .tripSummaryRow .tripColPatient{grid-column:1;grid-row:2;align-self:center}
+  #tripTableWrap .tripSummaryRow .tripColSchedule{grid-column:1;grid-row:3}
+  #tripTableWrap .tripDate,#tripTableWrap .tripTime{display:inline-block;font-size:12px;margin:0 7px 0 0}
+  #tripTableWrap .tripTimeBasis{display:none}
+  #tripTableWrap .tripSummaryRow .tripColStatus{grid-column:2;grid-row:3;align-self:center}
+  #tripTableWrap .tripSummaryRow .tripColEstimate{grid-column:2;grid-row:2;align-self:center;font-size:14px}
+  #tripTableWrap .tripSummaryRow .tripColEstimate:before{content:'Our estimate';display:block;font-size:9px;color:#627787;font-weight:400;letter-spacing:0}
+  #tripTableWrap .tripSummaryRow .tripColActions{grid-column:2;grid-row:1;text-align:right}
+  #tripTableWrap .tripSummaryRow .tripColService,#tripTableWrap .tripSummaryRow .tripColBroker,#tripTableWrap .tripSummaryRow .tripColRisk{display:none}
+  #tripTableWrap .tripDetailsRow{display:block}
+  #tripTableWrap .tripDetailsRow>td{display:block;padding:0 10px 10px}
+  #tripTableWrap .tripDetailsPanel{padding:12px}
+  #tripTableWrap .tripDetailsGrid{grid-template-columns:1fr;gap:18px}
+  #tripTableWrap .tripAddress{grid-column:1/-1}
+  #tripTableWrap .tripDetailsActions .tripTableButton.danger{margin-left:0}
+}
