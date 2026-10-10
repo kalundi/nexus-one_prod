@@ -243,6 +243,7 @@
   let preTripInspectionMinutes = DEFAULT_PRETRIP_INSPECTION_MINUTES;
   let yardToPickupDurationMinutes = 0;
   let yardToPickupTrafficDurationMinutes = 0;
+  let deadheadRouteMiles = { toPickup:0, fromDestination:0, fromReturn:0 };
   let currentBookingReference = '';
   let currentBookingFare = 0;
   let bookingSubmitted = false;
@@ -573,7 +574,8 @@
       preDiscountFare: discountView.fullFare,
       memberSavings: discountView.memberSavings,
       discountPct: discountView.discountPct,
-      fare: discountView.total
+      fare: discountView.total,
+      deadheadCharge:Number(breakdown.deadheadCharge || 0), shortNoticeCharge:Number(breakdown.shortNoticeCharge || 0), deadheadSegments:breakdown.deadheadSegments || []
     };
 
     estMiles.textContent = `${estimateState.miles.toFixed(1)} mi`;
@@ -592,6 +594,16 @@
       if($(id)){ $(id).textContent=premiumLegs.join('. '); $(id).hidden=!premiumLegs.length; }
     });
     const waiting=getWaitingCharge(normalizeService($('service').value));
+    if($('estDeadheadRow')) $('estDeadheadRow').hidden = !(breakdown.deadheadCharge > 0);
+    if($('estDeadheadCharge')) $('estDeadheadCharge').textContent = `$${Number(breakdown.deadheadCharge || 0).toFixed(2)}`;
+    if($('estShortNoticeRow')) $('estShortNoticeRow').hidden = !(breakdown.shortNoticeCharge > 0);
+    if($('estShortNoticeCharge')) $('estShortNoticeCharge').textContent = `$${Number(breakdown.shortNoticeCharge || 0).toFixed(2)}`;
+    ['fareSummaryOperational','fareConfirmOperational'].forEach(id=>{
+      if($(id)){
+        $(id).textContent = `Deadhead mileage: $${Number(breakdown.deadheadCharge || 0).toFixed(2)}. Each empty segment includes ${Number(breakdown.includedMiles || 0)} miles; excess miles cost $${Number(breakdown.deadheadRate || 0).toFixed(2)} each. Pickup within 24 hours of booking: $${Number(breakdown.shortNoticeCharge || 0).toFixed(2)} (30% of the base fare for each qualifying leg).`;
+        $(id).hidden = !(breakdown.deadheadCharge > 0 || breakdown.shortNoticeCharge > 0);
+      }
+    });
     if($('estWaitRow')) $('estWaitRow').hidden=waiting.waitMinutes<=0;
     if($('estWaitLabel')) $('estWaitLabel').textContent=`Waiting (${waiting.waitMinutes} min; ${waiting.billableWaitMinutes} billable)`;
     if($('estWaitCharge')) $('estWaitCharge').textContent=`$${waiting.waitCharge.toFixed(2)}`;
@@ -2020,11 +2032,27 @@
     const returnSubtotal=passengerLegCount===2?Math.max(Number(fareRules.minimumFare || 0),subtotal*(returnPremiumRateReason?1.30:1)):0;
     const premiumAmount=(outboundSubtotal-Math.max(Number(fareRules.minimumFare || 0),subtotal))+(returnSubtotal-(passengerLegCount===2?Math.max(Number(fareRules.minimumFare || 0),subtotal):0));
     const waiting = getWaitingCharge(service, routeMetrics);
-    const normalizedSubtotal = outboundSubtotal + returnSubtotal + waiting.waitCharge;
+    const deadheadSegments = routeMetrics.deadheadSegments || [deadheadRouteMiles.toPickup, passengerLegCount === 2 ? deadheadRouteMiles.fromReturn : deadheadRouteMiles.fromDestination];
+    const deadheadRate = Math.max(0, Number(rate.perMile || 0)) / 2;
+    const deadheadCharge = deadheadSegments.reduce((sum, segment) => sum + Math.max(0, Number(segment || 0) - includedMiles) * deadheadRate, 0);
+    const bookingTime = Number(routeMetrics.bookingTime ?? Date.now());
+    const urgentBaseCharge = (date, time) => {
+      const pickupTime = new Date(`${date}T${time || '00:00'}:00`).getTime();
+      const hours = (pickupTime - bookingTime) / 3600000;
+      return hours >= 0 && hours <= 24 ? Math.max(0, Number(rate.base || 0)) * .30 : 0;
+    };
+    let outboundPickupTime = timeStr;
+    if(typeof appointmentTimeInput !== 'undefined' && appointmentTimeInput?.value && !isPickupTimeBasis()){
+      const firstLegMinutes = Math.ceil(Number(routeLegTravelMinutes[0] || routeDurationMinutes));
+      if(firstLegMinutes > 0) outboundPickupTime = minutesToTime(parseTimeToMinutes(appointmentTimeInput.value) - firstLegMinutes - 15);
+    }
+    const shortNoticeCharge = urgentBaseCharge(dateStr, outboundPickupTime) + (passengerLegCount === 2 ? urgentBaseCharge(returnTripDate?.value || dateStr, returnTripTime?.value || timeStr) : 0);
+    const normalizedSubtotal = outboundSubtotal + returnSubtotal + waiting.waitCharge + deadheadCharge + shortNoticeCharge;
     const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const taxAmount = normalizedSubtotal * (taxRatePct / 100);
     return {
       ...waiting,
+      deadheadSegments, deadheadRate, deadheadCharge, shortNoticeCharge,
       includedMiles,
       billableMilesPerLeg:billable,
       mileageChargePerLeg:billable * Number(rate.perMile || 0),
@@ -2081,7 +2109,7 @@
     return new Date();
   }
 
-  async function estimateYardToPickupRoute(pickup, tripDate, appointmentTime){
+  async function estimateYardToPickupRoute(pickup, tripDate, appointmentTime, origin = companyYardAddress){
     if(!pickup || !companyYardAddress) return { minutes: 0, trafficMinutes: 0 };
     try{
       await loadMaps();
@@ -2089,7 +2117,7 @@
       const departureTime = resolveRouteDepartureTime(tripDate, appointmentTime);
       const result = await new Promise((resolve, reject) => {
         dirSvc.route({
-          origin: companyYardAddress,
+          origin,
           destination: pickup,
           travelMode: google.maps.TravelMode.DRIVING,
           drivingOptions: { departureTime, trafficModel: google.maps.TrafficModel.BEST_GUESS },
@@ -2100,12 +2128,24 @@
       const minutes = legs.reduce((sum, leg) => sum + (Number(leg?.duration?.value || 0) / 60), 0);
       const trafficMinutes = legs.reduce((sum, leg) => sum + (Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60), 0);
       return {
+        miles: legs.reduce((sum, leg) => sum + Number(leg?.distance?.value || 0) / 1609.34, 0),
         minutes: Math.max(0, Math.round(minutes)),
         trafficMinutes: Math.max(0, Math.round(trafficMinutes || minutes))
       };
     }catch{
-      return { minutes: 0, trafficMinutes: 0 };
+      const [start, end] = await Promise.all([lookupLocationPoint(origin), lookupLocationPoint(pickup)]);
+      const miles = haversineMiles(start, end) * 1.18;
+      return { miles:Math.max(0, miles || 0), minutes:0, trafficMinutes:0 };
     }
+  }
+
+  async function estimateDeadheadMiles(pickup, destination, date, time){
+    const routes = await Promise.all([
+      estimateYardToPickupRoute(pickup, date, time),
+      estimateYardToPickupRoute(companyYardAddress, date, time, destination),
+      estimateYardToPickupRoute(companyYardAddress, date, time, pickup)
+    ]);
+    return { toPickup:Number(routes[0].miles || 0), fromDestination:Number(routes[1].miles || 0), fromReturn:Number(routes[2].miles || 0) };
   }
 
   async function loadIntegrationConfig(){
@@ -3140,6 +3180,7 @@
     yardToPickupDurationMinutes = 0;
     yardToPickupTrafficDurationMinutes = 0;
     routeLegTravelMinutes = [];
+    deadheadRouteMiles = { toPickup:0, fromDestination:0, fromReturn:0 };
 
     try{
       await loadMaps();
@@ -3172,6 +3213,9 @@
       if(estimateVersion!==routeEstimateVersion)return estimateState;
       yardToPickupDurationMinutes = Math.max(0, Number(yardRoute.minutes || 0));
       yardToPickupTrafficDurationMinutes = Math.max(0, Number(yardRoute.trafficMinutes || 0));
+      const deadhead = await estimateDeadheadMiles(pickup, destination, tripDate, fareTime);
+      if(estimateVersion!==routeEstimateVersion)return estimateState;
+      deadheadRouteMiles = deadhead;
       renderCustomerRoute(result, pickup, destinations);
       renderMultiStopFeasibility();
     }catch(err){
@@ -3179,6 +3223,9 @@
       const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations], undefined, [], fallbackLegTravelMinutes);
       if(estimateVersion!==routeEstimateVersion)return estimateState;
       if(fallbackMiles){
+        const deadhead = await estimateDeadheadMiles(pickup, destination, tripDate, fareTime);
+        if(estimateVersion!==routeEstimateVersion)return estimateState;
+        deadheadRouteMiles = deadhead;
         const fallbackDurationMinutes = fallbackLegTravelMinutes.reduce((sum, minutes) => sum + minutes, 0);
         routeLegTravelMinutes = fallbackLegTravelMinutes;
         const fallbackBreakdown = calculateFareBreakdown(service, fallbackMiles, tripDate, fareTime, { durationMinutes: fallbackDurationMinutes, trafficDurationMinutes: fallbackDurationMinutes });
@@ -3835,6 +3882,9 @@
       stopWaitMinutes: getStopWaitMinutes(),
       waitMinutes: getAdditionalWaitMinutes(),
       waitingCharge: getWaitingCharge(normalizeService($('service').value)).waitCharge,
+      deadheadSegments:estimateState.deadheadSegments,
+      deadheadCharge:estimateState.deadheadCharge,
+      shortNoticeCharge:estimateState.shortNoticeCharge,
       scheduleFeasibility: evaluateMultiStopFeasibility(),
       date: $('tripDate').value,
       scheduleBasis: isPickupTimeBasis()?'PICKUP':'APPOINTMENT',

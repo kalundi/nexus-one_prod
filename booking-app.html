@@ -1087,6 +1087,8 @@ Destination: -</p>
           <div class="line"><b>ETA</b><span id="estDuration">-</span></div>
           <div class="line" id="estPremiumRow" hidden><b>Schedule premium (included)</b><span id="estPremiumCharge">-</span></div>
           <div class="line" id="estWaitRow" hidden><b id="estWaitLabel">Waiting time</b><span id="estWaitCharge">-</span></div>
+          <div class="line" id="estDeadheadRow" hidden><b>Deadhead mileage</b><span id="estDeadheadCharge">-</span></div>
+          <div class="line" id="estShortNoticeRow" hidden><b>Pickup within 24 hours (base +30%)</b><span id="estShortNoticeCharge">-</span></div>
           <div class="line"><b>Subtotal</b><span id="estSubtotal">-</span></div>
           <div class="line"><b>Card Processing Fee (3%)</b><span id="estTax">-</span></div>
           <div class="line" id="estMemberSavingsRow" hidden><b id="estSavingsLabel">Ride savings</b><span id="estMemberSavings">-</span></div>
@@ -1184,6 +1186,7 @@ Destination: -</p>
           <p>Please review and confirm the estimated rate before booking your ride.</p>
           <div class="fareDialogAmount" id="fareConfirmAmount">$0.00</div>
           <p class="subtle" id="fareConfirmWaiting" hidden></p>
+          <p class="subtle" id="fareConfirmOperational" hidden></p>
           <p class="subtle" id="fareConfirmPremium" hidden></p>
           <p class="subtle" id="fareConfirmMileage" hidden></p>
           <p class="subtle" id="fareConfirmDetails"></p>
@@ -1204,6 +1207,7 @@ Destination: -</p>
         <div class="fareSummaryCard fareTrustCard" aria-live="polite">
           <div class="fareTrustHeader"><div><span class="fareTrustEyebrow">Clear, compassionate pricing</span><h2 class="fareTrustTitle">Your estimated ride fare</h2></div><div class="fareSummaryAmount" id="fareSummaryAmount">-</div></div>
           <p class="subtle" id="fareSummaryWaiting" hidden></p>
+          <p class="subtle" id="fareSummaryOperational" hidden></p>
           <p class="subtle" id="fareSummaryPremium" hidden></p>
           <p class="subtle" id="fareSummaryMileage" hidden></p>
           <p class="fareTrustMessage">A dependable estimate based on the route, ride support, and schedule you selected—with the same transparent process for every rider.</p>
@@ -1286,7 +1290,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=69"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-  <script src="./booking-app.js?v=20261008-auto-wait"></script>
+  <script src="./booking-app.js?v=20261009-deadhead"></script>
 </body>
 </html>
 

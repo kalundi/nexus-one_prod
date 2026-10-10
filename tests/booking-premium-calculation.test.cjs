@@ -10,6 +10,7 @@ function calculator({ roundTrip = false, returnDate = '', returnTime = '', rate 
     getPricing: () => rate, getServicePolicy: () => ({}),
     fareRules: rules, CARD_PROCESSING_FEE_PCT:3,
     getWaitingCharge: () => ({ waitCharge:0 }),
+    deadheadRouteMiles:{toPickup:0,fromDestination:0,fromReturn:0},
     tripType:{value:roundTrip?'ROUND_TRIP':'ONE_WAY'}, returnTripDate:{value:returnDate}, returnTripTime:{value:returnTime}
   });
   vm.runInContext(code, context);
@@ -34,6 +35,40 @@ for (const scenario of [
   const result=calculator().calculateFareBreakdown('wheelchair',5,scenario.date,scenario.time,{durationMinutes:scenario.minutes});
   assert.equal(result.subtotal,scenario.premium?130:100);
   assert.equal(result.total,scenario.premium?133.9:103);
+});
+
+test('approved wheelchair example applies allowance to each empty segment and urgency only to base',()=>{
+  const calc=calculator({rate:{base:98,includedMiles:8,perMile:4.1}});
+  const result=calc.calculateFareBreakdown('wheelchair',20,'2030-08-15','10:00',{
+    deadheadSegments:[12,10],bookingTime:new Date('2030-08-14T16:00:00').getTime()
+  });
+  assert.ok(Math.abs(result.deadheadCharge-12.3)<.00001);
+  assert.ok(Math.abs(result.shortNoticeCharge-29.4)<.00001);
+  assert.ok(Math.abs(result.subtotal-188.9)<.00001);
+  assert.ok(Math.abs(result.total-194.567)<.00001);
+});
+test('unused allowance on one deadhead segment does not offset another segment',()=>{
+  const calc=calculator({rate:{base:98,includedMiles:8,perMile:4.1}});
+  const result=calc.calculateFareBreakdown('wheelchair',8,'2030-08-15','10:00',{deadheadSegments:[2,12],bookingTime:new Date('2030-08-13T10:00:00').getTime()});
+  assert.ok(Math.abs(result.deadheadCharge-8.2)<.00001);
+  assert.equal(result.shortNoticeCharge,0);
+});
+for(const [service,rate,segments,charge,urgent] of [
+  ['ambulatory',{base:75,includedMiles:5,perMile:3.55},[8,4],5.325,22.5],
+  ['bls',{base:1125,includedMiles:0,perMile:18.5},[1,2],27.75,337.5]
+]) test(`${service} uses its own included mileage, half rate, and base surcharge`,()=>{
+  const result=calculator({rate}).calculateFareBreakdown(service,5,'2030-08-15','10:00',{deadheadSegments:segments,bookingTime:new Date('2030-08-14T16:00:00').getTime()});
+  assert.ok(Math.abs(result.deadheadCharge-charge)<.00001);
+  assert.ok(Math.abs(result.shortNoticeCharge-urgent)<.00001);
+});
+for(const hours of [0,23,24,24.01,-1]) test(`short-notice boundary: ${hours} hours`,()=>{
+  const pickup=new Date('2030-08-15T10:00:00').getTime();
+  const result=calculator().calculateFareBreakdown('wheelchair',5,'2030-08-15','10:00',{bookingTime:pickup-hours*3600000});
+  assert.equal(result.shortNoticeCharge,hours>=0 && hours<=24?30:0);
+});
+test('round trip adds short-notice surcharge only for qualifying passenger legs',()=>{
+  const result=calculator({roundTrip:true,returnDate:'2030-08-16',returnTime:'12:00'}).calculateFareBreakdown('wheelchair',5,'2030-08-15','10:00',{bookingTime:new Date('2030-08-14T16:00:00').getTime()});
+  assert.equal(result.shortNoticeCharge,30);
 });
 test('traffic that pushes arrival past closing triggers the premium',()=>{
   const result=calculator().calculateFareBreakdown('wheelchair',5,'2030-08-15','18:30',{durationMinutes:20,trafficDurationMinutes:40});

@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 for (const scenario of [
   { name:'one way hides waiting', minutes:0, charge:0, total:'103.00' },
+  { name:'booking within 24 hours adds 30 percent of base through payment', shortNotice:true, minutes:0, charge:0, total:'133.90' },
   { name:'immediate return pickup', returnTime:'10:15', minutes:0, charge:0, total:'195.70' },
   { name:'first minute charges a block', returnTime:'10:16', minutes:1, charge:20, total:'215.27' },
   { name:'15 minutes charges one block', returnTime:'10:30', minutes:15, charge:20, total:'215.27' },
@@ -16,6 +17,7 @@ for (const scenario of [
   { name:'return premium and waiting', returnTime:'20:00', minutes:585, charge:780, total:'988.28' }
 ]) test(scenario.name, async ({ page }) => {
   let submitted;
+  if(scenario.shortNotice) await page.addInitScript(()=>{Date.now=()=>new Date('2030-08-14T16:00:00').getTime();});
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     const body = path === '/api/integrations/config' ? { stripeEnabled:true, googleMapsEnabled:false }
@@ -115,6 +117,7 @@ for (const scenario of [
   await expect(page.locator('#paymentSummary')).toContainText('WAIT-1');
   expect(submitted.waitMinutes).toBe(scenario.minutes);
   expect(submitted.waitingCharge).toBe(scenario.charge);
+  expect(submitted.shortNoticeCharge).toBe(scenario.shortNotice?30:0);
   if(scenario.stopTime) expect(submitted.stopWaitMinutes).toEqual([scenario.stopMinutes]);
   expect(submitted.estimatedFare).toBeCloseTo(Number(scenario.total),2);
   await expect(page.locator('#fullAmountLabel')).toHaveText(`$${scenario.total}`);

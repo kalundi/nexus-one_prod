@@ -2863,6 +2863,8 @@ async function handler(event){
    appointmentTimes.length>1?`Stop appointments: ${appointmentTimes.map((item)=>`Stop ${item.leg} (${item.destination}): ${item.appointmentTime}`).join('; ')}`:'',
    stopWaitMinutes.length?`Expected stop times: ${stopWaitMinutes.map((minutes,index)=>`Stop ${index+1}: ${Math.round(minutes)} min`).join('; ')}`:'',
    additionalWaitMinutes?`Additional driver waiting: ${additionalWaitMinutes} min`:'',
+   Number(b.deadheadCharge)>0?`Deadhead mileage charge: $${Number(b.deadheadCharge).toFixed(2)}; empty segments: ${(Array.isArray(b.deadheadSegments)?b.deadheadSegments:[]).map(value=>`${Number(value).toFixed(2)} mi`).join('; ')}`:'',
+   Number(b.shortNoticeCharge)>0?`Pickup within 24 hours: $${Number(b.shortNoticeCharge).toFixed(2)} (30% of qualifying base fares)`:'',
    Number(b.waitingCharge)>0?`Estimated waiting charge before discounts and card processing: $${Number(b.waitingCharge).toFixed(2)}`:'',
    appointmentTimes.length>1&&scheduleFeasibility?.message?`One-driver schedule check: ${clean(scheduleFeasibility.message)}`:'',
    pickupTimeEstimate?`Pickup estimate: ${pickupTimeEstimate}`:'',
