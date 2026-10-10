@@ -1,4 +1,5 @@
 const crypto=require('crypto');
+const NexusFare=require('../../nexus-fare.js');
 const {isDuplicateTrip,duplicateTripResponse}=require('./_shared/booking-duplicate.cjs');
 const {lookupFlight}=require('./_shared/flightaware.cjs');
 const fs=require('fs');
@@ -2866,6 +2867,7 @@ async function handler(event){
    appointmentTimes.length>1?`Stop appointments: ${appointmentTimes.map((item)=>`Stop ${item.leg} (${item.destination}): ${item.appointmentTime}`).join('; ')}`:'',
    stopWaitMinutes.length?`Expected stop times: ${stopWaitMinutes.map((minutes,index)=>`Stop ${index+1}: ${Math.round(minutes)} min`).join('; ')}`:'',
    additionalWaitMinutes?`Additional driver waiting: ${additionalWaitMinutes} min`:'',
+   b.fareInputs&&typeof b.fareInputs==='object'?`Fare inputs: ${JSON.stringify(b.fareInputs)}`:'',
    Number(b.deadheadCharge)>0?`Deadhead mileage charge: $${Number(b.deadheadCharge).toFixed(2)}; empty segments: ${(Array.isArray(b.deadheadSegments)?b.deadheadSegments:[]).map(value=>`${Number(value).toFixed(2)} mi`).join('; ')}`:'',
    Number(b.shortNoticeCharge)>0?`Pickup within 24 hours: $${Number(b.shortNoticeCharge).toFixed(2)} (30% of qualifying base fares)`:'',
    Number(b.waitingCharge)>0?`Estimated waiting charge before discounts and card processing: $${Number(b.waitingCharge).toFixed(2)}`:'',
@@ -3674,18 +3676,28 @@ async function handler(event){
    const b=parseBody(event),ref=decodeURIComponent(p[2]);
    const before=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
    if(!before.rows[0])return json(404,{error:'Booking not found'});
+   const editingMock=String(before.rows[0].booking_source||'').toUpperCase()==='MOCK'||String(before.rows[0].status||'').toUpperCase()==='MOCK';
+   if(editingMock&&u.role!=='DRIVER'){b.bookingSource='MOCK';b.status='MOCK';}
 
    // DRIVER role: only allowed to update trip status.
    if(u.role==='DRIVER'){
-    const forbidden=['driverName','vehicleUnit','estimatedFare','pickup','destination','pickupLocation','destinationLocation','pickup_location','dropoff_location','date','time','service','name','phone','email','submitterEntity','bookingSource','brokerCompanyName','brokerAcceptedRate','checkInTime'];
+    const forbidden=['fareInputs','driverName','vehicleUnit','estimatedFare','pickup','destination','pickupLocation','destinationLocation','pickup_location','dropoff_location','date','time','service','name','phone','email','submitterEntity','bookingSource','brokerCompanyName','brokerAcceptedRate','checkInTime'];
     if(forbidden.some((key)=>Object.prototype.hasOwnProperty.call(b,key)))return json(403,{error:'Drivers may only update trip status'});
    }
 
-   const hasEstimatedFare=Object.prototype.hasOwnProperty.call(b,'estimatedFare');
-   const estimatedFareRaw=hasEstimatedFare?Number(b.estimatedFare):null;
+   const hasCalculatedFare=b.fareInputs!=null;
+   let calculatedFare=null;
+   if(hasCalculatedFare){
+    const saved=mapBooking(before.rows[0]);
+    try{
+     calculatedFare=NexusFare.calculateBooking({...saved,service:b.service??saved.service,date:b.date??saved.date,time:b.time??saved.time},b.fareInputs,await readPlatformSettings());
+    }catch(error){return json(400,{error:error.message});}
+   }
+   const hasEstimatedFare=hasCalculatedFare||Object.prototype.hasOwnProperty.call(b,'estimatedFare');
+   const estimatedFareRaw=hasCalculatedFare?calculatedFare.discountedTotal:hasEstimatedFare?Number(b.estimatedFare):null;
    if(hasEstimatedFare&&!Number.isFinite(estimatedFareRaw))return json(400,{error:'estimatedFare must be a valid number'});
    if(hasEstimatedFare&&estimatedFareRaw<0)return json(400,{error:'estimatedFare must be 0 or greater'});
-   if(hasEstimatedFare&&u.role!=='ADMIN')return json(403,{error:'Only Admin can adjust fares'});
+   if(hasEstimatedFare&&!hasCalculatedFare&&u.role!=='ADMIN')return json(403,{error:'Only Admin can adjust fares'});
 
    const statusValue=b.status?String(b.status).toUpperCase().replaceAll('-','_'):null;
    const hasService=Object.prototype.hasOwnProperty.call(b,'service');
@@ -3758,7 +3770,8 @@ async function handler(event){
 
   const notesBase=hasNotes?clean(b.notes)||null:before.rows[0].notes;
   const notesWithAppointment=(hasAppointmentTime||(!existingAppointmentTime&&proposedTripTime))?upsertAppointmentNote(notesBase,effectiveAppointmentTime):notesBase;
-  const notesValue=hasCheckInTime?upsertCheckInNote(notesWithAppointment,checkInTimeValue):notesWithAppointment;
+  let notesValue=hasCheckInTime?upsertCheckInNote(notesWithAppointment,checkInTimeValue):notesWithAppointment;
+  if(hasCalculatedFare)notesValue=String(notesValue||'').replace(/\s*\|?\s*Fare inputs: \{[^\n|]*\}/g,'').trim()+` | Fare inputs: ${JSON.stringify(b.fareInputs)}`;
 
    const r=await query(`
     UPDATE bookings
@@ -3804,8 +3817,8 @@ async function handler(event){
       hasDate?clean(b.date)||before.rows[0].trip_date:null,
       hasTime,
       hasTime?clean(b.time)||before.rows[0].trip_time:null,
-      hasNotes||hasAppointmentTime||hasCheckInTime,
-      hasNotes||hasAppointmentTime||hasCheckInTime?notesValue:null,
+      hasNotes||hasAppointmentTime||hasCheckInTime||hasCalculatedFare,
+      hasNotes||hasAppointmentTime||hasCheckInTime||hasCalculatedFare?notesValue:null,
       hasName,
       hasName?clean(b.name)||before.rows[0].name:null,
       hasPhone,
@@ -3845,7 +3858,7 @@ async function handler(event){
     await query('UPDATE bookings SET broker_quoted_rate=$2,updated_at=now() WHERE reference=$1',[ref,brokerQuotedRateValue]).catch(()=>{});
   }
 
-  const shouldResetReminders=hasDate||hasTime||hasPickupTime||hasPickup||hasDestination||hasDriverName||hasVehicleUnit;
+  const shouldResetReminders=!editingMock&&(hasDate||hasTime||hasPickupTime||hasPickup||hasDestination||hasDriverName||hasVehicleUnit);
    if(shouldResetReminders){
     await query(`
       UPDATE bookings
@@ -3887,8 +3900,8 @@ async function handler(event){
     by:u.role
    });
 
-  const notifications=await sendTripStakeholderUpdate(before.rows[0],afterRow,u,noteValue||'').catch(()=>({status:'failed'}));
-  const calendarSync=await syncCalendarLifecycle(afterRow);
+  const notifications=editingMock?{status:'skipped',reason:'MOCK TRIP'}:await sendTripStakeholderUpdate(before.rows[0],afterRow,u,noteValue||'').catch(()=>({status:'failed'}));
+  const calendarSync=editingMock?{status:'skipped',reason:'MOCK TRIP'}:await syncCalendarLifecycle(afterRow);
   return json(200,{booking:mapBooking(afterRow),notifications,calendarSync});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='advance'&&method==='POST'){
@@ -4918,6 +4931,7 @@ function mapBooking(b){
  return {
   id:b.reference,
   reference:b.reference,
+  createdAt:b.created_at||null,
   name:b.name,
   phone:b.phone,
   email:b.email,

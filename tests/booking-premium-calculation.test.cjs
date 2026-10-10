@@ -4,10 +4,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const client = fs.readFileSync(path.join(__dirname, '..', 'booking-app.js'), 'utf8');
-const code = client.slice(client.indexOf('  function getNthWeekdayOfMonth('), client.indexOf('  function calculateFare(service,'));
+const code = client.slice(client.indexOf('  function calculateFareBreakdown('), client.indexOf('  function calculateFare(service,'));
 function calculator({ roundTrip = false, returnDate = '', returnTime = '', rate = {base:100,includedMiles:999,perMile:0}, rules = {} } = {}) {
   const context = vm.createContext({
-    getPricing: () => rate, getServicePolicy: () => ({}),
+    NexusFare:require('../nexus-fare.js'), getPricing: () => rate, getServicePolicy: () => ({}),
     fareRules: rules, CARD_PROCESSING_FEE_PCT:3,
     getWaitingCharge: () => ({ waitCharge:0 }),
     deadheadRouteMiles:{toPickup:0,fromDestination:0,fromReturn:0},

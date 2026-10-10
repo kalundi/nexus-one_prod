@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import pg from 'pg';
+import NexusFare from '../nexus-fare.js';
 
 process.env.TZ='America/New_York';
 const email='patient@nexusmt.com';
@@ -46,7 +47,7 @@ try{
     const pricingContext=vm.createContext({});
     vm.runInContext(pricingCode+';globalThis.rates=FALLBACK_PRICING;',pricingContext);
     const pricing=Object.fromEntries(Object.entries(pricingContext.rates).map(([service,rate])=>[service,{...rate,...settings.pricing?.[service]}]));
-    const fareCode=source.slice(source.indexOf('  function getNthWeekdayOfMonth('),source.indexOf('  function calculateFare(service,'));
+    const fareCode=source.slice(source.indexOf('  function calculateFareBreakdown('),source.indexOf('  function calculateFare(service,'));
     const plans=[
       ['10-11','09:00','ambulatory',4,'Olney, MD',6,4],
       ['10-14','05:30','wheelchair',12,'Bethesda, MD',12,10],
@@ -75,10 +76,10 @@ try{
       // Two controlled short-notice cases exercise the 30% base surcharge.
       const shortNotice=[1,8].includes(index);
       const created=new Date(new Date(`${date}T${time}:00`).getTime()-(shortNotice?18:72)*3600000);
-      const context=vm.createContext({getPricing:svc=>pricing[svc],getServicePolicy:svc=>settings.fareRules?.servicePolicies?.[svc]||{},fareRules:{...settings.fareRules},CARD_PROCESSING_FEE_PCT:3,getWaitingCharge:()=>({waitCharge:0}),deadheadRouteMiles:{toPickup,fromDestination:after,fromReturn:0},tripType:{value:'ONE_WAY'},returnTripDate:{value:''},returnTripTime:{value:''}});
+      const context=vm.createContext({NexusFare,getPricing:svc=>pricing[svc],getServicePolicy:svc=>settings.fareRules?.servicePolicies?.[svc]||{},fareRules:{...settings.fareRules},CARD_PROCESSING_FEE_PCT:3,getWaitingCharge:()=>({waitCharge:0}),deadheadRouteMiles:{toPickup,fromDestination:after,fromReturn:0},tripType:{value:'ONE_WAY'},returnTripDate:{value:''},returnTripTime:{value:''}});
       vm.runInContext(fareCode,context);
       const breakdown=context.calculateFareBreakdown(service,miles,date,time,{durationMinutes:duration,trafficDurationMinutes:duration,bookingTime:created.getTime()});
-      const fare=Number((breakdown.total*.95).toFixed(2));
+      const fare=NexusFare.applySavings(breakdown.total,5).total;
       return {reference:`${batch}-${String(index+1).padStart(2,'0')}`,date,time,service,miles,destination:`MOCK TRIP destination — ${city}`,duration,created:created.toISOString(),shortNotice,fare,breakdown};
     });
     fs.mkdirSync('output',{recursive:true});

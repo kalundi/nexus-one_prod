@@ -532,13 +532,11 @@
   }
 
   function pricingWithMembership(baseTotal){
-    const fullFare = Number(Math.max(0, Number(baseTotal || 0)).toFixed(2));
     const signedIn = Boolean(token());
     const tripSchedule = String(tripType?.value || 'ONE_WAY').toUpperCase();
     const isRepeatSchedule = tripSchedule === 'ROUND_TRIP' || tripSchedule === 'RECURRING';
     const discountPct = isRepeatSchedule ? (signedIn ? 10 : 5) : (signedIn ? MEMBER_DISCOUNT_PCT : 0);
-    const total = Number(Math.max(0, fullFare * (1 - discountPct / 100)).toFixed(2));
-    const memberSavings = Number((fullFare - total).toFixed(2));
+    const {fullFare,total,memberSavings}=NexusFare.applySavings(baseTotal,discountPct);
     return { fullFare, memberSavings, total, signedIn, discountPct, isRepeatSchedule };
   }
 
@@ -1031,6 +1029,7 @@
     }
     const previouslySelectedService=normalizeService($('service')?.value);
     if(!previouslySelectedService)selectService('ambulatory');
+    autoEstimate.cancel();
     setBusy(confirmPickupDropoffBtn,true,'Calculating prices...','Confirm Details');
     try{await estimateRouteAndFare({promptConfirmation:false});}
     finally{setBusy(confirmPickupDropoffBtn,false,'Calculating prices...','Confirm Details');}
@@ -1938,134 +1937,16 @@
     return policies[key] || {};
   }
 
-  function getNthWeekdayOfMonth(year, monthIndex, weekday, nth){
-    const first = new Date(year, monthIndex, 1);
-    const offset = (weekday - first.getDay() + 7) % 7;
-    return new Date(year, monthIndex, 1 + offset + ((nth - 1) * 7));
-  }
-
-  function getLastWeekdayOfMonth(year, monthIndex, weekday){
-    const last = new Date(year, monthIndex + 1, 0);
-    const offset = (last.getDay() - weekday + 7) % 7;
-    return new Date(year, monthIndex, last.getDate() - offset);
-  }
-
-  function sameCalendarDate(a, b){
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  }
-
-  function isFederalHoliday(dateInput){
-    const d = new Date(dateInput || new Date());
-    d.setHours(12, 0, 0, 0);
-    const y = d.getFullYear();
-    const holidays = [
-      new Date(y, 0, 1),
-      getNthWeekdayOfMonth(y, 0, 1, 3),
-      getNthWeekdayOfMonth(y, 1, 1, 3),
-      getLastWeekdayOfMonth(y, 4, 1),
-      new Date(y, 5, 19),
-      new Date(y, 6, 4),
-      getNthWeekdayOfMonth(y, 8, 1, 1),
-      getNthWeekdayOfMonth(y, 9, 1, 2),
-      new Date(y, 10, 11),
-      getNthWeekdayOfMonth(y, 10, 4, 4),
-      new Date(y, 11, 25)
-    ];
-    // Include observed weekdays and next year's New Year when observed on Dec 31.
-    holidays.push(new Date(y + 1, 0, 1));
-    return holidays.some((holiday) => {
-      const observed = new Date(holiday);
-      if(observed.getDay() === 6) observed.setDate(observed.getDate() - 1);
-      if(observed.getDay() === 0) observed.setDate(observed.getDate() + 1);
-      return sameCalendarDate(holiday, d) || sameCalendarDate(observed, d);
-    });
-  }
-
-  function getTripWindow(dateStr, timeStr, durationMinutes = 0){
-    const dateParts = String(dateStr || '').split('-').map(Number);
-    const timeParts = String(timeStr || '').split(':').map(Number);
-    const validDate = dateParts.length === 3 && dateParts.every(Number.isFinite);
-    const validTime = timeParts.length >= 2 && timeParts.slice(0,2).every(Number.isFinite);
-    const start = validDate && validTime
-      ? new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1], 0, 0)
-      : new Date(NaN);
-    const end = new Date(start.getTime() + (Math.max(0, Number(durationMinutes) || 0) * 60000));
-    return { start, end };
-  }
-
-  function getPremiumRateReason(dateStr, timeStr, durationMinutes = 0){
-    const {start,end}=getTripWindow(dateStr,timeStr,durationMinutes);
-    if(!Number.isFinite(start.getTime())) return 'after-hours';
-    for(let cursor=new Date(start.getFullYear(),start.getMonth(),start.getDate());cursor<=end;cursor.setDate(cursor.getDate()+1)){
-      if(cursor.getDay()===0||cursor.getDay()===6) return 'weekend';
-      if(isFederalHoliday(cursor)) return 'holiday';
+  function calculateFareBreakdown(service,miles,dateStr,timeStr,routeMetrics={}){
+    let pickupTime=timeStr;
+    if(typeof appointmentTimeInput!=='undefined'&&appointmentTimeInput?.value&&!isPickupTimeBasis()){
+      const firstLeg=Math.ceil(Number(routeLegTravelMinutes[0]||Math.max(routeMetrics.durationMinutes||0,routeMetrics.trafficDurationMinutes||0)));
+      if(firstLeg>0)pickupTime=minutesToTime(parseTimeToMinutes(appointmentTimeInput.value)-firstLeg-15);
     }
-    const opens=new Date(start.getFullYear(),start.getMonth(),start.getDate(),7,0,0,0);
-    const closes=new Date(start.getFullYear(),start.getMonth(),start.getDate(),19,0,0,0);
-    return start<opens||end>closes?'after-hours':'';
-  }
-
-  function calculateFareBreakdown(service, miles, dateStr, timeStr, routeMetrics = {}){
-    const rate = getPricing(service);
-    const policy = getServicePolicy(service);
-    const distance = Math.max(0, Number(miles) || 0);
-    const includedMiles = Number(rate.includedMiles || 0);
-    const billable = Math.max(0, distance - includedMiles);
-
-    let subtotal = Number(rate.base || 0) + billable * Number(rate.perMile || 0);
-    subtotal += distance * Number(fareRules.fuelSurchargePerMile || 0);
-
-    const scheduledMinutes = Math.max(0, Number(routeMetrics.durationMinutes || 0));
-    const trafficMinutes = Math.max(0, Number(routeMetrics.trafficDurationMinutes || 0));
-    const graceMinutes = Math.max(0, Number(fareRules.trafficOverageGraceMinutes || 0));
-    const overageMinutes = Math.max(0, trafficMinutes - scheduledMinutes - graceMinutes);
-    if(overageMinutes > 0){
-      const trafficRate = Math.max(0, Number((policy.trafficOverageFeePerHour ?? fareRules.trafficOverageFeePerHour) ?? 0));
-      subtotal += (overageMinutes / 60) * trafficRate;
-    }
-
-    const routeDurationMinutes=Math.max(scheduledMinutes,trafficMinutes);
-    const premiumRateReason=getPremiumRateReason(dateStr,timeStr,routeDurationMinutes);
-    const outboundSubtotal=Math.max(Number(fareRules.minimumFare || 0),subtotal*(premiumRateReason?1.30:1));
-    // Price each passenger leg at its own scheduled date and pickup time.
-    const passengerLegCount = String(tripType?.value || 'ONE_WAY').toUpperCase() === 'ROUND_TRIP' ? 2 : 1;
-    const returnPremiumRateReason=passengerLegCount===2?getPremiumRateReason(returnTripDate?.value||dateStr,returnTripTime?.value||timeStr,routeDurationMinutes):'';
-    const returnSubtotal=passengerLegCount===2?Math.max(Number(fareRules.minimumFare || 0),subtotal*(returnPremiumRateReason?1.30:1)):0;
-    const premiumAmount=(outboundSubtotal-Math.max(Number(fareRules.minimumFare || 0),subtotal))+(returnSubtotal-(passengerLegCount===2?Math.max(Number(fareRules.minimumFare || 0),subtotal):0));
-    const waiting = getWaitingCharge(service, routeMetrics);
-    const deadheadSegments = routeMetrics.deadheadSegments || [deadheadRouteMiles.toPickup, passengerLegCount === 2 ? deadheadRouteMiles.fromReturn : deadheadRouteMiles.fromDestination];
-    const deadheadRate = Math.max(0, Number(rate.perMile || 0)) / 2;
-    const deadheadCharge = deadheadSegments.reduce((sum, segment) => sum + Math.max(0, Number(segment || 0) - includedMiles) * deadheadRate, 0);
-    const bookingTime = Number(routeMetrics.bookingTime ?? Date.now());
-    const urgentBaseCharge = (date, time) => {
-      const pickupTime = new Date(`${date}T${time || '00:00'}:00`).getTime();
-      const hours = (pickupTime - bookingTime) / 3600000;
-      return hours >= 0 && hours <= 24 ? Math.max(0, Number(rate.base || 0)) * .30 : 0;
-    };
-    let outboundPickupTime = timeStr;
-    if(typeof appointmentTimeInput !== 'undefined' && appointmentTimeInput?.value && !isPickupTimeBasis()){
-      const firstLegMinutes = Math.ceil(Number(routeLegTravelMinutes[0] || routeDurationMinutes));
-      if(firstLegMinutes > 0) outboundPickupTime = minutesToTime(parseTimeToMinutes(appointmentTimeInput.value) - firstLegMinutes - 15);
-    }
-    const shortNoticeCharge = urgentBaseCharge(dateStr, outboundPickupTime) + (passengerLegCount === 2 ? urgentBaseCharge(returnTripDate?.value || dateStr, returnTripTime?.value || timeStr) : 0);
-    const normalizedSubtotal = outboundSubtotal + returnSubtotal + waiting.waitCharge + deadheadCharge + shortNoticeCharge;
-    const taxRatePct = CARD_PROCESSING_FEE_PCT;
-    const taxAmount = normalizedSubtotal * (taxRatePct / 100);
-    return {
-      ...waiting,
-      deadheadSegments, deadheadRate, deadheadCharge, shortNoticeCharge,
-      includedMiles,
-      billableMilesPerLeg:billable,
-      mileageChargePerLeg:billable * Number(rate.perMile || 0),
-      subtotal: normalizedSubtotal,
-      taxAmount,
-      total: normalizedSubtotal + taxAmount,
-      taxRatePct,
-      premiumRatePct: premiumRateReason || returnPremiumRateReason ? 30 : 0,
-      premiumRateReason,
-      returnPremiumRateReason,
-      premiumAmount
-    };
+    return NexusFare.calculate({service,miles,date:dateStr,time:pickupTime,rate:getPricing(service),rules:fareRules,
+      tripType:tripType?.value,returnDate:returnTripDate?.value,returnTime:returnTripTime?.value,
+      waitMinutes:getWaitingCharge(service,routeMetrics).waitMinutes||0,
+      metrics:{...routeMetrics,deadheadSegments:routeMetrics.deadheadSegments||[deadheadRouteMiles.toPickup,String(tripType?.value).toUpperCase()==='ROUND_TRIP'?deadheadRouteMiles.fromReturn:deadheadRouteMiles.fromDestination]}});
   }
 
   function calculateFare(service, miles, dateStr, timeStr, routeMetrics = {}){
@@ -3899,6 +3780,7 @@
       // The server redeems the coupon and applies its discount exactly once.
       estimatedFare: Number((!editingBookingReference ? appliedPromotion?.originalFare : null) ?? estimateState.fare ?? 0),
       memberDiscountPct: Number(estimateState.discountPct || 0),
+      fareInputs:{miles:Number(estimateState.miles||0),durationMinutes:Number(estimateState.durationMinutes||0),trafficDurationMinutes:Number(estimateState.trafficDurationMinutes||0),stopWaitMinutes:getStopWaitMinutes().reduce((sum,value)=>sum+Number(value||0),0),deadheadSegments:estimateState.deadheadSegments||[0,0],discountPct:Number(estimateState.discountPct||0),scheduleBasis:isPickupTimeBasis()?'PICKUP':'APPOINTMENT',finalAppointmentTime:getLegAppointments().at(-1)?.appointmentTime||''},
       memberDiscountAmount: Number(estimateState.memberSavings || 0),
       promotionCode: appliedPromotion?.code || '',
       pickupTimeEstimate: String($('tripTime')?.value || '').trim(),

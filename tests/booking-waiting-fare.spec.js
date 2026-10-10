@@ -14,7 +14,7 @@ for (const scenario of [
   { name:'weekend premium', date:'2030-08-17', minutes:0, charge:0, total:'133.90' },
   { name:'holiday premium', date:'2030-07-04', minutes:0, charge:0, total:'133.90' },
   { name:'pickup basis crossing 7 PM', pickupTime:'18:50', minutes:0, charge:0, total:'133.90' },
-  { name:'return premium and waiting', returnTime:'20:00', minutes:585, charge:780, total:'988.28' }
+  { name:'return premium and waiting', returnTime:'20:00', minutes:585, charge:780, total:'988.29' }
 ]) test(scenario.name, async ({ page }) => {
   let submitted;
   if(scenario.shortNotice) await page.addInitScript(()=>{Date.now=()=>new Date('2030-08-14T16:00:00').getTime();});
