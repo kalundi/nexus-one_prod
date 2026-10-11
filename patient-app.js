@@ -4,13 +4,13 @@
  if(!N)return;
  const sharedReference=new URLSearchParams(location.search).get('reference')||'';
  let currentUser=null,sharedRide=null,sharedPhone='',activeView='home',mapReference='',returnView='home',mapRevision=0,lastActivity=Date.now();
- let mapsPromise=null,map=null,renderer=null,driverMarker=null,routeSignature='',routeBounds=null;
+ let mapsPromise=null,map=null,renderer=null,driverMarker=null,routeSignature='',routeBounds=null,fitFrame=null;
  const savedTrips=N.trips;
  N.trips=()=>sharedRide?[sharedRide]:savedTrips();
  const phone=$('appShell').querySelector('.phone'),nav=phone.querySelector('.bottomNav');
  const mapPage=document.createElement('section');
  mapPage.id='mapPage';mapPage.className='viewportStack';mapPage.hidden=true;
- mapPage.innerHTML='<div class="patientScreenHead"><button type="button" class="button secondary compact" data-patient-back>‹ Back</button><h2>Ride map</h2><button type="button" class="button secondary compact" id="mapShareBtn">Share</button></div><div id="patientMap" class="patientMap" role="region" aria-label="Your trip map"></div><p id="patientMapStatus" class="patientMapStatus" role="status"></p><button type="button" class="button secondary compact" id="mapRetryBtn" hidden>Retry map</button><div class="patientMapAddresses"><div class="patientMapAddress"><small>Pickup</small><p id="mapPickup"></p></div><div class="patientMapAddress"><small>Destination</small><p id="mapDestination"></p></div></div><dl id="mapRideDetails" class="detailList"></dl>';
+ mapPage.innerHTML='<div class="patientScreenHead"><button type="button" class="button secondary compact" data-patient-back>‹ Back</button><h2>Full trip route</h2><button type="button" class="button secondary compact" id="mapShareBtn">Share</button></div><div class="patientMapToolbar"><p id="mapRouteSummary"></p><button type="button" class="button secondary compact" id="mapFitBtn" hidden>Fit full route</button></div><div id="patientMap" class="patientMap" role="region" aria-label="Your full trip route map"></div><p id="patientMapStatus" class="patientMapStatus" role="status"></p><button type="button" class="button secondary compact" id="mapRetryBtn" hidden>Retry map</button><div id="mapItinerary" class="patientMapAddresses"></div><dl id="mapRideDetails" class="detailList"></dl>';
  phone.insertBefore(mapPage,nav);
  const bookingPage=document.createElement('section');
  bookingPage.id='bookingPage';bookingPage.className='viewportStack';bookingPage.hidden=true;
@@ -46,7 +46,7 @@
  function openMap(reference){
   const trip=tripByReference(reference);if(!trip){notice('Select a ride from My rides to view its map.');return;}
   if(activeView!=='map')returnView=activeView;
-  mapReference=reference;navigate('map');renderMap(trip);
+  mapReference=reference;navigate('map');mapPage.scrollTop=0;renderMap(trip,true);
  }
  function openBooking(){
   if(activeView!=='booking')returnView=activeView;
@@ -58,7 +58,27 @@
   const lat=Number(location.latitude),lng=Number(location.longitude);
   return Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180?{lat,lng}:null;
  }
- function clearMap(){mapRevision++;driverMarker?.setMap(null);renderer?.setMap(null);driverMarker=null;renderer=null;map=null;routeSignature='';routeBounds=null;$('patientMap').replaceChildren();}
+ function resetRoute(){cancelAnimationFrame(fitFrame);renderer?.setDirections({routes:[]});driverMarker?.setMap(null);driverMarker=null;routeSignature='';routeBounds=null;$('mapFitBtn').hidden=true;$('mapRouteSummary').textContent='';}
+ function clearMap(){mapRevision++;resetRoute();renderer?.setMap(null);renderer=null;map=null;$('patientMap').replaceChildren();}
+ function fitFullRoute(){
+  cancelAnimationFrame(fitFrame);
+  fitFrame=requestAnimationFrame(()=>{
+   if(!map||!routeBounds||activeView!=='map')return;
+   window.google.maps.event?.trigger(map,'resize');
+   map.fitBounds(routeBounds,{top:48,right:40,bottom:40,left:40});
+  });
+ }
+ if(window.ResizeObserver)new ResizeObserver(entries=>{if(entries[0].contentRect.width&&entries[0].contentRect.height)fitFullRoute();}).observe($('patientMap'));
+ function routeLocations(trip){
+  const pickup=String(trip.pickup||'').trim();
+  const stops=(Array.isArray(trip.destinations)&&trip.destinations.length?trip.destinations:String(trip.destination||'').split(/\s*→\s*/)).map(address=>String(address||'').trim()).filter(Boolean);
+  const roundTrip=/round/i.test(trip.tripType||trip.trip_type||'');
+  const mock=trip.isMock===true||[trip.tripMode,trip.bookingSource,trip.id,trip.reference,pickup,...stops].some(value=>/^mock(?:\b|[-_])/i.test(String(value||'')));
+  // Sample bookings use city names prefixed with a MOCK TRIP label. Keep the
+  // label in the itinerary, and send only the actual location to Directions.
+  const address=value=>mock?value.replace(/^MOCK TRIP\s+(?:pickup|destination|stop(?:\s+\d+)?)\s*[—–:-]\s*/i,'').trim():value;
+  return {pickup,stops,roundTrip,mock,origin:address(pickup),destinations:stops.map(address)};
+ }
  async function loadMaps(){
   if(window.google?.maps?.Map)return window.google.maps;
   if(!mapsPromise)mapsPromise=(async()=>{
@@ -75,41 +95,47 @@
   })().catch(error=>{mapsPromise=null;throw error;});
   return mapsPromise;
  }
- function rideDetails(trip){
-  $('mapPickup').textContent=trip.pickup||'Pickup pending';$('mapDestination').textContent=trip.destination||'Destination pending';
+ function rideDetails(trip,places){
+  const itinerary=[['Pickup',places.pickup||'Pickup pending','mapPickup'],...places.stops.map((address,index)=>[places.stops.length>1?`Stop ${index+1}`:'Destination',address,index===places.stops.length-1?'mapDestination':`mapStop${index+1}`]),...(places.roundTrip?[['Return to pickup',places.pickup,'mapReturn']]:[])];
+  if(!places.stops.length)itinerary.push(['Destination','Destination pending','mapDestination']);
+  $('mapItinerary').replaceChildren();
+  itinerary.forEach(([label,address,id],index)=>{const card=document.createElement('div'),title=document.createElement('small'),text=document.createElement('p');card.className='patientMapAddress';title.textContent=`${String.fromCharCode(65+index)} · ${label}`;text.id=id;text.textContent=address;card.append(title,text);$('mapItinerary').appendChild(card);});
   $('mapRideDetails').replaceChildren();
   const fields=[['Pickup',`${trip.date||''} ${trip.time||''}`],['Status',trip.statusLabel||trip.status||'Scheduled'],['Driver',trip.driver||trip.driverName||'Pending assignment'],['Vehicle',trip.vehicle||trip.vehicleUnit||'Pending assignment'],['Reference',trip.id||trip.reference]];
-  if(/round/i.test(trip.tripType||trip.trip_type||''))fields.push(['Return pickup',trip.returnPickupTime||'To be confirmed']);
+  if(places.roundTrip)fields.push(['Return pickup',[trip.returnTripDate,trip.returnTripTime||trip.returnPickupTime].filter(Boolean).join(' ')||'To be confirmed']);
   fields.forEach(([label,value])=>{const wrap=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;wrap.append(dt,dd);$('mapRideDetails').appendChild(wrap);});
  }
- async function renderMap(trip){
+ async function renderMap(trip,refit=false){
   const revision=++mapRevision;
-  rideDetails(trip);$('mapRetryBtn').hidden=true;
-  if(trip.isMock||/mock/i.test(trip.tripMode||trip.bookingSource||'')||/^mock trip/i.test(trip.pickup||'')){
-   clearMap();$('patientMap').hidden=true;$('patientMapStatus').textContent='MOCK TRIP — sample addresses do not show a real route or driver location.';return;
-  }
+  const places=routeLocations(trip);
+  rideDetails(trip,places);$('mapRetryBtn').hidden=true;
   $('patientMap').hidden=false;
-  const driver=trip.driverLocationVisible===true?coordinates(trip.driverLocation):null;
+  const driver=!places.mock&&trip.driverLocationVisible===true?coordinates(trip.driverLocation):null;
   // Remove an existing marker immediately when the server stops authorizing GPS.
   if(!driver&&driverMarker){driverMarker.setMap(null);driverMarker=null;}
   $('patientMapStatus').textContent=driver?'Loading your route and assigned driver…':'Loading your route…';
   try{
+   if(!places.origin||!places.destinations.length){resetRoute();throw new Error('Pickup and destination are needed to show the full route.');}
    const maps=await loadMaps();if(revision!==mapRevision||activeView!=='map')return;
    if(!map){map=new maps.Map($('patientMap'),{center:driver||{lat:39.05,lng:-77.12},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:false,gestureHandling:'greedy'});renderer=new maps.DirectionsRenderer({map,preserveViewport:true});}
-   const stops=(Array.isArray(trip.destinations)&&trip.destinations.length?trip.destinations:[trip.destination]).filter(Boolean);
-   const roundTrip=/round/i.test(trip.tripType||trip.trip_type||'');
-   const signature=JSON.stringify([trip.id,trip.pickup,stops,roundTrip]);
+   const {origin,destinations,roundTrip}=places;
+   const signature=JSON.stringify([trip.id||trip.reference,origin,destinations,roundTrip]);
    if(signature!==routeSignature){
-    renderer.setDirections({routes:[]});
-    const result=await new maps.DirectionsService().route({origin:trip.pickup,destination:roundTrip?trip.pickup:stops[stops.length-1],waypoints:(roundTrip?stops:stops.slice(0,-1)).map(address=>({location:address,stopover:true})),travelMode:'DRIVING'});
+    resetRoute();
+    const result=await new maps.DirectionsService().route({origin,destination:roundTrip?origin:destinations[destinations.length-1],waypoints:(roundTrip?destinations:destinations.slice(0,-1)).map(address=>({location:address,stopover:true})),travelMode:'DRIVING'});
     if(revision!==mapRevision||activeView!=='map')return;
-    renderer.setDirections(result);routeSignature=signature;routeBounds=result.routes?.[0]?.bounds||null;
-    if(routeBounds)map.fitBounds(routeBounds,32);
+    const route=result.routes?.[0];if(!route)throw new Error('We could not find a driving route for these addresses.');
+    routeBounds=new maps.LatLngBounds();if(route.bounds)routeBounds.union(route.bounds);
+    (route.overview_path||[]).forEach(point=>routeBounds.extend(point));
+    (route.legs||[]).forEach(leg=>{if(leg.start_location)routeBounds.extend(leg.start_location);if(leg.end_location)routeBounds.extend(leg.end_location);});
+    renderer.setDirections(result);routeSignature=signature;$('mapFitBtn').hidden=false;
+    const miles=(route.legs||[]).reduce((sum,leg)=>sum+Number(leg.distance?.value||0)/1609.344,0);
+    $('mapRouteSummary').textContent=`${roundTrip?'Round trip':'One way'}${destinations.length>1?` · ${destinations.length} stops`:''}${miles>0?` · ${miles.toFixed(1)} mi total`:''}`;
+    refit=true;
    }
-   if(driver){if(!driverMarker)driverMarker=new maps.Marker({map,title:'Your assigned driver',label:'N'});driverMarker.setPosition(driver);
-    if(routeBounds){const bounds=new maps.LatLngBounds();bounds.union(routeBounds);bounds.extend(driver);map.fitBounds(bounds,32);}else map.setCenter(driver);
-   }
-   $('patientMapStatus').textContent=driver?'Your assigned driver’s latest location. Updates refresh automatically.':'Your booked route. Live driver location appears when your trip is active and pickup is within one hour.';
+   if(driver){if(!driverMarker)driverMarker=new maps.Marker({map,title:'Your assigned driver',label:'N'});driverMarker.setPosition(driver);}
+   if(refit)fitFullRoute();
+   $('patientMapStatus').textContent=places.mock?'MOCK TRIP — route preview between the listed locations. No live driver tracking.':driver?'Your booked route and assigned driver’s latest location. Updates refresh automatically.':'Your booked route. Live driver location appears when your trip is active and pickup is within one hour.';
   }catch(error){if(revision!==mapRevision)return;if(!map)$('patientMap').hidden=true;$('patientMapStatus').textContent=error.message||'The route could not be displayed. Your ride details are shown below.';$('mapRetryBtn').hidden=false;}
  }
  function shareTrip(reference){
@@ -182,6 +208,7 @@
  $('liveRouteOpenBtn').addEventListener('click',event=>openMap(event.currentTarget.dataset.mapTrip));
  $('mapShareBtn').addEventListener('click',()=>shareTrip(mapReference));
  $('mapRetryBtn').addEventListener('click',()=>{const trip=tripByReference(mapReference);if(trip)renderMap(trip);});
+ $('mapFitBtn').addEventListener('click',fitFullRoute);
  window.addEventListener('popstate',routeFromHash);
  window.addEventListener('message',event=>{
   if(event.origin!==location.origin||event.source!==$('bookingFrame').contentWindow)return;

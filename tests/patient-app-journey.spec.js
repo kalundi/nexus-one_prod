@@ -8,12 +8,12 @@ const user={id:'patient-app-test',displayName:'Anthony Muthoka',email:'patient@e
 async function setup(page,trips=[ride()],signedIn=true){
  await page.addInitScript(({user,signedIn})=>{
   if(signedIn){sessionStorage.setItem('nexusAccessToken','patient-test-token');sessionStorage.setItem('nexusUser',JSON.stringify(user));}
-  window.__mapCalls=[];window.__markers=[];
-  class Map{constructor(element,options){element.textContent='Interactive route map';window.__mapCalls.push({kind:'map',options});}fitBounds(){}setCenter(){}}
-  class DirectionsService{async route(request){window.__mapCalls.push({kind:'route',request});return {routes:[{bounds:{}}]};}}
-  class DirectionsRenderer{setMap(){}setDirections(){}}
+  window.__mapCalls=[];window.__markers=[];window.__directions=[];
+  class Map{constructor(element,options){element.textContent='Interactive route map';window.__mapCalls.push({kind:'map',options});}fitBounds(bounds,padding){window.__mapCalls.push({kind:'fit',points:bounds.points,padding});}setCenter(){}}
+  class DirectionsService{async route(request){window.__mapCalls.push({kind:'route',request});const locations=[request.origin,...request.waypoints.map(stop=>stop.location),request.destination];return {routes:[{bounds:{},overview_path:locations,legs:locations.slice(1).map((end,index)=>({start_location:locations[index],end_location:end,distance:{value:16093.44}}))}]};}}
+  class DirectionsRenderer{setMap(){}setDirections(result){window.__directions.push(result);}}
   class Marker{constructor(options){this.map=options.map;window.__markers.push(this);}setPosition(position){this.position=position;}setMap(map){this.map=map;}}
-  class LatLngBounds{union(){}extend(){}}
+  class LatLngBounds{constructor(){this.points=[];}union(){}extend(point){this.points.push(point);}}
   window.google={maps:{Map,DirectionsService,DirectionsRenderer,Marker,LatLngBounds}};
  },{user,signedIn});
  await page.route('**/api/auth/me',route=>route.fulfill({json:{user}}));
@@ -97,12 +97,47 @@ test('recipient verifies a shared ride inside the app; GPS marker disappears whe
  await expect(page.locator('#appShell')).toBeHidden();
 });
 
-test('mock routes are clearly labeled and never draw a driver or invented geography',async({page})=>{
- await setup(page,[ride({pickup:'MOCK TRIP pickup — Clarksburg, MD',destination:'MOCK TRIP destination — Hershey, PA',bookingSource:'MOCK'})]);
+test('mock round trips show a labeled city route and return leg without live driver tracking',async({page})=>{
+ await setup(page,[ride({pickup:'MOCK TRIP pickup — Clarksburg, MD',destination:'MOCK TRIP destination — Hershey, PA',bookingSource:'MOCK',driverLocationVisible:true,driverLocation:{latitude:39.083,longitude:-77.152}})]);
  await page.goto('/patient.html');await page.getByRole('button',{name:'Full map',exact:true}).click();
  await expect(page.locator('#patientMapStatus')).toContainText('MOCK TRIP');
- await expect(page.locator('#patientMap')).toBeHidden();
- expect(await page.evaluate(()=>window.__mapCalls.length)).toBe(0);
+ await expect(page.locator('#patientMap')).toBeVisible();
+ await expect(page.locator('#patientMapStatus')).toContainText('No live driver tracking');
+ await expect(page.locator('#mapReturn')).toHaveText('MOCK TRIP pickup — Clarksburg, MD');
+ const request=await page.evaluate(()=>window.__mapCalls.find(call=>call.kind==='route').request);
+ expect(request.origin).toBe('Clarksburg, MD');expect(request.destination).toBe('Clarksburg, MD');expect(request.waypoints).toEqual([{location:'Hershey, PA',stopover:true}]);
+ await expect(page.locator('#mapRouteSummary')).toHaveText('Round trip · 20.0 mi total');
+ expect(await page.evaluate(()=>window.__markers.length)).toBe(0);
+});
+
+test('full route fits every saved stop and the return endpoint, including after reopening and resizing',async({page})=>{
+ const trip=ride({destination:'Bethesda, MD → Baltimore, MD',returnTripDate:ride().date,returnTripTime:'16:30'});
+ await setup(page,[trip]);await page.goto('/patient.html');await page.getByRole('button',{name:'Full map',exact:true}).click();
+ await expect(page.locator('#mapRouteSummary')).toHaveText('Round trip · 2 stops · 30.0 mi total');
+ await expect(page.locator('#mapStop1')).toHaveText('Bethesda, MD');await expect(page.locator('#mapDestination')).toHaveText('Baltimore, MD');
+ await expect(page.locator('#mapRideDetails')).toContainText('16:30');
+ await expect.poll(()=>page.evaluate(()=>window.__mapCalls.filter(call=>call.kind==='fit').length)).toBeGreaterThan(0);
+ const request=await page.evaluate(()=>window.__mapCalls.find(call=>call.kind==='route').request);
+ expect(request.waypoints.map(stop=>stop.location)).toEqual(['Bethesda, MD','Baltimore, MD']);expect(request.destination).toBe(trip.pickup);
+ const fit=await page.evaluate(()=>window.__mapCalls.filter(call=>call.kind==='fit').at(-1));
+ expect(fit.points).toEqual(expect.arrayContaining([trip.pickup,'Bethesda, MD','Baltimore, MD']));expect(fit.padding.top).toBeGreaterThanOrEqual(40);
+ let fits=await page.evaluate(()=>window.__mapCalls.filter(call=>call.kind==='fit').length);
+ await page.getByRole('button',{name:'Fit full route',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>window.__mapCalls.filter(call=>call.kind==='fit').length)).toBeGreaterThan(fits);
+ await page.locator('#mapPage [data-patient-back]').click();await page.getByRole('button',{name:'Full map',exact:true}).click();
+ fits=await page.evaluate(()=>window.__mapCalls.filter(call=>call.kind==='fit').length);
+ await page.setViewportSize({width:620,height:900});
+ await expect.poll(()=>page.evaluate(()=>window.__mapCalls.filter(call=>call.kind==='fit').length)).toBeGreaterThan(fits);
+ expect(await page.evaluate(()=>window.__mapCalls.filter(call=>call.kind==='route').length)).toBe(1);
+});
+
+test('one way routes with explicit stops end at the last destination',async({page})=>{
+ const trip=ride({tripType:'ONE_WAY',destination:'Baltimore, MD',destinations:['Bethesda, MD','Baltimore, MD']});
+ await setup(page,[trip]);await page.goto('/patient.html');await page.getByRole('button',{name:'Full map',exact:true}).click();
+ await expect(page.locator('#mapRouteSummary')).toHaveText('One way · 2 stops · 20.0 mi total');
+ const request=await page.evaluate(()=>window.__mapCalls.find(call=>call.kind==='route').request);
+ expect(request.destination).toBe('Baltimore, MD');expect(request.waypoints).toEqual([{location:'Bethesda, MD',stopover:true}]);
+ await expect(page.locator('#mapReturn')).toHaveCount(0);
 });
 
 test('unavailable maps offer retry and keep ride details inside the app',async({page})=>{
@@ -111,6 +146,15 @@ test('unavailable maps offer retry and keep ride details inside the app',async({
  await expect(page.locator('#patientMapStatus')).toContainText('temporarily unavailable');
  await expect(page.locator('#mapRetryBtn')).toBeVisible();
  await expect(page.locator('#mapPickup')).toHaveText(ride().pickup);await expect(page).toHaveURL(/patient\.html#map\//);
+});
+
+test('missing addresses clear the previous route instead of displaying another journey',async({page})=>{
+ await setup(page);await page.goto('/patient.html');await page.getByRole('button',{name:'Full map',exact:true}).click();
+ await expect(page.locator('#mapFitBtn')).toBeVisible();
+ await page.evaluate(()=>{const trip=window.NexusPatient.trips()[0];trip.destination='';window.NexusPatient.write('nexusTrips',[trip]);window.NexusPatientApp.updated();});
+ await expect(page.locator('#patientMapStatus')).toContainText('Pickup and destination are needed');
+ await expect(page.locator('#mapFitBtn')).toBeHidden();await expect(page.locator('#mapRouteSummary')).toBeEmpty();
+ expect(await page.evaluate(()=>window.__directions.at(-1).routes)).toEqual([]);
 });
 
 test('new login immediately loads the patient data and signing out clears cached identity and trips',async({page})=>{
