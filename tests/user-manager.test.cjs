@@ -43,8 +43,9 @@ test('random memorable IDs backfill accounts, stay unique and survive role/statu
 test('future schedule revisions retain current coverage, replace removed weekdays and take effect on the correct date',async()=>{
  const f=await fixture();try{
   const original={driverEmail:'driver@test.test',startTime:'06:00',endTime:'15:00',effectiveStartDate:'2026-10-01',weekdays:[1,2,3,4,5]};
-  assert.equal((await f.call('admin/driver-schedule','POST',original)).status,200);
-  assert.equal((await f.call('admin/driver-schedule','POST',{...original,startTime:'08:00',endTime:'18:00',effectiveStartDate:'2026-10-19',weekdays:[1,2]})).status,200);
+  const saved=await f.call('admin/driver-schedule','POST',original);assert.equal(saved.status,200);
+  await f.call('admin/driver-schedule','POST',{...original,startTime:'10:00',endTime:'16:00',weekdays:[6,7]});
+  assert.equal((await f.call('admin/driver-schedule','POST',{...original,shiftIds:saved.schedule.created.map(s=>s.id),startTime:'08:00',endTime:'18:00',effectiveStartDate:'2026-10-19',weekdays:[1,2]})).status,200);
   const available=async(date,time,weekday)=>Number((await f.db.query(buildDriverAvailabilitySql(),[weekday,time,date])).rows[0].driver_count);
   assert.equal(await available('2026-10-12','07:00',1),1,'Old schedule still covers the week before the change');
   assert.equal(await available('2026-10-14','10:00',3),1);
@@ -52,6 +53,30 @@ test('future schedule revisions retain current coverage, replace removed weekday
   assert.equal(await available('2026-10-19','09:00',1),1);
   assert.equal(await available('2026-10-21','10:00',3),0,'Removed Wednesday no longer covers the new week');
   assert.equal(await available('2026-10-19','18:00',1),0,'End boundary is exclusive');
+  assert.equal(await available('2026-10-24','11:00',6),1,'Editing weekdays preserves the separate weekend schedule');
+ }finally{await f.close();}
+});
+test('weekday, weekend and split shifts coexist with independent availability and overlap protection',async()=>{
+ const f=await fixture();try{
+  const base={driverId:DRIVER,effectiveStartDate:'2026-10-01'};
+  const weekday=await f.call('admin/driver-schedule','POST',{...base,startTime:'06:00',endTime:'15:00',weekdays:[1,2,3,4,5]});
+  const weekend=await f.call('admin/driver-schedule','POST',{...base,startTime:'10:00',endTime:'16:00',weekdays:[6,7]});
+  assert.equal(weekday.status,200);assert.equal(weekend.status,200);
+  const rows=(await f.call('admin/driver-schedule','GET',undefined,{driverId:DRIVER})).schedules;
+  assert.equal(rows.length,7);assert.ok(rows.every(s=>s.active));
+  const available=async(date,time,day)=>Number((await f.db.query(buildDriverAvailabilitySql(),[day,time,date])).rows[0].driver_count);
+  assert.equal(await available('2026-10-12','06:00',1),1);assert.equal(await available('2026-10-16','14:59',5),1);assert.equal(await available('2026-10-16','15:00',5),0);
+  assert.equal(await available('2026-10-17','09:59',6),0);assert.equal(await available('2026-10-17','10:00',6),1);assert.equal(await available('2026-10-18','15:59',7),1);assert.equal(await available('2026-10-18','16:00',7),0);
+  const shiftIds=weekend.schedule.created.map(s=>s.id);
+  await f.call('admin/driver-schedule','PATCH',{shiftIds,active:false});
+  assert.equal(await available('2026-10-17','11:00',6),0);assert.equal(await available('2026-10-12','11:00',1),1,'Weekend deactivation retains weekday availability');
+  await f.call('admin/driver-schedule','PATCH',{shiftIds,active:true});assert.equal(await available('2026-10-17','11:00',6),1);
+  await assert.rejects(f.call('admin/driver-schedule','POST',{...base,startTime:'14:00',endTime:'18:00',weekdays:[5,6]}),/overlaps/);
+  await assert.rejects(f.call('admin/driver-schedule','POST',{...base,startTime:'10:00',endTime:'16:00',weekdays:[6,7]}),/overlaps/);
+  assert.equal((await f.call('admin/driver-schedule')).schedules.length,7,'Rejected additions leave both schedules intact');
+  const split=await f.call('admin/driver-schedule','POST',{...base,startTime:'15:00',endTime:'18:00',weekdays:[1]});assert.equal(split.status,200);
+  assert.equal(await available('2026-10-12','15:00',1),1,'Adjacent shifts are allowed without double-counting the driver');
+  assert.equal(await available('2026-10-12','18:00',1),0);
  }finally{await f.close();}
 });
 test('patient booking ownership survives account edits and links trips when access is created later',async()=>{

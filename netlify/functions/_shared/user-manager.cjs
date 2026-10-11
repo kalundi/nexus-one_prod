@@ -59,12 +59,12 @@ function createUserManager({query,getPool,requireUser,audit}){
     const selected=await q("SELECT id FROM employee_shifts WHERE employee_id=$1 AND assignment_role='DRIVER' AND id::text=ANY($2::text[]) FOR UPDATE",[employee.id,shiftIds]);
     if(selected.rows.length!==shiftIds.length)throw Object.assign(new Error('The selected schedule has changed. Refresh and try again.'),{statusCode:409});
    }
-   // End previous coverage at the new effective date, retaining today's availability for future edits.
-   await q(`UPDATE employee_shifts SET
+   // Revise only the selected pattern; adding coverage preserves every existing schedule.
+   if(shiftIds.length)await q(`UPDATE employee_shifts SET
     active=CASE WHEN effective_start_date >= $2::date THEN false ELSE active END,
     effective_end_date=CASE WHEN effective_start_date < $2::date THEN LEAST(COALESCE(effective_end_date,$2::date-1),$2::date-1) ELSE effective_end_date END,updated_at=now()
     WHERE employee_id=$1 AND assignment_role='DRIVER' AND active=true
-    AND (cardinality($3::text[])=0 OR id::text=ANY($3::text[])) AND (effective_end_date IS NULL OR effective_end_date >= $2::date)`,[employee.id,spec.effectiveStartDate,shiftIds]);
+    AND id::text=ANY($3::text[]) AND (effective_end_date IS NULL OR effective_end_date >= $2::date)`,[employee.id,spec.effectiveStartDate,shiftIds]);
    const overlaps=await q(`SELECT 1 FROM employee_shifts WHERE employee_id=$1 AND assignment_role='DRIVER' AND active=true
     AND weekday_iso=ANY($2::int[]) AND start_time < $4::time AND end_time > $3::time
     AND effective_start_date <= COALESCE($6::date,'infinity'::date) AND COALESCE(effective_end_date,'infinity'::date) >= $5::date LIMIT 1`,[employee.id,spec.weekdays,spec.startTime,spec.endTime,spec.effectiveStartDate,spec.effectiveEndDate]);

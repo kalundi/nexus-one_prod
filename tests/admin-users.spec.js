@@ -14,12 +14,12 @@ async function openUsers(page,{mobile=false}={}){
   if(path.startsWith('/api/admin/users/')&&method==='PATCH'){const payload=route.request().postDataJSON();patches.push(payload);const id=path.split('/').pop();users=users.map(u=>u.id===id?{...u,...payload}:u);schedules=schedules.map(s=>({...s,account_active:users[0].active}));body={user:users.find(u=>u.id===id)};}
   if(path==='/api/admin/driver-schedule'&&method==='GET')body={schedules:schedules.filter(s=>url.searchParams.get('activeOnly')==='false'||s.active)};
   if(path==='/api/admin/driver-schedule'&&method==='POST'){
-   const payload=route.request().postDataJSON();schedulePosts.push(payload);schedules=payload.weekdays.map(day=>({...schedules[0],shift_id:`saved-${day}`,weekday_iso:day,start_time:payload.startTime+':00',end_time:payload.endTime+':00',effective_start_date:payload.effectiveStartDate,effective_end_date:payload.effectiveEndDate||null,active:true}));body={schedule:{created:schedules.map(s=>({id:s.shift_id}))}};
+   const payload=route.request().postDataJSON();schedulePosts.push(payload);const saved=payload.weekdays.map(day=>({...schedules[0],shift_id:`saved-${schedulePosts.length}-${day}`,weekday_iso:day,start_time:payload.startTime+':00',end_time:payload.endTime+':00',effective_start_date:payload.effectiveStartDate,effective_end_date:payload.effectiveEndDate||null,active:true}));schedules=[...schedules.filter(s=>!payload.shiftIds?.includes(s.shift_id)),...saved];body={schedule:{created:saved.map(s=>({id:s.shift_id}))}};
   }
-  if(path==='/api/admin/driver-schedule'&&method==='PATCH'){const payload=route.request().postDataJSON();toggles.push(payload);schedules=schedules.map(s=>({...s,active:payload.active}));body={ok:true};}
+  if(path==='/api/admin/driver-schedule'&&method==='PATCH'){const payload=route.request().postDataJSON();toggles.push(payload);schedules=schedules.map(s=>payload.shiftIds.includes(s.shift_id)?{...s,active:payload.active}:s);body={ok:true};}
   return route.fulfill({status:200,json:body});
  });
- await page.goto('/admin.html#userSection');await expect(page.locator('#userTableBody tr')).toHaveCount(2);
+ await page.goto('/admin.html#userSection');await expect(page.locator('html')).toHaveAttribute('data-auth-state','authorized');await expect(page.locator('#userSection')).toBeVisible({timeout:10000});await expect(page.locator('#userTableBody tr')).toHaveCount(2);
  return {patches,schedulePosts,toggles,errors};
 }
 test('directory searches by memorable ID and edits roles/functions with one save',async({page})=>{
@@ -59,4 +59,23 @@ test('a failed account save keeps entered values and allows retry',async({page})
  await page.route('**/api/admin/users/test-driver',route=>{if(fail){fail=false;return route.fulfill({status:500,json:{error:'Unable to save right now'}});}return route.fallback();});
  await page.locator('#editUserName').fill('Revised name');await page.locator('#saveUserAccount').click();await expect(page.locator('#userAccountMsg')).toContainText('Unable to save right now');await expect(page.locator('#editUserName')).toHaveValue('Revised name');await expect(page.locator('#saveUserAccount')).toBeEnabled();
  await page.locator('#saveUserAccount').click();await expect(page.locator('#userAccountMsg')).toContainText('Account updated');expect(f.patches).toHaveLength(1);
+});
+for(const mobile of [false,true])test(`separate weekday and weekend schedules can be added, edited and deactivated independently (${mobile?'mobile':'desktop'})`,async({page})=>{
+ const f=await openUsers(page,{mobile});await page.locator('[data-user-module-open="driverSchedulePanel"]').click();
+ await page.getByRole('button',{name:'Add schedule',exact:true}).click();await page.locator('#scheduleDriverEmail').selectOption('driver@test.test');
+ await page.locator('#scheduleStartTime').fill('10:00');await page.locator('#scheduleEndTime').fill('16:00');await page.locator('#scheduleEffectiveDate').fill('2026-10-01');
+ for(const day of [1,2,3,4,5])await page.locator(`#scheduleWeekdayGroup input[value="${day}"]`).uncheck();
+ for(const day of [6,7])await page.locator(`#scheduleWeekdayGroup input[value="${day}"]`).check();
+ await page.locator('#saveDriverScheduleBtn').click();await expect(page.locator('#saveDriverScheduleMsg')).toContainText('Schedule saved');
+ const rows=page.locator('#driverScheduleRows tr'),weekday=rows.filter({hasText:'Mon, Tue, Wed, Thu, Fri'}),weekend=rows.filter({hasText:'Sat, Sun'});
+ await expect(rows).toHaveCount(2);await expect(weekday).toContainText('6:00 AM');await expect(weekday).toContainText('3:00 PM');await expect(weekend).toContainText('10:00 AM');await expect(weekend).toContainText('4:00 PM');
+ expect(f.schedulePosts[0]).toMatchObject({shiftIds:[],weekdays:[6,7],startTime:'10:00',endTime:'16:00'});
+ await weekend.getByRole('button',{name:'Edit',exact:true}).click();await page.locator('#scheduleEndTime').fill('17:00');await page.locator('#saveDriverScheduleBtn').click();await expect(weekend).toContainText('5:00 PM');await expect(weekday).toContainText('3:00 PM');
+ expect(f.schedulePosts[1].shiftIds).toEqual(['saved-1-6','saved-1-7']);
+ await weekend.getByRole('button',{name:'Deactivate',exact:true}).click();await expect(rows).toHaveCount(1);await expect(weekday).toContainText('Active');
+ await page.locator('#showInactiveSchedules').check();await expect(rows).toHaveCount(2);await expect(weekend).toContainText('Inactive');
+ await weekend.getByRole('button',{name:'Activate',exact:true}).click();await expect(weekend).toContainText('Active');await expect(weekday).toContainText('Active');
+ expect(f.toggles.every(t=>t.shiftIds.every(id=>id.startsWith('saved-2-')))).toBe(true);expect(f.errors).toEqual([]);
+ expect(await page.locator('#driverSchedulePanel').evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBe(true);
+ await page.locator('#driverSchedulePanel').screenshot({path:`output/admin-multiple-schedules-${mobile?'mobile':'desktop'}.png`});
 });

@@ -10,7 +10,7 @@ Roles determine permissions and available experiences. Operational functions des
 
 Schedules use Eastern Time. Select a driver, start/end time, weekdays, effective start and optional end date. Shifts end later on the same day; use separate daily shifts for coverage across midnight.
 
-- **New schedule** replaces all of the driver's active weekly coverage from its effective date, including weekdays removed from the new pattern.
+- **Add schedule** creates additional coverage for the driver. For example, save Mon–Fri 6:00 AM–3:00 PM, then add Sat–Sun 10:00 AM–4:00 PM. Both schedules remain active. Separate shifts on the same day are also supported when their hours do not overlap.
 - **Edit** revises the selected weekly pattern. A future effective date keeps previous coverage until the preceding day. Other patterns remain intact, and overlapping active coverage is rejected.
 - **Deactivate / Activate** switches the selected pattern immediately. Reactivation cannot overlap active coverage or revive an ended date range; edit its dates instead.
 - **Show inactive and ended** includes schedule history.

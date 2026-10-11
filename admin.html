@@ -290,7 +290,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       <div class="userModuleBody">
         <div class="createUserForm" style="margin:0">
           <h3>Driver schedules</h3>
-          <p style="margin:0 0 16px;color:var(--muted)">Manage weekly coverage. Deactivated shifts are unavailable across Nexus.</p>
+          <p style="margin:0 0 16px;color:var(--muted)">Add separate weekday, weekend or split shifts. Manage each schedule independently.</p>
           <div class="formRow scheduleFields">
             <div class="formField"><label for="scheduleDriverEmail">Driver *</label><select id="scheduleDriverEmail"><option value="">Select a driver</option></select></div>
             <div class="formField"><label for="scheduleStartTime">Start time *</label><input id="scheduleStartTime" type="time" value="06:00"></div>
@@ -310,8 +310,8 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
               <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="7" style="margin-right:6px">Sun</label>
             </div>
           </div>
-          <div class="userSecondaryActions"><button class="button primary" id="saveDriverScheduleBtn" type="button">Save schedule</button><button class="button" id="newDriverScheduleBtn" type="button">New schedule</button><button class="button" id="loadDriverScheduleBtn" type="button">Refresh</button><label class="functionChoice"><input id="showInactiveSchedules" type="checkbox">Show inactive and ended</label></div>
-          <p id="scheduleEditingLabel" class="scheduleHelp">A new weekly schedule replaces this driver's coverage from its effective date.</p>
+          <div class="userSecondaryActions"><button class="button primary" id="saveDriverScheduleBtn" type="button">Save schedule</button><button class="button" id="newDriverScheduleBtn" type="button">Add schedule</button><button class="button" id="loadDriverScheduleBtn" type="button">Refresh</button><label class="functionChoice"><input id="showInactiveSchedules" type="checkbox">Show inactive and ended</label></div>
+          <p id="scheduleEditingLabel" class="scheduleHelp">Add a separate schedule for these days and hours. Each schedule controls availability independently.</p>
           <div id="saveDriverScheduleMsg" hidden></div>
           <div class="tableWrap" style="margin-top:12px">
             <table class="userTable scheduleTable" aria-label="Driver schedule results">
@@ -654,7 +654,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">&#9855;</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div>
 <div id="adminToast" class="adminToast" role="status" aria-live="polite" hidden></div>
 <script src="./nexus-core.js"></script><script src="./platform.js?v=20261011-user-manager"></script>
-<script src="./nexus-fare.js?v=20261011-current-pickup-window"></script><script src="./admin-users.js?v=20261011-user-manager"></script><script src="./admin-app.js?v=20261011-user-manager"></script></body></html>
+<script src="./nexus-fare.js?v=20261011-current-pickup-window"></script><script src="./admin-users.js?v=20261011-multiple-schedules"></script><script src="./admin-app.js?v=20261011-user-manager"></script></body></html>
 
 
 
