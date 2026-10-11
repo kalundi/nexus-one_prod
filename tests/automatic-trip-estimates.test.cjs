@@ -33,10 +33,11 @@ test('stored mileage takes precedence over obsolete fare metadata',()=>{
  assert.equal(result.inputs.miles,25.28);
  assert.equal(result.discountedTotal,173.91);
 });
-test('legacy mock breakdowns recover the simulated fares without user input',()=>{
+test('legacy mock breakdowns recover fare inputs while ignoring simulated booking clocks',t=>{
+ t.mock.method(Date,'now',()=>Date.parse('2026-10-11T16:00:00Z'));
  const result=Fare.calculateEstimate({...legacy,bookingSource:'MOCK',notes:'Fare breakdown: {"deadheadSegments":[12,10]}. Member savings: 5%. Pricing booking timestamp: 2030-08-14T20:00:00Z (simulated test clock).'},settings);
  assert.ok(Math.abs(result.deadheadCharge-12.3)<1e-8);
- assert.equal(result.shortNoticeCharge,29.4);
+ assert.equal(result.shortNoticeCharge,0);
  assert.equal(result.discountPct,5);
 });
 test('all 20 existing mock trips recalculate automatically from their original inputs',()=>{

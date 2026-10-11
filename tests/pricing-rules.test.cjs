@@ -13,7 +13,8 @@ test('explicit current service waiting allowances override the global default',(
  assert.equal(Fare.getWaitingCharge(31,rate,rules,'ambulatory').waitCharge,40);
  assert.equal(Fare.getWaitingCharge(1,rate,{...rules,servicePolicies:{wheelchair:{freeWaitMinutes:0}}},'wheelchair').waitCharge,20);
 });
-test('configured fuel, traffic, schedule premium, waiting, deadhead, urgency and card fee produce the hand-calculated fare',()=>{
+test('configured fuel, traffic, schedule premium, waiting, deadhead, urgency and card fee produce the hand-calculated fare',t=>{
+ t.mock.method(Date,'now',()=>Date.parse('2030-08-15T11:00:00Z'));
  const rules={waitingPolicyVersion:2,freeWaitMinutes:15,fuelSurchargePerMile:.5,trafficOverageFeePerHour:60,trafficOverageGraceMinutes:10,afterHoursSurchargePct:10,deadheadRatePct:25,shortNoticeHours:12,shortNoticeSurchargePct:40,cardProcessingFeePct:4};
  const result=Fare.calculateBooking({service:'wheelchair',date:'2030-08-15',time:'18:40',createdAt:'2030-08-15T11:00:00Z',tripType:'ONE_WAY'},
  {miles:10,durationMinutes:30,trafficDurationMinutes:50,stopWaitMinutes:31,deadheadSegments:[12,2],discountPct:0},{pricing:{wheelchair:rate},fareRules:rules});

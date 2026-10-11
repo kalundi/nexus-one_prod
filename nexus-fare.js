@@ -159,10 +159,12 @@
     const deadheadRate = Math.max(0, Number(rate.perMile || 0)) * Number(fareRules.deadheadRatePct??50)/100;
     const deadheadDetails=deadheadSegments.map((segment,index)=>({...routeMetrics.deadheadRoutes?.[index],miles:Number(segment)||0,includedMiles,billableMiles:Math.max(0,Number(segment||0)-includedMiles),rate:deadheadRate,charge:Math.max(0,Number(segment||0)-includedMiles)*deadheadRate}));
     const deadheadCharge=deadheadDetails.reduce((sum,segment)=>sum+segment.charge,0);
-    const bookingTime = Number(routeMetrics.bookingTime ?? Date.now());
+    // Eligibility follows the current estimate time, never saved booking or
+    // mock timestamps supplied with the trip's route inputs.
+    const currentTime = Date.now();
     const urgentBaseCharge = (date, time) => {
       const pickupTime = scheduledEpoch(date,time);
-      const hours = (pickupTime - bookingTime) / 3600000;
+      const hours = (pickupTime - currentTime) / 3600000;
       return hours >= 0 && hours <= Number(fareRules.shortNoticeHours??24) ? Math.max(0, Number(rate.base || 0)) * Number(fareRules.shortNoticeSurchargePct??30)/100 : 0;
     };
     let outboundPickupTime = timeStr;
@@ -215,10 +217,8 @@
     const service=String(booking.service||'').trim().toLowerCase();
     const rate=settings?.pricing?.[service];
     if(!rate)throw Error('Current service pricing is unavailable');
-    const mockClock=String(booking.bookingSource||'').toUpperCase()==='MOCK'?String(booking.notes||'').match(/Pricing booking timestamp: ([^\s]+)/)?.[1]:null;
-    const bookingTime=Date.parse(mockClock||booking.createdAt);
     const pickup=scheduledEpoch(String(booking.date||'').slice(0,10),booking.time);
-    if(!Number.isFinite(bookingTime)||!Number.isFinite(pickup))throw Error('Booking creation and pickup times are required');
+    if(!Number.isFinite(pickup))throw Error('Pickup date and time are required');
     const travel=serviceTravel(inputs.passengerLegs?.[0]||inputs,service,settings.fareRules||{});
     const appointments=inputs.stopAppointmentTimes||[];
     const stopWait=appointments.length>1&&travel.stopScheduledMinutes.length===appointments.length?appointments.slice(0,-1).reduce((sum,time,index)=>{
@@ -240,7 +240,7 @@
     const result=calculate({service,rate,rules:settings.fareRules||{},miles:Number(inputs.miles),date:String(booking.date).slice(0,10),time:booking.time,tripType:booking.tripType,
       returnDate:String(booking.returnTripDate||'').slice(0,10),returnTime:booking.returnTripTime,
       waitMinutes:stopWait+returnWait,
-      metrics:{durationMinutes:Number(inputs.durationMinutes),trafficDurationMinutes:Number(inputs.trafficDurationMinutes),passengerLegs:inputs.passengerLegs,deadheadRoutes:inputs.deadheadRoutes,deadheadSegments:inputs.deadheadSegments.map(Number),bookingTime,returnTimePending:booking.returnTimePending}});
+      metrics:{durationMinutes:Number(inputs.durationMinutes),trafficDurationMinutes:Number(inputs.trafficDurationMinutes),passengerLegs:inputs.passengerLegs,deadheadRoutes:inputs.deadheadRoutes,deadheadSegments:inputs.deadheadSegments.map(Number),returnTimePending:booking.returnTimePending}});
     const savings=applySavings(result.total,inputs.discountPct);
     return {...result,returnTimePending:!!booking.returnTimePending,discountPct:Number(inputs.discountPct),discountAmount:savings.memberSavings,discountedTotal:savings.total};
   }

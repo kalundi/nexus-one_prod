@@ -6,9 +6,12 @@ const vm = require('node:vm');
 const client = fs.readFileSync(path.join(__dirname, '..', 'booking-app.js'), 'utf8');
 const code = client.slice(client.indexOf('  function calculateFareBreakdown('), client.indexOf('  function calculateFare(service,'));
 function calculator({ roundTrip = false, returnDate = '', returnTime = '', rate = {base:100,includedMiles:999,perMile:0}, rules = {} } = {}) {
+  const Fare=require('../nexus-fare.js');
+  const fareRules={...rules,servicePolicies:{...rules.servicePolicies,wheelchair:{speedReductionMph:0,...rules.servicePolicies?.wheelchair}}};
   const context = vm.createContext({
-    NexusFare:require('../nexus-fare.js'), getPricing: () => rate, getServicePolicy: () => ({}),
-    fareRules: rules, CARD_PROCESSING_FEE_PCT:3,
+    NexusFare:Fare, getPricing: () => rate, getServicePolicy: () => ({}),
+    fareRules, CARD_PROCESSING_FEE_PCT:3,
+    routeStopMetrics:[],measuredRouteInputs:null,getOutboundTravel:(service,route)=>Fare.serviceTravel(route,service,fareRules),
     getWaitingCharge: () => ({ waitCharge:0 }),
     deadheadRouteMiles:{toPickup:0,fromDestination:0,fromReturn:0},
     tripType:{value:roundTrip?'ROUND_TRIP':'ONE_WAY'}, returnTripDate:{value:returnDate}, returnTripTime:{value:returnTime}
@@ -37,7 +40,8 @@ for (const scenario of [
   assert.equal(result.total,scenario.premium?133.9:103);
 });
 
-test('approved wheelchair example applies allowance to each empty segment and urgency only to base',()=>{
+test('approved wheelchair example applies allowance to each empty segment and urgency only to base',t=>{
+  t.mock.method(Date,'now',()=>require('../nexus-fare.js').scheduledEpoch('2030-08-14','16:00'));
   const calc=calculator({rate:{base:98,includedMiles:8,perMile:4.1}});
   const result=calc.calculateFareBreakdown('wheelchair',20,'2030-08-15','10:00',{
     deadheadSegments:[12,10],bookingTime:new Date('2030-08-14T16:00:00').getTime()
@@ -56,17 +60,20 @@ test('unused allowance on one deadhead segment does not offset another segment',
 for(const [service,rate,segments,charge,urgent] of [
   ['ambulatory',{base:75,includedMiles:5,perMile:3.55},[8,4],5.325,22.5],
   ['bls',{base:1125,includedMiles:0,perMile:18.5},[1,2],27.75,337.5]
-]) test(`${service} uses its own included mileage, half rate, and base surcharge`,()=>{
+]) test(`${service} uses its own included mileage, half rate, and base surcharge`,t=>{
+  t.mock.method(Date,'now',()=>require('../nexus-fare.js').scheduledEpoch('2030-08-14','16:00'));
   const result=calculator({rate}).calculateFareBreakdown(service,5,'2030-08-15','10:00',{deadheadSegments:segments,bookingTime:new Date('2030-08-14T16:00:00').getTime()});
   assert.ok(Math.abs(result.deadheadCharge-charge)<.00001);
   assert.ok(Math.abs(result.shortNoticeCharge-urgent)<.00001);
 });
-for(const hours of [0,23,24,24.01,-1]) test(`short-notice boundary: ${hours} hours`,()=>{
-  const pickup=new Date('2030-08-15T10:00:00').getTime();
+for(const hours of [0,23,24,24.01,-1]) test(`short-notice boundary: ${hours} hours`,t=>{
+  const pickup=require('../nexus-fare.js').scheduledEpoch('2030-08-15','10:00');
+  t.mock.method(Date,'now',()=>pickup-hours*3600000);
   const result=calculator().calculateFareBreakdown('wheelchair',5,'2030-08-15','10:00',{bookingTime:pickup-hours*3600000});
   assert.equal(result.shortNoticeCharge,hours>=0 && hours<=24?30:0);
 });
-test('round trip adds short-notice surcharge only for qualifying passenger legs',()=>{
+test('round trip adds short-notice surcharge only for qualifying passenger legs',t=>{
+  t.mock.method(Date,'now',()=>require('../nexus-fare.js').scheduledEpoch('2030-08-14','16:00'));
   const result=calculator({roundTrip:true,returnDate:'2030-08-16',returnTime:'12:00'}).calculateFareBreakdown('wheelchair',5,'2030-08-15','10:00',{bookingTime:new Date('2030-08-14T16:00:00').getTime()});
   assert.equal(result.shortNoticeCharge,30);
 });

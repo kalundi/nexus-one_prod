@@ -17,7 +17,8 @@ test('broker-provided round trip doubles passenger legs and calculates return wa
  assert.equal(result.waitCharge,93.75);
  assert.equal(result.discountedTotal,444.39);
 });
-test('pending return still prices both legs without inventing waiting or a return short-notice charge',()=>{
+test('pending return still prices both legs without inventing waiting or a return short-notice charge',t=>{
+ t.mock.method(Date,'now',()=>Date.parse('2030-08-14T20:00:00Z'));
  const result=Fare.calculateEstimate({...trip,tripType:'ROUND_TRIP',returnTripDate:trip.date,createdAt:'2030-08-14T20:00:00Z'},settings);
  assert.equal(result.passengerLegCount,2);
  assert.equal(result.returnTimePending,true);

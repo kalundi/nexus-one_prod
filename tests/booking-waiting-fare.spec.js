@@ -78,6 +78,8 @@ for (const scenario of [
   },scenario.returnTime);
   await expect(page.locator('#estFare')).toHaveText(`$${scenario.total}`);
   await expect(page.locator('[data-service="wheelchair"] .serviceCardFare')).toHaveText(`$${scenario.total}`);
+  expect(await page.locator('#estShortNoticeRow').evaluate(row=>row.hidden)).toBe(!scenario.shortNotice);
+  if(scenario.shortNotice)await expect(page.locator('#estShortNoticeLabel')).toHaveText('Pickup within the next 24 hours (base +30%)');
   if(scenario.returnTime || scenario.stopTime){
     await expect(page.locator('#waitMinutes')).toHaveValue(String(scenario.minutes+(scenario.stopMinutes||0)));
     await expect(page.locator('#waitMinutes')).toHaveAttribute('readonly','');

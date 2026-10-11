@@ -612,10 +612,11 @@
     if($('estDeadheadRow')) $('estDeadheadRow').hidden = !(breakdown.deadheadCharge > 0);
     if($('estDeadheadCharge')) $('estDeadheadCharge').textContent = `$${Number(breakdown.deadheadCharge || 0).toFixed(2)}`;
     if($('estShortNoticeRow')) $('estShortNoticeRow').hidden = !(breakdown.shortNoticeCharge > 0);
+    if($('estShortNoticeLabel')) $('estShortNoticeLabel').textContent = `Pickup within the next ${Number(fareRules.shortNoticeHours??24)} hours (base +${Number(fareRules.shortNoticeSurchargePct??30)}%)`;
     if($('estShortNoticeCharge')) $('estShortNoticeCharge').textContent = `$${Number(breakdown.shortNoticeCharge || 0).toFixed(2)}`;
     ['fareSummaryOperational','fareConfirmOperational'].forEach(id=>{
       if($(id)){
-        $(id).textContent = `Deadhead mileage: $${Number(breakdown.deadheadCharge || 0).toFixed(2)}. Each empty segment includes ${Number(breakdown.includedMiles || 0)} miles; excess miles cost $${Number(breakdown.deadheadRate || 0).toFixed(2)} each. Pickup within ${Number(fareRules.shortNoticeHours??24)} hours of booking: $${Number(breakdown.shortNoticeCharge || 0).toFixed(2)} (${Number(fareRules.shortNoticeSurchargePct??30)}% of the base fare for each qualifying leg).`;
+        $(id).textContent = `Deadhead mileage: $${Number(breakdown.deadheadCharge || 0).toFixed(2)}. Each empty segment includes ${Number(breakdown.includedMiles || 0)} miles; excess miles cost $${Number(breakdown.deadheadRate || 0).toFixed(2)} each.`+(breakdown.shortNoticeCharge>0?` Pickup within the next ${Number(fareRules.shortNoticeHours??24)} hours: $${Number(breakdown.shortNoticeCharge).toFixed(2)} (${Number(fareRules.shortNoticeSurchargePct??30)}% of the base fare for each qualifying leg).`:'');
         $(id).hidden = !(breakdown.deadheadCharge > 0 || breakdown.shortNoticeCharge > 0);
       }
     });
