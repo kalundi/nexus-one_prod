@@ -1002,7 +1002,7 @@ Destination: -</p>
 
       <section class="section sectionProgressive" id="rideTypeSection">
         <button type="button" class="rideSheetHandle" id="rideSheetHandle" aria-label="Collapse ride choices" aria-expanded="true"></button>
-        <div class="rideMarketplaceIntro"><div><h2>Choose your Nexus ride</h2><span>Route-based time and fare</span></div><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help me choose</button><button type="button" class="rideSheetToggle" id="rideSheetToggle" aria-label="Collapse ride choices" aria-expanded="true"></button></div><p class="subtle" id="rideTravelHint">Times estimate your journey. Round-trip totals include driving and scheduled waiting.</p>
+        <div class="rideMarketplaceIntro"><div><h2>Choose your Nexus ride</h2><span>Route-based time and fare</span></div><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help me choose</button><button type="button" class="rideSheetToggle" id="rideSheetToggle" aria-label="Collapse ride choices" aria-expanded="true"></button></div><p class="subtle" id="rideTravelHint">Times above fares show driving. Round trips include both directions; waiting is shown separately.</p>
         <p class="subtle rideGuidancePrompt">Answer three quick questions. We will recommend the most suitable ride option.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
         <div class="mobilityQuestions" id="mobilityQuestions">
@@ -1012,6 +1012,7 @@ Destination: -</p>
         </div>
         <p class="mobilityRecommendation" id="mobilityRecommendation" aria-live="polite">Recommended: Ambulatory transportation</p>
         <div class="rideContextBar"><button type="button" class="rideContextPill" id="rideSchedulePill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><span id="rideSchedulePillText">Scheduled pickup</span></button><button type="button" class="rideContextPill" id="rideRiderPill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span id="rideRiderPillText">For rider</span></button></div>
+        <p class="subtle" id="rideTimingSummary" aria-live="polite" hidden></p>
         <details class="serviceCatalog" id="serviceCatalogDetails" open><summary>Choose a different ride type</summary>
         <div class="serviceChips rideMarketplace" id="serviceChips" role="radiogroup" aria-label="Service type">
           <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="4" r="2"/><path d="m10 22 1-7-3-3 2-5 4 3 3 1M11 15l5 7"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span><span class="serviceCardBest">Best for: walking riders</span></span><span class="serviceSelectedMark">Selected</span></button>
@@ -1297,7 +1298,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=69"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-<script src="./nexus-fare.js?v=20261010-service-time"></script><script src="./nexus-route.js?v=20261010-service-time"></script>  <script src="./booking-app.js?v=20261010-service-time"></script>
+<script src="./nexus-fare.js?v=20261010-travel-wait"></script><script src="./nexus-route.js?v=20261010-service-time"></script>  <script src="./booking-app.js?v=20261010-travel-wait"></script>
 <script src="./patient-booking-bridge.js?v=20261010"></script>
 </body>
 </html>

@@ -75,5 +75,6 @@ test('empty route measurements are kept at the road baseline',async()=>{
 test('display rounds once at the end rather than rounding every route segment',()=>{
  assert.equal(Fare.formatTravelMinutes(59.2),'1h');assert.equal(Fare.formatTravelMinutes(80),'1h 20m');assert.equal(Fare.formatTravelMinutes(0),'Time pending');
  assert.equal(Fare.formatTravelMinutes(30.000000000000004),'30 min');
+ assert.equal(Fare.formatTravelMinutes(6200),'4d 7h 20m');assert.equal(Fare.formatTravelMinutes(1440),'1d');
  assert.equal(Fare.serviceTravel({miles:13.575,durationMinutes:20},'ambulatory').scheduledMinutes,20);
 });

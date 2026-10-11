@@ -269,6 +269,7 @@
   let routeLegTravelMinutes = [];
   let routeStopMetrics = [];
   let measuredRouteInputs=null;
+  let previousOutboundDate='';
   const locationSuggestionCache = new Map();
   const routePointCache = new Map();
   let lastTelemetryVehicles = [];
@@ -585,6 +586,14 @@
     estimateState.travelBreakdown=[`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving`,breakdown.waitMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:'',breakdown.transitionMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''].filter(Boolean).join(' · ');
     estDuration.textContent = estimateState.tripDurationText;
     if($('fareTravelBreakdown'))$('fareTravelBreakdown').textContent=estimateState.travelBreakdown;
+    if($('rideTimingSummary')){
+      const hasReturn=String(tripType?.value)==='ROUND_TRIP';
+      const returnDate=returnTripDate?.value;
+      const returnLabel=returnDate?new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(returnDate+'T12:00:00Z')):'';
+      const parts=[hasReturn&&returnLabel&&returnTripTime?.value?`Return ${returnLabel} at ${returnTripTime.value}`:'',breakdown.waitMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting included in fare`:'',breakdown.transitionMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:'',breakdown.drivingMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.journeyMinutes)} trip total`:''];
+      $('rideTimingSummary').textContent=parts.filter(Boolean).join(' · ');
+      $('rideTimingSummary').hidden=!(hasReturn||isMultipleStopsEnabled())||!breakdown.drivingMinutes;
+    }
     const selectedRate=getPricing(normalizeService($('service').value));
     const legCopy=(breakdown.passengerLegs||[]).map(leg=>`${leg.kind==='RETURN'?'Return':'Outbound'}: ${leg.miles.toFixed(2)} miles (${leg.billableMiles.toFixed(2)} billable)`).join('. ');
     const mileageCopy=`Each leg: $${Number(selectedRate.base||0).toFixed(2)} base includes ${Number(selectedRate.includedMiles||0)} miles; additional miles are $${Number(selectedRate.perMile||0).toFixed(2)} each. ${legCopy}.`;
@@ -695,7 +704,7 @@
       const fare=meta.querySelector('.serviceCardFare');
       const breakdown=miles>0?calculateFareBreakdown(service,miles,date,time,{durationMinutes:estimateState.durationMinutes,trafficDurationMinutes:estimateState.trafficDurationMinutes}):null;
       if(eta){
-        eta.textContent=breakdown?.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.journeyMinutes)} ${String(tripType?.value)==='ROUND_TRIP'||isMultipleStopsEnabled()?'total':'drive'}`:'Time pending';
+        eta.textContent=breakdown?.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} drive`:'Time pending';
         eta.title=breakdown?`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving${breakdown.waitMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:''}${breakdown.transitionMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''}`:'Enter the route and schedule to calculate travel time.';
         eta.setAttribute('aria-label',eta.title);
       }
@@ -3487,9 +3496,19 @@
     if(returnTripTime)returnTripTime.required=type==='ROUND_TRIP';
     if(recurrenceEndDate)recurrenceEndDate.required=type==='RECURRING';
     if(type!=='ROUND_TRIP'){if(returnTripDate)returnTripDate.value='';if(returnTripTime)returnTripTime.value='';}
+    syncReturnDateWithOutbound();
     if(type!=='RECURRING'){if(recurrenceEndDate)recurrenceEndDate.value='';document.querySelectorAll('input[name="recurrenceDay"]').forEach((input)=>{input.checked=false;});}
     updateTripScheduleSavingsMessage();
     syncCalculatedWaitingUi();
+  }
+
+  function syncReturnDateWithOutbound(){
+    const outboundDate=$('tripDate')?.value||'';
+    if(returnTripDate){
+      returnTripDate.min=outboundDate||$('tripDate')?.min||'';
+      if(String(tripType?.value)==='ROUND_TRIP'&&outboundDate&&(!returnTripDate.value||returnTripDate.value===previousOutboundDate))returnTripDate.value=outboundDate;
+    }
+    if(outboundDate)previousOutboundDate=outboundDate;
   }
 
   function isTripScheduleComplete(){
@@ -4396,7 +4415,7 @@
       syncMapViewport();
       window.setTimeout(syncMapViewport,280);
     });
-    $('rideSchedulePill')?.addEventListener('click',()=>revealSectionForAction('pickupDropoffSection','tripDate'));
+    $('rideSchedulePill')?.addEventListener('click',()=>{journeyNavigationOverride='pickupDropoffSection';revealSectionForAction('pickupDropoffSection','tripDate');});
     $('rideRiderPill')?.addEventListener('click',()=>revealSectionForAction('riderDetailsSection','name'));
     if(payStripeBtn) payStripeBtn.addEventListener('click', () => startHostedPayment('stripe', 'full'));
     if(paySquareBtn) paySquareBtn.addEventListener('click', () => startHostedPayment('square', 'full'));
@@ -4408,6 +4427,7 @@
       ['change','input'].forEach((evt) => {
         $(id).addEventListener(evt, () => {
           setBookingOutcome('', 'pending');
+          if(id==='tripDate')syncReturnDateWithOutbound();
           if((id === 'tripDate') && estimateState.miles > 0){
             const breakdown = calculateFareBreakdown(normalizeService($('service').value), estimateState.miles, $('tripDate').value, $('tripTime').value, { durationMinutes: estimateState.durationMinutes, trafficDurationMinutes: estimateState.trafficDurationMinutes });
             renderFareEstimateBreakdown(

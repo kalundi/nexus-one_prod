@@ -110,6 +110,7 @@
   function formatTravelMinutes(value){
     const minutes=Math.ceil(Math.max(0,Number(value)||0)-1e-9);
     if(!minutes)return 'Time pending';
+    if(minutes>=1440)return `${Math.floor(minutes/1440)}d${minutes%1440>=60?` ${Math.floor(minutes%1440/60)}h`:''}${minutes%60?` ${minutes%60}m`:''}`;
     return minutes<60?`${minutes} min`:`${Math.floor(minutes/60)}h${minutes%60?` ${minutes%60}m`:''}`;
   }
   function calculate(input){

@@ -58,6 +58,8 @@ If the route also predicts 20 minutes of traffic delay per direction, each leg a
 
 For pickup-based bookings, waiting is recalculated from the adjusted arrival to the scheduled return pickup. For appointment-based bookings, pickup moves earlier to preserve the existing 15-minute early-arrival allowance. Intermediate departures are calculated backward from the next appointment using that service's driving time and assistance allowance. Waiting includes the free waiting period in elapsed duration; only its billable portion contributes a waiting charge.
 
+The time above each service fare shows passenger driving, including both directions for a round trip. The selected ride separately shows its return date, waiting included in the fare, intermediate assistance and total elapsed journey. Multi-day gaps are formatted as days and hours rather than hundreds of hours of apparent driving. The default return date follows the outbound date; an explicitly chosen later return date is retained. A later return currently represents continuous waiting under the existing booking policy, so its waiting and charge remain visible for review.
+
 ## Traffic and estimation limits
 
 [Google's Directions Service documentation](https://developers.google.com/maps/documentation/javascript/legacy/directions) distinguishes baseline duration from predicted traffic duration. A traffic departure time must be present or future. Traffic duration is unavailable for requests containing stopover waypoints, so multi-stop routes may use baseline travel when the provider supplies no traffic prediction. Historic trips also use baseline duration rather than a fabricated historic traffic value. Future outbound requests now use the entered schedule instead of the current clock.

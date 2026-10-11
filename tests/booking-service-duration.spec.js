@@ -45,11 +45,13 @@ test('service cards show route duration and each service uses its own planning a
 
 test('round-trip duration includes independently measured return travel and scheduled waiting through payment',async({page})=>{
  const state=await prepare(page,{roundTrip:true});
- await expect(page.locator('[data-service="ambulatory"] .serviceCardEta')).toHaveText('~2h total');
- await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~2h 18m total');
+ await expect(page.locator('[data-service="ambulatory"] .serviceCardEta')).toHaveText('~1h drive');
+ await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~1h 18m drive');
  await page.locator('[data-service="wheelchair"]').click();
  await expect(page.locator('#waitMinutes')).toHaveValue('60');await expect(page.locator('#estDuration')).toHaveText('~2h 18m round trip');
  await expect(page.locator('#fareTravelBreakdown')).toContainText('1h 18m driving · 1h waiting');
+ await expect(page.locator('#rideTimingSummary')).toContainText('1h waiting included in fare');
+ await expect(page.locator('#rideTimingSummary')).toContainText('2h 18m trip total');
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'output/booking-service-duration-mobile.png'});
  const overflow=await page.locator('#serviceChips').evaluate(element=>element.scrollWidth>element.clientWidth+1);expect(overflow).toBe(false);
  await page.locator('#continueRideBtn').click();await expect(page.locator('#fareConfirmDetails')).toContainText('2h 18m round trip');await page.locator('#fareConfirmAccept').click();
@@ -63,9 +65,37 @@ test('round-trip duration includes independently measured return travel and sche
 
 test('multi-stop duration and waiting use service travel and the next appointment',async({page})=>{
  await prepare(page,{multiStop:true});
- await expect(page.locator('[data-service="ambulatory"] .serviceCardEta')).toHaveText('~2h total');
- await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~2h 10m total');
+ await expect(page.locator('[data-service="ambulatory"] .serviceCardEta')).toHaveText('~1h drive');
+ await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~1h 20m drive');
  await page.locator('[data-service="wheelchair"]').click();
  await expect(page.locator('#tripTime')).toHaveValue('09:05');await expect(page.locator('#stopPickupTime-1')).toHaveValue('10:20');await expect(page.locator('#waitMinutes')).toHaveValue('35');
  await expect(page.locator('#fareTravelBreakdown')).toContainText('1h 20m driving · 35 min waiting · 15 min rider assistance');
+});
+
+test('a return several days later is shown separately from driving time',async({page})=>{
+ await prepare(page,{roundTrip:true});
+ await page.locator('#rideSchedulePill').click();
+ await page.locator('#returnTripDate').fill('2030-08-19');
+ await page.locator('#confirmPickupDropoffBtn').click();
+ await page.locator('[data-service="wheelchair"]').click();
+ await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~1h 18m drive');
+ await expect(page.locator('#rideTimingSummary')).toContainText('Return Aug 19, 2030 at 10:45');
+ await expect(page.locator('#rideTimingSummary')).toContainText('4d 1h waiting included in fare');
+ await expect(page.locator('#rideTimingSummary')).toContainText('4d 2h 18m trip total');
+ await expect(page.locator('#waitMinutes')).toHaveValue('5820');
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:'output/booking-travel-wait-separate.png'});
+ expect(await page.locator('#serviceChips').evaluate(element=>element.scrollWidth>element.clientWidth+1)).toBe(false);
+});
+
+test('the default return date follows the outbound date while explicitly chosen later dates are retained',async({page})=>{
+ await prepare(page);
+ await page.locator('#rideSchedulePill').click();
+ await page.locator('#tripType').selectOption('ROUND_TRIP');
+ await expect(page.locator('#returnTripDate')).toHaveValue('2030-08-15');
+ await page.locator('#tripDate').fill('');await page.locator('#tripDate').fill('2030-08-16');
+ await expect(page.locator('#returnTripDate')).toHaveValue('2030-08-16');
+ await expect(page.locator('#returnTripDate')).toHaveAttribute('min','2030-08-16');
+ await page.locator('#returnTripDate').fill('2030-08-20');
+ await page.locator('#tripDate').fill('2030-08-17');
+ await expect(page.locator('#returnTripDate')).toHaveValue('2030-08-20');
 });
