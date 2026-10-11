@@ -384,6 +384,7 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 .footer.footerUnified .shell{width:min(1280px,calc(100% - 40px)) !important;}
 .footer.footerUnified .footerGrid{display:grid;grid-template-columns:minmax(220px,1.25fr) minmax(150px,.9fr) minmax(210px,1fr) minmax(150px,.75fr);gap:18px 24px;padding:14px 0 10px !important;align-items:stretch;align-content:start;}
 .footer.footerUnified .footerGrid>div{min-width:0;}
+.footer.footerUnified .footerAccordionSection:not(.footerFollow){display:block;}
 .footer.footerUnified .footerGrid>div:not(.footerBrandCompact){padding-left:0;}
 .footer.footerUnified .footerBrandCompact{display:grid;align-content:start;gap:6px;border-right:2px solid #fff;padding-right:clamp(12px,1.8vw,24px);margin-right:clamp(6px,1vw,14px);}
 .footer.footerUnified .footerBrandCompact .footerLogo{width:clamp(182px,18vw,240px);height:auto;max-width:100%;display:block;margin:0 0 6px;}
@@ -391,6 +392,7 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 .footer.footerUnified .footerGrid h4,.footer.footerUnified .footerGrid strong{margin:0 0 4px;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:#f2f8fc;font-weight:800;}
 .footer.footerUnified .footerGrid p,.footer.footerUnified .footerGrid span,.footer.footerUnified .footerGrid small{color:#b4cadd;font-size:13px;line-height:1.45;}
 .footer.footerUnified .footerGrid a,.footer.footerUnified .footerGrid button{color:#deecf6 !important;font-size:13px;line-height:1.28;text-decoration:none;overflow-wrap:anywhere;word-break:break-word;max-width:100%;}
+.footer.footerUnified .footerGrid a{min-height:0;margin:7px 0;}
 .footer.footerUnified .footerGrid a:hover,.footer.footerUnified .footerGrid button:hover{color:#fff !important;}
 .footer.footerUnified .footerBottom{border-top:1px solid rgba(255,255,255,.14);padding:8px 0 12px !important;color:#9fb8cc;font-size:12px;overflow-wrap:anywhere;word-break:break-word;}
 .footer.footerUnified .footerCompactNav{display:grid;gap:3px;}
