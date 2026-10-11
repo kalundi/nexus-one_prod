@@ -14,9 +14,43 @@ test('wheelchair uses the configured reduction from route-average speed and pres
  assert.equal(wheelchair.trafficDelayMinutes,20);
 });
 
+test('stretcher and ambulance reductions produce the requested driving times and retain traffic separately',()=>{
+ const stretcher=Fare.serviceTravel(route,'stretcher');
+ assert.equal(stretcher.speedReductionMph,20);assert.equal(stretcher.serviceAverageMph,20);
+ assert.equal(stretcher.serviceDurationMinutes,60);assert.equal(stretcher.scheduledMinutes,80);
+ for(const service of ['bls','als1','als2','facility_transfer_critical','Ambulance','BLS Ambulance','ALS I Ambulance','ALS II Ambulance']){
+  const travel=Fare.serviceTravel(route,service);
+  assert.equal(travel.speedReductionMph,25,service);assert.equal(travel.serviceAverageMph,15,service);
+  assert.equal(travel.serviceDurationMinutes,80,service);assert.equal(travel.scheduledMinutes,100,service);
+  assert.equal(travel.trafficDelayMinutes,20,service);
+ }
+});
+
+test('legacy zero reductions migrate while current explicit overrides remain editable',()=>{
+ const legacy={servicePolicies:{stretcher:{speedReductionMph:0},bls:{speedReductionMph:0},wheelchair:{speedReductionMph:0}}};
+ assert.equal(Fare.serviceTravel(route,'stretcher',legacy).scheduledMinutes,80);
+ assert.equal(Fare.serviceTravel(route,'bls',legacy).scheduledMinutes,100);
+ assert.equal(Fare.serviceTravel(route,'wheelchair',legacy).scheduledMinutes,50);
+ const current={...legacy,serviceTravelPolicyVersion:2};
+ assert.equal(Fare.serviceTravel(route,'stretcher',current).scheduledMinutes,50);
+ assert.equal(Fare.serviceTravel(route,'bls',current).scheduledMinutes,50);
+});
+
+test('stretcher and ambulance round trips adjust both directions without compounding',()=>{
+ const booking={date:'2030-08-15',time:'10:00',createdAt:'2030-08-01T12:00:00Z',tripType:'ROUND_TRIP',returnTripDate:'2030-08-15',returnTripTime:'12:00'};
+ const passengerLegs=[{kind:'OUTBOUND',miles:20,durationMinutes:30,trafficDurationMinutes:30},{kind:'RETURN',miles:25,durationMinutes:30,trafficDurationMinutes:30}];
+ const inputs={passengerLegs,miles:20,durationMinutes:30,trafficDurationMinutes:30,stopWaitMinutes:0,scheduleBasis:'PICKUP',deadheadSegments:[0,0],discountPct:0};
+ for(const [service,outbound,returning] of [['stretcher',60,50],['bls',80,60]]){
+  const fare=Fare.calculateBooking({...booking,service},inputs,{pricing:{[service]:rate},fareRules:{}});
+  assert.equal(fare.passengerLegs[0].scheduledMinutes,outbound);assert.equal(fare.passengerLegs[1].scheduledMinutes,returning);
+  assert.equal(fare.drivingMinutes,outbound+returning);assert.equal(fare.waitMinutes,120-outbound);
+  assert.deepEqual(Fare.calculateBooking({...booking,service},inputs,{pricing:{[service]:rate},fareRules:{}}),fare);
+ }
+});
+
 test('very slow, zero-distance and missing-time routes remain finite and never get a faster estimate',()=>{
- for(const input of [{miles:5,durationMinutes:60},{miles:.25,durationMinutes:20},{miles:0,durationMinutes:0},{miles:0,durationMinutes:15},{miles:10,durationMinutes:0,trafficDurationMinutes:15}]){
-  const travel=Fare.serviceTravel(input,'wheelchair');
+ for(const service of ['wheelchair','stretcher','bls'])for(const input of [{miles:5,durationMinutes:60},{miles:.25,durationMinutes:20},{miles:0,durationMinutes:0},{miles:0,durationMinutes:15},{miles:10,durationMinutes:0,trafficDurationMinutes:15}]){
+  const travel=Fare.serviceTravel(input,service);
   assert.ok(Number.isFinite(travel.scheduledMinutes));
   assert.ok(travel.scheduledMinutes>=Math.max(input.durationMinutes||0,input.trafficDurationMinutes||0));
  }

@@ -471,6 +471,7 @@ const DEFAULT_PLATFORM_SETTINGS={
   noShowFee:50,
   freeWaitMinutes:15,
   waitingPolicyVersion:2,
+  serviceTravelPolicyVersion:2,
   deadheadRatePct:50,
   shortNoticeHours:24,
   shortNoticeSurchargePct:30,
@@ -1011,14 +1012,14 @@ function mergePricing(input){
  return base;
 }
 
-function mergeServicePolicies(input,freeWaitMinutes=15,waitingPolicyVersion=2){
+function mergeServicePolicies(input,freeWaitMinutes=15,waitingPolicyVersion=2,serviceTravelPolicyVersion=0){
  const base=JSON.parse(JSON.stringify(DEFAULT_SERVICE_POLICIES));
  if(!input||typeof input!=='object')input={};
  for(const key of Object.keys(base)){
   const src=input[key]||{};
   base[key]={
    freeWaitMinutes:waitingPolicyVersion>=2?clamp(n(src.freeWaitMinutes,freeWaitMinutes),0,240):15,
-   speedReductionMph:clamp(n(src.speedReductionMph,NexusFare.travelPolicy(key).speedReductionMph),0,30),
+   speedReductionMph:NexusFare.travelPolicy(key,{serviceTravelPolicyVersion,servicePolicies:{[key]:src}}).speedReductionMph,
    transitionBufferMinutes:clamp(n(src.transitionBufferMinutes,NexusFare.travelPolicy(key).transitionBufferMinutes),0,120),
    cancellationFee:clamp(n(src.cancellationFee,base[key].cancellationFee),0,10000),
    noShowFee:clamp(n(src.noShowFee,base[key].noShowFee),0,10000),
@@ -1088,6 +1089,7 @@ function mergePlatformSettings(raw){
    noShowFee:clamp(n(fareSrc.noShowFee,DEFAULT_PLATFORM_SETTINGS.fareRules.noShowFee),0,10000),
    freeWaitMinutes:Number(fareSrc.waitingPolicyVersion)>=2?clamp(n(fareSrc.freeWaitMinutes,15),0,240):15,
    waitingPolicyVersion:2,
+   serviceTravelPolicyVersion:2,
    minimumPlanningSpeedMph:clamp(n(fareSrc.minimumPlanningSpeedMph,5),1,30),
    deadheadRatePct:clamp(n(fareSrc.deadheadRatePct,50),0,100),
    shortNoticeHours:clamp(n(fareSrc.shortNoticeHours,24),0,168),
@@ -1100,7 +1102,7 @@ function mergePlatformSettings(raw){
   returnMilesInclusionPct:clamp(n(fareSrc.returnMilesInclusionPct,DEFAULT_PLATFORM_SETTINGS.fareRules.returnMilesInclusionPct),0,100),
   trafficOverageFeePerHour:clamp(n(fareSrc.trafficOverageFeePerHour,DEFAULT_PLATFORM_SETTINGS.fareRules.trafficOverageFeePerHour),0,1000),
   trafficOverageGraceMinutes:clamp(n(fareSrc.trafficOverageGraceMinutes,DEFAULT_PLATFORM_SETTINGS.fareRules.trafficOverageGraceMinutes),0,180),
-  servicePolicies:mergeServicePolicies(fareSrc.servicePolicies,clamp(n(fareSrc.freeWaitMinutes,15),0,240),Number(fareSrc.waitingPolicyVersion)||0)
+  servicePolicies:mergeServicePolicies(fareSrc.servicePolicies,clamp(n(fareSrc.freeWaitMinutes,15),0,240),Number(fareSrc.waitingPolicyVersion)||0,Number(fareSrc.serviceTravelPolicyVersion)||0)
   },
   organization:{
    name:clean(orgSrc.name)||DEFAULT_PLATFORM_SETTINGS.organization.name,

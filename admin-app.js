@@ -884,7 +884,7 @@ document.getElementById('refreshServiceAnalysis')?.addEventListener('click',()=>
 document.getElementById('serviceAnalysisDays')?.addEventListener('change',()=>void loadServiceTravelAnalysis());
 
 function readPricingRules(){
-  const rules={...(currentSettings?.fareRules||{}),waitingPolicyVersion:2};
+  const rules={...(currentSettings?.fareRules||{}),waitingPolicyVersion:2,serviceTravelPolicyVersion:2};
   document.querySelectorAll('#pricingSection [data-fare-rule]').forEach(input=>{
     rules[input.dataset.fareRule]=input.tagName==='SELECT'?input.value:Number(input.value);
   });

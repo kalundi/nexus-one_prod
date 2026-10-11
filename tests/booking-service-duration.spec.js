@@ -1,8 +1,12 @@
 const {test,expect}=require('@playwright/test');
 const Fare=require('../nexus-fare.js');
-const settings={organization:{yardAddress:'Company yard',preTripInspectionMinutes:45},pricing:{ambulatory:{base:100,includedMiles:100,perMile:0,waitPer15:20},wheelchair:{base:100,includedMiles:100,perMile:0,waitPer15:20}},fareRules:{waitingPolicyVersion:2,freeWaitMinutes:15,fuelSurchargePerMile:0,trafficOverageFeePerHour:0,servicePolicies:{wheelchair:{trafficOverageFeePerHour:0},stretcher:{speedReductionMph:15}}}};
-async function prepare(page,{roundTrip=false,multiStop=false}={}){
+const settings={organization:{yardAddress:'Company yard',preTripInspectionMinutes:45},pricing:Object.fromEntries(['ambulatory','wheelchair','stretcher','bls','als1','als2','facility_transfer_critical'].map(service=>[service,{base:100,includedMiles:100,perMile:0,waitPer15:20}])),fareRules:{waitingPolicyVersion:2,freeWaitMinutes:15,fuelSurchargePerMile:0,trafficOverageFeePerHour:0,servicePolicies:{wheelchair:{trafficOverageFeePerHour:0},stretcher:{speedReductionMph:0},bls:{speedReductionMph:0},als1:{speedReductionMph:0},als2:{speedReductionMph:0},facility_transfer_critical:{speedReductionMph:0}}}};
+async function prepare(page,{roundTrip=false,multiStop=false,role}={}){
  let submitted;
+ if(role)await page.addInitScript(role=>{
+  sessionStorage.setItem('nexusAccessToken','service-duration-staff-test');
+  sessionStorage.setItem('nexusUser',JSON.stringify({role,email:'staff@example.com'}));
+ },role);
  await page.addInitScript(()=>{
   window.__directionsRequests=[];
   class DirectionsService{route(request,callback){
@@ -17,7 +21,7 @@ async function prepare(page,{roundTrip=false,multiStop=false}={}){
  });
  await page.route('**/api/**',route=>{
   const pathname=new URL(route.request().url()).pathname;
-  const json=pathname==='/api/settings/public'?settings:pathname==='/api/integrations/config'?{googleMapsEnabled:false,stripeEnabled:true}:pathname==='/api/bookings'?(()=>{submitted=route.request().postDataJSON();return {booking:{reference:'SERVICE-TIME-1',estimatedFare:submitted.estimatedFare},requiresOnlinePayment:true,persisted:true};})():{};
+  const json=pathname==='/api/settings/public'?settings:pathname==='/api/auth/me'&&role?{user:{role,email:'staff@example.com'}}:pathname==='/api/integrations/config'?{googleMapsEnabled:false,stripeEnabled:true}:pathname==='/api/bookings'?(()=>{submitted=route.request().postDataJSON();return {booking:{reference:'SERVICE-TIME-1',estimatedFare:submitted.estimatedFare},requiresOnlinePayment:true,persisted:true};})():{};
   return route.fulfill({json});
  });
  await page.goto('/booking-app.html');
@@ -33,7 +37,7 @@ test('service cards show route duration and each service uses its own planning a
  await prepare(page);
  await expect(page.locator('[data-service="ambulatory"] .serviceCardEta')).toHaveText('~30 min drive');
  await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~40 min drive');
- await expect(page.locator('[data-service="stretcher"] .serviceCardEta')).toHaveText('~48 min drive');
+ await expect(page.locator('[data-service="stretcher"] .serviceCardEta')).toHaveText('~1h drive');
  await page.locator('[data-service="wheelchair"]').click();await expect(page.locator('#tripTime')).toHaveValue('09:05');
  await expect(page.locator('#estDuration')).toHaveText('~40 min trip');
  await page.locator('[data-service="ambulatory"]').click();await expect(page.locator('#tripTime')).toHaveValue('09:15');
@@ -41,6 +45,19 @@ test('service cards show route duration and each service uses its own planning a
  await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~40 min drive');
  const requests=await page.evaluate(()=>window.__directionsRequests.filter(request=>request.origin.startsWith('100 Main')));
  expect(requests.every(request=>request.departure&&request.departure.startsWith('2030-08-15'))).toBe(true);
+});
+
+test('stretcher and ambulance pickup estimates use their requested reductions',async({page})=>{
+ await prepare(page,{role:'ADMIN'});
+ await page.locator('[data-service="stretcher"]').click();
+ await expect(page.locator('#tripTime')).toHaveValue('08:45');
+ await expect(page.locator('#estDuration')).toHaveText('~1h trip');
+ await page.locator('#toggleMoreRideOptions').click();
+ for(const service of ['bls','als1','als2','facility_transfer_critical']){
+  await page.locator(`[data-service="${service}"]`).click();
+  await expect(page.locator('#tripTime')).toHaveValue('08:25');
+  await expect(page.locator('#estDuration')).toHaveText('~1h 20m trip');
+ }
 });
 
 test('round-trip duration includes independently measured return travel and scheduled waiting through payment',async({page})=>{

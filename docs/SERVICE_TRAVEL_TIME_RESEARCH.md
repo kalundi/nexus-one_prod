@@ -4,7 +4,7 @@ Reviewed October 10, 2026. This research concerns passenger driving estimates an
 
 ## What the research supports
 
-The current sources reviewed do not establish universal average speeds for ambulatory, wheelchair, Broda, stretcher or bariatric medical transport vans. A wheelchair allowance of 10 mph is a Nexus planning assumption requested by the operator, not an established medical standard or a direction to the driver. An estimate must account for the route, traffic and service assistance rather than assigning one constant speed to every city and highway trip.
+The current sources reviewed do not establish universal average speeds for ambulatory, wheelchair, Broda, stretcher or bariatric medical transport vans. The operator has configured route-average reductions of 10 mph for wheelchair, 20 mph for stretcher and 25 mph for ambulance services. These are Nexus planning assumptions, not established medical standards or directions to drivers. An estimate must account for the route, traffic and service assistance rather than assigning one constant speed to every city and highway trip.
 
 ### Recent transport and patient-comfort evidence
 
@@ -61,11 +61,12 @@ The speed allowance is applied to the original route baseline, not to the alread
 | --- | ---: | ---: |
 | Ambulatory | 0 mph | 10 min |
 | Wheelchair | 10 mph | 15 min |
-| Stretcher | 0 mph until configured | 25 min |
+| Stretcher | 20 mph | 25 min |
 | Bariatric | 0 mph until configured | 25 min |
-| Broda, facility transfer and ambulance services | 0 mph until configured | 10 min |
+| BLS, ALS I, ALS II and critical-care ambulance transfers | 25 mph | 10 min |
+| Broda and routine facility transfer | 0 mph until configured | 10 min |
 
-These assistance values retain the existing Nexus scheduling allowances. All reductions and intermediate assistance times can be edited separately for each service in **Nexus Pricing Manager → Service travel-time planning**. Remaining services retain their route baseline because the research does not justify inventing new fixed averages for them.
+These assistance values retain the existing Nexus scheduling allowances. All reductions and intermediate assistance times can be edited separately for each service in **Nexus Pricing Manager → Service travel-time planning**. Service travel policy version 2 replaces the former zero defaults for stretcher and ambulance services; subsequent explicit overrides, including zero, are retained. Remaining services retain their route baseline until configured.
 
 ## Worked example
 
@@ -75,6 +76,8 @@ For a 20-mile leg with a 30-minute baseline, the route average is 40 mph. Assume
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Ambulatory | 40 mph | 30 min | 30 min | 60 min | 2h |
 | Wheelchair | 30 mph | 40 min | 40 min | 60 min | 2h 20m |
+| Stretcher | 20 mph | 60 min | 60 min | 60 min | 3h |
+| Ambulance | 15 mph | 80 min | 80 min | 60 min | 3h 40m |
 
 If the route also predicts 20 minutes of traffic delay per direction, each leg adds that delay once: ambulatory becomes 50 minutes per leg and wheelchair becomes 60 minutes. With the same 60-minute appointment wait, the round-trip durations become 2h 40m and 3h. Real return distances and traffic can differ from outbound measurements.
 
