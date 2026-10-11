@@ -59,6 +59,32 @@
 .userModuleCaret{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#e8f1f9;color:#23557d;font-size:14px;font-weight:900;transform:rotate(0deg);transition:transform .2s ease}
 .userModuleCard[open] .userModuleCaret{transform:rotate(90deg)}
 .userModuleBody{padding:16px 16px 14px}
+.userModuleDashboard{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:6px;background:#edf4f8;border-radius:14px}
+.userModuleChip{padding:12px 10px;border-color:transparent;background:transparent;box-shadow:none!important;transform:none!important}
+.userModuleChip.active{background:#fff;border-color:#c8dce9}
+.userModuleChip small{display:none}
+.userModuleCard[hidden]{display:none}
+.userToolbar{display:grid;grid-template-columns:minmax(200px,1fr) 160px 150px;gap:12px;margin-bottom:14px}
+.userToolbar input,.userToolbar select{min-width:0;width:100%;padding:10px 12px;border:1px solid #c5d3dd;border-radius:9px;font:inherit;background:#fff}
+.userDirectoryTable{table-layout:fixed;min-width:660px}
+.userDirectoryTable th:nth-child(1){width:90px}.userDirectoryTable th:nth-child(2){width:38%}.userDirectoryTable th:nth-child(3){width:24%}.userDirectoryTable th:nth-child(4){width:100px}.userDirectoryTable th:nth-child(5){width:96px}
+.userDirectoryTable .pill,.scheduleTable .pill{white-space:nowrap}
+.userLine{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.userLine small{font-size:12px;color:var(--muted)}
+.userCode{font-family:ui-monospace,monospace;font-weight:800;letter-spacing:.04em;color:#075985}
+.userCounts{margin:0 0 12px;color:var(--muted);font-size:13px}
+@media(max-width:700px){#userSection #driverSchedulePanel .scheduleDates,#userSection #driverSchedulePanel .scheduleFields{grid-template-columns:1fr!important}.scheduleTable tr{gap:10px!important}.scheduleTable td:nth-child(1){grid-column:1!important;grid-row:1!important}.scheduleTable td:nth-child(1) strong{white-space:normal}.scheduleTable td:nth-child(2){grid-column:1/-1!important;grid-row:2!important}.scheduleTable td:nth-child(2) .userLine{white-space:normal}.scheduleTable td:nth-child(3){grid-column:1/-1!important;grid-row:3!important}.scheduleTable td:nth-child(4){grid-column:2!important;grid-row:1!important}.scheduleTable td:nth-child(5){grid-column:1/-1!important;grid-row:4!important}.scheduleTable .scheduleActions{flex-direction:row!important}.scheduleTable .scheduleActions .button{flex:1}}
+#userSection .formField{min-width:0}#userSection .formField input,#userSection .formField select{box-sizing:border-box;min-width:0;max-width:100%}
+#userSection>.sectionTitle{align-items:center}#userSection>.sectionTitle h2{font-size:28px;line-height:1.2}#userSection>.sectionTitle p{font-size:14px;line-height:1.5;max-width:600px}#userSection>.sectionTitle .button{white-space:nowrap;flex-shrink:0}
+.userDialog{width:min(700px,calc(100vw - 28px));max-height:90dvh;overflow:auto;border:1px solid #d1e1ec;border-radius:20px;padding:24px;color:var(--navy);box-shadow:0 24px 90px #071f3740}
+.userDialog::backdrop{background:#071f3766}.userDialogHead{display:flex;align-items:start;justify-content:space-between;gap:12px;margin-bottom:20px}.userDialogHead h3{margin:0 0 4px}.userDialogHead p{margin:0;color:var(--muted);overflow-wrap:anywhere}
+.userDialog .formField{min-width:0}.userDialog input,.userDialog select{box-sizing:border-box}.userDialogActions{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:20px;border-top:1px solid var(--line);padding-top:16px}.userSecondaryActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.functionChoices{display:flex;gap:8px;flex-wrap:wrap;border:0;padding:0;margin:18px 0}.functionChoices legend{font-size:14px;font-weight:750;margin-bottom:8px}.functionChoice{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid #cddfea;border-radius:8px;padding:8px 10px;white-space:nowrap}.functionChoice:has(:checked){background:#e8f5fc;border-color:#5b9fc5}.functionChoice input{width:16px;height:16px;margin:0}
+.scheduleFields{grid-template-columns:minmax(180px,1.4fr) repeat(2,minmax(100px,1fr));align-items:end}.scheduleDates{grid-template-columns:repeat(2,minmax(150px,1fr));max-width:600px;margin-top:14px}
+#scheduleWeekdayGroup{display:flex;gap:7px;flex-wrap:wrap}#scheduleWeekdayGroup label{display:inline-flex;align-items:center;gap:8px;min-width:68px;white-space:nowrap;border:1px solid #cfdeea;border-radius:9px;padding:10px;background:#fff;cursor:pointer}#scheduleWeekdayGroup label:has(:checked){background:#e5f4fb;border-color:#6fa8c8}#scheduleWeekdayGroup input{width:17px;height:17px;margin:0;padding:0;accent-color:#0369a1}
+.scheduleTable{min-width:700px}.scheduleTable th,.scheduleTable td{padding:12px}.scheduleActions{display:flex;gap:6px;white-space:nowrap}.scheduleActions .button{padding:8px 12px;min-height:36px}.scheduleHelp{font-size:12px;color:var(--muted);margin:12px 0 0}
+@media(max-width:700px){.userModuleDashboard{display:flex;overflow-x:auto}.userModuleChip{flex:0 0 auto;white-space:nowrap}.userToolbar{grid-template-columns:1fr 1fr}.userToolbar>:first-child{grid-column:1/-1}.scheduleFields,.scheduleDates{grid-template-columns:1fr 1fr}.scheduleFields>:first-child{grid-column:1/-1}.userDialog{padding:18px}.userDialog .formRow{grid-template-columns:1fr}.createUserForm{padding:16px}.userModuleBody{padding:12px}.userDialogActions .button{flex:1}}
+@media(max-width:700px){.userDirectoryTable,.scheduleTable{min-width:0}.userDirectoryTable thead,.scheduleTable thead{display:none}.userDirectoryTable tbody,.scheduleTable tbody{display:block}.userDirectoryTable tr{display:grid;grid-template-columns:65px minmax(0,1fr) 80px;gap:7px;padding:14px 0;border-bottom:1px solid var(--line)}.userDirectoryTable td{border:0;padding:0;min-width:0}.userDirectoryTable td:nth-child(1){grid-row:1;grid-column:1}.userDirectoryTable td:nth-child(2){grid-row:1;grid-column:2}.userDirectoryTable td:nth-child(3){grid-row:2;grid-column:1/3}.userDirectoryTable td:nth-child(4){grid-row:1;grid-column:3;text-align:right}.userDirectoryTable td:nth-child(5){grid-row:2;grid-column:3;text-align:right}.userDirectoryTable .pill{font-size:10px}.scheduleTable tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:16px 0;border-bottom:1px solid var(--line)}.scheduleTable td{border:0;padding:0;min-width:0}.scheduleTable td:nth-child(1){grid-column:1;grid-row:1}.scheduleTable td:nth-child(2){grid-column:1;grid-row:2}.scheduleTable td:nth-child(3){grid-column:1;grid-row:3;font-size:12px}.scheduleTable td:nth-child(4){grid-column:2;grid-row:1;text-align:right}.scheduleTable td:nth-child(5){grid-column:2;grid-row:2/4}.scheduleActions{flex-direction:column}}
+@media(max-width:700px){#userSection>.sectionTitle{display:grid;gap:12px}#userSection>.sectionTitle h2{font-size:24px}.userDirectoryTable tr{grid-template-columns:minmax(0,1fr) 80px;gap:10px}.userDirectoryTable td:nth-child(1){grid-row:1;grid-column:1}.userDirectoryTable td:nth-child(2){grid-row:2;grid-column:1/-1}.userDirectoryTable td:nth-child(3){grid-row:3;grid-column:1}.userDirectoryTable td:nth-child(4){grid-row:1;grid-column:2}.userDirectoryTable td:nth-child(5){grid-row:3;grid-column:2}.userDirectoryTable td:nth-child(2) strong{white-space:normal;overflow-wrap:break-word}.userModuleBody .formRow{grid-template-columns:1fr!important}#driverSchedulePanel .scheduleFields,#driverSchedulePanel .scheduleDates{grid-template-columns:1fr 1fr!important}.userDirectoryTable td[colspan]{grid-column:1/-1}}
 .auditRow{padding:13px 16px;border:1px solid var(--line);border-radius:10px;background:#fff;display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start}
 .auditRow .auditIcon{width:34px;height:34px;border-radius:9px;background:#eef5f9;display:grid;place-items:center;font-size:16px;flex-shrink:0}
 .auditRow .auditInfo strong{display:block;font-size:14px;font-family:Manrope,sans-serif}
@@ -218,17 +244,17 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 
 <!-- User Management -->
 <section class="sectionTab" id="userSection">
-  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">User Administration</div><h2>User management</h2><p>Create accounts, manage roles, and activate or deactivate access across the platform.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="button danger" id="resetCredentialsBtn" title="Resets standard non-production accounts">Reset standard accounts</button><button class="button" id="refreshUsers">Refresh list</button></div></div>
+  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">User Administration</div><h2>User management</h2><p>Create accounts, manage roles, and activate or deactivate access across the platform.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="button" id="refreshUsers">Refresh list</button></div></div>
   <div id="resetCredentialsMsg" hidden style="margin-bottom:14px;padding:12px 16px;border-radius:10px;font-size:14px"></div>
   <div class="userModuleDashboard" id="userModuleDashboard" aria-label="User operations workspace">
-    <button class="userModuleChip" type="button" data-user-module-open="createUserModule"><strong>User management</strong><small>Create credentials and onboard secure access.</small></button>
+    <button class="userModuleChip" type="button" data-user-module-open="userDirectoryModule"><strong>People</strong><small>Find users and manage access.</small></button>
+    <button class="userModuleChip" type="button" data-user-module-open="createUserModule"><strong>Add user</strong><small>Create credentials and onboard secure access.</small></button>
     <button class="userModuleChip" type="button" data-user-module-open="roleRequestsModule"><strong>Access requests</strong><small>Verify and approve requested workforce roles.</small></button>
     <button class="userModuleChip" type="button" data-user-module-open="documentAccessModule"><strong>Secure documents</strong><small>Upload documents and grant customer access.</small></button>
-    <button class="userModuleChip" type="button" data-user-module-open="driverSchedulePanel"><strong>Driver schedules</strong><small>Configure recurring shifts and load schedules.</small></button>
-    <button class="userModuleChip" type="button" data-user-module-open="userDirectoryModule"><strong>User details</strong><small>Review active users, status, and access actions.</small></button>
+    <button class="userModuleChip" type="button" data-user-module-open="driverSchedulePanel"><strong>Schedules</strong><small>Adjust shifts and availability.</small></button>
   </div>
   <div class="userModuleStack">
-    <details class="userModuleCard" id="createUserModule" data-user-module open>
+    <details class="userModuleCard" id="createUserModule" data-user-module>
       <summary>
         <div class="userModuleTitle"><strong>User management</strong><small>Create new platform users and enforce 2-hour temporary-password policy.</small></div>
         <span class="userModuleCaret" aria-hidden="true">&gt;</span>
@@ -240,13 +266,13 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
             <div class="formField"><label for="newEmail">Email address *</label><input id="newEmail" type="email" placeholder="user@example.com" autocomplete="off"></div>
             <div class="formField"><label for="newPhone">Phone number *</label><input id="newPhone" type="tel" placeholder="8886395766" autocomplete="off"></div>
             <div class="formField"><label for="newName">Full name *</label><input id="newName" type="text" placeholder="Full name"></div>
-            <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a role...</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="STAFF">Staff / attendant (training)</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option></select></div>
+            <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a role...</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="STAFF">Staff / attendant (training)</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option><option value="CARETAKER">Caretaker</option></select></div>
           </div>
           <div class="formRow" style="margin-top:14px">
             <div class="formField wide"><label>Temporary password policy</label><input type="text" value="System-generated temp password. User must change it within 2 hours." readonly></div>
             <div class="formField wide" style="align-self:end"><button class="button primary" id="createUserBtn" style="width:100%">Create user</button></div>
           </div>
-          <div id="createUserMsg" hidden></div>
+          <div id="createUserMsg" hidden></div><details id="standardAccountSupport" style="margin-top:18px"><summary>Standard test account support</summary><p class="scheduleHelp">Reissue access for the standard test accounts.</p><button class="button danger" id="resetCredentialsBtn" title="Resets standard non-production accounts">Reset standard accounts</button></details>
         </div>
       </div>
     </details>
@@ -264,16 +290,17 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       <div class="userModuleBody">
         <div class="createUserForm" style="margin:0">
           <h3>Driver schedules</h3>
-          <p style="margin:0 0 12px;color:var(--muted)">Assign recurring weekly shifts for driver accounts.</p>
-          <div class="formRow" style="grid-template-columns:1.4fr 1fr 1fr 1fr">
-            <div class="formField"><label for="scheduleDriverEmail">Driver email *</label><input id="scheduleDriverEmail" type="email" placeholder="driver@example.com" autocomplete="off"></div>
+          <p style="margin:0 0 16px;color:var(--muted)">Manage weekly coverage. Deactivated shifts are unavailable across Nexus.</p>
+          <div class="formRow scheduleFields">
+            <div class="formField"><label for="scheduleDriverEmail">Driver *</label><select id="scheduleDriverEmail"><option value="">Select a driver</option></select></div>
             <div class="formField"><label for="scheduleStartTime">Start time *</label><input id="scheduleStartTime" type="time" value="06:00"></div>
             <div class="formField"><label for="scheduleEndTime">End time *</label><input id="scheduleEndTime" type="time" value="15:00"></div>
-            <div class="formField"><label for="scheduleEffectiveDate">Effective date</label><input id="scheduleEffectiveDate" type="date"></div>
           </div>
+          <div class="formRow scheduleDates"><div class="formField"><label for="scheduleEffectiveDate">Effective from *</label><input id="scheduleEffectiveDate" type="date"></div><div class="formField"><label for="scheduleEffectiveEndDate">Effective through</label><input id="scheduleEffectiveEndDate" type="date" aria-describedby="scheduleDateHelp"></div></div>
+          <p id="scheduleDateHelp" class="scheduleHelp">Leave the end date empty for recurring coverage. Shift times use Eastern Time and end on the same day.</p>
           <div class="formField" style="margin-top:12px">
             <label>Weekdays *</label>
-            <div id="scheduleWeekdayGroup" style="display:flex;gap:8px;flex-wrap:wrap">
+            <div id="scheduleWeekdayGroup">
               <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="1" checked style="margin-right:6px">Mon</label>
               <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="2" checked style="margin-right:6px">Tue</label>
               <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="3" checked style="margin-right:6px">Wed</label>
@@ -283,15 +310,13 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
               <label class="pill muted" style="cursor:pointer"><input type="checkbox" value="7" style="margin-right:6px">Sun</label>
             </div>
           </div>
-          <div class="formRow" style="margin-top:14px">
-            <div class="formField"><button class="button primary" id="saveDriverScheduleBtn" style="width:100%">Save driver schedule</button></div>
-            <div class="formField"><button class="button" id="loadDriverScheduleBtn" style="width:100%">Load driver schedule</button></div>
-          </div>
+          <div class="userSecondaryActions"><button class="button primary" id="saveDriverScheduleBtn" type="button">Save schedule</button><button class="button" id="newDriverScheduleBtn" type="button">New schedule</button><button class="button" id="loadDriverScheduleBtn" type="button">Refresh</button><label class="functionChoice"><input id="showInactiveSchedules" type="checkbox">Show inactive and ended</label></div>
+          <p id="scheduleEditingLabel" class="scheduleHelp">A new weekly schedule replaces this driver's coverage from its effective date.</p>
           <div id="saveDriverScheduleMsg" hidden></div>
           <div class="tableWrap" style="margin-top:12px">
-            <table class="userTable" aria-label="Driver schedule results">
-              <thead><tr><th>Driver</th><th>Weekday</th><th>Start</th><th>End</th><th>Effective</th><th>Status</th></tr></thead>
-              <tbody id="driverScheduleRows"><tr><td colspan="6" style="padding:12px;color:var(--muted)">No schedule loaded.</td></tr></tbody>
+            <table class="userTable scheduleTable" aria-label="Driver schedule results">
+              <thead><tr><th>Driver</th><th>Days / shift</th><th>Effective dates</th><th>Availability</th><th>Actions</th></tr></thead>
+              <tbody id="driverScheduleRows"><tr><td colspan="5" style="padding:12px;color:var(--muted)">No schedule loaded.</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -325,15 +350,18 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       </div></div>
     </details>
 
-    <details class="userModuleCard" id="userDirectoryModule" data-user-module>
+    <details class="userModuleCard" id="userDirectoryModule" data-user-module open>
       <summary>
-        <div class="userModuleTitle"><strong>User details</strong><small>Monitor role assignments, active status, and account-level actions.</small></div>
+        <div class="userModuleTitle"><strong>People</strong><small>One permanent Nexus ID for every account and experience.</small></div>
         <span class="userModuleCaret" aria-hidden="true">&gt;</span>
       </summary>
       <div class="userModuleBody">
-        <div class="tableWrap"><table class="userTable" aria-label="User list">
-          <thead><tr><th>Email</th><th>Phone Number</th><th>Name</th><th>Role</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
-          <tbody id="userTableBody"><tr><td colspan="7" style="padding:24px;text-align:center;color:var(--muted)">Loading users...</td></tr></tbody>
+        <div class="userToolbar"><input id="userSearch" type="search" aria-label="Find a user" placeholder="Search name, email, phone or Nexus ID"><select id="userRoleFilter" aria-label="Filter by role"><option value="">All roles</option></select><select id="userStatusFilter" aria-label="Filter by account status"><option value="">All accounts</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+        <p id="userListSummary" class="userCounts" aria-live="polite"></p>
+        <div id="userManagerMsg" hidden></div>
+        <div class="tableWrap"><table class="userTable userDirectoryTable" aria-label="User list">
+          <thead><tr><th>Nexus ID</th><th>Person</th><th>Role / functions</th><th>Account</th><th>Action</th></tr></thead>
+          <tbody id="userTableBody"><tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted)">Loading users...</td></tr></tbody>
         </table></div>
       </div>
     </details>
@@ -387,6 +415,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <div class="formField"><label for="cancellationLeadHours">Cancellation policy: booking lead (hours)</label><input id="cancellationLeadHours" data-fare-rule="cancellationLeadHours" type="number" min="0" max="720" step="1"></div>
 <div class="formField"><label for="maxBookingDistanceMiles">Maximum booking distance (miles)</label><input id="maxBookingDistanceMiles" data-fare-rule="maxBookingDistanceMiles" type="number" min="5" max="500" step="1"></div></div></details>
 </section>
+<dialog id="userAccountDialog" class="userDialog" aria-labelledby="userAccountTitle"><div class="userDialogHead"><div><h3 id="userAccountTitle">Manage account</h3><p id="userAccountIdentity"></p></div><button class="button compact" type="button" id="closeUserAccount">Close</button></div><form id="userAccountForm"><div class="formRow"><div class="formField"><label for="editUserName">Full name</label><input id="editUserName" maxlength="160" required autocomplete="name"></div><div class="formField"><label for="editUserPhone">Phone number</label><input id="editUserPhone" type="tel" required autocomplete="tel"></div><div class="formField"><label for="editUserRole">Primary role</label><select id="editUserRole"></select></div><div class="formField"><label for="editUserScope">Driver / facility scope</label><input id="editUserScope" maxlength="120" placeholder="Assigned automatically for a new driver"></div></div><fieldset id="editUserFunctions" class="functionChoices"><legend>Operational functions</legend></fieldset><p id="userAccountAccess" class="scheduleHelp"></p><p id="userAccountCreated" class="scheduleHelp"></p><div id="userAccountMsg" hidden aria-live="polite"></div><div class="userDialogActions"><button class="button" id="toggleUserAccount" type="button">Deactivate account</button><button class="button primary" type="submit" id="saveUserAccount">Save changes</button></div></form><div class="userSecondaryActions"><button class="button" id="userAccountSchedule" type="button">Manage schedule</button><button class="button" id="resendUserAccount" type="button">Resend login</button><button class="button" id="userAccountHistory" type="button">Login history</button></div></dialog>
 
 <!-- Manage Trip -->
 <section class="sectionTab card" id="manageTripSection" style="margin-top:32px">
@@ -624,8 +653,8 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <footer class="footer"><div class="shell footerGrid" data-unified-footer-applied="1" data-compact-redesign-applied="1"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Patients</strong><a href="/booking-app.html">Book Transportation</a><a href="/livecare.html">Track a Ride</a></div><div><strong>Authorized portals</strong><a href="/facility.html">Facility</a><a href="/dispatch.html">Dispatch</a><a href="/driver-app.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18886395766">Main line: (888) 639-5766</a><a href="tel:+18887604990">Customer service: (888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer>
 <div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">&#9855;</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div>
 <div id="adminToast" class="adminToast" role="status" aria-live="polite" hidden></div>
-<script src="./nexus-core.js"></script><script src="./platform.js?v=20261011-experiences"></script>
-<script src="./nexus-fare.js?v=20261011-current-pickup-window"></script><script src="./admin-app.js?v=20261011-schedule-premiums"></script></body></html>
+<script src="./nexus-core.js"></script><script src="./platform.js?v=20261011-user-manager"></script>
+<script src="./nexus-fare.js?v=20261011-current-pickup-window"></script><script src="./admin-users.js?v=20261011-user-manager"></script><script src="./admin-app.js?v=20261011-user-manager"></script></body></html>
 
 
 

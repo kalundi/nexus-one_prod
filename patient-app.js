@@ -34,7 +34,7 @@
   const name=sharedRide?'Shared ride':String(user?.displayName||user?.name||'Patient');
   $('patientName').textContent=name;
   $('patientAvatar').textContent=name.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase();
-  $('patientIdentityRole').textContent=sharedRide?'Verified ride access':'Patient account';
+  $('patientIdentityRole').textContent=sharedRide?'Verified ride access':`Patient account${user?.userCode?' · '+user.userCode:''}`;
  }
  function navigate(view,writeHistory=true){
   if(!['home','profile','history','support','map','booking'].includes(view))view='home';

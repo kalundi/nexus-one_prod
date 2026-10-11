@@ -53,7 +53,8 @@
   button.addEventListener('click',()=>{if(!menu.hidden){close();return;}header=wrap.closest('header');priorZ=header?.style.getPropertyValue('z-index')||'';priorPriority=header?.style.getPropertyPriority('z-index')||'';menu.hidden=false;button.setAttribute('aria-expanded','true');header?.style.setProperty('z-index','2147483646','important');});
   const outside=event=>{if(!wrap.isConnected){close();document.removeEventListener('click',outside);return;}if(!wrap.contains(event.target))close();};
   document.addEventListener('click',outside);
-  wrap.addEventListener('keydown',event=>{if(event.key==='Escape'){close();button.focus();}});
+  const escape=event=>{if(!wrap.isConnected){document.removeEventListener('keydown',escape);return;}if(event.key==='Escape'&&!menu.hidden){close();button.focus();}};
+  document.addEventListener('keydown',escape);
  }
  function mountNative(user){
   const previous=document.getElementById('nexusNativeExperienceMount');previous?.nexusCloseExperience?.();previous?.remove();
@@ -64,7 +65,7 @@
   const wrap=document.createElement('div');wrap.id='nexusNativeExperienceMount';wrap.className='nexusExperienceNative';
   const button=document.createElement('button');button.type='button';button.setAttribute('aria-expanded','false');button.setAttribute('aria-controls','nexusNativeExperienceMenu');
   const label=document.createElement('span'),name=document.createElement('strong'),hint=document.createElement('small');
-  name.textContent=user.displayName||user.name||user.email||'Administrator';hint.textContent='Switch experience';label.append(name,hint);button.appendChild(label);
+  name.textContent=user.displayName||user.name||user.email||'Administrator';hint.textContent=(user.userCode?user.userCode+' · ':'')+'Switch experience';label.append(name,hint);button.appendChild(label);
   const menu=document.createElement('div');menu.id='nexusNativeExperienceMenu';menu.className='nexusAccountMenu';menu.hidden=true;menu.appendChild(group);
   wrap.append(button,menu);host.appendChild(wrap);bindMenu(wrap);
  }

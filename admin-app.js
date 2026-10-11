@@ -264,12 +264,12 @@ function initUserSectionDashboard(){
   const storageKey='nexusAdmin.userSection.activeModule';
 
   const setActiveChip=(moduleId)=>{
-    chips.forEach((chip)=>chip.classList.toggle('active',chip.getAttribute('data-user-module-open')===moduleId));
+    chips.forEach((chip)=>{const active=chip.getAttribute('data-user-module-open')===moduleId;chip.classList.toggle('active',active);chip.setAttribute('aria-pressed',String(active));});
   };
 
   const openModule=(moduleId,{persist=true,scroll=false}={})=>{
     if(!validIds.has(moduleId)) return;
-    modules.forEach((module)=>{module.open=module.id===moduleId;});
+    modules.forEach((module)=>{module.open=module.id===moduleId;module.hidden=module.id!==moduleId;});
     setActiveChip(moduleId);
     if(persist){
       try{localStorage.setItem(storageKey,moduleId);}catch{}
@@ -299,94 +299,22 @@ function initUserSectionDashboard(){
   let preferred='';
   try{preferred=localStorage.getItem(storageKey)||'';}catch{}
   if(!validIds.has(preferred)){
-    preferred=modules.find((module)=>module.hasAttribute('open'))?.id||modules[0]?.id||'';
+    preferred='userDirectoryModule';
   }
   if(preferred) openModule(preferred,{persist:false,scroll:false});
+  section.querySelectorAll('[data-user-module]').forEach(module=>{
+    document.querySelectorAll(`a[href="#${module.id}"]`).forEach(link=>link.addEventListener('click',event=>{event.preventDefault();focusDashboardSection('userSection');openModule(module.id,{persist:true,scroll:true});}));
+  });
+  const initialModule=String(location.hash).slice(1);
+  if(validIds.has(initialModule)){focusDashboardSection('userSection');openModule(initialModule,{persist:true,scroll:false});}
 }
 
 // Users
 const ROLE_COLORS={STAFF:'green',ADMIN:'red',DISPATCHER:'blue',FACILITY:'blue',DRIVER:'green',BILLING:'amber',QA:'amber',EXECUTIVE:'blue',PATIENT:'muted'};
 let latestAuditEntries=[];
 
-async function loadUsers(){
-  const tbody=document.getElementById('userTableBody');
-  tbody.innerHTML='<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Loading...</td></tr>';
-  try{
-    const r=await fetch('/api/admin/users',{headers:{authorization:`Bearer ${token()}`}});
-    if(!r.ok){const e=await r.json();throw new Error(e.error||'Failed to load users');}
-    const {users}=await r.json();
-    document.getElementById('statUsers').textContent=users.length;
-    document.getElementById('statActiveUsers').textContent=users.filter(u=>u.active).length;
-    if(!users.length){tbody.innerHTML='<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">No users found.</td></tr>';return;}
-    tbody.innerHTML=users.map(u=>`
-      <tr data-user-id="${u.id}">
-        <td>${u.email}</td>
-        <td>${u.phone||'--'}</td>
-        <td>${u.name||'--'}</td>
-        <td><span class="pill ${ROLE_COLORS[u.role]||'muted'}">${u.role}</span></td>
-        <td><span class="pill ${u.active?'green':'muted'}">${u.active?'Active':'Inactive'}</span></td>
-        <td style="font-size:12px;color:var(--muted)">${u.createdAt?new Date(u.createdAt).toLocaleDateString():'--'}</td>
-        <td>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="button compact" data-toggle-user="${u.id}" data-active="${u.active}" style="min-width:90px">${u.active?'Deactivate':'Activate'}</button>
-            <button class="button compact" data-resend-user="${u.id}" style="min-width:120px">Resend login</button>
-            <button class="button compact" data-view-resend-history="${u.id}" data-user-email="${u.email}" style="min-width:160px">View resend history</button>
-          </div>
-        </td>
-      </tr>`).join('');
-    document.querySelectorAll('[data-toggle-user]').forEach(btn=>{
-      btn.addEventListener('click',async()=>{
-        const id=btn.dataset.toggleUser,active=btn.dataset.active==='true';
-        btn.disabled=true;btn.textContent='...';
-        try{
-          const r=await fetch(`/api/admin/users/${encodeURIComponent(id)}`,{method:'PATCH',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({active:!active})});
-          if(!r.ok){const e=await r.json();throw new Error(e.error||'Failed')}
-          loadUsers();
-        }catch(e){btn.disabled=false;btn.textContent=active?'Deactivate':'Activate';alert(e.message)}
-      });
-    });
-    document.querySelectorAll('[data-resend-user]').forEach(btn=>{
-      btn.addEventListener('click',async()=>{
-        const id=btn.dataset.resendUser;
-        if(!id) return;
-        if(!confirm('Reissue temporary credentials and email this user now?')) return;
-        btn.disabled=true;
-        const prev=btn.textContent;
-        btn.textContent='Sending...';
-        try{
-          const r=await fetch(`/api/admin/users/${encodeURIComponent(id)}/resend-credentials`,{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'}});
-          const data=await r.json().catch(()=>({}));
-          if(!r.ok) throw new Error(data.error||'Failed to resend credentials');
-          const expiresText=data.tempPasswordExpiresAt?new Date(data.tempPasswordExpiresAt).toLocaleString():'2 hours';
-          const emailText=data.emailDeliveryStatus==='sent'?'Credential email sent.':'Credential email not sent automatically.';
-          alert(`Temporary password reissued for ${data.user?.email||'user'}. Expires: ${expiresText}. ${emailText}`);
-          if(data.warning) alert(data.warning);
-        }catch(e){
-          alert(e.message||'Failed to resend credentials');
-        }finally{
-          btn.disabled=false;
-          btn.textContent=prev;
-        }
-      });
-    });
-    document.querySelectorAll('[data-view-resend-history]').forEach(btn=>{
-      btn.addEventListener('click',async()=>{
-        const email=(btn.dataset.userEmail||'').trim();
-        const userId=(btn.dataset.viewResendHistory||'').trim();
-        document.getElementById('auditType').value='CREDENTIALS_REISSUED';
-        document.getElementById('auditSearch').value=email||userId;
-        const auditDetails=document.getElementById('auditDetails');
-        if(auditDetails) auditDetails.open=true;
-        focusDashboardSection('auditSection');
-        await loadAudit();
-        const matches=Array.isArray(latestAuditEntries)?latestAuditEntries.length:0;
-        showToast(`Audit filter applied: credential reissues for ${email||userId}. ${matches} record${matches===1?'':'s'} found.`,'ok');
-      });
-    });
-    updateDashboardSignals();
-  }catch(e){tbody.innerHTML=`<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--red)">${e.message}</td></tr>`;}
-  updateDashboardSignals();
-}
+const loadUsers=()=>window.NexusUserManager.loadUsers();
+const loadDriverSchedule=(options)=>window.NexusUserManager.loadDriverSchedule(options);
 
 document.getElementById('refreshUsers').addEventListener('click',loadUsers);
 
@@ -489,7 +417,7 @@ document.getElementById('createUserBtn').addEventListener('click',async()=>{
       ? ' Credential email sent to the user.'
       : ' Credential email was not sent automatically.';
     const policyText=data.warning?` ${data.warning}`:' User must change it on first sign-in.';
-    showMsg(msgEl,`User ${data.user.email} created. Temporary password: ${data.tempPassword}. Expires: ${expiresText}.${emailText}${policyText}`,'ok');
+    showMsg(msgEl,`User ${data.user.email} created. Nexus ID: ${data.user.userCode}. Temporary password: ${data.tempPassword}. Expires: ${expiresText}.${emailText}${policyText}`,'ok');
     document.getElementById('newEmail').value='';
     document.getElementById('newPhone').value='';
     document.getElementById('newName').value='';
@@ -498,103 +426,6 @@ document.getElementById('createUserBtn').addEventListener('click',async()=>{
   }catch(e){showMsg(msgEl,e.message,'err');}
   finally{btn.disabled=false;btn.textContent='Create user';}
 });
-
-function selectedDriverScheduleWeekdays(){
-  return Array.from(document.querySelectorAll('#scheduleWeekdayGroup input[type="checkbox"]:checked'))
-    .map((input)=>Number(input.value))
-    .filter((value)=>Number.isInteger(value)&&value>=1&&value<=7)
-    .sort((a,b)=>a-b);
-}
-
-const WEEKDAY_LABELS={1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat',7:'Sun'};
-
-function renderDriverScheduleRows(rows=[]){
-  const body=document.getElementById('driverScheduleRows');
-  if(!body) return;
-  if(!Array.isArray(rows)||!rows.length){
-    body.innerHTML='<tr><td colspan="6" style="padding:12px;color:var(--muted)">No matching schedules found.</td></tr>';
-    return;
-  }
-  body.innerHTML=rows.map((row)=>{
-    const weekday=WEEKDAY_LABELS[Number(row.weekday_iso)]||String(row.weekday_iso||'--');
-    const effectiveStart=row.effective_start_date?String(row.effective_start_date).slice(0,10):'--';
-    const status=row.active?'Active':'Inactive';
-    return `<tr>
-      <td>${row.display_name||row.email||'--'}</td>
-      <td>${weekday}</td>
-      <td>${String(row.start_time||'').slice(0,5)||'--'}</td>
-      <td>${String(row.end_time||'').slice(0,5)||'--'}</td>
-      <td>${effectiveStart}</td>
-      <td><span class="pill ${row.active?'green':'muted'}">${status}</span></td>
-    </tr>`;
-  }).join('');
-}
-
-async function loadDriverSchedule(){
-  const email=String(document.getElementById('scheduleDriverEmail')?.value||'').trim();
-  const msgEl=document.getElementById('saveDriverScheduleMsg');
-  const body=document.getElementById('driverScheduleRows');
-  if(body) body.innerHTML='<tr><td colspan="6" style="padding:12px;color:var(--muted)">Loading schedule...</td></tr>';
-  try{
-    const qs=new URLSearchParams();
-    if(email) qs.set('driverEmail',email);
-    qs.set('activeOnly','true');
-    const r=await fetch(`/api/admin/driver-schedule?${qs.toString()}`,{headers:{authorization:`Bearer ${token()}`}});
-    const data=await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(data.error||'Failed to load schedule');
-    renderDriverScheduleRows(Array.isArray(data.schedules)?data.schedules:[]);
-    if(msgEl) showMsg(msgEl,'Driver schedule loaded.','ok');
-  }catch(e){
-    renderDriverScheduleRows([]);
-    if(msgEl) showMsg(msgEl,e.message||'Failed to load schedule','err');
-  }
-}
-
-document.getElementById('saveDriverScheduleBtn')?.addEventListener('click',async()=>{
-  const driverEmail=String(document.getElementById('scheduleDriverEmail')?.value||'').trim().toLowerCase();
-  const startTime=String(document.getElementById('scheduleStartTime')?.value||'').trim();
-  const endTime=String(document.getElementById('scheduleEndTime')?.value||'').trim();
-  const effectiveStartDate=String(document.getElementById('scheduleEffectiveDate')?.value||'').trim();
-  const weekdays=selectedDriverScheduleWeekdays();
-  const msgEl=document.getElementById('saveDriverScheduleMsg');
-  if(!msgEl) return;
-  msgEl.hidden=true;
-
-  if(!driverEmail||!startTime||!endTime||!weekdays.length){
-    showMsg(msgEl,'Driver email, shift times, and at least one weekday are required.','err');
-    return;
-  }
-
-  const btn=document.getElementById('saveDriverScheduleBtn');
-  btn.disabled=true;
-  btn.textContent='Saving...';
-  try{
-    const payload={driverEmail,startTime,endTime,weekdays};
-    if(effectiveStartDate) payload.effectiveStartDate=effectiveStartDate;
-    const r=await fetch('/api/admin/driver-schedule',{
-      method:'POST',
-      headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},
-      body:JSON.stringify(payload)
-    });
-    const data=await r.json().catch(()=>({}));
-    if(!r.ok){
-      if(r.status===404){
-        throw new Error('Driver schedule API is not available in this deploy yet. Trigger latest production deploy and try again.');
-      }
-      throw new Error(data.error||'Failed to save driver schedule');
-    }
-    showMsg(msgEl,`Schedule saved for ${data?.driver?.email||driverEmail}: ${startTime}-${endTime}, weekdays ${weekdays.join(', ')}.`,'ok');
-    loadDriverSchedule().catch(()=>{});
-    if(userRole()==='ADMIN') loadUsers();
-  }catch(e){
-    showMsg(msgEl,e.message||'Failed to save driver schedule','err');
-  }finally{
-    btn.disabled=false;
-    btn.textContent='Save driver schedule';
-  }
-});
-
-document.getElementById('loadDriverScheduleBtn')?.addEventListener('click',()=>{loadDriverSchedule().catch(()=>{});});
 
 // Pricing
 function renderPricing(){

@@ -339,13 +339,14 @@ a{color:#7fc1ff;text-decoration:none}
 
       <!-- Shift card -->
       <div class="card route-hidden">
-        <div class="cardHead"><div><div class="eyebrow">Today's shift</div><h2 id="dashDriverName">Loading...</h2></div><span id="dashVehicle" class="badge gray">--</span></div>
+        <div class="cardHead"><div><div class="eyebrow">Today's shift</div><h2 id="dashDriverName">Loading...</h2><small id="driverNexusId" style="color:var(--muted)"></small></div><span id="dashVehicle" class="badge gray">--</span></div>
         <div class="cardBody">
           <div class="dashStatGrid">
             <div class="dashStat"><strong id="statHours">0:00</strong><span>Hours</span></div>
             <div class="dashStat"><strong id="statTrips">0</strong><span>Trips</span></div>
             <div class="dashStat"><strong id="statMiles">0</strong><span>Miles</span></div>
           </div>
+          <p id="driverScheduleStatus" class="notice info" aria-live="polite">Checking scheduled availability…</p>
           <div id="shiftControls">
             <div class="btnRow">
               <button id="btnStartShift" class="btn ok">Start Shift</button>
@@ -963,8 +964,8 @@ a{color:#7fc1ff;text-decoration:none}
   else bindLoginFallback();
 })();
 </script>
-<script src="./nexus-experiences.js?v=20261011-experiences"></script>
-<script src="./driver-app.js?v=20261011-experiences"></script>
+<script src="./nexus-experiences.js?v=20261011-user-manager"></script>
+<script src="./driver-app.js?v=20261011-user-manager"></script>
 </body>
 </html>
 

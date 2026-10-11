@@ -64,6 +64,20 @@
   }
   let miles = { odoStart:null, odoEnd:null, legs:[], ...loadJ(MILES_KEY) };
   let trips = [];
+  let scheduledAvailability=null;
+  let scheduleChecked=false;
+  let scheduleRefreshing=false;
+  async function refreshScheduledAvailability(){
+    if(scheduleRefreshing||!tok())return; scheduleRefreshing=true;
+    try{
+      const response=await fetch('/api/driver/schedule',{headers:ah(),cache:'no-store'});
+      if(!response.ok)throw new Error('Unable to verify scheduled availability.');
+      const data=await response.json();
+      if(typeof data.available!=='boolean')throw new Error('Unable to verify scheduled availability.');
+      scheduledAvailability=data;scheduleChecked=true;
+    }catch(error){scheduledAvailability=null;scheduleChecked=true;}
+    finally{scheduleRefreshing=false;renderDash();}
+  }
   let activeRef = null;
   let manifestDays = 1;
   let analyticsDays = 7;
@@ -514,6 +528,7 @@
     renderDash();
   });
   function beginShift(){
+    if(!scheduledAvailability?.available){dashNotice('Your account has no active shift right now. Contact dispatch to adjust your schedule.','info');refreshScheduledAvailability();return;}
     const unit=shift.vehicleUnit||prompt('Enter your assigned vehicle unit (e.g. SE-254-01):');
     if(!unit?.trim())return;
     shift.vehicleUnit=unit.trim().toUpperCase();
@@ -1714,7 +1729,7 @@
     else{
       btn.textContent=next?.status==='EN_ROUTE'?'START TRIP':(next?.label||'Advance').toUpperCase();
       const blockedByVehicle=next?.status==='EN_ROUTE'&&vehiclePolicy?!vehiclePolicy.allowed:false;
-      btn.disabled=!shift.onDuty||!next||blockedByVehicle;
+      btn.disabled=!shift.onDuty||!next||blockedByVehicle||(next?.status==='EN_ROUTE'&&!scheduledAvailability?.available);
     }
     const noShowBtn=$('#btnMarkNoShow');
     if(noShowBtn){
@@ -1976,7 +1991,10 @@
 
   // ── Dashboard ─────────────────────────────────────────────────
   function renderDash(){
-    const u=usr(),name=u.display_name||u.email?.split('@')[0]||'Driver';
+    const u=usr(),name=u.displayName||u.display_name||u.email?.split('@')[0]||'Driver';
+    if($('#driverNexusId'))$('#driverNexusId').textContent=u.userCode?`Nexus ID ${u.userCode}`:'';
+    const scheduleStatus=$('#driverScheduleStatus');
+    if(scheduleStatus){scheduleStatus.textContent=!scheduleChecked?'Checking scheduled availability…':scheduledAvailability?.available?`Scheduled ${scheduledAvailability.shift?.startTime||''}–${scheduledAvailability.shift?.endTime||''} Eastern Time`:scheduledAvailability?'No active shift right now. Contact dispatch to adjust your schedule.':'Unable to verify your schedule. Refresh to try again.';}
     if($('#dashDriverName'))$('#dashDriverName').textContent=`Good ${tod()}, ${name}`;
     if($('#dashVehicle')){$('#dashVehicle').textContent=shift.vehicleUnit||'No vehicle';$('#dashVehicle').className='badge '+(shift.vehicleUnit?'blue':'gray');}
     if($('#statHours'))$('#statHours').textContent=fmtH(elapsed());
@@ -1995,6 +2013,7 @@
     const bb=$('#btnBreak');if(bb)bb.textContent=shift.onBreak?'End Break':'Take Break';
     const startBtn=$('#btnStartShift');
     if(startBtn){
+      startBtn.disabled=!scheduledAvailability?.available;
       const pendingToday=trips.filter(t=>t.date===new Date().toISOString().slice(0,10) && tripNeedsAcceptance(t));
       startBtn.textContent=pendingToday.length?'Continue to Shift':'Start Shift';
     }
@@ -2071,13 +2090,13 @@
     checkResetToken(); // Check for ?action=reset&token= in URL
     const ok=await checkAuth();if(!ok)return;
     hideLoginView();renderDash();renderInspection();loadFleetForInspection();bindAnalyticsTabs();
-    await loadTrips({reason:'init'});
+    await Promise.all([loadTrips({reason:'init'}),refreshScheduledAvailability()]);
     showView('dashView');
     if(shift.onDuty)startGPS();
-    setInterval(()=>{if(shift.onDuty)renderDash();},30000);
+    setInterval(()=>{refreshScheduledAvailability();if(shift.onDuty)renderDash();},30000);
     scheduleTripSync();
     document.addEventListener('visibilitychange',()=>{
-      if(document.visibilityState==='visible') loadTrips({reason:'visibility'});
+      if(document.visibilityState==='visible'){loadTrips({reason:'visibility'});refreshScheduledAvailability();}
       scheduleTripSync();
     });
     window.addEventListener('focus',()=>loadTrips({reason:'focus'}));

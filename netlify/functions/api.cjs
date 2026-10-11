@@ -12,6 +12,8 @@ const {createTrainingHandler}=require('./_shared/training.cjs');
 const {json,parseBody,bearer,routePath}=require('./_shared/http.cjs');
 const {digest,safeUser,requireUser,audit}=require('./_shared/auth.cjs');
 const handleTraining=createTrainingHandler({query,requireUser});
+const {createUserManager,operatingClock}=require('./_shared/user-manager.cjs');
+const handleUserManager=createUserManager({query,getPool,requireUser,audit});
 const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestStatus}=require('./_shared/broker-auto-book.cjs');
 const {canAdvanceBookingForAvailability}=require('./_shared/dispatch-approval.cjs');
 const {buildEmailRecipients,buildSmsRecipients}=require('./_shared/notification-routing.cjs');
@@ -20,7 +22,7 @@ const {resolveAssignedStatus}=require('./_shared/assignment-status.cjs');
 const {isDriverAssignableStatus, normalizeDriverAcceptanceStatus}=require('./_shared/driver-assignments.cjs');
 const {hashPassword, verifyPassword}=require('./_shared/password.cjs');
 const {ensureDefaultTestUsers, ensureDefaultUserForEmail}=require('./_shared/default-users.cjs');
-const {buildDriverEmployeeLookupSql, buildDriverAvailabilitySql}=require('./_shared/employee-driver-lookup.cjs');
+const {buildDriverEmployeeLookupSql, buildDriverAvailabilitySql,buildDriverScopeSql}=require('./_shared/employee-driver-lookup.cjs');
 const {getFallbackUser, createFallbackSession, getFallbackSession, revokeFallbackSession, getFallbackAssignments, acceptFallbackAssignment, updateFallbackAssignmentStatus}=require('./_shared/fallback-auth.cjs');
 const {parseChannels,isDryRunValue,previewSocialSelection,runSocialPublish}=require('./_shared/social-engine.cjs');
 const {mapFhirAppointment,parseHl7,verifyIntegrationRequest,payloadDigest}=require('./_shared/keymark-connectors.cjs');
@@ -1239,23 +1241,23 @@ async function ensurePasswordResetColumns(){
  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_used boolean DEFAULT false').catch(()=>{});
  await query('CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(password_reset_token) WHERE password_reset_token IS NOT NULL').catch(()=>{});
 }
-async function resolveDriverContacts({driverName='',driverScopeId='',driverEmail='',driverPhone=''}){
+async function resolveDriverContacts({driverName='',driverScopeId='',driverEmail='',driverPhone='',driverUserId=''}){
  if(clean(driverEmail)||clean(driverPhone))return {driverEmail:clean(driverEmail),driverPhone:clean(driverPhone)};
  const name=clean(driverName);
  const scopeId=clean(driverScopeId);
- if(!name&&!scopeId)return {driverEmail:'',driverPhone:''};
+ if(!name&&!scopeId&&!driverUserId)return {driverEmail:'',driverPhone:''};
  const result=await query(
   `SELECT email, phone
    FROM users
    WHERE active=true
-     AND (
+     AND ((NULLIF($4,'') IS NOT NULL AND id::text=$4) OR (NULLIF($4,'') IS NULL AND (
        (NULLIF($1,'') IS NOT NULL AND lower(trim(display_name))=lower(trim($1)))
        OR (NULLIF($2,'') IS NOT NULL AND scope_id=$2)
        OR (NULLIF($3,'') IS NOT NULL AND lower(trim(email))=lower(trim($3)))
-     )
+     )))
    ORDER BY updated_at DESC
    LIMIT 1`,
-  [name, scopeId, clean(driverEmail)]
+  [name, scopeId, clean(driverEmail),clean(driverUserId)]
  ).catch(()=>({rows:[]}));
  const row=result.rows?.[0]||{};
  return {driverEmail:clean(driverEmail||row.email||''),driverPhone:clean(driverPhone||row.phone||'')};
@@ -1275,7 +1277,7 @@ async function notifyAssignedDriver(booking,options={}){
  const driverConfirmedRate=Number(booking?.broker_accepted_rate??booking?.brokerAcceptedRate);
  const driverConfirmedRateText=Number.isFinite(driverConfirmedRate)&&driverConfirmedRate>0?` Driver confirmed rate: $${driverConfirmedRate.toFixed(2)}.`:'';
  const reference=clean(booking?.reference||'');
- const resolved=await resolveDriverContacts({driverName,driverScopeId,driverEmail,driverPhone});
+ const resolved=await resolveDriverContacts({driverName,driverScopeId,driverEmail,driverPhone,driverUserId:booking?.driver_user_id||booking?.driverUserId});
  driverEmail=resolved.driverEmail;
  driverPhone=resolved.driverPhone;
  if(!driverName||(!driverEmail&&!driverPhone))return {sms:{status:'skipped'},email:{status:'skipped'}};
@@ -1511,6 +1513,7 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
   let driverEmail=clean(afterRow?.driver_email||'');
   let driverPhone=clean(afterRow?.driver_phone||'');
   const resolvedDriver=await resolveDriverContacts({
+   driverUserId:afterRow?.driver_user_id,
    driverName:after.driverName,
    driverScopeId:after.driverScopeId,
    driverEmail,
@@ -2081,6 +2084,8 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  const userManagerResponse=await handleUserManager(event,p,method);
+  if(userManagerResponse)return userManagerResponse;
   if(p[0]==='training')return await handleTraining(event,p,method);
   if(p[0]==='caretaker'){
    const access=require('./_shared/caretaker-access.cjs');
@@ -3296,9 +3301,9 @@ async function handler(event){
    const patientPhone=String(u.phone||'').replace(/\D/g,'');
    const phoneVariants=patientPhone.length===11&&patientPhone.startsWith('1')?[patientPhone,patientPhone.slice(1)]:[patientPhone];
    const bookingWhere=patientPhone
-    ? `lower(email)=lower($1) OR regexp_replace(phone,'\\D','','g')=ANY($2::text[])`
-    : 'lower(email)=lower($1)';
-   const bookingParams=patientPhone?[u.email,phoneVariants]:[u.email];
+    ? `patient_user_id=$3::uuid OR (patient_user_id IS NULL AND (lower(email)=lower($1) OR regexp_replace(phone,'\\D','','g')=ANY($2::text[])))`
+    : 'patient_user_id=$2::uuid OR (patient_user_id IS NULL AND lower(email)=lower($1))';
+   const bookingParams=patientPhone?[u.email,phoneVariants,u.id]:[u.email,u.id];
    const [preferencesResult,bookingsResult]=await Promise.all([
     query('SELECT * FROM patient_transport_preferences WHERE user_id=$1 LIMIT 1',[u.id]),
     query(`SELECT * FROM bookings WHERE ${bookingWhere} ORDER BY trip_date DESC,trip_time DESC LIMIT 250`,bookingParams)
@@ -3465,12 +3470,12 @@ async function handler(event){
      let sql='SELECT * FROM bookings',params=[];
      if(u.role==='CARETAKER')return json(200,{trips:await Promise.all((await require('./_shared/caretaker-access.cjs').listTrips(u.id)).map(mapPatientBooking))});
      if(u.role==='FACILITY'){sql+=' WHERE facility_id=$1';params=[u.scope_id]}
-     else if(u.role==='DRIVER'){sql+=' WHERE driver_scope_id=$1';params=[u.scope_id]}
+     else if(u.role==='DRIVER'){sql+=' WHERE driver_user_id=$2::uuid OR (driver_user_id IS NULL AND driver_scope_id=$1)';params=[u.scope_id,u.id]}
      else if(u.role==='PATIENT'){
       const patientPhone=String(u.phone||'').replace(/\D/g,'');
       const phoneVariants=patientPhone.length===11&&patientPhone.startsWith('1')?[patientPhone,patientPhone.slice(1)]:[patientPhone];
-      sql+=patientPhone?` WHERE lower(email)=lower($1) OR regexp_replace(phone,'\\D','','g')=ANY($2::text[])`:' WHERE lower(email)=lower($1)';
-      params=patientPhone?[u.email,phoneVariants]:[u.email];
+      sql+=patientPhone?` WHERE patient_user_id=$3::uuid OR (patient_user_id IS NULL AND (lower(email)=lower($1) OR regexp_replace(phone,'\\D','','g')=ANY($2::text[])))`:' WHERE patient_user_id=$2::uuid OR (patient_user_id IS NULL AND lower(email)=lower($1))';
+      params=patientPhone?[u.email,phoneVariants,u.id]:[u.email,u.id];
      }
      else if(!['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA'].includes(u.role))return json(403,{error:'Insufficient permission'});
      sql+=' ORDER BY trip_date DESC, trip_time DESC LIMIT 250';
@@ -3770,6 +3775,14 @@ async function handler(event){
    const hasDate=Object.prototype.hasOwnProperty.call(b,'date');
    const hasTime=Object.prototype.hasOwnProperty.call(b,'time');
   const hasDriverName=Object.prototype.hasOwnProperty.call(b,'driverName');
+  if(hasDriverName&&clean(b.driverName)&&clean(b.driverName)!==clean(before.rows[0].driver_name)&&!editingMock&&!['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(String(before.rows[0].status).toUpperCase())){
+   const driverDate=normalizeTripDate(b.date||before.rows[0].trip_date);
+   const driverTime=normalizeOptionalTripTime(b.time||before.rows[0].pickup_time||before.rows[0].trip_time);
+   if(!driverDate||!driverTime)return json(400,{error:'A valid pickup date and time are required to assign a driver.'});
+   const weekday=new Date(`${driverDate}T12:00:00Z`).getUTCDay()||7;
+   const coverage=await query(buildDriverAvailabilitySql()+` AND e.display_name=$4`,[weekday,driverTime,driverDate,clean(b.driverName)]);
+   if(!Number(coverage.rows[0]?.driver_count))return json(409,{error:'This driver has no active schedule covering the pickup time. Adjust the driver schedule or choose another driver.'});
+  }
   const hasVehicleUnit=Object.prototype.hasOwnProperty.call(b,'vehicleUnit');
   const hasNotes=Object.prototype.hasOwnProperty.call(b,'notes');
   const hasDispatchNote=Object.prototype.hasOwnProperty.call(b,'dispatchNote')||Object.prototype.hasOwnProperty.call(b,'note');
@@ -3982,17 +3995,7 @@ async function handler(event){
     const submittedAppointment=getSubmittedAppointmentTime(current.rows[0]);
     if(!submittedAppointment&&!/Schedule basis:\s*PICKUP/i.test(clean(current.rows[0].notes)))return json(409,{error:'Appointment time is required before advancing this trip. The submitter must provide appointment time first.',booking:mapBooking(current.rows[0])});
    if(!next||next===currentStatus)return json(409,{error:'Trip is already at the furthest workflow step for manual advance.',booking:mapBooking(current.rows[0])});
-  const driverAvailabilitySql=typeof buildDriverAvailabilitySql==='function'
-   ? buildDriverAvailabilitySql()
-   : `SELECT COUNT(DISTINCT e.id) AS available
-      FROM employees e
-      INNER JOIN employee_shifts es ON e.id=es.employee_id
-      LEFT JOIN users u ON e.user_id=u.id
-      WHERE e.role='DRIVER' AND e.active=true AND es.active=true
-        AND es.weekday_iso=$1
-        AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
-        AND es.effective_start_date<=$3::date
-        AND (es.effective_end_date IS NULL OR es.effective_end_date>=$3::date)`;
+  const driverAvailabilitySql=buildDriverAvailabilitySql();
    const bookingDate=clean(current.rows[0].trip_date)||new Date().toISOString().slice(0,10);
    const bookingTimeRaw=clean(current.rows[0].trip_time||current.rows[0].time||'08:00');
    const bookingTime=/^\d{2}:\d{2}/.test(bookingTimeRaw)?bookingTimeRaw.slice(0,5):'08:00';
@@ -4053,21 +4056,25 @@ async function handler(event){
   if(p[0]==='dispatch'&&p[1]==='drivers'&&method==='GET'){
    let user=null;try{if(bearer(event))user=await requireUser(bearer(event),['DISPATCHER','ADMIN']);}catch{};
      const now=new Date();
-     const todayIso=now.toISOString().slice(0,10);
-     const nowTime=now.toTimeString().slice(0,5); // HH:MM
+     const currentClock=operatingClock(now);
+     const todayIso=currentClock.date;
+     const nowTime=currentClock.time;
      const includeAll=String(event.queryStringParameters?.includeAll||'').toLowerCase()==='true';
      const requestedDateRaw=clean(event.queryStringParameters?.date||todayIso);
      const requestedTimeRaw=clean(event.queryStringParameters?.time||nowTime);
      const requestedDate=/^\d{4}-\d{2}-\d{2}$/.test(requestedDateRaw)?requestedDateRaw:todayIso;
      const requestedTime=/^\d{2}:\d{2}/.test(requestedTimeRaw)?requestedTimeRaw.slice(0,5):nowTime;
      const weekday=new Date(`${requestedDate}T12:00:00`).getDay()||7; // ISO weekday: Mon=1 … Sun=7
+     const driverScopeSql=buildDriverScopeSql();
      const driverRows=await query(`
-      SELECT e.id, e.display_name AS name, e.email, e.phone, e.active,
-        u.scope_id,
+      SELECT e.id, e.display_name AS name, e.email, e.phone,
+        (e.active AND COALESCE(u.active,false) AND (u.role='DRIVER' OR EXISTS (SELECT 1 FROM user_role_requests rr WHERE rr.user_id=u.id AND rr.role='DRIVER' AND rr.status='APPROVED'))) AS active,
+        u.user_code, u.id AS user_id,
+        ${driverScopeSql} AS scope_id,
         v.unit_number AS vehicle_unit, v.vehicle_type, v.status AS vehicle_status
       FROM employees e
       LEFT JOIN users u ON e.user_id=u.id
-      LEFT JOIN vehicles v ON v.driver_scope_id=u.scope_id
+      LEFT JOIN vehicles v ON v.driver_scope_id=(${driverScopeSql})
       WHERE e.role='DRIVER'
       ORDER BY e.active DESC, e.display_name
      `);
@@ -4092,13 +4099,13 @@ async function handler(event){
      `,[requestedDate]);
      // Trip counts for requested day
    const tripCounts=await query(`
-    SELECT driver_name, COUNT(*) as total,
-           COUNT(*) FILTER (WHERE status IN ('assigned','en-route','arrived','in-transit')) as active
+    SELECT driver_user_id,driver_name, COUNT(*) as total,
+           COUNT(*) FILTER (WHERE upper(replace(status,'-','_')) IN ('EN_ROUTE','ARRIVED','ARRIVED_PICKUP','IN_TRANSIT','PATIENT_ON_BOARD','DEPARTED')) as active
     FROM bookings
     WHERE trip_date=$1 AND driver_name IS NOT NULL
-    GROUP BY driver_name
+    GROUP BY driver_user_id,driver_name
      `,[requestedDate]);
-   const countMap=Object.fromEntries(tripCounts.rows.map(r=>[r.driver_name,{total:Number(r.total),active:Number(r.active)}]));
+   const countMap={};for(const r of tripCounts.rows){const key=r.driver_user_id||r.driver_name;const counts=countMap[key]||{total:0,active:0};counts.total+=Number(r.total);counts.active+=Number(r.active);countMap[key]=counts;}
      const onShiftMap=new Map((activeShiftRows.rows||[]).map((row)=>[String(row.employee_id),row]));
      const scheduleMap=new Map();
      for(const row of scheduleRows.rows||[]){
@@ -4116,12 +4123,14 @@ async function handler(event){
      const allDrivers=(driverRows.rows||[]).map((d)=>{
       const key=String(d.id);
       const shift=onShiftMap.get(key)||null;
-      const tripsTotal=countMap[d.name]?.total||0;
-      const activeTrips=countMap[d.name]?.active||0;
-      const onDuty=Boolean(shift);
+      const tripsTotal=countMap[d.user_id]?.total||countMap[d.name]?.total||0;
+      const activeTrips=countMap[d.user_id]?.active||countMap[d.name]?.active||0;
+      const onDuty=d.active===true&&Boolean(shift);
       const status=activeTrips>0?'ON_TRIP':(onDuty?'ON_DUTY':'OFF_DUTY');
       return {
         id:d.id,
+        userId:d.user_id,
+        userCode:d.user_code,
         name:d.name,
         email:d.email||null,
         phone:d.phone||null,
@@ -4144,122 +4153,6 @@ async function handler(event){
      const onTripCount=allDrivers.filter((d)=>d.activeTrips>0).length;
      const offDutyCount=allDrivers.filter((d)=>!d.onDuty).length;
      return json(200,{generatedAt:now.toISOString(),targetDate:requestedDate,targetTime:requestedTime,includeAll,onDuty:onDutyCount,onTrip:onTripCount,offDuty:offDutyCount,totalDrivers:allDrivers.length,drivers});
-  }
-    if(p[0]==='admin'&&p[1]==='driver-schedule'&&method==='GET'){
-     await requireUser(bearer(event),['ADMIN','DISPATCHER']);
-     const driverEmail=clean(event.queryStringParameters?.driverEmail||'').toLowerCase();
-     const activeOnly=String(event.queryStringParameters?.activeOnly||'true').toLowerCase()!=='false';
-     const limit=Math.min(Math.max(Number(event.queryStringParameters?.limit)||100,1),500);
-     const params=[];
-     const where=[];
-     if(driverEmail){
-      params.push(driverEmail);
-      where.push(`lower(e.email)=lower($${params.length})`);
-     }
-     if(activeOnly){
-      where.push(`es.active=true`);
-      where.push(`(es.effective_end_date IS NULL OR es.effective_end_date>=CURRENT_DATE)`);
-     }
-     const sql=`
-      SELECT
-        e.id AS employee_id,
-        e.employee_code,
-        e.display_name,
-        e.email,
-        e.role,
-        es.id AS shift_id,
-        es.assignment_role,
-        es.weekday_iso,
-        es.start_time::text AS start_time,
-        es.end_time::text AS end_time,
-        es.effective_start_date,
-        es.effective_end_date,
-        es.active,
-        es.notes,
-        es.updated_at
-      FROM employees e
-      INNER JOIN employee_shifts es ON es.employee_id=e.id
-      ${where.length?`WHERE ${where.join(' AND ')}`:''}
-      ORDER BY e.display_name, es.weekday_iso, es.start_time
-      LIMIT ${limit}
-     `;
-     const r=await query(sql,params);
-     return json(200,{schedules:r.rows});
-    }
-  if(p[0]==='admin'&&p[1]==='driver-schedule'&&method==='POST'){
-   await requireUser(bearer(event),['ADMIN']);
-   const b=parseBody(event);
-   const driverEmail=clean(b.driverEmail).toLowerCase();
-   const startTimeRaw=clean(b.startTime||'06:00');
-   const endTimeRaw=clean(b.endTime||'15:00');
-   const effectiveStartDate=clean(b.effectiveStartDate)||new Date().toISOString().slice(0,10);
-   const weekdaysInput=Array.isArray(b.weekdays)?b.weekdays:[1,2,3,4,5];
-   const weekdays=Array.from(new Set(weekdaysInput.map((x)=>Number(x)).filter((x)=>Number.isInteger(x)&&x>=1&&x<=7))).sort((a,b)=>a-b);
-   if(!driverEmail)return json(400,{error:'driverEmail is required'});
-   if(!/^\d{2}:\d{2}$/.test(startTimeRaw)||!/^\d{2}:\d{2}$/.test(endTimeRaw))return json(400,{error:'startTime and endTime must be HH:MM'});
-   if(!/^\d{4}-\d{2}-\d{2}$/.test(effectiveStartDate))return json(400,{error:'effectiveStartDate must be YYYY-MM-DD'});
-   if(!weekdays.length)return json(400,{error:'At least one weekday is required (1=Mon ... 7=Sun)'});
-
-   const userRes=await query('SELECT id,email,display_name,role,phone FROM users WHERE lower(email)=lower($1) LIMIT 1',[driverEmail]);
-   const driverUser=userRes.rows[0];
-   if(!driverUser)return json(404,{error:'Driver user not found'});
-   if(String(driverUser.role||'').toUpperCase()!=='DRIVER')return json(409,{error:'Selected user is not a DRIVER role'});
-
-   const employeeRes=await query('SELECT id,employee_code FROM employees WHERE user_id=$1 OR lower(email)=lower($2) ORDER BY created_at ASC LIMIT 1',[driverUser.id,driverEmail]).catch(()=>({rows:[]}));
-   let employeeId=employeeRes.rows[0]?.id||null;
-   let employeeCode=employeeRes.rows[0]?.employee_code||null;
-
-   if(!employeeId){
-    const codeBase='NEXD';
-    for(let i=0;i<20;i++){
-     const suffix=String(Math.floor(Math.random()*10000)).padStart(4,'0');
-     const candidate=`${codeBase}${suffix}`;
-     try{
-      const inserted=await query(
-       `INSERT INTO employees(user_id,employee_code,role,display_name,email,phone,active,timezone,metadata,created_at,updated_at)
-        VALUES($1,$2,'DRIVER',$3,$4,$5,true,'America/New_York',jsonb_build_object('source','admin_driver_schedule_api'),now(),now())
-        RETURNING id,employee_code`,
-       [driverUser.id,candidate,clean(driverUser.display_name)||driverEmail,driverEmail,clean(driverUser.phone)||null]
-      );
-      employeeId=inserted.rows[0]?.id||null;
-      employeeCode=inserted.rows[0]?.employee_code||candidate;
-      break;
-     }catch(err){
-      const msg=String(err?.message||'').toLowerCase();
-      if(!msg.includes('employee_code'))throw err;
-     }
-    }
-   }
-   if(!employeeId)return json(500,{error:'Unable to create or resolve employee profile for this driver'});
-
-   await query(
-    `UPDATE employee_shifts
-     SET active=false,
-         effective_end_date=COALESCE(effective_end_date,($2::date-INTERVAL '1 day')::date),
-         updated_at=now()
-     WHERE employee_id=$1
-       AND assignment_role='DRIVER'
-       AND weekday_iso=ANY($3::int[])
-       AND active=true
-       AND (effective_end_date IS NULL OR effective_end_date>=$2::date)`,
-    [employeeId,effectiveStartDate,weekdays]
-   ).catch(()=>{});
-
-   const created=[];
-   for(const weekday of weekdays){
-    const shift=await query(
-     `INSERT INTO employee_shifts(employee_id,assignment_role,weekday_iso,start_time,end_time,effective_start_date,effective_end_date,active,notes,created_at,updated_at)
-      VALUES($1,'DRIVER',$2,$3::time,$4::time,$5::date,NULL,true,$6,now(),now())
-      ON CONFLICT (employee_id, assignment_role, weekday_iso, start_time, end_time, effective_start_date)
-      DO UPDATE SET active=true,effective_end_date=NULL,notes=EXCLUDED.notes,updated_at=now()
-      RETURNING id,weekday_iso,start_time::text AS start_time,end_time::text AS end_time,effective_start_date`,
-     [employeeId,weekday,startTimeRaw,endTimeRaw,effectiveStartDate,`Set by admin schedule API on ${new Date().toISOString()}`]
-    );
-    if(shift.rows[0])created.push(shift.rows[0]);
-   }
-
-   await audit('USER',String(driverUser.id),'SCHEDULE_UPDATED',{email:driverEmail,weekdayIso:weekdays,startTime:startTimeRaw,endTime:endTimeRaw,effectiveStartDate});
-   return json(200,{ok:true,driver:{userId:String(driverUser.id),email:driverUser.email,name:driverUser.display_name,employeeId:String(employeeId),employeeCode:employeeCode||null},schedule:{assignmentRole:'DRIVER',weekdayIso:weekdays,startTime:startTimeRaw,endTime:endTimeRaw,effectiveStartDate,created}});
   }
   // Admin: reset all test credentials (idempotent upsert for all standard roles)
   if(p[0]==='admin'&&p[1]==='reset-credentials'&&method==='POST'){
@@ -4290,40 +4183,6 @@ async function handler(event){
    const updated=await query(`UPDATE user_role_requests SET status=$2,scope_id=$3,reviewed_at=now(),reviewed_by=$4,notes=$5 WHERE id=$1 RETURNING *`,[requestId,decision,scopeId,me.id,clean(b.notes)||null]);
    await audit('USER_ROLE',requestId,decision,{userId:request.user_id,email:request.email,role:request.role,scopeId,by:me.email});
    return json(200,{request:updated.rows[0]});
-  }
-  if(p[0]==='admin'&&p[1]==='users'&&method==='GET'){
-   await requireUser(bearer(event),['ADMIN']);
-    await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone text').catch(()=>{});
-   const phoneByEmail={
-    'patient@example.com':'8886395766',
-    'executive@nexusmt.com':'8886395766',
-    'qa@nexusmt.com':'8886395766',
-    'billing@nexusmt.com':'8886395766',
-    'facility@nexusmt.com':'8886395766',
-    'dispatcher@nexusmt.com':'8886395766',
-    'driver@nexusmt.com':'8886395766',
-    'admin@nexusmt.com':'8886395766',
-    'fletcher@nexusmt.com':'2022702174',
-    'keames@adventisthealthcare.com':'2406201940'
-   };
-   let r;
-   try{
-    r=await query(`SELECT id,email,display_name,role,phone,active,created_at,organization_id FROM users ORDER BY created_at DESC LIMIT 200`);
-   }catch(err){
-    const message=String(err?.message||'');
-    if(message.toLowerCase().includes('phone')){
-      r=await query(`SELECT id,email,display_name,role,null::text as phone,active,created_at,organization_id FROM users ORDER BY created_at DESC LIMIT 200`);
-    }else throw err;
-   }
-   for(const u of r.rows||[]){
-    const email=clean(u.email).toLowerCase();
-    const fallbackPhone=phoneByEmail[email]||'';
-    if(!clean(u.phone)&&fallbackPhone){
-      await query('UPDATE users SET phone=$2,updated_at=now() WHERE id=$1',[u.id,fallbackPhone]);
-      u.phone=fallbackPhone;
-    }
-   }
-   return json(200,{users:r.rows.map(u=>({id:String(u.id),email:u.email,name:u.display_name,phone:u.phone||'',role:u.role,active:u.active,createdAt:u.created_at}))});
   }
   // Admin: emergency password reset by email (manual support fallback)
   if(p[0]==='admin'&&p[1]==='users'&&p[2]==='reset-password'&&method==='POST'){
@@ -4433,7 +4292,7 @@ async function handler(event){
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz').catch(()=>{});
     const b=parseBody(event);required(b,['email','phone','name','role']);
-   const validRoles=['STAFF','ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT'];
+   const validRoles=['STAFF','ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER'];
    if(!validRoles.includes(String(b.role).toUpperCase()))return json(400,{error:'Invalid role'});
    const phoneDigits=normalizeE164(b.phone);
    if(!phoneDigits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});
@@ -4500,6 +4359,8 @@ async function handler(event){
       }
     }
    }
+   const createdIdentity=(await query('SELECT user_code FROM users WHERE id=$1',[userId])).rows[0];
+   if(normalizedRole==='DRIVER')await query('UPDATE users SET scope_id=COALESCE(scope_id,user_code) WHERE id=$1',[userId]);
    let emailDeliveryStatus='skipped';
    try{
     const appBase=(process.env.APP_BASE_URL||'https://nexusmt.com').replace(/\/$/,'');
@@ -4509,6 +4370,7 @@ async function handler(event){
     const html=`
       <h2>Welcome to Nexus Medical Transit</h2>
       <p>Your account has been created for <strong>${clean(normalizedEmail)}</strong>.</p>
+      <p><strong>Your Nexus ID:</strong> ${createdIdentity.user_code}. This ID stays with your account across Nexus apps.</p>
       <p><strong>Temporary password:</strong> <code style="font-size:16px">${tempPassword}</code></p>
       <p>This temporary password expires in <strong>2 hours</strong> (${expiresLabel} ET).</p>
       <p>Sign in at <a href="${loginUrl}">${loginUrl}</a> using role <strong>${loginRole}</strong>, then change your password immediately when prompted.</p>
@@ -4523,8 +4385,8 @@ async function handler(event){
     emailDeliveryStatus='failed';
     warning=`${warning?`${warning} `:''}Credential email failed to send. Share the temporary password securely with the user.`.trim();
    }
-   await audit('USER',userId,'CREATED',{role:b.role,by:me.email,emailDeliveryStatus});
-    return json(201,{user:{id:userId,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,warning,emailDeliveryStatus});
+   await audit('USER',userId,'CREATED',{userCode:createdIdentity.user_code,role:b.role,by:me.user_code||me.email,emailDeliveryStatus});
+    return json(201,{user:{id:userId,userCode:createdIdentity?.user_code,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,warning,emailDeliveryStatus});
    }catch(err){
     const message=clean(err?.message||'Failed to create user');
     return json(err?.statusCode||500,{error:err?.statusCode?message:`Create user failed: ${message}`});
@@ -4619,7 +4481,7 @@ async function handler(event){
     `WITH marked AS (
        UPDATE bookings
        SET status='MISSED', updated_at=now()
-       WHERE ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2))
+       WHERE (driver_user_id=$3::uuid OR (driver_user_id IS NULL AND ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2))))
          AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION')
          AND (trip_date::text || ' ' || COALESCE(trip_time::text,'00:00'))::timestamp < now()
        RETURNING reference
@@ -4627,22 +4489,13 @@ async function handler(event){
      INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor)
      SELECT reference,'MISSED','missed','Trip auto-marked as MISSED because scheduled time passed without completion.','SYSTEM'
      FROM marked`,
-    [driverName,scopeId]
+    [driverName,scopeId,u.id]
    );
-  const sql=`SELECT * FROM bookings WHERE ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)) AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION','EN_ROUTE','ARRIVED_PICKUP','PATIENT_ON_BOARD','DEPARTED','ARRIVED_DESTINATION','DELIVERED','COMPLETED','NO_SHOW','MISSED','CANCELLED') ORDER BY trip_date,trip_time,created_at`;
-   const r=await query(sql,[driverName,scopeId]);
+  const sql=`SELECT * FROM bookings WHERE (driver_user_id=$3::uuid OR (driver_user_id IS NULL AND ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)))) AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION','EN_ROUTE','ARRIVED_PICKUP','PATIENT_ON_BOARD','DEPARTED','ARRIVED_DESTINATION','DELIVERED','COMPLETED','NO_SHOW','MISSED','CANCELLED') ORDER BY trip_date,trip_time,created_at`;
+   const r=await query(sql,[driverName,scopeId,u.id]);
    return json(200,{assignments:r.rows.filter(row=>!row.duplicate_of).map(mapBooking)});
   }
   // Admin: toggle user active/inactive
-  if(p[0]==='admin'&&p[1]==='users'&&p[2]&&method==='PATCH'){
-   const me=await requireUser(bearer(event),['ADMIN']);
-   const b=parseBody(event);const userId=decodeURIComponent(p[2]);
-   if(typeof b.active!=='boolean')return json(400,{error:'active (boolean) is required'});
-   const r=await query('UPDATE users SET active=$2,updated_at=now() WHERE id=$1 RETURNING id,email,role,active',[userId,b.active]);
-   if(!r.rows[0])return json(404,{error:'User not found'});
-   await audit('USER',userId,b.active?'ACTIVATED':'DEACTIVATED',{by:me.email});
-   return json(200,{user:r.rows[0]});
-  }
   // Admin: audit log
   if(p[0]==='admin'&&p[1]==='audit-log'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
@@ -4733,6 +4586,11 @@ async function handler(event){
     if(!currentBooking.rows[0])return json(404,{error:'Booking not found'});
     if(statusInput==='PATIENT_ON_BOARD'&&requiresFullPaymentBeforeBoarding(currentBooking.rows[0]))return json(409,{error:'Full payment must be confirmed before a self-pay passenger can board.'});
     if(statusInput==='EN_ROUTE'){
+     if(u.role==='DRIVER'){
+      const clock=operatingClock();
+      const coverage=await query(buildDriverAvailabilitySql()+` AND u.id=$4::uuid`,[clock.weekday,clock.time,clock.date,u.id]);
+      if(!Number(coverage.rows[0]?.driver_count))return json(409,{error:'Your driver schedule is inactive or does not cover this time. Contact dispatch before starting a trip.'});
+     }
      const startPolicy=getTripStartPolicy(currentBooking.rows[0],earlyPickupReason);
      if(!startPolicy.allowed)return json(409,{error:startPolicy.message});
     }
@@ -4947,16 +4805,7 @@ async function handler(event){
    const service=clean(b.service);
     const weekday=new Date(`${tripDate}T12:00:00`).getDay()||7;
    // Check driver availability for this date/time
-    const driverAvailabilitySql=typeof buildDriverAvailabilitySql==='function'
-     ? buildDriverAvailabilitySql()
-     : `SELECT COUNT(DISTINCT e.id) AS driver_count
-       FROM employees e
-       INNER JOIN employee_shifts es ON e.id=es.employee_id
-       WHERE e.role='DRIVER' AND e.active=true AND es.active=true
-        AND es.weekday_iso=$1
-        AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
-        AND es.effective_start_date<=$3::date
-        AND (es.effective_end_date IS NULL OR es.effective_end_date>=$3::date)`;
+    const driverAvailabilitySql=buildDriverAvailabilitySql();
     const drivers=await query(driverAvailabilitySql,[weekday,tripTime,tripDate]);
     const driverCount=Number(drivers.rows[0]?.driver_count ?? drivers.rows[0]?.available ?? 0);
    // Check fleet vehicle availability for this service

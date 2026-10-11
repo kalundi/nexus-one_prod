@@ -1,6 +1,9 @@
+function buildDriverScopeSql(usersAlias='u'){
+  return `CASE WHEN ${usersAlias}.role='DRIVER' THEN ${usersAlias}.scope_id ELSE (SELECT rr.scope_id FROM user_role_requests rr WHERE rr.user_id=${usersAlias}.id AND rr.role='DRIVER' AND rr.status='APPROVED' LIMIT 1) END`;
+}
 function buildDriverEmployeeLookupSql(alias = 'e', usersAlias = 'u') {
   return {
-    select: `${alias}.display_name AS display_name, ${usersAlias}.scope_id AS scope_id, ${alias}.email AS email, ${alias}.phone AS phone`,
+    select: `${alias}.display_name AS display_name, ${buildDriverScopeSql(usersAlias)} AS scope_id, ${alias}.email AS email, ${alias}.phone AS phone`,
     join: `LEFT JOIN users ${usersAlias} ON ${alias}.user_id = ${usersAlias}.id`
   };
 }
@@ -15,7 +18,8 @@ function buildDriverAvailabilitySql(alias = 'e', usersAlias = 'u') {
     FROM employees ${alias}
     INNER JOIN employee_shifts es ON ${alias}.id=es.employee_id
     LEFT JOIN users ${usersAlias} ON ${alias}.user_id = ${usersAlias}.id
-    WHERE ${alias}.role='DRIVER' AND ${alias}.active=true AND es.active=true
+    WHERE ${alias}.role='DRIVER' AND ${alias}.active=true AND ${usersAlias}.active=true AND es.active=true AND es.assignment_role='DRIVER'
+      AND (${usersAlias}.role='DRIVER' OR EXISTS (SELECT 1 FROM user_role_requests rr WHERE rr.user_id=${usersAlias}.id AND rr.role='DRIVER' AND rr.status='APPROVED'))
       AND es.weekday_iso=$1
       AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
       AND es.effective_start_date<=$3::date
@@ -26,5 +30,6 @@ function buildDriverAvailabilitySql(alias = 'e', usersAlias = 'u') {
 module.exports = {
   buildDriverEmployeeLookupSql,
   buildDriverEmployeeDispatchColumns,
-  buildDriverAvailabilitySql
+  buildDriverAvailabilitySql,
+  buildDriverScopeSql
 };
