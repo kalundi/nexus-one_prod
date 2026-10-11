@@ -2,6 +2,7 @@ const crypto=require('crypto');
 const NexusFare=require('../../nexus-fare.js');
 const NexusRoute=require('../../nexus-route.js');
 const RouteFares=require('./_shared/route-fares.cjs');
+const ServiceTravelAnalysis=require('./_shared/service-travel-analysis.cjs');
 const {isDuplicateTrip,duplicateTripResponse}=require('./_shared/booking-duplicate.cjs');
 const {lookupFlight}=require('./_shared/flightaware.cjs');
 const fs=require('fs');
@@ -2757,6 +2758,12 @@ async function handler(event){
    const mimeType=document.uploaded?stored.rows[0].mime_type:'image/png';
    await audit('SECURE_DOCUMENT',String(grant.rows[0].id),me.role==='ADMIN'?'ADMIN_PAGE_PREVIEWED':'PAGE_VIEWED',{by:me.email,documentKey:document.key});
    return {statusCode:200,isBase64Encoded:true,headers:{'content-type':mimeType,'cache-control':'private, no-store, max-age=0','content-disposition':'inline','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; frame-ancestors 'self'"},body:image.toString('base64')};
+  }
+  if(p[0]==='admin'&&p[1]==='service-travel-analysis'&&method==='GET'){
+   await requireUser(bearer(event),['ADMIN','DISPATCHER']);
+   const settings=await readPlatformSettings();
+   const analysis=await ServiceTravelAnalysis.readAnalysis(query,settings,{days:event.queryStringParameters?.days});
+   return json(200,{analysis});
   }
   if(p[0]==='admin'&&p[1]==='settings'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN','DISPATCHER']);

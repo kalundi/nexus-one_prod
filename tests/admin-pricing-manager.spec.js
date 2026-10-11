@@ -61,3 +61,52 @@ test('dispatchers can inspect pricing but cannot change its variables',async({pa
  const overflow=await page.locator('#pricingSection').evaluate(section=>Array.from(section.querySelectorAll('.pricingFieldGrid input,.pricingFieldGrid select')).filter(input=>input.getClientRects().length&&input.getBoundingClientRect().right>section.getBoundingClientRect().right+1).map(input=>input.id));
  expect(overflow).toEqual([]);
 });
+
+function recentAnalysis(days=90){
+ return {days,generatedAt:'2026-10-10T20:00:00Z',candidateTrips:35,verifiedLegs:64,excludedLegs:2,truncated:false,services:[
+  {service:'wheelchair',label:'Wheelchair',careFocus:'Lift or ramp access, wheelchair securement and occupant restraints',speedReductionMph:10,observedAverageMph:days===30?32:40,boardingMedianMinutes:15,handoffMedianMinutes:8,boardingSamples:62,handoffSamples:60,tripCount:33,legCount:64,evidenceStatus:'REVIEW_READY'},
+  {service:'ambulatory',label:'Ambulatory',careFocus:'Boarding assistance and seatbelt checks',speedReductionMph:0,observedAverageMph:null,boardingMedianMinutes:null,handoffMedianMinutes:null,boardingSamples:0,handoffSamples:0,tripCount:0,legCount:0,evidenceStatus:'NO_DATA'}
+ ]};
+}
+test('recent service analysis separates driving and care time without changing pricing',async({page})=>{
+ const mock=await openPricing(page);
+ const periods=[];
+ await page.route('**/api/admin/service-travel-analysis?*',route=>{
+  const days=Number(new URL(route.request().url()).searchParams.get('days'));periods.push(days);
+  expect(route.request().headers().authorization).toBe('Bearer pricing-test');
+  return route.fulfill({status:200,json:{analysis:recentAnalysis(days)}});
+ });
+ await page.locator('#recentServiceAnalysis > summary').click();
+ const wheelchair=page.locator('#serviceAnalysisRows tr').filter({hasText:'Wheelchair'});
+ await expect(wheelchair).toContainText('40.0 mph');
+ await expect(wheelchair).toContainText('15.0 min');
+ await expect(wheelchair).toContainText('8.0 min');
+ await expect(wheelchair).toContainText('33 trips / 64 legs');
+ await expect(wheelchair).toContainText('Route average −10 mph');
+ await expect(page.locator('#serviceAnalysisStatus')).toContainText('35 completed trips reviewed');
+ await expect(page.locator('#serviceAnalysisRows tr').filter({hasText:'Ambulatory'})).toContainText('No verified data');
+ await page.locator('#serviceAnalysisDays').selectOption('30');
+ await expect(wheelchair).toContainText('32.0 mph');
+ expect(periods).toEqual([90,30]);
+ expect(mock.getSaved()).toBeUndefined();
+ expect(mock.getSettings().fareRules.servicePolicies.wheelchair.speedReductionMph).toBeUndefined();
+});
+test('dispatch can read mobile service analysis and recover from an unavailable report',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ const mock=await openPricing(page,'DISPATCHER');
+ let requests=0;
+ await page.route('**/api/admin/service-travel-analysis?*',route=>++requests===1?route.fulfill({status:503,json:{error:'Unavailable'}}):route.fulfill({status:200,json:{analysis:recentAnalysis()}}));
+ await page.locator('#recentServiceAnalysis > summary').click();
+ await expect(page.locator('#serviceAnalysisStatus')).toContainText('Select Refresh analysis to retry');
+ await expect(page.locator('#serviceAnalysisRows tr')).toHaveCount(0);
+ await page.locator('#refreshServiceAnalysis').click();
+ await expect(page.locator('#serviceAnalysisRows tr')).toHaveCount(2);
+ await expect(page.locator('#savePricing')).toBeDisabled();
+ const overflow=await page.locator('#recentServiceAnalysis').evaluate(panel=>{
+  const wrapper=panel.querySelector('.tableWrap'),section=panel.closest('#pricingSection');
+  return {panel:panel.getBoundingClientRect().right>section.getBoundingClientRect().right+1,wrapper:wrapper.getBoundingClientRect().right>section.getBoundingClientRect().right+1,scroll:getComputedStyle(wrapper).overflowX};
+ });
+ expect(overflow.panel).toBe(false);expect(overflow.wrapper).toBe(false);expect(['auto','scroll']).toContain(overflow.scroll);
+ expect(mock.getSaved()).toBeUndefined();
+ await page.locator('#recentServiceAnalysis').screenshot({path:'output/service-care-analysis-mobile.png'});
+});

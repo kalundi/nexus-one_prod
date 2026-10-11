@@ -1,10 +1,36 @@
 # Service travel-time research and Nexus calculation
 
-Reviewed October 10, 2026. This research concerns non-emergency passenger transport, including ambulatory and wheelchair van trips.
+Reviewed October 10, 2026. This research concerns passenger driving estimates and the separate time needed for patient assistance. Publications and the age of their underlying measurements are distinguished below.
 
 ## What the research supports
 
-There is no universal published average speed for ambulatory, wheelchair, Broda, stretcher or bariatric medical transport vans in the sources reviewed. A wheelchair allowance of 10 mph is a Nexus planning assumption requested by the operator, not an established medical standard or a direction to the driver. An estimate must account for the route, traffic and service assistance rather than assigning one constant speed to every city and highway trip.
+The current sources reviewed do not establish universal average speeds for ambulatory, wheelchair, Broda, stretcher or bariatric medical transport vans. A wheelchair allowance of 10 mph is a Nexus planning assumption requested by the operator, not an established medical standard or a direction to the driver. An estimate must account for the route, traffic and service assistance rather than assigning one constant speed to every city and highway trip.
+
+### Recent transport and patient-comfort evidence
+
+The [FTA 2024 National Transit Summaries and Trends, updated April 2026](https://www.transit.dot.gov/sites/fta.dot.gov/files/2026-04/2024%20National%20Transit%20Summaries%20and%20Trends_1.2.pdf) defines average revenue speed as vehicle revenue miles divided by revenue hours. Boarding, unloading and dwell are included; its 41.6 mph vanpool average is not a patient-carrying van's driving-only average. Demand-response and vanpool figures therefore cannot be assigned to Nexus services and then supplemented with the same assistance time again.
+
+A [2025 neonatal ambulance study](https://pubmed.ncbi.nlm.nih.gov/39762002/) analysed 1,487 journeys recorded in 2018–2019. Noise increased with speed, but vibration did not show a statistically significant speed correlation. Road surface and road type affected vibration exposure. This is recent publication of older neonatal measurements, not current adult wheelchair, stretcher or bariatric fleet speeds. It supports considering the vehicle and road environment rather than claiming that a fixed mph deduction alone ensures comfort.
+
+A [2024 ambulance suspension study](https://pubmed.ncbi.nlm.nih.gov/38490776/) used neonatal and adult mannequin setups. Liquid suspension produced lower measured vibration than the compared suspension systems. These simulated measurements help explain vehicle differences; they do not establish average driving speeds or adult patient outcomes.
+
+The [March 2026 patient-comfort study](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0341608) combined modelling with a patient survey to examine road-condition effects during interhospital transport. Bumpy roads and continuous speed bumps adversely affected comfort, with effects depending on the body region and stretcher/suspension characteristics. It supplies no general mph schedule for the Nexus service categories.
+
+### Care considerations for each service
+
+| Service | Factors to measure separately from driving |
+| --- | --- |
+| Ambulatory | Boarding assistance and seatbelt checks |
+| Wheelchair | Lift/ramp access, wheelchair securement and occupant restraints |
+| Broda | Chair-specific transfer and transport setup |
+| Stretcher | Loading, restraints and patient handoff; road and vehicle comfort during travel |
+| Bariatric | Crew/equipment setup, assisted loading and handoff |
+| Facility transfer | Actual mobility needs and facility handoff |
+| BLS / ALS / critical transfer | Clinical preparation, monitoring needs and care handoff |
+
+These are operational measurement categories, not clinical protocols or prescribed driving speeds. Patient needs, the vehicle, road conditions and traffic can differ within the same service. [University of Michigan's Wheelchair Transportation Safety program](https://wc-transportation-safety.umtri.umich.edu/) provides guidance on wheelchair securement and occupant protection; it does not establish a universal 10 mph deduction.
+
+### Historical context
 
 The [NHTSA National Traffic Speeds Survey III: 2015, published in 2018](https://www.nhtsa.gov/sites/nhtsa.gov/files/documents/812485_national-traffic-speeds-survey-iii-2015.pdf) measured traffic at sampled road locations. Its [Traffic Tech summary](https://rosap.ntl.bts.gov/view/dot/35965/dot_35965_DS1.pdf) reports these historical mean speeds:
 
@@ -16,10 +42,6 @@ The [NHTSA National Traffic Speeds Survey III: 2015, published in 2018](https://
 | Rural major arterial | 59.16 mph |
 
 These are speeds at measurement locations, not door-to-door averages or recommended speeds. They cannot be entered directly as medical transport vehicle averages. The road-class and location differences explain why the booking route is a better starting point than a single fleet-wide number.
-
-[FHWA's Conditions and Performance report](https://www.fhwa.dot.gov/policy/23cpr/chap4.cfm) illustrates another distinction: its 2014 passenger-carrying transit averages were 15.5 mph for demand response and 39.9 mph for vanpool. Those averages include dwell at stops. FHWA identifies stop spacing and boarding/alighting time as major influences. Using those averages to estimate driving and then adding boarding time again would double-count part of the delay.
-
-[Lund University's wheelchair passenger research](https://portal.research.lu.se/sv/publications/wheelchair-passengers-and-local-public-transport-vehicles-percept/) investigates perceived safety and comfort across wheelchair passenger transport. [University of Michigan's Wheelchair Transportation Safety program](https://wc-transportation-safety.umtri.umich.edu/) provides guidance on wheelchair and occupant transport. These sources support evaluating patient comfort and transport arrangements, but do not establish a single average van speed or a universal 10 mph deduction. Vehicle size alone also does not establish a different driving average for bariatric patients.
 
 ## Model implemented in Nexus
 
@@ -67,6 +89,16 @@ The time above each service fare shows passenger driving, including both directi
 If routing is unavailable, the existing local fallback is still an approximation; its service travel calculation uses that fallback's distances and baseline durations. It is not a measured fleet average. All displayed times are estimates, rounded upward once at the end.
 
 ## How to calibrate the service assumptions
+
+**Nexus Pricing Manager → Recent service speeds and patient-care time** now provides a read-only report for the last 30, 90 or 180 days; 90 days is the default. The report displays the configured speed adjustment, observed passenger driving average, boarding and handoff medians, and separate trip/leg/sample counts for every configured service. Missing measurements remain labelled “No verified data.” It does not replace route predictions or automatically change a fare or speed setting.
+
+Only completed, non-mock bookings are eligible. Passenger driving runs from the recorded `DEPARTED` event to `ARRIVED_DESTINATION`. Boarding runs from `ARRIVED_PICKUP` to departure; handoff runs from destination arrival to `DELIVERED`. Appointment waiting and deadhead are outside those driving windows. A completed round trip can contribute two loaded legs while counting as one distinct trip. Duplicate stage events preserve the first arrival/departure timestamp.
+
+Driving distance is derived from consecutive GPS coordinates assigned to the booking and vehicle. The analysis requires at least three usable fixes, at least 90% coverage of the driving window, endpoints within two minutes, no gap longer than three minutes, and no segment or overall average above 80 mph. Fixes with reported accuracy worse than 50 metres are excluded. Coordinate movements below approximately five metres are omitted to reduce stationary jitter. Boarding and handoff intervals over four hours are omitted as likely incomplete records. These are report quality filters, not service speed instructions.
+
+The observed driving average is total GPS miles divided by total recorded passenger driving hours, including traffic stops. Care intervals use medians and their own sample counts. GPS distance remains approximate: curves between samples can be underestimated and location noise can increase distance. A service-wide average also mixes road types and traffic. Neither sample count nor “ready for route comparison” proves that a new reduction is appropriate.
+
+The database read is limited to the latest 1,000 eligible completed bookings in the selected period. A visible notice identifies truncated reports. Only aggregate service results are returned to authenticated administrators and dispatchers; patient names, addresses, booking references and raw GPS coordinates are not included.
 
 Use completed trips to measure passenger driving separately from loading, securement, waiting and unloading. Exclude mock trips, deadhead, cancellations and incomplete timestamps. Compare similar routes, road mixes and pickup periods, with at least 30 complete trips per comparison group as an initial operational target rather than a statistical guarantee.
 

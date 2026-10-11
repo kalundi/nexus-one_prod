@@ -855,6 +855,34 @@ function readServicePoliciesFromTable(){
   return out;
 }
 
+let serviceAnalysisVersion=0;
+async function loadServiceTravelAnalysis(){
+  const status=document.getElementById('serviceAnalysisStatus'),rows=document.getElementById('serviceAnalysisRows');
+  if(!status||!rows)return;
+  const version=++serviceAnalysisVersion,days=Number(document.getElementById('serviceAnalysisDays')?.value||90);
+  status.textContent='Loading recent patient trip measurements…';
+  try{
+    const response=await fetch(`/api/admin/service-travel-analysis?days=${days}`,{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok||!Array.isArray(data.analysis?.services))throw Error('Recent trip analysis unavailable');
+    if(version!==serviceAnalysisVersion)return;
+    const analysis=data.analysis;
+    rows.innerHTML=analysis.services.map(row=>{
+      const value=(number,unit)=>number==null?'No verified data':`${Number(number).toFixed(1)} ${unit}`;
+      const adjustment=Number(row.speedReductionMph)>0?`Route average −${Number(row.speedReductionMph)} mph`:'Route baseline';
+      const evidence=row.evidenceStatus==='REVIEW_READY'?'Ready for route comparison':row.evidenceStatus==='LIMITED_SAMPLE'?'Limited sample':'No verified driving data';
+      return `<tr><td><strong>${escapeHtml(row.label)}</strong><br><small>${escapeHtml(row.careFocus)}</small></td><td>${escapeHtml(adjustment)}</td><td>${escapeHtml(value(row.observedAverageMph,'mph'))}</td><td>${escapeHtml(value(row.boardingMedianMinutes,'min'))}<br><small>${Number(row.boardingSamples)||0} samples</small></td><td>${escapeHtml(value(row.handoffMedianMinutes,'min'))}<br><small>${Number(row.handoffSamples)||0} samples</small></td><td>${Number(row.tripCount)||0} trips / ${Number(row.legCount)||0} legs<br><small>${evidence}</small></td></tr>`;
+    }).join('');
+    status.textContent=`Last ${analysis.days} days · ${Number(analysis.candidateTrips)||0} completed trips reviewed · ${analysis.verifiedLegs} verified driving legs · ${analysis.excludedLegs} driving legs excluded for incomplete GPS${analysis.truncated?' · Latest 1,000 completed trips shown':''} · Updated ${new Date(analysis.generatedAt).toLocaleString()}`;
+  }catch{
+    if(version!==serviceAnalysisVersion)return;
+    rows.replaceChildren();status.textContent='Could not load recent trip analysis. Select Refresh analysis to retry.';
+  }
+}
+document.getElementById('recentServiceAnalysis')?.addEventListener('toggle',event=>{if(event.target.open)void loadServiceTravelAnalysis();});
+document.getElementById('refreshServiceAnalysis')?.addEventListener('click',()=>void loadServiceTravelAnalysis());
+document.getElementById('serviceAnalysisDays')?.addEventListener('change',()=>void loadServiceTravelAnalysis());
+
 function readPricingRules(){
   const rules={...(currentSettings?.fareRules||{}),waitingPolicyVersion:2};
   document.querySelectorAll('#pricingSection [data-fare-rule]').forEach(input=>{
