@@ -26,6 +26,9 @@ test('pricing manager saves all active fare variables and preserves unrelated se
   await expect(page.locator(`#settingsSection #${id}`)).toHaveCount(0);
  }
  await expect(page.locator('#pricingSection')).toContainText('both legs before savings');
+ await expect(page.locator('[data-premium-summary="weekendSurchargePct"]')).toHaveText('30');
+ await expect(page.locator('[data-premium-summary="holidaySurchargePct"]')).toHaveText('30');
+ await expect(page.locator('#pricingSection')).toContainText('Each passenger leg receives one applicable premium');
  await page.locator('#freeWaitMinutes').fill('20');
  await expect(page.locator('[data-service-policy="wheelchair"] [data-field="freeWaitMinutes"]')).toHaveValue('20');
  await page.locator('[data-service-policy="wheelchair"] [data-field="freeWaitMinutes"]').fill('30');
@@ -63,6 +66,20 @@ test('pricing manager saves all active fare variables and preserves unrelated se
  await expect(page.locator('[data-service-policy="wheelchair"] [data-field="speedReductionMph"]')).toHaveValue('7');
  await expect(page.locator('[data-service-policy="bariatric"] [data-field="speedReductionMph"]')).toHaveValue('35');
  await page.locator('#pricingSection').screenshot({path:'output/admin-pricing-manager.png'});
+});
+
+test('schedule premium wording follows saved settings and future edits',async({page})=>{
+ const mock=await openPricing(page);
+ await expect(page.locator('#pricingSection')).toContainText('Weekend and federal holiday premiums are +30% and +30% per passenger leg');
+ await page.locator('#weekendSurchargePct').fill('25');
+ await page.locator('#holidaySurchargePct').fill('40');
+ await expect(page.locator('[data-premium-summary="weekendSurchargePct"]')).toHaveText('25');
+ await expect(page.locator('[data-premium-summary="holidaySurchargePct"]')).toHaveText('40');
+ await page.locator('#savePricing').click();
+ await expect(page.locator('#pricingSavedMsg')).toContainText('Rates and fare rules saved');
+ expect(mock.getSaved().fareRules).toMatchObject({weekendSurchargePct:25,holidaySurchargePct:40});
+ await page.reload();
+ await expect(page.locator('#pricingSection')).toContainText('Weekend and federal holiday premiums are +25% and +40% per passenger leg');
 });
 test('dispatchers can inspect pricing but cannot change its variables',async({page})=>{
  await page.setViewportSize({width:390,height:844});

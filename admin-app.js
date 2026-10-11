@@ -892,9 +892,17 @@ function readPricingRules(){
   return rules;
 }
 
+function updateSchedulePremiumSummary(){
+  document.querySelectorAll('[data-premium-summary]').forEach(summary=>{
+    const value=document.getElementById(summary.dataset.premiumSummary)?.value;
+    summary.textContent=value==null||value===''?'0':String(Number(value));
+  });
+}
+
 document.getElementById('pricingSection').addEventListener('input',event=>{
   const input=event.target;
   const field=input.dataset.fareRule;
+  if(field==='weekendSurchargePct'||field==='holidaySurchargePct')updateSchedulePremiumSummary();
   if(['freeWaitMinutes','afterHoursSurchargePct','weekendSurchargePct','holidaySurchargePct','trafficOverageFeePerHour'].includes(field)){
     document.querySelectorAll(`#servicePolicyRows input[data-field="${field}"]`).forEach(override=>{
       if(Number(override.value)===Number(input.dataset.previousValue))override.value=input.value;
@@ -974,6 +982,7 @@ function applySettingsToForm(settings){
   document.getElementById('afterHoursSurchargePct').value=fare.afterHoursSurchargePct==null?'':Number(fare.afterHoursSurchargePct);
   document.getElementById('weekendSurchargePct').value=fare.weekendSurchargePct==null?'':Number(fare.weekendSurchargePct);
   document.getElementById('holidaySurchargePct').value=fare.holidaySurchargePct==null?'':Number(fare.holidaySurchargePct);
+  updateSchedulePremiumSummary();
   document.getElementById('cancellationFee').value=fare.cancellationFee==null?'':Number(fare.cancellationFee);
   document.getElementById('cancellationWindowHours').value=fare.cancellationWindowHours==null?'':Number(fare.cancellationWindowHours);
   document.getElementById('cancellationLeadHours').value=fare.cancellationLeadHours==null?'':Number(fare.cancellationLeadHours);

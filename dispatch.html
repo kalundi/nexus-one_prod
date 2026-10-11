@@ -2675,6 +2675,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
   let applyingEditorValues=false;
   let editorBaselineSnapshot='';
   let editorHasUnsavedChanges=false;
+  let editorSaveInProgress=false;
+  let editorSchedulePromise=Promise.resolve();
   let companyYardAddress='22505 Gateway Center Dr, Clarksburg MD 20871';
   let preTripInspectionMinutes=45;
   let mapsEnabled=false;
@@ -3458,6 +3460,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
       patientEmail:String(payload.email||''),
       notes:String(payload.notes||'')
     };
+    expected.tripType=payload.tripType;
+    expected.returnTripDate=String(payload.returnTripDate||'').slice(0,10);
+    expected.returnTripTime=normalizeHHMM(payload.returnTripTime);
     const actual={
       appointmentTime:normalizeHHMM(getBookingAppointmentTime(saved)),
       pickupTime:normalizeHHMM(String(saved?.time||'')),
@@ -3480,16 +3485,28 @@ $('saveCustomCompany').addEventListener('click',()=>{
       patientEmail:String(saved?.email||''),
       notes:String(saved?.notes||'')
     };
-    expected.notes=expected.notes.replace(/\s*\|?\s*Fare inputs: \{[^\n|]*\}/g,'').trim();
-    actual.notes=actual.notes.replace(/\s*\|?\s*Fare inputs: \{[^\n|]*\}/g,'').trim();
+    const savedSchedule=NexusFare.resolveTripSchedule({...saved,tripScheduleExplicit:true});
+    actual.tripType=savedSchedule.tripType;
+    actual.returnTripDate=String(savedSchedule.returnTripDate||'').slice(0,10);
+    actual.returnTripTime=normalizeHHMM(savedSchedule.returnTripTime);
+    // The API rewrites schedule metadata in notes; verify those values in their
+    // dedicated fields and compare the dispatcher's remaining note text.
+    const userNotes=value=>value
+      .replace(/\s*\|?\s*Fare inputs: \{[^\n|]*\}/g,'')
+      .replace(/(?:Appointment\s*time|Appointment|Appt\s*time|Appt|Check-?in\s*time|Driver\s+yard\s+report\s+time):\s*[0-2]?\d:[0-5]\d(?:\s*(?:AM|PM))?/ig,'')
+      .replace(/Round trip return:\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/ig,'')
+      .split(/\s*\|\s*/).map(part=>part.trim()).filter(Boolean).join(' | ').trim();
+    expected.notes=userNotes(expected.notes);
+    actual.notes=userNotes(actual.notes);
+    if(payload.pickupTime&&normalizeHHMM(saved?.pickupTime)!==normalizeHHMM(payload.pickupTime))mismatches.push('pickupTime');
     if(expected.brokerAcceptedRate){
       const brokerAcceptedRateNum=Number(expected.brokerAcceptedRate);
       expected.brokerAcceptedRate=Number.isFinite(brokerAcceptedRateNum)?brokerAcceptedRateNum.toFixed(2):expected.brokerAcceptedRate;
     }
     Object.keys(expected).forEach((key)=>{
-      if(expected[key]!==actual[key]) mismatches.push(key);
+      if(expected[key].trim()!==actual[key].trim()) mismatches.push(key);
     });
-    return mismatches;
+    return [...new Set(mismatches)];
   }
 
   async function applyEditorValues(b){
@@ -3772,6 +3789,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   }
 
   window.openTripEditor = async function(reference){
+    if(editorSaveInProgress)return;
     const ref = String(reference || '').trim();
     if(!ref) return;
     if(!confirmDiscardUnsavedChanges('open another trip')) return;
@@ -3805,6 +3823,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
   });
 
   get('dispatchEditClose').addEventListener('click',()=>{
+    if(editorSaveInProgress)return;
     if(!confirmDiscardUnsavedChanges('close the trip editor')) return;
     resetEditorPlacement();
     currentRef='';
@@ -3814,58 +3833,53 @@ $('saveCustomCompany').addEventListener('click',()=>{
   });
 
   get('dispatchEditSave').addEventListener('click',async()=>{
+    if(editorSaveInProgress)return;
     if(!currentRef){setMsg('Click a trip row first.','err');return;}
     const appointmentTime=get('dispatchEditAppointmentTime').value;
     if(!appointmentTime){setMsg('Appointment time is required. Enter appointment time to proceed.','err');return;}
     if(get('dispatchEditTripType').value==='ROUND_TRIP'&&get('dispatchEditReturnTiming').value==='SCHEDULED'&&!get('dispatchEditReturnTime').value){setMsg('Enter the return pickup time or select will-call / time pending.','err');return;}
-    await ensureScheduleDefaultsBeforeSave();
-    await updateEditorRoute();
-    refreshEditorFare();
-    const confirmUpdate=window.confirm(
-      `Confirm trip update for ${currentRef}?\n\n`+
-      `Appointment: ${get('dispatchEditAppointmentTime').value || '--:--'}\n`+
-      `Pickup: ${get('dispatchEditTime').value || '--:--'}\n`+
-      `Check-in: ${get('dispatchEditCheckInTime').value || '--:--'}\n\n`+
-      'Click OK to save and notify stakeholders.'
-    );
-    if(!confirmUpdate){
-      setMsg('Trip update canceled before save.','err');
-      return;
-    }
-    const payload={
-      recalculateEstimate:true,
-      fareInputs:NexusFare.calculateEstimate(fareEditorBooking(),currentFareSettings).inputs,
-      status:get('dispatchEditStatus').value,
-      service:get('dispatchEditService').value,
-      pickupLocation:get('dispatchEditPickupLocation').value,
-      pickup:get('dispatchEditPickup').value,
-      destinationLocation:get('dispatchEditDestinationLocation').value,
-      destination:get('dispatchEditDestination').value,
-      date:get('dispatchEditDate').value,
-      time:get('dispatchEditTime').value,
-      driverName:get('dispatchEditDriver').value,
-      vehicleUnit:get('dispatchEditVehicle').value,
-      appointmentTime:appointmentTime,
-      tripType:get('dispatchEditTripType').value,
-      returnTripDate:get('dispatchEditTripType').value==='ROUND_TRIP'?get('dispatchEditReturnDate').value:null,
-      returnTripTime:get('dispatchEditTripType').value==='ROUND_TRIP'&&get('dispatchEditReturnTiming').value==='SCHEDULED'?get('dispatchEditReturnTime').value:null,
-      bookingSource:get('dispatchEditSubmitterType').value,
-      submitterEntity:get('dispatchEditSubmitter').value,
-      brokerCompanyName:get('dispatchEditBrokerCompany').value,
-      brokerQuotedRate:get('dispatchEditBrokerQuotedRate').value,
-      brokerAcceptedRate:get('dispatchEditBrokerAcceptedRate').value,
-      name:get('dispatchEditName').value,
-      phone:get('dispatchEditPhone').value,
-      email:get('dispatchEditEmail').value,
-      notes:get('dispatchEditTripNotes').value,
-      dispatchNote:get('dispatchEditNote').value
-    };
-    const checkInTimeValue=get('dispatchEditCheckInTime').value;
-    if(checkInTimeValue) payload.checkInTime=checkInTimeValue;
     const button=get('dispatchEditSave');
-    button.disabled=true;
+    const controls=Array.from(panel.querySelectorAll('input,select,textarea,button')).map(control=>[control,control.disabled]);
+    editorSaveInProgress=true;
+    controls.forEach(([control])=>{control.disabled=true;});
     button.textContent='Saving...';
+    setMsg('Saving trip update...','ok');
     try{
+      await editorSchedulePromise;
+      await updateEditorRoute();
+      await ensureScheduleDefaultsBeforeSave();
+      refreshEditorFare();
+      const payload={
+        recalculateEstimate:true,
+        fareInputs:NexusFare.calculateEstimate(fareEditorBooking(),currentFareSettings).inputs,
+        status:get('dispatchEditStatus').value,
+        service:get('dispatchEditService').value,
+        pickupLocation:get('dispatchEditPickupLocation').value,
+        pickup:get('dispatchEditPickup').value,
+        destinationLocation:get('dispatchEditDestinationLocation').value,
+        destination:get('dispatchEditDestination').value,
+        date:get('dispatchEditDate').value,
+        time:get('dispatchEditTime').value,
+        pickupTime:get('dispatchEditTime').value,
+        driverName:get('dispatchEditDriver').value,
+        vehicleUnit:get('dispatchEditVehicle').value,
+        appointmentTime:get('dispatchEditAppointmentTime').value,
+        tripType:get('dispatchEditTripType').value,
+        returnTripDate:get('dispatchEditTripType').value==='ROUND_TRIP'?get('dispatchEditReturnDate').value:null,
+        returnTripTime:get('dispatchEditTripType').value==='ROUND_TRIP'&&get('dispatchEditReturnTiming').value==='SCHEDULED'?get('dispatchEditReturnTime').value:null,
+        bookingSource:get('dispatchEditSubmitterType').value,
+        submitterEntity:get('dispatchEditSubmitter').value,
+        brokerCompanyName:get('dispatchEditBrokerCompany').value,
+        brokerQuotedRate:get('dispatchEditBrokerQuotedRate').value,
+        brokerAcceptedRate:get('dispatchEditBrokerAcceptedRate').value,
+        name:get('dispatchEditName').value,
+        phone:get('dispatchEditPhone').value,
+        email:get('dispatchEditEmail').value,
+        notes:get('dispatchEditTripNotes').value,
+        dispatchNote:get('dispatchEditNote').value
+      };
+      const checkInTimeValue=get('dispatchEditCheckInTime').value;
+      if(checkInTimeValue) payload.checkInTime=checkInTimeValue;
       const token=sessionStorage.getItem('nexusAccessToken')||'';
       const res=await fetch(`/api/admin/bookings/${encodeURIComponent(currentRef)}`,{method:'PATCH',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(payload)});
       const data=await res.json().catch(()=>({}));
@@ -3885,14 +3899,14 @@ $('saveCustomCompany').addEventListener('click',()=>{
         recipientMsg=` Notification status: ${notify.status}.`;
       }
       let saved=data.booking||null;
-      try{
+      // PATCH returns the persisted trip. Fetch only when that response is
+      // incomplete, so a delayed read cannot replace the confirmed update.
+      if(!saved)try{
         const verified=await fetchBookingByReference(currentRef);
         if(verified?.booking) saved=verified.booking;
         if(verified?.intakeAudit) currentBookingIntakeAudit=verified.intakeAudit;
       }catch{}
       if(saved){
-        await applyEditorValues(saved);
-        get('dispatchEditNote').value='';
         const mismatches=collectSaveMismatches(saved,payload);
         if(mismatches.length){
           editorHasUnsavedChanges=true;
@@ -3906,12 +3920,21 @@ $('saveCustomCompany').addEventListener('click',()=>{
             pickup:'Pickup address',
             destination:'Destination address',
             driverName:'Driver',
-            vehicleUnit:'Vehicle'
+            vehicleUnit:'Vehicle',
+            patientName:'Patient name',
+            patientPhone:'Patient phone',
+            patientEmail:'Patient email',
+            notes:'Booking notes',
+            tripType:'Trip type',
+            returnTripDate:'Return date',
+            returnTripTime:'Return pickup time'
           };
           const labels=mismatches.map((k)=>labelMap[k]||k).join(', ');
-          setMsg(`Trip ${currentRef} update response received, but server values differ for: ${labels}. Please review and save again.`,'err');
+          setMsg(`Trip ${currentRef} update response received, but these changes were not confirmed: ${labels}. Your entries have been kept. Refresh the trip to check its saved values.`,'err');
           return;
         }
+        await applyEditorValues(saved);
+        get('dispatchEditNote').value='';
       }
       markEditorBaseline();
       const savedAppointment=String(saved?.submittedAppointmentTime||saved?.appointmentTime||'').slice(0,5)||'MISSING';
@@ -3928,7 +3951,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
     }catch(err){
       setMsg(err.message||'Unable to save trip update','err');
     }finally{
-      button.disabled=false;
+      controls.forEach(([control,disabled])=>{control.disabled=disabled;});
+      editorSaveInProgress=false;
       button.textContent='Save trip update';
     }
   });
@@ -4076,11 +4100,16 @@ $('saveCustomCompany').addEventListener('click',()=>{
     }
   });
 
-  get('dispatchEditAppointmentTime').addEventListener('input',updatePickupFromAppointment);
-  get('dispatchEditService').addEventListener('input',updatePickupFromAppointment);
-  get('dispatchEditPickup').addEventListener('change',updatePickupFromAppointment);
-  get('dispatchEditDestination').addEventListener('change',updatePickupFromAppointment);
-  get('dispatchEditDate').addEventListener('change',updatePickupFromAppointment);
+  function scheduleEditorPickupUpdate(){
+    if(editorSaveInProgress)return;
+    editorSchedulePromise=updatePickupFromAppointment();
+    return editorSchedulePromise;
+  }
+  get('dispatchEditAppointmentTime').addEventListener('input',scheduleEditorPickupUpdate);
+  get('dispatchEditService').addEventListener('input',scheduleEditorPickupUpdate);
+  get('dispatchEditPickup').addEventListener('change',scheduleEditorPickupUpdate);
+  get('dispatchEditDestination').addEventListener('change',scheduleEditorPickupUpdate);
+  get('dispatchEditDate').addEventListener('change',scheduleEditorPickupUpdate);
   get('dispatchEditTime').addEventListener('input',updateCheckInFromPickup);
   function toggleEditorReturnFields(){
     get('dispatchEditReturnFields').hidden=get('dispatchEditTripType').value!=='ROUND_TRIP';

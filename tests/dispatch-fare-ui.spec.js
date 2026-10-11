@@ -11,6 +11,7 @@ test('existing trip displays an automatic estimate without asking for fare input
   if(path==='/api/admin/bookings/FARE-LEGACY'&&route.request().method()==='PATCH'){
     const payload=route.request().postDataJSON();saveRequest=payload;
     Object.assign(booking,payload);
+    booking.notes=[payload.notes,`Appointment time: 10:45 AM`,`Check-in time: 9:15 AM`,`Fare inputs: ${JSON.stringify(payload.fareInputs)}`].filter(Boolean).join(' | ');
     booking.estimatedFare=Fare.calculateEstimate(booking,settings).discountedTotal;
   }
   const enriched={...booking,ourEstimate:Fare.calculateEstimate(booking,settings).discountedTotal};
@@ -35,6 +36,7 @@ test('existing trip displays an automatic estimate without asking for fare input
  page.on('dialog',dialog=>dialog.accept());
  await page.locator('#dispatchEditSave').click();
  await expect.poll(()=>saveRequest?.recalculateEstimate).toBe(true);
+ await expect(page.locator('#dispatchEditMsg')).toContainText('updated successfully');
  await expect(page.locator('#dispatchEditOurEstimate')).toHaveValue('$173.91');
  expect(booking.brokerQuotedRate).toBe('1085.00');
  expect(booking.brokerAcceptedRate).toBe('1085.00');
