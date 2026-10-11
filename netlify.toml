@@ -268,8 +268,8 @@
   [headers.values]
     # Content Security Policy - prevents unauthorized script execution
     Content-Security-Policy = "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://maps.googleapis.com https://maps.gstatic.com https://cdn.ywxi.net; img-src 'self' https://www.google-analytics.com https://maps.googleapis.com https://maps.gstatic.com https://tile.openstreetmap.org data: https://cdn.ywxi.net https://example.com https://existing-url.com https://new-allowed-domain.com; connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://maps.googleapis.com https://s3-us-west-2.amazonaws.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src 'self' blob: https://www.google.com"
-    # Prevent clickjacking attacks
-    X-Frame-Options = "DENY"
+    # Allow the patient app to embed its booking screen on the same origin.
+    X-Frame-Options = "SAMEORIGIN"
     # Prevent MIME type sniffing
     X-Content-Type-Options = "nosniff"
     # Enable XSS protection in older browsers

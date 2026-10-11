@@ -1998,15 +1998,16 @@ async function createStripeCheckoutSession(amountCents,metadata){
  const bookingReference=clean(metadata?.bookingReference)||crypto.randomUUID();
  const form=new URLSearchParams();
  form.set('mode','payment');
- form.set('success_url',`${siteBase()}/booking-app.html?payment=success&bookingReference=${encodeURIComponent(bookingReference)}`);
- form.set('cancel_url',`${siteBase()}/booking-app.html?payment=cancelled&bookingReference=${encodeURIComponent(bookingReference)}`);
+ const checkoutReturnPage=metadata?.patientApp===true?'patient.html':'booking-app.html';
+ form.set('success_url',`${siteBase()}/${checkoutReturnPage}?payment=success&bookingReference=${encodeURIComponent(bookingReference)}`);
+ form.set('cancel_url',`${siteBase()}/${checkoutReturnPage}?payment=cancelled&bookingReference=${encodeURIComponent(bookingReference)}`);
  form.set('line_items[0][price_data][currency]','usd');
  const modeLabel=metadata?.paymentMode==='deposit'?'25% Deposit — ':'';
  form.set('line_items[0][price_data][product_data][name]',`${modeLabel}Nexus Medical Transit Booking ${bookingReference}`);
  form.set('line_items[0][price_data][unit_amount]',String(amountCents));
  form.set('line_items[0][quantity]','1');
- for(const [k,v] of Object.entries(metadata||{}))if(v!=null)form.set(`metadata[${k}]`,String(v).slice(0,500));
- const r=await fetch('https://api.stripe.com/v1/checkout/sessions',{method:'POST',headers:{authorization:`Bearer ${process.env.STRIPE_SECRET_KEY}`,'content-type':'application/x-www-form-urlencoded','idempotency-key':`checkout-${bookingReference}-${metadata?.paymentMode||'full'}`},body:form});
+ for(const [k,v] of Object.entries(metadata||{}))if(v!=null&&(k!=='patientApp'||v===true))form.set(`metadata[${k}]`,String(v).slice(0,500));
+ const r=await fetch('https://api.stripe.com/v1/checkout/sessions',{method:'POST',headers:{authorization:`Bearer ${process.env.STRIPE_SECRET_KEY}`,'content-type':'application/x-www-form-urlencoded','idempotency-key':`checkout-${bookingReference}-${metadata?.paymentMode||'full'}${metadata?.patientApp===true?'-patient':''}`},body:form});
  const data=await r.json().catch(()=>({}));
  if(!r.ok)throw Object.assign(new Error(data.error?.message||'Stripe checkout request failed'),{statusCode:502});
  return data;
@@ -2022,7 +2023,7 @@ async function createSquarePaymentLink(amountCents,metadata){
    location_id:process.env.SQUARE_LOCATION_ID
   },
   checkout_options:{
-   redirect_url:`${siteBase()}/booking-app.html?payment=success&provider=square&bookingReference=${encodeURIComponent(bookingReference)}`
+   redirect_url:`${siteBase()}/${metadata?.patientApp===true?'patient.html':'booking-app.html'}?payment=success&provider=square&bookingReference=${encodeURIComponent(bookingReference)}`
   },
   pre_populated_data:{
    buyer_email:clean(metadata?.email)||undefined
@@ -3105,7 +3106,7 @@ async function handler(event){
    if(chargeAmount<50)return json(400,{error:'A valid payment amount is required'});
    const depositAmount=paymentMode==='deposit'?chargeAmount/100:totalFare;
    const balanceDue=paymentMode==='deposit'?Math.max(0,totalFare-depositAmount):0;
-   const session=await createStripeCheckoutSession(chargeAmount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined,paymentMode});
+   const session=await createStripeCheckoutSession(chargeAmount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined,paymentMode,patientApp:b.patientApp===true});
    await query("UPDATE bookings SET stripe_checkout_session_id=$2,payment_status=$3,deposit_amount=$4,balance_due=$5,payer_type=CASE WHEN coverage_status='NOT_COVERED_STANDARD' THEN 'SELF_PAY' ELSE payer_type END,coverage_status=CASE WHEN coverage_status='NOT_COVERED_STANDARD' THEN 'SELF_PAY' ELSE coverage_status END,updated_at=now() WHERE reference=$1",[r.rows[0].reference,session.id,'PENDING',depositAmount,balanceDue]);
    return json(200,{provider:'stripe',url:session.url,sessionId:session.id,amount:chargeAmount,paymentMode});
   }
@@ -3152,7 +3153,7 @@ async function handler(event){
    const r=await query('SELECT reference,email,estimated_fare,payment_status FROM bookings WHERE reference=$1',[b.bookingReference]);
    if(!r.rows[0])return json(404,{error:'Booking not found'});
    const amount=Math.round(Number(r.rows[0].estimated_fare||0)*100);if(amount<50)return json(400,{error:'A valid payment amount is required'});
-   const square=await createSquarePaymentLink(amount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined});
+   const square=await createSquarePaymentLink(amount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined,patientApp:b.patientApp===true});
    await query('UPDATE bookings SET square_payment_link_id=$2,square_order_id=$3,payment_status=$4,updated_at=now() WHERE reference=$1',[r.rows[0].reference,square.payment_link?.id||null,square.payment_link?.order_id||square.related_resources?.orders?.[0]?.id||null,'PENDING']);
    return json(200,{provider:'square',url:square.payment_link?.url,linkId:square.payment_link?.id||null,amount});
   }
@@ -3288,7 +3289,7 @@ async function handler(event){
    const bookingParams=patientPhone?[u.email,phoneVariants]:[u.email];
    const [preferencesResult,bookingsResult]=await Promise.all([
     query('SELECT * FROM patient_transport_preferences WHERE user_id=$1 LIMIT 1',[u.id]),
-    query(`SELECT * FROM bookings WHERE ${bookingWhere} ORDER BY trip_date DESC,trip_time DESC LIMIT 50`,bookingParams)
+    query(`SELECT * FROM bookings WHERE ${bookingWhere} ORDER BY trip_date DESC,trip_time DESC LIMIT 250`,bookingParams)
    ]);
    const preferenceRow=preferencesResult.rows[0]||{};
    const trips=await Promise.all((await mapBookingsWithIntakeAudit(bookingsResult.rows)).map(mapPatientBooking));
@@ -3300,7 +3301,7 @@ async function handler(event){
     user:safeUser(u),
     preferences:{mobilityType:preferenceRow.mobility_type||'AMBULATORY',remainsInWheelchair:!!preferenceRow.remains_in_wheelchair,transferAssistance:!!preferenceRow.transfer_assistance,oxygenRequired:!!preferenceRow.oxygen_required,preferredLanguage:preferenceRow.preferred_language||'',communicationPreference:preferenceRow.communication_preference||'SMS',defaultPickup:preferenceRow.default_pickup||'',accessibilityNotes:preferenceRow.accessibility_notes||''},
     nextRide:upcoming[0]||null,
-    recentRides:trips.slice(0,5)
+    recentRides:trips
    });
   }
   if(p[0]==='patient'&&p[1]==='preferences'&&method==='GET'){

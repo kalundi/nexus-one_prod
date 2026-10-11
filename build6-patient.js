@@ -2,13 +2,13 @@
  const N=window.NexusPatient; if(!N)return;
  const $=s=>document.querySelector(s); const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
  const statusClass=s=>/complete|paid/i.test(s)?'green':/cancel|late/i.test(s)?'red':/confirm|transit|arriv|route/i.test(s)?'blue':'amber';
- const livecareUrl=reference=>`/livecare.html?reference=${encodeURIComponent(reference||'')}`;
+ const livecareUrl=reference=>`#map/${encodeURIComponent(reference||'')}`;
  let routeRefreshTimer=0;
  const routeUi={detailsOpen:false,nextRideOpen:false,homeFocus:'nextRide',lastTelemetryAt:0,lastVehicles:[],viewFocus:{}};
- function upcoming(){return N.trips().filter(t=>!/complete|cancel/i.test(t.status)).sort((a,b)=>`${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));}
+ function upcoming(){const today=new Date().toLocaleDateString('en-CA');return N.trips().filter(t=>!/complete|cancel|no.show|delivered/i.test(t.status)&&String(t.date||'').slice(0,10)>=today).sort((a,b)=>`${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));}
  function parseTripTime(trip){
   if(!trip?.date)return null;
-  const dt=new Date(`${trip.date}T${trip.time||'00:00'}:00`);
+  const dt=new Date(`${String(trip.date).slice(0,10)}T${String(trip.time||'00:00').slice(0,5)}:00`);
   return Number.isNaN(dt.getTime())?null:dt;
  }
  function formatEta(minutes){
@@ -89,7 +89,7 @@
 
   if(!trip){
     card.dataset.phase='scheduled';
-    btn.href='/livecare.html';
+    btn.disabled=true;
     headline.textContent='No upcoming ride right now';
     sub.textContent='Once you book your next trip, this map will show driver approach and destination progress.';
     eta.textContent='--';
@@ -107,16 +107,18 @@
   const state=deriveVehicleState(vehicle,fallback);
   if(vehicle&&Number.isFinite(Number(vehicle.distanceToPickupMiles)))state.eta=`${Number(vehicle.distanceToPickupMiles).toFixed(1)} mi away`;
   card.dataset.phase=state.phase;
-  btn.href=livecareUrl(trip.id);
+  btn.disabled=false;
+  btn.dataset.mapTrip=trip.id;
   headline.textContent=state.headline;
   sub.textContent=state.subtext;
   eta.textContent=state.eta;
-  progressText.textContent=`${Math.round(state.progress*100)}% route visibility for ${trip.id}. Pickup: ${trip.pickup}. Destination: ${trip.destination}.`;
+  progressText.textContent=`Ride ${trip.id}. Driver updates appear when your trip is active.`;
   pickupLabel.textContent=trip.pickup||'Pickup';
   destinationLabel.textContent=trip.destination||'Destination';
   fill.style.width=`${state.pos}%`;
   pin.style.left=`calc(${state.pos}% - 12px)`;
   pin.setAttribute('aria-label',vehicle?.unit?`Driver location: ${vehicle.unit}`:'Driver location');
+  pin.hidden=!vehicle;
  }
  function applyActiveRideRouteState(card,trip,state,vehicle){
   if(!card||!trip||!state)return;
@@ -132,7 +134,7 @@
   if(headline)headline.textContent=state.headline;
   if(subtext)subtext.textContent=state.subtext;
   if(eta)eta.textContent=state.eta;
-  if(progress)progress.textContent=`${Math.round(state.progress*100)}% route visibility for ${trip.id}.`;
+  if(progress)progress.textContent=`Ride ${trip.id}.`;
   if(pickup)pickup.textContent=trip.pickup||'Pickup';
   if(destination)destination.textContent=trip.destination||'Destination';
   if(fill)fill.style.width=`${state.pos}%`;
@@ -142,10 +144,7 @@
   }
  }
  function renderActiveRideItem(trip,vehicle){
-  const state=deriveVehicleState(vehicle,liveRouteState(trip));
-  if(vehicle&&Number.isFinite(Number(vehicle.distanceToPickupMiles)))state.eta=`${Number(vehicle.distanceToPickupMiles).toFixed(1)} mi away`;
-  const pos=Math.round(Math.max(0,Math.min(1,state.progress))*100);
-  return `<article class="manifestItem manifestItemRoute" data-active-route="${esc(trip.id)}" data-phase="${esc(state.phase)}"><div class="manifestMain"><div><strong>${esc(trip.pickup)} → ${esc(trip.destination)}</strong><small>${esc(trip.date)} ${esc(trip.time)} · ${esc(trip.service)} · ${esc(trip.id)}</small></div><div class="manifestMeta"><span class="status ${statusClass(trip.status)}">${esc(trip.status)}</span><span class="toolbar" style="align-items:center;justify-content:flex-end"><a class="button compact" href="${livecareUrl(trip.id)}">Track</a><button class="button compact secondary" type="button" data-share-trip="${esc(trip.id)}">Share</button></span></div></div><div class="routeMiniShell"><div class="routeMiniHead"><span><strong data-route-headline>${esc(state.headline)}</strong><small data-route-subtext>${esc(state.subtext)}</small></span><span class="routeMiniEta"><em>ETA</em><span data-route-eta>${esc(state.eta)}</span></span></div><div class="routeMapRail" aria-label="Active ride route"><span class="routeStop pickup" data-route-pickup>${esc(trip.pickup||'Pickup')}</span><span class="routeStop destination" data-route-destination>${esc(trip.destination||'Destination')}</span><div class="routeTrackBase"></div><div class="routeTrackFill" data-route-fill style="width:${state.pos}%"></div><button class="routeVehiclePin" type="button" data-route-pin aria-label="Driver location" style="left:calc(${state.pos}% - 11px)">N</button></div><p class="routeProgress" data-route-progress>${pos}% route visibility for ${esc(trip.id)}.</p><p class="routeShareHint">Share updates with family members and caregivers for live location awareness.</p></div></article>`;
+  return `<article class="manifestItem manifestItemRoute" data-active-route="${esc(trip.id)}"><div class="manifestMain"><div><strong>${esc(trip.pickup)} → ${esc(trip.destination)}</strong><small>${esc(trip.date)} ${esc(trip.time)} · ${esc(trip.service)} · ${esc(trip.id)}</small></div><div class="manifestMeta"><span class="status ${statusClass(trip.status)}">${esc(trip.statusLabel||trip.status)}</span><span class="toolbar"><a class="button compact" href="${livecareUrl(trip.id)}">View map</a><button class="button compact secondary" type="button" data-share-trip="${esc(trip.id)}">Share</button></span></div></div></article>`;
  }
  function refreshActiveRideMaps(activeTrips,vehicles){
   if(!Array.isArray(activeTrips))return;
@@ -167,13 +166,16 @@
   refreshActiveRideMaps(activeTrips,vehicles);
  }
  async function loadPatientTrips(){
+  if(window.NexusPatientApp?.sharedReference)return;
   const token=sessionStorage.getItem('nexusAccessToken');if(!token)return;
   try{
-   const response=await fetch('/api/patient/dashboard',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(!response.ok)return;
+   const response=await fetch('/api/patient/dashboard',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(!response.ok){if(response.status===401)window.NexusPatientApp?.sessionExpired();return;}
+   if(sessionStorage.getItem('nexusAccessToken')!==token)return;
    const data=await response.json(),rows=Array.isArray(data.recentRides)?data.recentRides:[];
    const all=data.nextRide&&!rows.some(row=>row.reference===data.nextRide.reference)?[data.nextRide,...rows]:rows;
-   N.write('nexusTrips',all.map(row=>({...row,id:row.reference||row.id,driver:row.driverName||row.driver,vehicle:row.vehicleUnit||row.vehicle,fare:row.estimatedFare||row.fare||0})));
+   N.write('nexusTrips',all.map(row=>({...row,date:String(row.date||row.tripDate||'').slice(0,10),time:String(row.time||row.tripTime||'').slice(0,5),id:row.reference||row.id,driver:row.driverName||row.driver,vehicle:row.vehicleUnit||row.vehicle,fare:row.estimatedFare||row.fare||0})));
    render();
+   window.NexusPatientApp?.updated(data);
   }catch{}
  }
  function bindLiveRouteDetails(){
@@ -210,9 +212,13 @@
    if(profilePage)profilePage.hidden=view!=='profile';
    if(historyPage)historyPage.hidden=view!=='history';
    if(supportPage)supportPage.hidden=view!=='support';
-    syncViewFocusDeck(view);
-   setTitle(view==='profile'?'Profile':view==='history'?'History':view==='support'?'Support':'Home');
+   const mapPage=$('#mapPage'),bookingPage=$('#bookingPage');
+   if(mapPage)mapPage.hidden=view!=='map';
+   if(bookingPage)bookingPage.hidden=view!=='booking';
+   document.querySelectorAll('.bottomNav .navBtn').forEach(btn=>{const active=btn.dataset.footerAction===view;btn.classList.toggle('active',active);if(active)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current');});
+   setTitle(view==='map'?'Ride map':view==='booking'?'Book a ride':view==='profile'?'Profile':view==='history'?'My rides':view==='support'?'Support':'Home');
   };
+  N.navigate=setView;
   const openProfile=()=>setView('profile');
   const openHistory=()=>setView('history');
   const openSupport=()=>setView('support');
@@ -223,10 +229,7 @@
     document.querySelectorAll('.bottomNav .navBtn').forEach(x=>x.classList.remove('active'));
     btn.classList.add('active');
     const action=btn.dataset.footerAction;
-    if(action==='home')showHome();
-    if(action==='profile')openProfile();
-    if(action==='history')openHistory();
-    if(action==='support')openSupport();
+    window.NexusPatientApp?.navigate(action);
    });
   });
   showHome();
@@ -335,8 +338,6 @@
   const active=trips.filter(t=>!/complete|cancel/i.test(t.status)).length;
   const activeTrips=trips.filter(t=>!/complete|cancel/i.test(t.status));
   const maxRideItemsPerCard=3;
-  const heroLivecare=$('#openLivecareBtn');
-  if(heroLivecare)heroLivecare.href=up[0]?.id?livecareUrl(up[0].id):'/livecare.html';
   $('#upcomingCount').textContent=up.length; $('#completedCount').textContent=completed.length;
   const rideCenterSummary=$('#rideCenterSummary');
   if(rideCenterSummary)rideCenterSummary.textContent=`${active} active rides, ${completed.length} completed rides. Extra rides are automatically split into additional cards.`;
@@ -423,21 +424,19 @@
   const a=e.target.closest('[data-open]');if(a)open(a.dataset.open);
   if(e.target.matches('[data-close]'))e.target.closest('dialog')?.close();
   const r=e.target.closest('[data-remove-doc]');if(r){N.write(N.KEYS.docs,N.read(N.KEYS.docs,[]).filter(d=>d.id!==r.dataset.removeDoc));render()}
-    const s=e.target.closest('#shareNext,[data-share-trip]');if(s){const prefix=location.protocol==='file:'?'':location.origin;const link=`${prefix}${livecareUrl(s.dataset.trip||s.dataset.shareTrip)}`;navigator.clipboard?.writeText(link);$('#portalNotice').textContent='Livecare link copied. Share with family or caregivers and verify identity by phone for privacy.';}
+  const s=e.target.closest('#shareNext,[data-share-trip]');if(s)window.NexusPatientApp?.shareTrip(s.dataset.trip||s.dataset.shareTrip);
  });
  function fillProfileForm(profile){const form=$('#profileForm');if(!form)return;['name','phone','email','mobility','language','communication','pickup','notes'].forEach(name=>{if(form.elements[name]&&profile[name]!=null)form.elements[name].value=profile[name]});['remainsInWheelchair','transferAssistance','oxygenRequired'].forEach(name=>{if(form.elements[name])form.elements[name].checked=profile[name]===true||profile[name]==='on'})}
- async function loadPatientPreferences(){const token=sessionStorage.getItem('nexusAccessToken');if(!token){fillProfileForm(N.read(N.KEYS.profile,{}));return}try{const response=await fetch('/api/patient/preferences',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(!response.ok)return fillProfileForm(N.read(N.KEYS.profile,{}));const data=await response.json(),p=data.preferences||{},local=N.read(N.KEYS.profile,{}),profile={...local,mobility:String(p.mobilityType||local.mobility||'Ambulatory').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()),language:p.preferredLanguage||local.language||'',communication:p.communicationPreference||local.communication||'SMS',pickup:p.defaultPickup||local.pickup||'',notes:p.accessibilityNotes||local.notes||'',remainsInWheelchair:!!p.remainsInWheelchair,transferAssistance:!!p.transferAssistance,oxygenRequired:!!p.oxygenRequired};N.write(N.KEYS.profile,profile);fillProfileForm(profile);render()}catch{fillProfileForm(N.read(N.KEYS.profile,{}))}}
+ async function loadPatientPreferences(){const token=sessionStorage.getItem('nexusAccessToken');if(!token){fillProfileForm(N.read(N.KEYS.profile,{}));return}try{const response=await fetch('/api/patient/preferences',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(!response.ok)return fillProfileForm(N.read(N.KEYS.profile,{}));const data=await response.json();if(sessionStorage.getItem('nexusAccessToken')!==token)return;const p=data.preferences||{},local=N.read(N.KEYS.profile,{}),profile={...local,mobility:String(p.mobilityType||local.mobility||'Ambulatory').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()),language:p.preferredLanguage||local.language||'',communication:p.communicationPreference||local.communication||'SMS',pickup:p.defaultPickup||local.pickup||'',notes:p.accessibilityNotes||local.notes||'',remainsInWheelchair:!!p.remainsInWheelchair,transferAssistance:!!p.transferAssistance,oxygenRequired:!!p.oxygenRequired};N.write(N.KEYS.profile,profile);fillProfileForm(profile);render()}catch{fillProfileForm(N.read(N.KEYS.profile,{}))}}
  $('#profileForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.target,profile={...Object.fromEntries(new FormData(form)),remainsInWheelchair:form.remainsInWheelchair.checked,transferAssistance:form.transferAssistance.checked,oxygenRequired:form.oxygenRequired.checked};N.write(N.KEYS.profile,profile);const token=sessionStorage.getItem('nexusAccessToken');try{if(token){const response=await fetch('/api/patient/preferences',{method:'PATCH',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({mobilityType:String(profile.mobility||'AMBULATORY').toUpperCase(),remainsInWheelchair:profile.remainsInWheelchair,transferAssistance:profile.transferAssistance,oxygenRequired:profile.oxygenRequired,preferredLanguage:profile.language,communicationPreference:profile.communication||'SMS',defaultPickup:profile.pickup,accessibilityNotes:profile.notes})});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Unable to save preferences')}}catch(error){$('#portalNotice').textContent=error.message;return}render();$('#portalNotice').textContent='Profile updated. These needs will now prefill future bookings.'});
  $('#contactForm').addEventListener('submit',e=>{e.preventDefault();const x=Object.fromEntries(new FormData(e.target));x.id='EC-'+Date.now();x.notify=Boolean(e.target.notify.checked);N.write(N.KEYS.contacts,[...N.read(N.KEYS.contacts,[]),x]);e.target.reset();e.target.closest('dialog').close();render()});
  $('#documentForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.target),f=fd.get('file');const docs=N.read(N.KEYS.docs,[]);docs.push({id:'DOC-'+Date.now(),name:f?.name||'Document',type:fd.get('type'),updated:new Date().toISOString().slice(0,10)});N.write(N.KEYS.docs,docs);e.target.reset();e.target.closest('dialog').close();render();$('#portalNotice').textContent='Document metadata saved for this prototype.'});
  bindLiveRouteDetails();
  bindRideDisclosures();
- bindViewFocusDeck();
  bindTopAndFooterActions();
- bindHomeFocusDeck();
+ N.render=render;
+ N.reload=async()=>{await Promise.all([loadPatientTrips(),loadPatientPreferences()]);};
  render();
- loadPatientTrips();
- loadPatientPreferences();
  window.clearInterval(routeRefreshTimer);
  routeRefreshTimer=window.setInterval(()=>{
   loadPatientTrips();

@@ -276,8 +276,8 @@ a{text-decoration:none;color:var(--blue)}
 }
 </style>
 <script src="./nexus-data.js"></script>
-<script src="./universal-booking.js" defer></script>
-<link rel="stylesheet" href="/responsive.css?v=5"></head>
+<link rel="stylesheet" href="/responsive.css?v=5">
+<link rel="stylesheet" href="./patient-app.css?v=20261010"></head>
 <body>
 <div id="loginView">
   <div class="loginCard">
@@ -321,19 +321,21 @@ a{text-decoration:none;color:var(--blue)}
   <div class="phone">
     <header class="topBar">
       <div class="topBarInner">
-        <a class="brandLockup" href="/" aria-label="Nexus Medical Transit home"><img class="topLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"></a>
+        <button class="brandLockup" type="button" data-patient-home aria-label="Patient app home"><img class="topLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"></button>
         <span class="topTitle" id="topViewTitle">Home</span>
         <div class="topActions">
           <button id="patientLogoutBtn" class="topAction" type="button">Sign out</button>
         </div>
       </div>
+      <button class="patientIdentity" type="button" data-patient-profile aria-label="Open your patient profile"><span id="patientAvatar" class="patientAvatar" aria-hidden="true">N</span><span class="patientIdentityText"><strong id="patientName">Patient</strong><small id="patientIdentityRole">Patient account</small></span><span aria-hidden="true">›</span></button>
     </header>
 
     <main id="homePage" class="viewportStack">
 
     <section class="hero">
-      <h1>Your ride day, simplified.</h1>
-      <p>Track transportation, manage preferences, and share updates with your care network from a single patient app.</p>
+      <h1>Your rides, all in one place.</h1>
+      <p>Book transportation, follow your driver, and keep your care team updated.</p>
+      <div class="toolbar heroActions"><button class="button" type="button" data-patient-book>Book a ride</button><button class="button secondary" type="button" data-patient-history>View my rides</button></div>
       <div class="homeFeatureGrid" aria-label="Home shortcuts">
         <section class="homeFeatureCard" aria-labelledby="countdownTitle">
           <div class="cardHead"><div><div class="eyebrow">Next ride</div><h2 id="countdownTitle">Ride countdown</h2></div></div>
@@ -375,7 +377,7 @@ a{text-decoration:none;color:var(--blue)}
       <article class="kpi"><strong id="upcomingCount">0</strong><span>Upcoming trips</span></article>
       <article class="kpi"><strong id="completedCount">0</strong><span>Completed trips</span></article>
       <article class="kpi"><strong id="notificationCount">0</strong><span>Unread updates</span></article>
-      <article class="kpi"><strong>24-hour</strong><span>Share access</span></article>
+      <article class="kpi"><strong>Private</strong><span>Verified ride sharing</span></article>
     </section>
 
     <section class="insightGrid focusItem" data-home-focus="insights" aria-label="Patient insights">
@@ -398,7 +400,7 @@ a{text-decoration:none;color:var(--blue)}
     </section>
 
     <section id="liveRouteCard" class="card focusItem" data-home-focus="liveRoute" aria-label="Live route map">
-      <div class="cardHead"><div><div class="eyebrow">Live route</div><h2>See where your driver is now</h2></div><a id="liveRouteOpenBtn" class="button secondary compact" href="/livecare.html">Full map</a></div>
+      <div class="cardHead"><div><div class="eyebrow">Your route</div><h2>Route and driver updates</h2></div><button id="liveRouteOpenBtn" class="button secondary compact" type="button">Full map</button></div>
       <div class="cardBody routeCardBody">
         <div class="routeSummary">
           <div>
@@ -618,8 +620,8 @@ a{text-decoration:none;color:var(--blue)}
 </div>
 
 <script src="./patient-service.js"></script>
-<script src="./build6-patient.js"></script>
-<script src="./platform.js?v=69"></script>
+<script src="./build6-patient.js?v=20261010"></script>
+<script src="./patient-app.js?v=20261010"></script>
 <script>
 (function(){
   const $ = (s)=>document.querySelector(s);
@@ -628,7 +630,7 @@ a{text-decoration:none;color:var(--blue)}
   const demoKey = 'nexusPatientDemoSession';
   const allowedRoles = new Set(['PATIENT','RIDER']);
 
-  function showLogin(){ const l=$('#loginView'); const a=$('#appShell'); if(l)l.hidden=false; if(a)a.hidden=true; }
+  function showLogin(){ const l=$('#loginView'); const a=$('#appShell'); if(l)l.hidden=false; if(a)a.hidden=true; window.NexusPatientApp?.signedOut(); }
   function hideLogin(){ const l=$('#loginView'); const a=$('#appShell'); if(l)l.hidden=true; if(a)a.hidden=false; }
   function showNotice(msg,isOk){ const n=$('#loginNotice'); if(!n)return; n.hidden=false; n.className='loginNotice'+(isOk?' ok':''); n.textContent=msg; }
   function clearSession(){ sessionStorage.removeItem('nexusAccessToken'); sessionStorage.removeItem('nexusUser'); sessionStorage.removeItem(demoKey); }
@@ -656,7 +658,7 @@ a{text-decoration:none;color:var(--blue)}
   }
 
   async function checkAuth(){
-    if(sessionStorage.getItem(demoKey)==='1'){ hideLogin(); return; }
+    if(window.NexusPatientApp?.sharedReference){ window.NexusPatientApp.showSharedAccess(); return; }
     if(!tok()){ showLogin(); return; }
     try{
       const r=await fetch('/api/auth/me',{headers:{authorization:'Bearer '+tok()},cache:'no-store'});
@@ -671,6 +673,8 @@ a{text-decoration:none;color:var(--blue)}
       }
       const notice=$('#loginNotice');
       if(notice){ notice.hidden=true; notice.textContent=''; }
+      sessionStorage.setItem('nexusUser',JSON.stringify(j.user));
+      await window.NexusPatientApp?.signedIn(j.user);
       hideLogin();
     }catch(err){
       clearSession();
@@ -696,6 +700,7 @@ a{text-decoration:none;color:var(--blue)}
       sessionStorage.removeItem(demoKey);
       const loginNotice=$('#loginNotice');
       if(loginNotice){ loginNotice.hidden=true; loginNotice.textContent=''; }
+      await window.NexusPatientApp?.signedIn(j.user);
       hideLogin();
       const portalNotice=$('#portalNotice');
       if(portalNotice && j.user?.displayName) portalNotice.textContent='Welcome back, '+j.user.displayName+'.';
@@ -757,6 +762,8 @@ a{text-decoration:none;color:var(--blue)}
   });
 
   $('#patientLogoutBtn')?.addEventListener('click',()=>{
+    if(window.NexusPatientApp?.sharedReference){showLogin();return;}
+    if(tok())fetch('/api/auth/logout',{method:'POST',headers:{authorization:'Bearer '+tok()}}).catch(()=>{});
     clearSession();
     showLogin();
     showNotice('Signed out successfully.',true);

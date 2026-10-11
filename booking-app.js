@@ -2251,6 +2251,7 @@
 
   function showPaymentOptions(reference, fare, requiresOnlinePayment = true){
     currentBookingReference = String(reference || '').trim();
+    if(new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window)window.parent.postMessage({type:'nexus:booking-saved',reference:currentBookingReference},location.origin);
     currentBookingFare = Number(fare || 0);
     paymentRequiredForBooking = Boolean(requiresOnlinePayment);
     if(!paymentSection || !currentBookingReference) return;
@@ -2323,13 +2324,14 @@
       const r = await fetch(`/api/payments/${resolvedProvider}/checkout`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ bookingReference: currentBookingReference, amount: currentBookingFare, paymentMode: mode })
+        body: JSON.stringify({ bookingReference: currentBookingReference, amount: currentBookingFare, paymentMode: mode,patientApp:new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window })
       });
       const data = await r.json().catch(() => ({}));
       if(!r.ok) throw new Error(data.error || `Failed to start ${resolvedProvider} checkout`);
       if(!data.url) throw new Error(`${resolvedProvider} checkout URL was not returned`);
       try{sessionStorage.setItem('nexusCheckoutBooking',JSON.stringify({reference:currentBookingReference,fare:currentBookingFare,phone:String($('phone')?.value||managePhone?.value||'')}));}catch{}
-      window.location.href = data.url;
+      if(new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window)window.parent.postMessage({type:'nexus:patient-checkout',url:data.url},location.origin);
+      else window.location.href = data.url;
     }catch(err){
       setPaymentMessage(err.message, true);
       setBusy(button, false, busyText, idleText);
