@@ -36,6 +36,25 @@ test('legacy zero reductions migrate while current explicit overrides remain edi
  assert.equal(Fare.serviceTravel(route,'bls',current).scheduledMinutes,50);
 });
 
+test('Additional Capacity subtracts 35 mph and migrates only its former zero setting',()=>{
+ const route={miles:20,durationMinutes:24,trafficDurationMinutes:34};
+ const legacy={serviceTravelPolicyVersion:2,servicePolicies:{bariatric:{speedReductionMph:0},stretcher:{speedReductionMph:0},bls:{speedReductionMph:7}}};
+ for(const service of ['bariatric','Additional Capacity']){
+  const travel=Fare.serviceTravel(route,service,legacy);
+  assert.equal(travel.speedReductionMph,35);assert.equal(travel.serviceAverageMph,15);
+  assert.equal(travel.serviceDurationMinutes,80);assert.equal(travel.trafficDelayMinutes,10);assert.equal(travel.scheduledMinutes,90);
+ }
+ assert.equal(Fare.travelPolicy('stretcher',legacy).speedReductionMph,0);
+ assert.equal(Fare.travelPolicy('bls',legacy).speedReductionMph,7);
+ const current={...legacy,serviceTravelPolicyVersion:3};
+ assert.equal(Fare.serviceTravel(route,'bariatric',current).scheduledMinutes,34);
+ const booking={service:'bariatric',date:'2030-08-15',time:'10:00',createdAt:'2030-08-01T12:00:00Z',tripType:'ROUND_TRIP',returnTripDate:'2030-08-15',returnTripTime:'12:00'};
+ const inputs={passengerLegs:[{...route,kind:'OUTBOUND'},{kind:'RETURN',miles:25,durationMinutes:30,trafficDurationMinutes:30}],miles:20,durationMinutes:24,trafficDurationMinutes:34,stopWaitMinutes:0,scheduleBasis:'PICKUP',deadheadSegments:[0,0],discountPct:0};
+ const fare=Fare.calculateBooking(booking,inputs,{pricing:{bariatric:rate},fareRules:legacy});
+ assert.equal(fare.passengerLegs[0].scheduledMinutes,90);assert.equal(fare.passengerLegs[1].scheduledMinutes,100);
+ assert.equal(fare.drivingMinutes,190);assert.equal(fare.waitMinutes,30);
+});
+
 test('stretcher and ambulance round trips adjust both directions without compounding',()=>{
  const booking={date:'2030-08-15',time:'10:00',createdAt:'2030-08-01T12:00:00Z',tripType:'ROUND_TRIP',returnTripDate:'2030-08-15',returnTripTime:'12:00'};
  const passengerLegs=[{kind:'OUTBOUND',miles:20,durationMinutes:30,trafficDurationMinutes:30},{kind:'RETURN',miles:25,durationMinutes:30,trafficDurationMinutes:30}];
@@ -49,7 +68,7 @@ test('stretcher and ambulance round trips adjust both directions without compoun
 });
 
 test('very slow, zero-distance and missing-time routes remain finite and never get a faster estimate',()=>{
- for(const service of ['wheelchair','stretcher','bls'])for(const input of [{miles:5,durationMinutes:60},{miles:.25,durationMinutes:20},{miles:0,durationMinutes:0},{miles:0,durationMinutes:15},{miles:10,durationMinutes:0,trafficDurationMinutes:15}]){
+ for(const service of ['wheelchair','stretcher','bls','bariatric'])for(const input of [{miles:5,durationMinutes:60},{miles:.25,durationMinutes:20},{miles:0,durationMinutes:0},{miles:0,durationMinutes:15},{miles:10,durationMinutes:0,trafficDurationMinutes:15}]){
   const travel=Fare.serviceTravel(input,service);
   assert.ok(Number.isFinite(travel.scheduledMinutes));
   assert.ok(travel.scheduledMinutes>=Math.max(input.durationMinutes||0,input.trafficDurationMinutes||0));

@@ -367,7 +367,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
   </div>
   <h3>Service policy matrix</h3>
   <details style="margin-bottom:18px"><summary>Service travel-time planning</summary>
-    <p class="muted">Travel time uses each route segment's miles and calculated average speed. Reduce that average for the selected service, then add the route's traffic delay. Initial reductions are 10 mph for wheelchair, 20 mph for stretcher and 25 mph for BLS, ALS I, ALS II and critical-care ambulance transfers. These are Nexus planning assumptions. Rider assistance between stops is separate from driving and waiting.</p>
+    <p class="muted">Travel time uses each route segment's miles and calculated average speed. Reduce that average for the selected service, then add the route's traffic delay. Initial reductions are 10 mph for wheelchair, 20 mph for stretcher 25 mph for BLS, ALS I, ALS II and critical-care ambulance transfers, and 35 mph for Additional Capacity. These are Nexus planning assumptions. Rider assistance between stops is separate from driving and waiting.</p>
     <div class="pricingFieldGrid"><div class="formField"><label for="minimumPlanningSpeedMph">Minimum planning average (mph)</label><input id="minimumPlanningSpeedMph" data-fare-rule="minimumPlanningSpeedMph" type="number" min="1" max="30" step="0.1" value="5"></div></div>
     <p class="muted">The minimum prevents excessive estimates on very slow routes; it never makes the estimate faster than the route baseline. Empty vehicle travel uses the route estimate.</p>
     <div class="tableWrap"><table class="table configTable" aria-label="Service travel-time planning"><thead><tr><th>Service</th><th>Average speed reduction (mph)</th><th>Assistance between stops (min)</th></tr></thead><tbody id="serviceTravelRows"></tbody></table></div>
@@ -625,7 +625,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">&#9855;</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div>
 <div id="adminToast" class="adminToast" role="status" aria-live="polite" hidden></div>
 <script src="./nexus-core.js"></script><script src="./platform.js?v=69"></script>
-<script src="./nexus-fare.js?v=20261010-service-speeds"></script><script src="./admin-app.js?v=20261010-service-speeds"></script></body></html>
+<script src="./nexus-fare.js?v=20261010-capacity-speed"></script><script src="./admin-app.js?v=20261010-capacity-speed"></script></body></html>
 
 
 

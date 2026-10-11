@@ -1,6 +1,6 @@
 const {test,expect}=require('@playwright/test');
 const Fare=require('../nexus-fare.js');
-const settings={organization:{yardAddress:'Company yard',preTripInspectionMinutes:45},pricing:Object.fromEntries(['ambulatory','wheelchair','stretcher','bls','als1','als2','facility_transfer_critical'].map(service=>[service,{base:100,includedMiles:100,perMile:0,waitPer15:20}])),fareRules:{waitingPolicyVersion:2,freeWaitMinutes:15,fuelSurchargePerMile:0,trafficOverageFeePerHour:0,servicePolicies:{wheelchair:{trafficOverageFeePerHour:0},stretcher:{speedReductionMph:0},bls:{speedReductionMph:0},als1:{speedReductionMph:0},als2:{speedReductionMph:0},facility_transfer_critical:{speedReductionMph:0}}}};
+const settings={organization:{yardAddress:'Company yard',preTripInspectionMinutes:45},pricing:Object.fromEntries(['ambulatory','wheelchair','stretcher','bariatric','bls','als1','als2','facility_transfer_critical'].map(service=>[service,{base:100,includedMiles:100,perMile:0,waitPer15:20}])),fareRules:{waitingPolicyVersion:2,freeWaitMinutes:15,fuelSurchargePerMile:0,trafficOverageFeePerHour:0,servicePolicies:{wheelchair:{trafficOverageFeePerHour:0},stretcher:{speedReductionMph:0},bariatric:{speedReductionMph:0},bls:{speedReductionMph:0},als1:{speedReductionMph:0},als2:{speedReductionMph:0},facility_transfer_critical:{speedReductionMph:0}}}};
 async function prepare(page,{roundTrip=false,multiStop=false,role}={}){
  let submitted;
  if(role)await page.addInitScript(role=>{
@@ -38,6 +38,8 @@ test('service cards show route duration and each service uses its own planning a
  await expect(page.locator('[data-service="ambulatory"] .serviceCardEta')).toHaveText('~30 min drive');
  await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~40 min drive');
  await expect(page.locator('[data-service="stretcher"] .serviceCardEta')).toHaveText('~1h drive');
+ await expect(page.locator('[data-service="bariatric"]')).toContainText('Additional Capacity');
+ await expect(page.locator('[data-service="bariatric"] .serviceCardEta')).toHaveText('~4h drive');
  await page.locator('[data-service="wheelchair"]').click();await expect(page.locator('#tripTime')).toHaveValue('09:05');
  await expect(page.locator('#estDuration')).toHaveText('~40 min trip');
  await page.locator('[data-service="ambulatory"]').click();await expect(page.locator('#tripTime')).toHaveValue('09:15');
@@ -52,6 +54,9 @@ test('stretcher and ambulance pickup estimates use their requested reductions',a
  await page.locator('[data-service="stretcher"]').click();
  await expect(page.locator('#tripTime')).toHaveValue('08:45');
  await expect(page.locator('#estDuration')).toHaveText('~1h trip');
+ await page.locator('[data-service="bariatric"]').click();
+ await expect(page.locator('#tripTime')).toHaveValue('05:45');
+ await expect(page.locator('#estDuration')).toHaveText('~4h trip');
  await page.locator('#toggleMoreRideOptions').click();
  for(const service of ['bls','als1','als2','facility_transfer_critical']){
   await page.locator(`[data-service="${service}"]`).click();

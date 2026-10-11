@@ -4,7 +4,7 @@ Reviewed October 10, 2026. This research concerns passenger driving estimates an
 
 ## What the research supports
 
-The current sources reviewed do not establish universal average speeds for ambulatory, wheelchair, Broda, stretcher or bariatric medical transport vans. The operator has configured route-average reductions of 10 mph for wheelchair, 20 mph for stretcher and 25 mph for ambulance services. These are Nexus planning assumptions, not established medical standards or directions to drivers. An estimate must account for the route, traffic and service assistance rather than assigning one constant speed to every city and highway trip.
+The current sources reviewed do not establish universal average speeds for ambulatory, wheelchair, Broda, stretcher or bariatric medical transport vans. The operator has configured route-average reductions of 10 mph for wheelchair, 20 mph for stretcher, 25 mph for ambulance services and 35 mph for Additional Capacity (bariatric). These are Nexus planning assumptions, not established medical standards or directions to drivers. An estimate must account for the route, traffic and service assistance rather than assigning one constant speed to every city and highway trip.
 
 ### Recent transport and patient-comfort evidence
 
@@ -62,11 +62,11 @@ The speed allowance is applied to the original route baseline, not to the alread
 | Ambulatory | 0 mph | 10 min |
 | Wheelchair | 10 mph | 15 min |
 | Stretcher | 20 mph | 25 min |
-| Bariatric | 0 mph until configured | 25 min |
+| Additional Capacity (bariatric) | 35 mph | 25 min |
 | BLS, ALS I, ALS II and critical-care ambulance transfers | 25 mph | 10 min |
 | Broda and routine facility transfer | 0 mph until configured | 10 min |
 
-These assistance values retain the existing Nexus scheduling allowances. All reductions and intermediate assistance times can be edited separately for each service in **Nexus Pricing Manager → Service travel-time planning**. Service travel policy version 2 replaces the former zero defaults for stretcher and ambulance services; subsequent explicit overrides, including zero, are retained. Remaining services retain their route baseline until configured.
+These assistance values retain the existing Nexus scheduling allowances. All reductions and intermediate assistance times can be edited separately for each service in **Nexus Pricing Manager → Service travel-time planning**. Service travel policy version 2 replaces the former zero defaults for stretcher and ambulance services; version 3 replaces the former zero default for Additional Capacity. Subsequent explicit overrides, including zero, are retained. Additional Capacity permits reductions up to 35 mph; other services retain their 30 mph limit. Remaining services retain their route baseline until configured.
 
 ## Worked example
 

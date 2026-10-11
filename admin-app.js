@@ -836,7 +836,7 @@ function renderServicePolicyRows(settings){
   const travelRows=document.getElementById('serviceTravelRows');
   if(travelRows)travelRows.innerHTML=ordered.map(key=>{
     const label=pricing[key]?.label||key.toUpperCase(),policy=NexusFare.travelPolicy(key,rules);
-    return `<tr data-service-policy="${key}"><td><strong>${escapeHtml(label)}</strong></td>${[['speedReductionMph',30,.1],['transitionBufferMinutes',120,1]].map(([field,max,step])=>`<td><input aria-label="${escapeHtml(label)} ${field}" type="number" step="${step}" min="0" max="${max}" data-field="${field}" value="${policy[field]}" ${canEditSettings()?'':'disabled'} style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>`).join('')}</tr>`;
+    return `<tr data-service-policy="${key}"><td><strong>${escapeHtml(label)}</strong></td>${[['speedReductionMph',key==='bariatric'?35:30,.1],['transitionBufferMinutes',120,1]].map(([field,max,step])=>`<td><input aria-label="${escapeHtml(label)} ${field}" type="number" step="${step}" min="0" max="${max}" data-field="${field}" value="${policy[field]}" ${canEditSettings()?'':'disabled'} style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>`).join('')}</tr>`;
   }).join('');
 }
 
@@ -884,7 +884,7 @@ document.getElementById('refreshServiceAnalysis')?.addEventListener('click',()=>
 document.getElementById('serviceAnalysisDays')?.addEventListener('change',()=>void loadServiceTravelAnalysis());
 
 function readPricingRules(){
-  const rules={...(currentSettings?.fareRules||{}),waitingPolicyVersion:2,serviceTravelPolicyVersion:2};
+  const rules={...(currentSettings?.fareRules||{}),waitingPolicyVersion:2,serviceTravelPolicyVersion:3};
   document.querySelectorAll('#pricingSection [data-fare-rule]').forEach(input=>{
     rules[input.dataset.fareRule]=input.tagName==='SELECT'?input.value:Number(input.value);
   });

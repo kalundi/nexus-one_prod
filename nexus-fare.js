@@ -88,10 +88,10 @@
     const key=normalizeService(service),policy=rules.servicePolicies?.[key]||{};
     const bounded=(value,fallback,min,max)=>Number.isFinite(Number(value))&&value!=null&&value!==''?Math.min(max,Math.max(min,Number(value))):fallback;
     const ambulance=['bls','als1','als2','facility_transfer_critical'].includes(key);
-    const defaultReduction=key==='wheelchair'?10:key==='stretcher'?20:ambulance?25:0;
+    const defaultReduction=key==='wheelchair'?10:key==='stretcher'?20:ambulance?25:key==='bariatric'?35:0;
     // Replace the former zero defaults once; subsequent explicit settings remain editable.
-    const migrateZero=!(Number(rules.serviceTravelPolicyVersion)>=2)&&(key==='stretcher'||ambulance)&&Number(policy.speedReductionMph)===0;
-    return {speedReductionMph:bounded(migrateZero?null:policy.speedReductionMph,defaultReduction,0,30),minimumPlanningSpeedMph:bounded(rules.minimumPlanningSpeedMph,5,1,30),transitionBufferMinutes:bounded(policy.transitionBufferMinutes,key==='wheelchair'?15:['stretcher','bariatric'].includes(key)?25:10,0,120)};
+    const migrateZero=Number(policy.speedReductionMph)===0&&((!(Number(rules.serviceTravelPolicyVersion)>=2)&&(key==='stretcher'||ambulance))||(!(Number(rules.serviceTravelPolicyVersion)>=3)&&key==='bariatric'));
+    return {speedReductionMph:bounded(migrateZero?null:policy.speedReductionMph,defaultReduction,0,key==='bariatric'?35:30),minimumPlanningSpeedMph:bounded(rules.minimumPlanningSpeedMph,5,1,30),transitionBufferMinutes:bounded(policy.transitionBufferMinutes,key==='wheelchair'?15:['stretcher','bariatric'].includes(key)?25:10,0,120)};
   }
   function serviceTravel(route={},service,rules={}){
     const policy=travelPolicy(service,rules);
@@ -255,7 +255,7 @@
     if(raw==='wc'||raw.startsWith('wheelchair'))return 'wheelchair';
     if(raw==='amb'||raw.startsWith('ambulatory'))return 'ambulatory';
     if(raw.startsWith('stretcher'))return 'stretcher';
-    if(raw.startsWith('bariatric'))return 'bariatric';
+    if(raw.startsWith('bariatric')||raw==='additional_capacity')return 'bariatric';
     if(raw.startsWith('broda'))return 'broda';
     if(/(^|_)als(?:_?2|_ii)(?:_|$)/.test(raw))return 'als2';
     if(/(^|_)als(?:_?1|_i)?(?:_|$)/.test(raw))return 'als1';

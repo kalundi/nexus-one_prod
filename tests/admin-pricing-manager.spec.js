@@ -2,7 +2,7 @@ const {test,expect}=require('@playwright/test');
 async function openPricing(page,role='ADMIN'){
  let saved;
  let settings={pricing:{wheelchair:{label:'Wheelchair',base:98,includedMiles:8,perMile:4.1,waitPer15:18.75},ambulatory:{label:'Ambulatory',base:75,includedMiles:5,perMile:3.55,waitPer15:12.5}},organization:{name:'Nexus',phone:'8885550101',email:'staff@example.com',website:'https://example.com'},activeServices:['WHEELCHAIR'],fareRules:{waitingPolicyVersion:2,freeWaitMinutes:15,minimumFare:0,fuelSurchargePerMile:0,fuelPricingMode:'MANUAL',fuelIndexSource:'EIA',fuelIndexPricePerGallon:0,fuelBaselinePricePerGallon:3.25,fuelEfficiencyMpg:10,fuelOperationalBufferPct:20,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30,deadheadRatePct:50,shortNoticeHours:24,shortNoticeSurchargePct:30,cardProcessingFeePct:3,trafficOverageFeePerHour:0,trafficOverageGraceMinutes:0,cancellationFee:30,noShowFee:50,cancellationWindowHours:24,cancellationLeadHours:72,maxBookingDistanceMiles:125,insuranceCostPerTrip:23,telemetryRefreshSeconds:20,servicePolicies:{wheelchair:{freeWaitMinutes:15,trafficOverageFeePerHour:25,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30,cancellationFee:40,noShowFee:60},ambulatory:{freeWaitMinutes:15,trafficOverageFeePerHour:20,afterHoursSurchargePct:30,weekendSurchargePct:30,holidaySurchargePct:30,cancellationFee:35,noShowFee:50}}}};
- for(const [service,label] of [['stretcher','Stretcher'],['bls','BLS Ambulance'],['als1','ALS I Ambulance'],['als2','ALS II Ambulance'],['facility_transfer_critical','Critical-care ambulance transfer']]){
+ for(const [service,label] of [['stretcher','Stretcher'],['bariatric','Additional Capacity'],['bls','BLS Ambulance'],['als1','ALS I Ambulance'],['als2','ALS II Ambulance'],['facility_transfer_critical','Critical-care ambulance transfer']]){
   settings.pricing[service]={label,base:100,includedMiles:5,perMile:4,waitPer15:20};
   settings.fareRules.servicePolicies[service]={speedReductionMph:0};
  }
@@ -37,6 +37,9 @@ test('pricing manager saves all active fare variables and preserves unrelated se
  await page.locator('#pricingSection details').filter({has:page.locator('#serviceTravelRows')}).locator('summary').click();
  await expect(page.locator('[data-service-policy="wheelchair"] [data-field="speedReductionMph"]')).toHaveValue('10');
  await expect(page.locator('[data-service-policy="stretcher"] [data-field="speedReductionMph"]')).toHaveValue('20');
+ const capacityReduction=page.locator('[data-service-policy="bariatric"] [data-field="speedReductionMph"]');
+ await expect(capacityReduction).toHaveValue('35');await expect(capacityReduction).toHaveAttribute('max','35');
+ expect(await capacityReduction.evaluate(input=>input.validity.valid)).toBe(true);
  for(const service of ['bls','als1','als2','facility_transfer_critical'])await expect(page.locator(`[data-service-policy="${service}"] [data-field="speedReductionMph"]`)).toHaveValue('25');
  await page.locator('#minimumPlanningSpeedMph').fill('8');
  await page.locator('[data-service-policy="wheelchair"] [data-field="speedReductionMph"]').fill('7');
@@ -49,7 +52,8 @@ test('pricing manager saves all active fare variables and preserves unrelated se
  expect(saved.fareRules.servicePolicies.wheelchair).toMatchObject({freeWaitMinutes:30,afterHoursSurchargePct:10,trafficOverageFeePerHour:0});
  expect(saved.fareRules.minimumPlanningSpeedMph).toBe(8);
  expect(saved.fareRules.servicePolicies.wheelchair).toMatchObject({speedReductionMph:7,transitionBufferMinutes:20});
- expect(saved.fareRules.serviceTravelPolicyVersion).toBe(2);
+ expect(saved.fareRules.serviceTravelPolicyVersion).toBe(3);
+ expect(saved.fareRules.servicePolicies.bariatric.speedReductionMph).toBe(35);
  expect(saved.fareRules.servicePolicies.stretcher.speedReductionMph).toBe(20);
  for(const service of ['bls','als1','als2','facility_transfer_critical'])expect(saved.fareRules.servicePolicies[service].speedReductionMph).toBe(25);
  expect(saved.organization).toBeUndefined();
@@ -57,6 +61,7 @@ test('pricing manager saves all active fare variables and preserves unrelated se
  await expect(page.locator('#cardProcessingFeePct')).toHaveValue('4');
  await expect(page.locator('[data-key="wheelchair"]')).toContainText('After 30 min');
  await expect(page.locator('[data-service-policy="wheelchair"] [data-field="speedReductionMph"]')).toHaveValue('7');
+ await expect(page.locator('[data-service-policy="bariatric"] [data-field="speedReductionMph"]')).toHaveValue('35');
  await page.locator('#pricingSection').screenshot({path:'output/admin-pricing-manager.png'});
 });
 test('dispatchers can inspect pricing but cannot change its variables',async({page})=>{

@@ -44,7 +44,8 @@ test('server settings migrate old waits once and retain all fare variables after
  assert.equal(old.fareRules.minimumPlanningSpeedMph,5);
  assert.equal(old.fareRules.servicePolicies.wheelchair.speedReductionMph,10);
  assert.equal(old.fareRules.servicePolicies.ambulatory.speedReductionMph,0);
- assert.equal(old.fareRules.serviceTravelPolicyVersion,2);
+ assert.equal(old.fareRules.serviceTravelPolicyVersion,3);
+ assert.equal(old.fareRules.servicePolicies.bariatric.speedReductionMph,35);
  assert.equal(old.fareRules.servicePolicies.stretcher.speedReductionMph,20);
  for(const service of ['bls','als1','als2','facility_transfer_critical'])assert.equal(old.fareRules.servicePolicies[service].speedReductionMph,25);
  const legacyZero=context.mergePlatformSettings({fareRules:{servicePolicies:{stretcher:{speedReductionMph:0},bls:{speedReductionMph:0},als1:{speedReductionMph:0},als2:{speedReductionMph:0},facility_transfer_critical:{speedReductionMph:0}}}});
@@ -53,6 +54,14 @@ test('server settings migrate old waits once and retain all fare variables after
  const currentOverride=context.mergePlatformSettings({...legacyZero,fareRules:{...legacyZero.fareRules,servicePolicies:{...legacyZero.fareRules.servicePolicies,stretcher:{speedReductionMph:0},bls:{speedReductionMph:7}}}});
  assert.equal(currentOverride.fareRules.servicePolicies.stretcher.speedReductionMph,0);
  assert.equal(currentOverride.fareRules.servicePolicies.bls.speedReductionMph,7);
+ const previousVersion=context.mergePlatformSettings({fareRules:{serviceTravelPolicyVersion:2,servicePolicies:{bariatric:{speedReductionMph:0},stretcher:{speedReductionMph:0},bls:{speedReductionMph:7}}}});
+ assert.equal(previousVersion.fareRules.servicePolicies.bariatric.speedReductionMph,35);
+ assert.equal(previousVersion.fareRules.servicePolicies.stretcher.speedReductionMph,0);
+ assert.equal(previousVersion.fareRules.servicePolicies.bls.speedReductionMph,7);
+ const capacityOverride=context.mergePlatformSettings({...previousVersion,fareRules:{...previousVersion.fareRules,servicePolicies:{...previousVersion.fareRules.servicePolicies,bariatric:{speedReductionMph:0}}}});
+ assert.equal(capacityOverride.fareRules.servicePolicies.bariatric.speedReductionMph,0);
+ const capacityBound=context.mergePlatformSettings({fareRules:{serviceTravelPolicyVersion:3,servicePolicies:{bariatric:{speedReductionMph:1000}}}});
+ assert.equal(capacityBound.fareRules.servicePolicies.bariatric.speedReductionMph,35);
  for(const policy of Object.values(old.fareRules.servicePolicies))assert.equal(policy.freeWaitMinutes,15);
  const edited=context.mergePlatformSettings({...old,fareRules:{...old.fareRules,minimumPlanningSpeedMph:8,deadheadRatePct:25,shortNoticeHours:12,shortNoticeSurchargePct:40,cardProcessingFeePct:4,servicePolicies:{...old.fareRules.servicePolicies,wheelchair:{...old.fareRules.servicePolicies.wheelchair,freeWaitMinutes:30,speedReductionMph:7,transitionBufferMinutes:20}}}});
  assert.equal(edited.fareRules.servicePolicies.wheelchair.freeWaitMinutes,30);
