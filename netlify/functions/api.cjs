@@ -1017,6 +1017,8 @@ function mergeServicePolicies(input,freeWaitMinutes=15,waitingPolicyVersion=2){
   const src=input[key]||{};
   base[key]={
    freeWaitMinutes:waitingPolicyVersion>=2?clamp(n(src.freeWaitMinutes,freeWaitMinutes),0,240):15,
+   speedReductionMph:clamp(n(src.speedReductionMph,NexusFare.travelPolicy(key).speedReductionMph),0,30),
+   transitionBufferMinutes:clamp(n(src.transitionBufferMinutes,NexusFare.travelPolicy(key).transitionBufferMinutes),0,120),
    cancellationFee:clamp(n(src.cancellationFee,base[key].cancellationFee),0,10000),
    noShowFee:clamp(n(src.noShowFee,base[key].noShowFee),0,10000),
    trafficOverageFeePerHour:clamp(n(src.trafficOverageFeePerHour,base[key].trafficOverageFeePerHour),0,1000),
@@ -1085,6 +1087,7 @@ function mergePlatformSettings(raw){
    noShowFee:clamp(n(fareSrc.noShowFee,DEFAULT_PLATFORM_SETTINGS.fareRules.noShowFee),0,10000),
    freeWaitMinutes:Number(fareSrc.waitingPolicyVersion)>=2?clamp(n(fareSrc.freeWaitMinutes,15),0,240):15,
    waitingPolicyVersion:2,
+   minimumPlanningSpeedMph:clamp(n(fareSrc.minimumPlanningSpeedMph,5),1,30),
    deadheadRatePct:clamp(n(fareSrc.deadheadRatePct,50),0,100),
    shortNoticeHours:clamp(n(fareSrc.shortNoticeHours,24),0,168),
    shortNoticeSurchargePct:clamp(n(fareSrc.shortNoticeSurchargePct,30),0,100),

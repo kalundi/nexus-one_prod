@@ -19,7 +19,9 @@ test('a booking made more than 24 hours before pickup stays nonurgent on review'
 });
 test('round trip includes each leg, calculated return waiting and selected savings',()=>{
  const fare=Fare.calculateBooking({...booking,createdAt:'2030-08-12T20:00:00Z',tripType:'ROUND_TRIP',returnTripDate:'2030-08-15',returnTripTime:'12:00'}, {...inputs,discountPct:10},settings);
- assert.equal(fare.waitMinutes,90);
+ assert.equal(fare.waitMinutes,80);
+ assert.equal(fare.drivingMinutes,80);
+ assert.equal(fare.journeyMinutes,160);
  assert.equal(fare.waitCharge,93.75);
  assert.equal(fare.discountedTotal,371.21);
 });

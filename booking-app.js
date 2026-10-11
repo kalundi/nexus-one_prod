@@ -267,6 +267,7 @@
   let destinationStopDraftCache = [];
   let legAppointmentTimeDraftCache = [];
   let routeLegTravelMinutes = [];
+  let routeStopMetrics = [];
   let measuredRouteInputs=null;
   const locationSuggestionCache = new Map();
   const routePointCache = new Map();
@@ -574,12 +575,16 @@
       memberSavings: discountView.memberSavings,
       discountPct: discountView.discountPct,
       fare: discountView.total,
+      passengerLegs:breakdown.passengerLegs,
       deadheadCharge:Number(breakdown.deadheadCharge || 0), shortNoticeCharge:Number(breakdown.shortNoticeCharge || 0), deadheadSegments:breakdown.deadheadSegments || []
       ,routeFareInputs:measuredRouteInputs
     };
 
     estMiles.textContent = `${Number(breakdown.passengerMilesTotal||estimateState.miles).toFixed(1)} mi total`;
-    estDuration.textContent = durationText || '-';
+    estimateState.tripDurationText=breakdown.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.journeyMinutes)}${String(tripType?.value)==='ROUND_TRIP'?' round trip':' trip'}`:'Time pending';
+    estimateState.travelBreakdown=[`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving`,breakdown.waitMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:'',breakdown.transitionMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''].filter(Boolean).join(' · ');
+    estDuration.textContent = estimateState.tripDurationText;
+    if($('fareTravelBreakdown'))$('fareTravelBreakdown').textContent=estimateState.travelBreakdown;
     const selectedRate=getPricing(normalizeService($('service').value));
     const legCopy=(breakdown.passengerLegs||[]).map(leg=>`${leg.kind==='RETURN'?'Return':'Outbound'}: ${leg.miles.toFixed(2)} miles (${leg.billableMiles.toFixed(2)} billable)`).join('. ');
     const mileageCopy=`Each leg: $${Number(selectedRate.base||0).toFixed(2)} base includes ${Number(selectedRate.includedMiles||0)} miles; additional miles are $${Number(selectedRate.perMile||0).toFixed(2)} each. ${legCopy}.`;
@@ -677,7 +682,6 @@
     const miles=Number(estimateState.miles||0);
     const date=String($('tripDate')?.value||new Date().toISOString().slice(0,10));
     const time=String($('tripTime')?.value||appointmentTimeInput?.value||'10:00');
-    const etaByService={ambulatory:'15–25 min',wheelchair:'30–45 min',stretcher:'Dispatch review',bariatric:'Dispatch review'};
     serviceChips.querySelectorAll('.serviceCard').forEach((chip)=>{
       const service=normalizeService(chip.dataset.service);
       let meta=chip.querySelector('.serviceCardMarketMeta');
@@ -689,10 +693,15 @@
       }
       const eta=meta.querySelector('.serviceCardEta');
       const fare=meta.querySelector('.serviceCardFare');
-      if(eta)eta.textContent=etaByService[service]||'By request';
+      const breakdown=miles>0?calculateFareBreakdown(service,miles,date,time,{durationMinutes:estimateState.durationMinutes,trafficDurationMinutes:estimateState.trafficDurationMinutes}):null;
+      if(eta){
+        eta.textContent=breakdown?.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.journeyMinutes)} ${String(tripType?.value)==='ROUND_TRIP'||isMultipleStopsEnabled()?'total':'drive'}`:'Time pending';
+        eta.title=breakdown?`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving${breakdown.waitMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:''}${breakdown.transitionMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''}`:'Enter the route and schedule to calculate travel time.';
+        eta.setAttribute('aria-label',eta.title);
+      }
       const requiresReview=service==='stretcher'||service==='bariatric';
       if(fare){
-        const total=miles>0?pricingWithMembership(calculateFareBreakdown(service,miles,date,time,{durationMinutes:estimateState.durationMinutes,trafficDurationMinutes:estimateState.trafficDurationMinutes}).total).total:0;
+        const total=breakdown?pricingWithMembership(breakdown.total).total:0;
         fare.textContent=requiresReview&&!total?'Review':(total?`$${total.toFixed(2)}`:'Estimate');
         fare.classList.toggle('review',requiresReview&&!total);
       }
@@ -823,7 +832,7 @@
     const stopWaitMinutes = appointments.slice(0, -1).map((item, index) => {
       const current = parseTimeToMinutes(item.appointmentTime);
       const next = parseTimeToMinutes(appointments[index + 1].appointmentTime);
-      const travel = Number(routeLegTravelMinutes[index + 1] || 0);
+      const travel = getStopTravelMinutes(index+1,service);
       if(!hasRoute || !travel || current == null || next == null) return 0;
       const departure = next - 15 - Math.ceil(travel) - serviceTransitionBufferMinutes(service);
       return Math.max(0, departure - (current - 15));
@@ -832,7 +841,7 @@
     if(hasRoute && String(tripType?.value || '').toUpperCase() === 'ROUND_TRIP'){
       const appointment = parseTimeToMinutes(appointments[appointments.length - 1]?.appointmentTime || '');
       const outboundPickup = parseTimeToMinutes($('tripTime')?.value || '');
-      const travel = Math.ceil(Math.max(Number(routeMetrics.durationMinutes || 0), Number(routeMetrics.trafficDurationMinutes || 0)));
+      const travel = Math.ceil(getOutboundTravel(service,routeMetrics).scheduledMinutes+stopWaitMinutes.reduce((sum,value)=>sum+value,0)+stopWaitMinutes.length*serviceTransitionBufferMinutes(service));
       const arrival = isPickupTimeBasis() && outboundPickup != null ? outboundPickup + travel : (appointment == null ? null : appointment - 15);
       const pickup = parseTimeToMinutes(returnTripTime?.value || '');
       const outboundDate = Date.parse(`${$('tripDate')?.value}T00:00:00Z`);
@@ -859,7 +868,7 @@
     appointments.slice(0, -1).forEach((item, index) => {
       const input = $(`stopPickupTime-${index + 1}`);
       const next = parseTimeToMinutes(appointments[index + 1].appointmentTime);
-      const travel = Number(routeLegTravelMinutes[index + 1] || 0);
+      const travel = getStopTravelMinutes(index+1);
       if(input) input.value = next != null && travel > 0 ? minutesToTime(next - 15 - Math.ceil(travel) - serviceTransitionBufferMinutes()) : '';
     });
   }
@@ -870,9 +879,7 @@
   }
 
   function serviceTransitionBufferMinutes(service = normalizeService($('service')?.value)){
-    if(service === 'wheelchair') return 15;
-    if(service === 'stretcher' || service === 'bariatric') return 25;
-    return 10;
+    return NexusFare.travelPolicy(service,fareRules).transitionBufferMinutes;
   }
 
   function evaluateMultiStopFeasibility(){
@@ -887,7 +894,7 @@
       const current = parseTimeToMinutes(appointments[index].appointmentTime);
       const next = parseTimeToMinutes(appointments[index + 1].appointmentTime);
       const wait = Math.max(0, Number(waits[index] || 0));
-      const travel = Math.max(1, Math.ceil(Number(routeLegTravelMinutes[index + 1] || 0)));
+      const travel = Math.max(1, Math.ceil(getStopTravelMinutes(index+1)));
       const earliestArrival = current - 15 + wait + assistanceBuffer + travel;
       checks.push({ fromLeg: index + 1, toLeg: index + 2, waitMinutes: wait, assistanceBuffer, travelMinutes: travel, earliestArrival, appointmentMinutes: next, cushionMinutes: next - 15 - earliestArrival });
     }
@@ -1577,7 +1584,7 @@
     if(!getProgressState().allRequiredComplete||!destinationConfirmed)return;
     lastPromptedFareSignature=fareEstimateSignature;
     if(fareConfirmAmount)fareConfirmAmount.textContent=`$${Number(estimateState.fare||0).toFixed(2)}`;
-    if(fareConfirmDetails)fareConfirmDetails.textContent=`${Number(estimateState.miles||0).toFixed(1)} miles • ${estimateState.durationText||'Estimated travel time pending'}`;
+    if(fareConfirmDetails)fareConfirmDetails.textContent=`${Number(estimateState.miles||0).toFixed(1)} miles • ${estimateState.tripDurationText||'Estimated travel time pending'}${estimateState.travelBreakdown?` • ${estimateState.travelBreakdown}`:''}`;
     if(fareConfirmDialog?.showModal)fareConfirmDialog.showModal();
   }
 
@@ -1861,7 +1868,7 @@
     return points;
   }
 
-  async function estimateFallbackRoute(pickupOrStops, destination, waypointStops = [], travelMinutes = []){
+  async function estimateFallbackRoute(pickupOrStops, destination, waypointStops = [], travelMinutes = [], legMetrics = []){
     const stops = Array.isArray(pickupOrStops)
       ? pickupOrStops
       : [pickupOrStops, ...(Array.isArray(waypointStops) ? waypointStops : []), destination].filter(Boolean);
@@ -1881,7 +1888,8 @@
       if(!straightMiles) return null;
       const legMiles = Math.max(1, straightMiles * 1.18);
       totalMiles += legMiles;
-      travelMinutes.push(Math.max(15, Math.round((legMiles / 25) * 60)));
+      const minutes=Math.max(15, Math.round((legMiles / 25) * 60));
+      travelMinutes.push(minutes);legMetrics.push({miles:legMiles,durationMinutes:minutes,trafficDurationMinutes:minutes});
     }
     return totalMiles;
   }
@@ -1937,15 +1945,18 @@
   }
 
   function calculateFareBreakdown(service,miles,dateStr,timeStr,routeMetrics={}){
+    const rawOutbound={...routeMetrics,miles,stopDistancesMiles:routeStopMetrics.map(leg=>leg.miles),stopDurationMinutes:routeStopMetrics.map(leg=>leg.durationMinutes),stopTrafficDurationMinutes:routeStopMetrics.map(leg=>leg.trafficDurationMinutes)};
+    const passengerLegs=measuredRouteInputs?.passengerLegs||[{...rawOutbound,kind:'OUTBOUND'},...(String(tripType?.value)==='ROUND_TRIP'?[{...routeMetrics,miles,kind:'RETURN'}]:[])];
+    const outbound=getOutboundTravel(service,{...routeMetrics,miles});
     let pickupTime=timeStr;
     if(typeof appointmentTimeInput!=='undefined'&&appointmentTimeInput?.value&&!isPickupTimeBasis()){
-      const firstLeg=Math.ceil(Number(routeLegTravelMinutes[0]||Math.max(routeMetrics.durationMinutes||0,routeMetrics.trafficDurationMinutes||0)));
+      const firstLeg=Math.ceil(outbound.stopScheduledMinutes[0]||outbound.scheduledMinutes);
       if(firstLeg>0)pickupTime=minutesToTime(parseTimeToMinutes(appointmentTimeInput.value)-firstLeg-15);
     }
     return NexusFare.calculate({service,miles,date:dateStr,time:pickupTime,rate:getPricing(service),rules:fareRules,
       tripType:tripType?.value,returnDate:returnTripDate?.value,returnTime:returnTripTime?.value,
       waitMinutes:getWaitingCharge(service,routeMetrics).waitMinutes||0,
-      metrics:{...(typeof measuredRouteInputs!=='undefined'?measuredRouteInputs:null),...routeMetrics,deadheadSegments:routeMetrics.deadheadSegments||[deadheadRouteMiles.toPickup,String(tripType?.value).toUpperCase()==='ROUND_TRIP'?deadheadRouteMiles.fromReturn:deadheadRouteMiles.fromDestination]}});
+      metrics:{...(typeof measuredRouteInputs!=='undefined'?measuredRouteInputs:null),...routeMetrics,passengerLegs,deadheadSegments:routeMetrics.deadheadSegments||[deadheadRouteMiles.toPickup,String(tripType?.value).toUpperCase()==='ROUND_TRIP'?deadheadRouteMiles.fromReturn:deadheadRouteMiles.fromDestination]}});
   }
 
   function calculateFare(service, miles, dateStr, timeStr, routeMetrics = {}){
@@ -2176,11 +2187,16 @@
     return `${hh}:${mm}`;
   }
 
+  function getOutboundTravel(service=normalizeService($('service')?.value),metrics=estimateState){
+    const route=measuredRouteInputs?.passengerLegs?.[0]||{...metrics,miles:metrics.miles??routeStopMetrics.reduce((sum,leg)=>sum+leg.miles,0),stopDistancesMiles:routeStopMetrics.map(leg=>leg.miles),stopDurationMinutes:routeStopMetrics.map(leg=>leg.durationMinutes),stopTrafficDurationMinutes:routeStopMetrics.map(leg=>leg.trafficDurationMinutes)};
+    return NexusFare.serviceTravel(route,service,fareRules);
+  }
+  function getStopTravelMinutes(index,service=normalizeService($('service')?.value)){
+    return getOutboundTravel(service).stopScheduledMinutes[index]||NexusFare.serviceTravel(routeStopMetrics[index],service,fareRules).scheduledMinutes||Number(routeLegTravelMinutes[index]||0);
+  }
   function getEstimatedRouteMinutes(){
-    if(isMultipleStopsEnabled() && routeLegTravelMinutes[0] > 0) return Number(routeLegTravelMinutes[0]);
-    const traffic = Math.max(0, Number(estimateState.trafficDurationMinutes || 0));
-    const scheduled = Math.max(0, Number(estimateState.durationMinutes || 0));
-    return Math.max(traffic, scheduled);
+    const travel=getOutboundTravel();
+    return isMultipleStopsEnabled()?travel.stopScheduledMinutes[0]||travel.scheduledMinutes:travel.scheduledMinutes;
   }
 
   function getDriverYardReportTime(){
@@ -3064,6 +3080,7 @@
     yardToPickupDurationMinutes = 0;
     yardToPickupTrafficDurationMinutes = 0;
     routeLegTravelMinutes = [];
+    routeStopMetrics = [];
     measuredRouteInputs=null;
     deadheadRouteMiles = { toPickup:0, fromDestination:0, fromReturn:0 };
 
@@ -3071,20 +3088,22 @@
       await loadMaps();
       const dirSvc = new google.maps.DirectionsService();
       const waypoints = destinations.slice(0, -1).map((location) => ({ location, stopover: true }));
+      const departure=new Date(`${tripDate}T${fareTime}:00`);
       const result = await new Promise((resolve, reject) => {
         dirSvc.route({
           origin: pickup,
           destination,
           waypoints,
           travelMode: google.maps.TravelMode.DRIVING,
-          drivingOptions: {
-            departureTime: new Date(),
+          ...(Number.isFinite(departure.getTime())&&departure.getTime()>=Date.now()?{drivingOptions: {
+            departureTime: departure,
             trafficModel: google.maps.TrafficModel.BEST_GUESS
-          },
+          }}:{}),
           unitSystem: google.maps.UnitSystem.IMPERIAL
         }, (res, status) => status === 'OK' ? resolve(res) : reject(new Error(status)));
       });
       const legs = result.routes?.[0]?.legs || [];
+      routeStopMetrics=legs.map(leg=>({miles:Number(leg.distance?.value||0)/1609.344,durationMinutes:Number(leg.duration?.value||0)/60,trafficDurationMinutes:Number(leg.duration_in_traffic?.value??leg.duration?.value??0)/60}));
       routeLegTravelMinutes = legs.map((leg) => Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60);
       miles = legs.reduce((sum, leg) => sum + (Number(leg?.distance?.value || 0) / 1609.34), 0);
       durationMinutes = legs.reduce((sum, leg) => sum + (Number(leg?.duration?.value || 0) / 60), 0);
@@ -3107,7 +3126,8 @@
       renderMultiStopFeasibility();
     }catch(err){
       const fallbackLegTravelMinutes = [];
-      const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations], undefined, [], fallbackLegTravelMinutes);
+      const fallbackLegMetrics=[];
+      const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations], undefined, [], fallbackLegTravelMinutes,fallbackLegMetrics);
       if(estimateVersion!==routeEstimateVersion)return estimateState;
       if(fallbackMiles){
         const deadhead = await estimateDeadheadMiles(pickup, destination, tripDate, fareTime);
@@ -3115,6 +3135,7 @@
         deadheadRouteMiles = deadhead;
         const fallbackDurationMinutes = fallbackLegTravelMinutes.reduce((sum, minutes) => sum + minutes, 0);
         routeLegTravelMinutes = fallbackLegTravelMinutes;
+        routeStopMetrics = fallbackLegMetrics;
         const fallbackBreakdown = calculateFareBreakdown(service, fallbackMiles, tripDate, fareTime, { durationMinutes: fallbackDurationMinutes, trafficDurationMinutes: fallbackDurationMinutes });
         renderFareEstimateBreakdown(fallbackBreakdown, fallbackMiles, `Estimated locally (~${fallbackDurationMinutes} min)`, fallbackDurationMinutes, fallbackDurationMinutes);
         setStatus('Your route and fare were estimated using the available location information.', 'ok');
@@ -3785,7 +3806,7 @@
       // The server redeems the coupon and applies its discount exactly once.
       estimatedFare: Number((!editingBookingReference ? appliedPromotion?.originalFare : null) ?? estimateState.fare ?? 0),
       memberDiscountPct: Number(estimateState.discountPct || 0),
-      fareInputs:{...estimateState.routeFareInputs,miles:Number(estimateState.miles||0),durationMinutes:Number(estimateState.durationMinutes||0),trafficDurationMinutes:Number(estimateState.trafficDurationMinutes||0),stopWaitMinutes:getStopWaitMinutes().reduce((sum,value)=>sum+Number(value||0),0),deadheadSegments:estimateState.deadheadSegments||[0,0],discountPct:Number(estimateState.discountPct||0),scheduleBasis:isPickupTimeBasis()?'PICKUP':'APPOINTMENT',finalAppointmentTime:getLegAppointments().at(-1)?.appointmentTime||''},
+      fareInputs:{...estimateState.routeFareInputs,passengerLegs:estimateState.passengerLegs,miles:Number(estimateState.miles||0),durationMinutes:Number(estimateState.durationMinutes||0),trafficDurationMinutes:Number(estimateState.trafficDurationMinutes||0),stopWaitMinutes:getStopWaitMinutes().reduce((sum,value)=>sum+Number(value||0),0),stopAppointmentTimes:getLegAppointments().map(item=>item.appointmentTime),deadheadSegments:estimateState.deadheadSegments||[0,0],discountPct:Number(estimateState.discountPct||0),scheduleBasis:isPickupTimeBasis()?'PICKUP':'APPOINTMENT',finalAppointmentTime:getLegAppointments().at(-1)?.appointmentTime||''},
       memberDiscountAmount: Number(estimateState.memberSavings || 0),
       promotionCode: appliedPromotion?.code || '',
       pickupTimeEstimate: String($('tripTime')?.value || '').trim(),

@@ -23,7 +23,7 @@ for (const scenario of [
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     const body = path === '/api/integrations/config' ? { stripeEnabled:true, googleMapsEnabled:false }
-      : path === '/api/settings/public' ? { pricing:{wheelchair:{base:100,includedMiles:99999,perMile:0,waitPer15:20}},fareRules:{freeWaitMinutes:120,minimumFare:0,fuelSurchargePerMile:0,...scenario.rules} }
+      : path === '/api/settings/public' ? { pricing:{wheelchair:{base:100,includedMiles:99999,perMile:0,waitPer15:20}},fareRules:{freeWaitMinutes:120,minimumFare:0,fuelSurchargePerMile:0,...scenario.rules,servicePolicies:{...scenario.rules?.servicePolicies,wheelchair:{speedReductionMph:0,...scenario.rules?.servicePolicies?.wheelchair}}} }
       : path === '/api/locations/search' ? { locations:[{lat:39,lng:-76}] }
       : path === '/api/bookings' ? (() => {
         submitted = route.request().postDataJSON();

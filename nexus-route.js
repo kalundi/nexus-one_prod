@@ -31,7 +31,7 @@
  function fromDirections(result,segment){
   const legs=result?.routes?.[0]?.legs;
   if(!Array.isArray(legs)||!legs.length||legs.some(leg=>!Number.isFinite(Number(leg.distance?.value))||!Number.isFinite(Number(leg.duration?.value))))throw Error('Driving route has no valid distance or travel time.');
-  return {...segment,miles:legs.reduce((sum,leg)=>sum+Number(leg.distance.value)/1609.344,0),durationMinutes:legs.reduce((sum,leg)=>sum+Number(leg.duration.value)/60,0),trafficDurationMinutes:legs.reduce((sum,leg)=>sum+Number(leg.duration_in_traffic?.value??leg.duration.value)/60,0),stopTravelMinutes:legs.map(leg=>Number(leg.duration_in_traffic?.value??leg.duration.value)/60)};
+  return {...segment,miles:legs.reduce((sum,leg)=>sum+Number(leg.distance.value)/1609.344,0),durationMinutes:legs.reduce((sum,leg)=>sum+Number(leg.duration.value)/60,0),trafficDurationMinutes:legs.reduce((sum,leg)=>sum+Number(leg.duration_in_traffic?.value??leg.duration.value)/60,0),stopTravelMinutes:legs.map(leg=>Number(leg.duration_in_traffic?.value??leg.duration.value)/60),stopDistancesMiles:legs.map(leg=>Number(leg.distance.value)/1609.344),stopDurationMinutes:legs.map(leg=>Number(leg.duration.value)/60),stopTrafficDurationMinutes:legs.map(leg=>Number(leg.duration_in_traffic?.value??leg.duration.value)/60)};
  }
  function inputs(booking,yard,routes){
   const passengerLegs=routes.filter(route=>['OUTBOUND','RETURN'].includes(route.kind));

@@ -833,14 +833,19 @@ function renderServicePolicyRows(settings){
     const fields=[['freeWaitMinutes',rules.freeWaitMinutes??15,240,1],['trafficOverageFeePerHour',rules.trafficOverageFeePerHour??0,1000,.01],['afterHoursSurchargePct',rules.afterHoursSurchargePct??30,100,.1],['weekendSurchargePct',rules.weekendSurchargePct??30,100,.1],['holidaySurchargePct',rules.holidaySurchargePct??30,100,.1],['cancellationFee',rules.cancellationFee??0,10000,.01],['noShowFee',rules.noShowFee??0,10000,.01]];
     return `<tr data-service-policy="${key}"><td><strong>${escapeHtml(label)}</strong></td>${fields.map(([field,fallback,max,step])=>`<td><input aria-label="${escapeHtml(label)} ${field}" type="number" step="${step}" min="0" max="${max}" data-field="${field}" value="${Number(p[field]??fallback)}" ${canEditSettings()?'':'disabled'} style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>`).join('')}</tr>`;
   }).join('');
+  const travelRows=document.getElementById('serviceTravelRows');
+  if(travelRows)travelRows.innerHTML=ordered.map(key=>{
+    const label=pricing[key]?.label||key.toUpperCase(),policy=NexusFare.travelPolicy(key,rules);
+    return `<tr data-service-policy="${key}"><td><strong>${escapeHtml(label)}</strong></td>${[['speedReductionMph',30,.1],['transitionBufferMinutes',120,1]].map(([field,max,step])=>`<td><input aria-label="${escapeHtml(label)} ${field}" type="number" step="${step}" min="0" max="${max}" data-field="${field}" value="${policy[field]}" ${canEditSettings()?'':'disabled'} style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>`).join('')}</tr>`;
+  }).join('');
 }
 
 function readServicePoliciesFromTable(){
   const out={};
-  document.querySelectorAll('#servicePolicyRows tr[data-service-policy]').forEach((tr)=>{
+  document.querySelectorAll('#servicePolicyRows tr[data-service-policy],#serviceTravelRows tr[data-service-policy]').forEach((tr)=>{
     const key=tr.getAttribute('data-service-policy');
     if(!key)return;
-    const row={...(currentSettings?.fareRules?.servicePolicies?.[key]||{})};
+    const row={...(out[key]||currentSettings?.fareRules?.servicePolicies?.[key]||{})};
     tr.querySelectorAll('input[data-field]').forEach((input)=>{
       const field=input.getAttribute('data-field');
       row[field]=Number(input.value||0);

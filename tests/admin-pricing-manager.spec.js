@@ -30,16 +30,24 @@ test('pricing manager saves all active fare variables and preserves unrelated se
  await page.locator('#deadheadRatePct').fill('25');await page.locator('#shortNoticeHours').fill('12');await page.locator('#shortNoticeSurchargePct').fill('40');await page.locator('#cardProcessingFeePct').fill('4');
  await page.locator('[data-key="wheelchair"] [data-field="waitPer15"]').fill('20');
  await page.locator('[data-service-policy="wheelchair"] [data-field="trafficOverageFeePerHour"]').fill('0');
+ await page.locator('#pricingSection details').filter({has:page.locator('#serviceTravelRows')}).locator('summary').click();
+ await expect(page.locator('[data-service-policy="wheelchair"] [data-field="speedReductionMph"]')).toHaveValue('10');
+ await page.locator('#minimumPlanningSpeedMph').fill('8');
+ await page.locator('[data-service-policy="wheelchair"] [data-field="speedReductionMph"]').fill('7');
+ await page.locator('[data-service-policy="wheelchair"] [data-field="transitionBufferMinutes"]').fill('20');
  await page.locator('#savePricing').click();
  await expect(page.locator('#pricingSavedMsg')).toContainText('Rates and fare rules saved');
  const saved=mock.getSaved();
  expect(saved.pricing.wheelchair.waitPer15).toBe(20);
  expect(saved.fareRules).toMatchObject({waitingPolicyVersion:2,freeWaitMinutes:20,deadheadRatePct:25,shortNoticeHours:12,shortNoticeSurchargePct:40,cardProcessingFeePct:4,insuranceCostPerTrip:23,fuelIndexSource:'EIA'});
  expect(saved.fareRules.servicePolicies.wheelchair).toMatchObject({freeWaitMinutes:30,afterHoursSurchargePct:10,trafficOverageFeePerHour:0});
+ expect(saved.fareRules.minimumPlanningSpeedMph).toBe(8);
+ expect(saved.fareRules.servicePolicies.wheelchair).toMatchObject({speedReductionMph:7,transitionBufferMinutes:20});
  expect(saved.organization).toBeUndefined();
  await page.reload();
  await expect(page.locator('#cardProcessingFeePct')).toHaveValue('4');
  await expect(page.locator('[data-key="wheelchair"]')).toContainText('After 30 min');
+ await expect(page.locator('[data-service-policy="wheelchair"] [data-field="speedReductionMph"]')).toHaveValue('7');
  await page.locator('#pricingSection').screenshot({path:'output/admin-pricing-manager.png'});
 });
 test('dispatchers can inspect pricing but cannot change its variables',async({page})=>{
@@ -49,6 +57,7 @@ test('dispatchers can inspect pricing but cannot change its variables',async({pa
  await expect(page.locator('#deadheadRatePct')).toBeDisabled();
  await expect(page.locator('[data-key="wheelchair"] [data-field="base"]')).toBeDisabled();
  await expect(page.locator('[data-service-policy="wheelchair"] [data-field="freeWaitMinutes"]')).toBeDisabled();
+ await expect(page.locator('[data-service-policy="wheelchair"] [data-field="speedReductionMph"]')).toBeDisabled();
  const overflow=await page.locator('#pricingSection').evaluate(section=>Array.from(section.querySelectorAll('.pricingFieldGrid input,.pricingFieldGrid select')).filter(input=>input.getClientRects().length&&input.getBoundingClientRect().right>section.getBoundingClientRect().right+1).map(input=>input.id));
  expect(overflow).toEqual([]);
 });

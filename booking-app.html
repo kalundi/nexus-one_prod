@@ -1002,7 +1002,7 @@ Destination: -</p>
 
       <section class="section sectionProgressive" id="rideTypeSection">
         <button type="button" class="rideSheetHandle" id="rideSheetHandle" aria-label="Collapse ride choices" aria-expanded="true"></button>
-        <div class="rideMarketplaceIntro"><div><h2>Choose your Nexus ride</h2><span>Live route-based estimate</span></div><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help me choose</button><button type="button" class="rideSheetToggle" id="rideSheetToggle" aria-label="Collapse ride choices" aria-expanded="true"></button></div>
+        <div class="rideMarketplaceIntro"><div><h2>Choose your Nexus ride</h2><span>Route-based time and fare</span></div><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help me choose</button><button type="button" class="rideSheetToggle" id="rideSheetToggle" aria-label="Collapse ride choices" aria-expanded="true"></button></div><p class="subtle" id="rideTravelHint">Times estimate your journey. Round-trip totals include driving and scheduled waiting.</p>
         <p class="subtle rideGuidancePrompt">Answer three quick questions. We will recommend the most suitable ride option.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
         <div class="mobilityQuestions" id="mobilityQuestions">
@@ -1091,7 +1091,7 @@ Destination: -</p>
 
         <div class="estimate" aria-live="polite">
           <div class="line"><b>Distance</b><span id="estMiles">-</span></div>
-          <div class="line"><b>ETA</b><span id="estDuration">-</span></div>
+          <div class="line"><b>Trip duration</b><span id="estDuration">-</span></div><p class="subtle" id="fareTravelBreakdown"></p>
           <div class="line" id="estPremiumRow" hidden><b>Schedule premium (included)</b><span id="estPremiumCharge">-</span></div>
           <div class="line" id="estWaitRow" hidden><b id="estWaitLabel">Waiting time</b><span id="estWaitCharge">-</span></div>
           <div class="line" id="estDeadheadRow" hidden><b>Deadhead mileage</b><span id="estDeadheadCharge">-</span></div>
@@ -1171,7 +1171,7 @@ Destination: -</p>
         <h2 id="distanceEtaTitle">Distance &amp; ETA</h2>
         <div class="fareSummaryCard" aria-live="polite">
           <div class="fareSummaryLine"><b>Distance</b><span id="fareSummaryDistance">-</span></div>
-          <div class="fareSummaryLine"><b>ETA</b><span id="fareSummaryEta">-</span></div>
+          <div class="fareSummaryLine"><b>Trip duration</b><span id="fareSummaryEta">-</span></div>
         </div>
       </section>
 
@@ -1297,7 +1297,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=69"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-<script src="./nexus-fare.js?v=20261010-route-segments"></script><script src="./nexus-route.js?v=20261010-route-segments"></script>  <script src="./booking-app.js?v=20261010-route-segments"></script>
+<script src="./nexus-fare.js?v=20261010-service-time"></script><script src="./nexus-route.js?v=20261010-service-time"></script>  <script src="./booking-app.js?v=20261010-service-time"></script>
 <script src="./patient-booking-bridge.js?v=20261010"></script>
 </body>
 </html>
