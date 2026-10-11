@@ -2,6 +2,17 @@ const crypto=require('crypto');
 const {query}=require('./db.cjs');
 const {getFallbackSession}=require('./fallback-auth.cjs');
 const digest=v=>crypto.createHash('sha256').update(v).digest('hex');
+const EXPERIENCE_ROLES=['ADMIN','DISPATCHER','DRIVER','FACILITY','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER','STAFF'];
+function resolveSessionRoles(user,roleRows=[]){
+  const baseRole=String(user.role||'PATIENT').toUpperCase();
+  const approved=new Map(roleRows.map(row=>[String(row.role).toUpperCase(),row.scope_id||null]));
+  approved.set(baseRole,user.scope_id||null);
+  approved.set('PATIENT',null);
+  if(approved.has('ADMIN'))for(const role of EXPERIENCE_ROLES)if(!approved.has(role))approved.set(role,null);
+  const requested=String(user.active_role||baseRole).toUpperCase();
+  const role=approved.has(requested)?requested:baseRole;
+  return {...user,role,scope_id:approved.get(role)||null,available_roles:[...approved.keys()]};
+}
 function safeUser(row){return {id:row.id,email:row.email,phone:row.phone||'',displayName:row.display_name,role:row.role,roles:Array.isArray(row.available_roles)?row.available_roles:[row.role],scopeId:row.scope_id||null,mustChangePassword:!!row.must_change_password}}
 
 // Inactivity timeout: 1 hour for non-DRIVER roles, 12 hours for DRIVER
@@ -27,13 +38,7 @@ async function requireUser(token,roles=[]){
   if(!u) throw Object.assign(new Error('Session expired or invalid'),{statusCode:401});
   if(u.session_id){
     const roleRows=await query("SELECT role,scope_id FROM user_role_requests WHERE user_id=$1 AND status='APPROVED'",[u.id]).catch(()=>({rows:[]}));
-    const approved=new Map((roleRows.rows||[]).map(row=>[String(row.role).toUpperCase(),row.scope_id||null]));
-    approved.set(String(u.role||'PATIENT').toUpperCase(),u.scope_id||null);
-    approved.set('PATIENT',null);
-    const requested=String(u.active_role||u.role||'PATIENT').toUpperCase();
-    u.available_roles=[...approved.keys()];
-    u.role=approved.has(requested)?requested:String(u.role||'PATIENT').toUpperCase();
-    if(approved.has(u.role)&&approved.get(u.role))u.scope_id=approved.get(u.role);
+    u=resolveSessionRoles(u,roleRows.rows||[]);
   }
   // Inactivity timeout — only when the column exists in the result
   if(u.last_activity_at&&u.session_id){
@@ -55,4 +60,4 @@ async function audit(entityType,entityId,action,changes){
     console.warn('[AUDIT] Non-blocking audit failure:', error?.message||error);
   }
 }
-module.exports={digest,safeUser,requireUser,audit};
+module.exports={digest,safeUser,requireUser,audit,resolveSessionRoles};

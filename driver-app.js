@@ -29,6 +29,7 @@
     }
     sessionStorage.setItem('nexusUser',userJson);
     localStorage.setItem('nexusUser',userJson);
+    window.NexusExperiences?.mountNative(user);
   }
   const ADDRESS_COORDS = {
     '110 irving street nw, washington, dc 20010': {lat:38.929298,lng:-77.013962},

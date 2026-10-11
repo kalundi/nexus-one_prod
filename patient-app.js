@@ -30,6 +30,7 @@
 
  function notice(message){$('portalNotice').textContent=message;}
  function identity(user){
+  window.NexusExperiences?.mountNative(sharedRide?null:user);
   const name=sharedRide?'Shared ride':String(user?.displayName||user?.name||'Patient');
   $('patientName').textContent=name;
   $('patientAvatar').textContent=name.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase();
