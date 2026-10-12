@@ -361,6 +361,7 @@
   document.addEventListener('click',(e)=>{
     const v=$('.view.active');
     if(!v)return;
+    if(e.target.closest('#driverSmartTiming'))return;
     const card=e.target.closest('.card');
     if(!card||!v.contains(card))return;
     if(v.id==='dashView'&&card.id==='routeFocusCard')return;
@@ -1650,6 +1651,41 @@
     setRouteFocus(true);
   }
 
+  function renderDriverTiming(trip){
+    let host=$('#driverSmartTiming');
+    if(!host){host=document.createElement('div');host.id='driverSmartTiming';host.className='smartTimingSummary';$('#tripDateBadge')?.parentElement?.after(host);}
+    host.hidden=!trip.timingPlan;
+    if(host.hidden){host.replaceChildren();return;}
+    const plan=trip.timingPlan,projection=trip.timingPrediction||plan;
+    const expanded=host.querySelector('details')?.open||false;
+    const stamp=at=>Number.isFinite(at)?new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',month:'short',day:'numeric'}).format(new Date(at)):'Time pending';
+    const paragraph=(parent,text,className)=>{const node=document.createElement('p');node.textContent=text;if(className)node.className=className;parent.append(node);};
+    host.replaceChildren();
+    const grid=document.createElement('div');grid.className='smartTimingGrid';
+    [['Crew arrives at pickup',projection.crewArrivalAt],['Patient arrives at destination',projection.predictedPatientArrivalAt||projection.patientArrivalAt],['Vehicle ready after handoff',projection.returnTimePending?null:projection.predictedVehicleAvailableAt||projection.vehicleAvailableAt]].forEach(([label,at])=>{
+      const cell=document.createElement('div'),small=document.createElement('small'),value=document.createElement('strong');small.textContent=label;value.textContent=at==null&&projection.returnTimePending&&label.startsWith('Vehicle')?'Return time pending':stamp(at);cell.append(small,value);grid.append(cell);
+    });
+    host.append(grid);
+    (projection.alerts||[]).forEach(alert=>paragraph(host,alert.message,'smartTimingWarning'));
+    (trip.locationInstructions||[]).forEach(info=>paragraph(host,`${info.address}: ${info.instructions}`,'driverTimingAccess'));
+    const guidance=document.createElement('details'),summary=document.createElement('summary');guidance.className='driverTimingGuidance';guidance.open=expanded;summary.textContent='Pickup and handoff guidance';guidance.append(summary);
+    const sources={CMS_CARE_COMPARE:'CMS provider record',NPPES_NPI_REGISTRY:'NPI record',GOOGLE_PLACES:'Google Places',NEXUS_FACILITY_PROFILE:'Nexus profile'};
+    (plan.legs||[]).forEach((leg,index)=>{
+      const section=document.createElement('section'),title=document.createElement('strong');title.textContent=leg.kind==='RETURN'?'Return trip':`Outbound stop ${index+1}`;section.append(title);
+      paragraph(section,`${leg.from} → ${leg.to}`);
+      paragraph(section,`Pickup and securement: ${leg.pickupMinutes} min. Patient departs ${stamp(leg.patientDepartureAt)}.`);
+      paragraph(section,`Driving: ${leg.drivingMinutes} min. Unloading and handoff: ${leg.handoffMinutes} min. Documentation and buffer: ${leg.bufferMinutes} min.`);
+      if(Number.isFinite(leg.deadlineAt))paragraph(section,`Finish handoff and documentation by ${stamp(leg.deadlineAt)}.`);
+      [['Pickup',leg.pickupHandling],['Destination',leg.destinationHandling]].forEach(([label,handling])=>{
+        if(!handling)return;
+        paragraph(section,`${label}: ${handling.facilityName||String(handling.facilityType||'UNKNOWN').toLowerCase().replaceAll('_',' ')} (${sources[handling.identificationSource]||'type not confirmed'}).`);
+      });
+      guidance.append(section);
+    });
+    paragraph(guidance,plan.confidence==='LOW'?'Planning allowances; facility history is limited.':`Facility history: ${String(plan.confidence||'MEDIUM').toLowerCase()} confidence.`);
+    host.append(guidance);
+  }
+
   function renderTripDetailPanel(t){
     if(!t)return;
     $('#tripRef').textContent=t.ref;
@@ -1658,10 +1694,7 @@
     $('#tripDestination').textContent=t.destination;
     $('#tripServiceBadge').textContent=t.service;
     $('#tripDateBadge').textContent=`${fmtDate(t.date)} ${t.time}`;
-    let timingBox=$('#driverSmartTiming');
-    if(!timingBox){timingBox=document.createElement('div');timingBox.id='driverSmartTiming';timingBox.className='smartTimingSummary';$('#tripDateBadge')?.parentElement?.after(timingBox);}
-    timingBox.hidden=!t.timingPlan;
-    if(t.timingPlan){const p=t.timingPrediction||t.timingPlan,stamp=at=>new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',month:'short',day:'numeric'}).format(new Date(at));timingBox.textContent=`Crew pickup ${stamp(p.crewArrivalAt)} · Patient arrival ${stamp(p.predictedPatientArrivalAt||p.patientArrivalAt)} · Vehicle ready ${p.returnTimePending?'return time pending':stamp(p.predictedVehicleAvailableAt||p.vehicleAvailableAt)}. ${p.alerts.map(a=>a.message).join(' ')} ${(t.locationInstructions||[]).map(l=>l.address+': '+l.instructions).join(' · ')}`;}
+    renderDriverTiming(t);
     const sc={COMPLETED:'green',DELIVERED:'green',CANCELLED:'red',MISSED:'red',NO_SHOW:'red',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',DEPARTED:'amber'};
     $('#tripStatusBadge').textContent=t.status.replace(/_/g,' ');
     $('#tripStatusBadge').className=`badge ${sc[t.status]||'blue'}`;
