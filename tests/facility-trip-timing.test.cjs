@@ -52,8 +52,13 @@ test('Postgres migration, real facility learning, and resource occupancy work to
   CREATE TABLE trip_status_history(booking_reference text,status text,created_at timestamptz,note text);
   CREATE TABLE users(id text primary key,active boolean,role text,scope_id text);CREATE TABLE employees(id text primary key,user_id text,role text,active boolean,display_name text,email text,phone text);
   CREATE TABLE user_role_requests(user_id text,role text,status text,scope_id text);CREATE TABLE employee_shifts(employee_id text,weekday_iso integer,start_time time,end_time time,effective_start_date date,effective_end_date date,active boolean,assignment_role text);
-  CREATE TABLE vehicles(unit_number text primary key,active boolean,status text);`);
+  CREATE TABLE vehicles(unit_number text primary key,status text);INSERT INTO vehicles VALUES('EXISTING','AVAILABLE');`);
  await db.exec(fs.readFileSync('database/migrations/087.001_smart_trip_timing.sql','utf8'));
+ await db.exec(fs.readFileSync('database/migrations/088.001_vehicle_availability_active.sql','utf8'));
+ assert.equal((await query("SELECT active FROM vehicles WHERE unit_number='EXISTING'")).rows[0].active,true);
+ await query("UPDATE vehicles SET active=false WHERE unit_number='EXISTING'");
+ await db.exec(fs.readFileSync('database/migrations/088.001_vehicle_availability_active.sql','utf8'));
+ assert.equal((await query("SELECT active FROM vehicles WHERE unit_number='EXISTING'")).rows[0].active,false,'rerunning migration preserves deactivated vehicles');
  assert.equal((await query("SELECT value->'fareRules'->'smartTiming'->>'enabled' AS enabled FROM system_settings")).rows[0].enabled,'true');
  for(let i=0;i<11;i++){
   const ref=i===10?'MOCK-TEST':'REAL-'+i,source=i===10?'MOCK':'CUSTOMER',mins=i===10?170:20+i;
@@ -69,9 +74,9 @@ test('Postgres migration, real facility learning, and resource occupancy work to
  assert.equal(plan.legs[0].pickupMinutes,28);assert.equal(plan.legs[0].handoffMinutes,20);assert.equal(plan.confidence,'MEDIUM');
  assert(!JSON.stringify(ctx).includes('REAL-'));assert(!JSON.stringify(ctx).includes('MOCK-'));
  await db.exec(`INSERT INTO users VALUES('u1',true,'DRIVER','D1'),('u2',true,'DRIVER','D2');INSERT INTO employees VALUES('e1','u1','DRIVER',true,'Occupied Driver',null,null),('e2','u2','DRIVER',true,'Free Driver',null,null);
-  INSERT INTO employee_shifts VALUES('e1',3,'06:00','15:00','2026-01-01',null,true,'DRIVER'),('e2',3,'06:00','15:00','2026-01-01',null,true,'DRIVER');INSERT INTO vehicles VALUES('WC-1',true,'AVAILABLE'),('WC-2',true,'AVAILABLE');`);
+  INSERT INTO employee_shifts VALUES('e1',3,'06:00','15:00','2026-01-01',null,true,'DRIVER'),('e2',3,'06:00','15:00','2026-01-01',null,true,'DRIVER');INSERT INTO vehicles(unit_number,active,status) VALUES('WC-1',true,'AVAILABLE'),('WC-2',true,'AVAILABLE'),('WC-3',false,'AVAILABLE');`);
  await query("INSERT INTO bookings(reference,service,pickup,destination,trip_date,trip_time,status,booking_source,driver_name,vehicle_unit,distance_miles,estimated_duration) VALUES('ACTIVE','wheelchair',$1,$2,'2026-10-14','09:00','ARRIVED_DESTINATION','CUSTOMER','Occupied Driver','WC-1',5,'20 min')",[booking.pickup,booking.destination]);
- const available=await Availability.resources(booking,settings,query,['WC-1','WC-2']);
+ const available=await Availability.resources(booking,settings,query,['WC-1','WC-2','WC-3']);
  assert.deepEqual(available.drivers.map(d=>d.display_name),['Free Driver']);assert.deepEqual(available.vehicles.map(v=>v.unit_number),['WC-2']);
  }finally{await db.close();}
 });
