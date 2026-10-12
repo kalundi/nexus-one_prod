@@ -666,8 +666,8 @@ function renderServicePolicyRows(settings){
   }).join('');
   const travelRows=document.getElementById('serviceTravelRows');
   if(travelRows)travelRows.innerHTML=ordered.map(key=>{
-    const label=pricing[key]?.label||key.toUpperCase(),policy=NexusFare.travelPolicy(key,rules);
-    return `<tr data-service-policy="${key}"><td><strong>${escapeHtml(label)}</strong></td>${[['speedReductionMph',key==='bariatric'?35:30,.1],['transitionBufferMinutes',120,1]].map(([field,max,step])=>`<td><input aria-label="${escapeHtml(label)} ${field}" type="number" step="${step}" min="0" max="${max}" data-field="${field}" value="${policy[field]}" ${canEditSettings()?'':'disabled'} style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>`).join('')}</tr>`;
+    const label=pricing[key]?.label||key.toUpperCase(),care=NexusTripTiming.policy(key,rules),policy={...NexusFare.travelPolicy(key,rules),pickupPreparationMinutes:care.pickupMinutes,dropoffHandoffMinutes:care.handoffMinutes};
+    return `<tr data-service-policy="${key}"><td><strong>${escapeHtml(label)}</strong></td>${[['speedReductionMph',key==='bariatric'?35:30,.1],['pickupPreparationMinutes',180,1],['dropoffHandoffMinutes',180,1],['transitionBufferMinutes',120,1]].map(([field,max,step])=>`<td><input aria-label="${escapeHtml(label)} ${field}" type="number" step="${step}" min="0" max="${max}" data-field="${field}" value="${policy[field]}" ${canEditSettings()?'':'disabled'} style="width:95px;padding:8px;border:1px solid #c5d3dd;border-radius:8px"></td>`).join('')}</tr>`;
   }).join('');
 }
 
@@ -720,6 +720,8 @@ function readPricingRules(){
     rules[input.dataset.fareRule]=input.tagName==='SELECT'?input.value:Number(input.value);
   });
   rules.servicePolicies=readServicePoliciesFromTable();
+  rules.smartTiming={...(rules.smartTiming||{}),enabled:true};
+  document.querySelectorAll('[data-timing-rule]').forEach(input=>{rules.smartTiming[input.dataset.timingRule]=Number(input.value);});
   return rules;
 }
 
@@ -824,6 +826,7 @@ function applySettingsToForm(settings){
   document.getElementById('trafficOverageFeePerHour').value=fare.trafficOverageFeePerHour==null?'':Number(fare.trafficOverageFeePerHour);
   document.getElementById('trafficOverageGraceMinutes').value=fare.trafficOverageGraceMinutes==null?'':Number(fare.trafficOverageGraceMinutes);
   renderServicePolicyRows(settings);
+  document.querySelectorAll('[data-timing-rule]').forEach(input=>{input.value=fare.smartTiming?.[input.dataset.timingRule]??({checkInLeadMinutes:15,reliabilityBufferMinutes:5,minimumHistorySamples:10,historyPercentile:85}[input.dataset.timingRule]);});
   const active=new Set((settings.activeServices||[]).map(x=>String(x).toUpperCase()));
   document.querySelectorAll('#activeServicesGroup input[type="checkbox"]').forEach(i=>{i.checked=active.has(String(i.value).toUpperCase());});
   applyFuelModeUi();

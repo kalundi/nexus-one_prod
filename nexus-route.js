@@ -37,7 +37,7 @@
   const passengerLegs=routes.filter(route=>['OUTBOUND','RETURN'].includes(route.kind));
   const deadheadRoutes=routes.filter(route=>route.kind.startsWith('DEADHEAD'));
   const outbound=passengerLegs[0];
-  const value={routeVerified:true,mileageSource:'GOOGLE_DIRECTIONS',routeAddresses:locations(booking,yard),miles:outbound?.miles,durationMinutes:outbound?.durationMinutes,trafficDurationMinutes:outbound?.trafficDurationMinutes,passengerLegs,deadheadRoutes,deadheadSegments:deadheadRoutes.map(route=>route.miles)};
+  const value={routeVerified:true,mileageSource:'GOOGLE_DIRECTIONS',measuredAt:new Date().toISOString(),routeSchedule:{date:booking.date,time:booking.pickupTime||booking.time,returnDate:booking.returnTripDate,returnTime:booking.returnTripTime},routeAddresses:locations(booking,yard),miles:outbound?.miles,durationMinutes:outbound?.durationMinutes,trafficDurationMinutes:outbound?.trafficDurationMinutes,passengerLegs,deadheadRoutes,deadheadSegments:deadheadRoutes.map(route=>route.miles)};
   validate(value,booking,yard);
   return value;
  }
@@ -59,17 +59,29 @@
  }
  function googleProvider(maps,booking={}){
   const service=new maps.DirectionsService();
-  return segment=>new Promise((resolve,reject)=>{
+  const send=segment=>new Promise((resolve,reject)=>{
    const returning=segment.kind==='RETURN';
    const day=returning?booking.returnTripDate||booking.date:booking.date;
    const time=returning?booking.returnTripTime:booking.pickupTime||booking.time;
-   const departure=day&&time?new Date(String(day).slice(0,10)+'T'+String(time).slice(0,5)+':00'):null;
+   const timed=booking.timingPlan?.legs?.filter(leg=>leg.kind===segment.kind)[segment.legIndex||0];
+   const at=timed?.patientDepartureAt||(segment.kind==='DEADHEAD_TO_PICKUP'?booking.timingPlan?.crewArrivalAt:segment.kind==='DEADHEAD_AFTER_TRIP'?booking.timingPlan?.vehicleAvailableAt:null);
+   const departure=at?new Date(at):day&&time?new Date(String(day).slice(0,10)+'T'+String(time).slice(0,5)+':00'):null;
    const request={origin:segment.from,destination:segment.to,waypoints:(segment.waypoints||[]).map(location=>({location,stopover:true})),travelMode:maps.TravelMode.DRIVING};
    // Historic trips use driving distance without an invalid past traffic request.
-   if(departure&&departure.getTime()>=Date.now())request.drivingOptions={departureTime:departure,trafficModel:maps.TrafficModel.BEST_GUESS};
+   if(departure&&departure.getTime()>=Date.now())request.drivingOptions={departureTime:departure,trafficModel:booking.smartTiming?(maps.TrafficModel.PESSIMISTIC||maps.TrafficModel.BEST_GUESS):maps.TrafficModel.BEST_GUESS};
    const timer=setTimeout(()=>reject(Error('Driving route timed out.')),25000);
    service.route(request,(result,status)=>{clearTimeout(timer);status==='OK'?resolve(result):reject(Error('Driving route unavailable: '+status));});
   });
+  return async segment=>{
+   if(!booking.smartTiming||segment.kind!=='OUTBOUND'||!segment.waypoints?.length)return send(segment);
+   // Stopover requests omit duration_in_traffic. Measure each drive at its own patient departure.
+   const chain=[segment.from,...segment.waypoints,segment.to];
+   const results=await Promise.all(chain.slice(0,-1).map((from,index)=>send({kind:'OUTBOUND',from,to:chain[index+1],legIndex:index})));
+   const first=results[0],routes=results.map(r=>r.routes[0]);
+   const bounds=routes[0].bounds;if(bounds?.union)routes.slice(1).forEach(r=>{if(r.bounds)bounds.union(r.bounds);});
+   const combined={...routes[0],legs:routes.flatMap(r=>r.legs),overview_path:routes.flatMap(r=>r.overview_path||[]),bounds,waypoint_order:segment.waypoints.map((_,i)=>i)};
+   return {...first,routes:[combined],geocoded_waypoints:results.flatMap((r,i)=>i?(r.geocoded_waypoints||[]).slice(1):r.geocoded_waypoints||[])};
+  };
  }
  return {locations,key,matches,plan,fromDirections,inputs,validate,measure,googleProvider};
 });

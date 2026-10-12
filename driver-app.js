@@ -1128,6 +1128,7 @@
           destinationLat:Number.isFinite(destFromApi)?destFromApi:(destFallback?.lat??null),
           destinationLng:Number.isFinite(destLngFromApi)?destLngFromApi:(destFallback?.lng??null),
           ref,
+          timingPlan:b.timingPlan||null,timingPrediction:b.timingPrediction||null,patientReadyAt:b.patientReadyAt||previous.patientReadyAt||null,locationInstructions:b.locationInstructions||[],
           date:normalizeTripDate(b.date||b.trip_date||''),
           time:(b.time||b.trip_time||'').slice(0,5),
           pickup:b.pickup||'',
@@ -1302,16 +1303,19 @@
   const WORKFLOW=[
     {label:'En Route to Pickup',    status:'EN_ROUTE',            hint:'Start navigation to pickup and call dispatch if traffic or delay exceeds 10 minutes.'},
     {label:'Arrived at Pickup',     status:'ARRIVED_PICKUP',      hint:'Park safely, confirm passenger name and destination, and assist with secure boarding.'},
-    {label:'Patient On Board',      status:'PATIENT_ON_BOARD',    hint:'Verify seatbelt or restraint is secured, then confirm everyone is ready to depart.'},
+    {label:'Patient Ready',         status:'PATIENT_READY',       hint:'Confirm the patient is ready before loading and securement.'},
+    {label:'Patient Secured',       status:'PATIENT_ON_BOARD',    hint:'Verify seatbelt or restraint is secured, then confirm everyone is ready to depart.'},
     {label:'Departed',              status:'DEPARTED',            hint:'Drive to destination and report any route, safety, or condition changes to dispatch.'},
     {label:'Arrived at Destination',status:'ARRIVED_DESTINATION', hint:'Stop at the correct entrance, assist unloading, and confirm handoff location.'},
-    {label:'Patient Delivered',     status:'DELIVERED',           hint:'Confirm patient handoff is complete and capture any notes before closing trip.'},
+    {label:'Patient Handed Off',    status:'DELIVERED',           hint:'Confirm receiving staff accepted the patient and capture notes before closing the trip.'},
     {label:'Trip Complete',         status:'COMPLETED',           hint:'Log final mileage and notes so billing and compliance records are complete.'},
   ];
   const WF_STATUS=WORKFLOW.map(w=>w.status);
   let stepHintsOpen=false;
   function wfIdx(s){return WF_STATUS.indexOf(normalizeBookingStatus(s));}
-  function nextWorkflowStep(status){
+  function nextWorkflowStep(status,trip){
+    if(normalizeBookingStatus(status)==='ARRIVED_PICKUP'&&!trip?.patientReadyAt)return {label:'Patient Ready',status:'PATIENT_READY',hint:'Confirm the patient is ready before loading and securement.'};
+    if(normalizeBookingStatus(status)==='ARRIVED_PICKUP'&&trip?.patientReadyAt)return WORKFLOW[WF_STATUS.indexOf('PATIENT_READY')+1];
     const i=wfIdx(status);
     if(i===-1)return WORKFLOW[0]||null;
     return WORKFLOW[i+1]||null;
@@ -1321,7 +1325,7 @@
     const box=$('#tripStepHints');
     const body=$('#tripStepHintsBody');
     if(!box||!body||!t)return;
-    const idx=wfIdx(t.status);
+    const idx=t.status==='ARRIVED_PICKUP'&&t.patientReadyAt?WF_STATUS.indexOf('PATIENT_READY'):wfIdx(t.status);
     body.innerHTML=WORKFLOW.map((w,i)=>{
       const tone=i<idx?'var(--ok)':i===idx?'var(--ink)':'var(--muted)';
       const marker=i<idx?'Done':i===idx?'Current':'Next';
@@ -1345,7 +1349,7 @@
     const lines=[];
     lines.push(`Driver on file: ${driverName}.`);
     if(trip){
-      const next=nextWorkflowStep(trip.status);
+      const next=nextWorkflowStep(trip.status,trip);
       const policy=next?.status==='EN_ROUTE'?tripStartPolicy(trip):null;
       lines.push(`Active trip: ${trip.patient} (${trip.ref}).`);
       lines.push(`Route: ${trip.pickup} to ${trip.destination}.`);
@@ -1512,6 +1516,7 @@
       if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||`HTTP ${r.status}`);}
       logAutoRouteSegment(trip,current,next);
       trip.status=next;
+      if(next==='ARRIVED_PICKUP')trip.patientReadyAt=null;
       if(next==='ARRIVED_DESTINATION')routeAuto.arrivedDestinationAt=Date.now();
       renderRouteFocus();
       renderTripWorkflow(trip);
@@ -1563,12 +1568,7 @@
       syncRouteAutoUi(trip);
       return;
     }
-    if(st==='ARRIVED_DESTINATION'&&Number.isFinite(distToDest)&&distToDest<=ROUTE_AUTO_ARRIVAL_MI&&speed<=2){
-      const dwell=Date.now()-(routeAuto.arrivedDestinationAt||Date.now());
-      if(dwell>=20000){
-        await updateTripStatusAuto(trip,'DELIVERED','Auto-confirmed destination stop');
-      }
-    }
+    // Arrival proximity cannot confirm a patient handoff. The crew records it explicitly.
     syncRouteAutoUi(trip);
   }
 
@@ -1587,7 +1587,7 @@
     if($('#routeFocusMeta'))$('#routeFocusMeta').textContent=`Service: ${t.service||'N/A'} • Ref: ${t.ref}`;
     const routeWarn=$('#routeFocusVehicleWarning');
     if(routeWarn){
-      const needsStart=nextWorkflowStep(t.status)?.status==='EN_ROUTE';
+      const needsStart=nextWorkflowStep(t.status,t)?.status==='EN_ROUTE';
       const policy=needsStart?inspectionPolicyForTripStart(t):null;
       if(policy&&!policy.allowed){
         routeWarn.hidden=false;
@@ -1658,6 +1658,10 @@
     $('#tripDestination').textContent=t.destination;
     $('#tripServiceBadge').textContent=t.service;
     $('#tripDateBadge').textContent=`${fmtDate(t.date)} ${t.time}`;
+    let timingBox=$('#driverSmartTiming');
+    if(!timingBox){timingBox=document.createElement('div');timingBox.id='driverSmartTiming';timingBox.className='smartTimingSummary';$('#tripDateBadge')?.parentElement?.after(timingBox);}
+    timingBox.hidden=!t.timingPlan;
+    if(t.timingPlan){const p=t.timingPrediction||t.timingPlan,stamp=at=>new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',month:'short',day:'numeric'}).format(new Date(at));timingBox.textContent=`Crew pickup ${stamp(p.crewArrivalAt)} · Patient arrival ${stamp(p.predictedPatientArrivalAt||p.patientArrivalAt)} · Vehicle ready ${p.returnTimePending?'return time pending':stamp(p.predictedVehicleAvailableAt||p.vehicleAvailableAt)}. ${p.alerts.map(a=>a.message).join(' ')} ${(t.locationInstructions||[]).map(l=>l.address+': '+l.instructions).join(' · ')}`;}
     const sc={COMPLETED:'green',DELIVERED:'green',CANCELLED:'red',MISSED:'red',NO_SHOW:'red',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',DEPARTED:'amber'};
     $('#tripStatusBadge').textContent=t.status.replace(/_/g,' ');
     $('#tripStatusBadge').className=`badge ${sc[t.status]||'blue'}`;
@@ -1686,8 +1690,8 @@
 
   function renderTripWorkflow(t){
     const done=['COMPLETED','CANCELLED','NO_SHOW','MISSED'].includes(t.status);
-    const idx=wfIdx(t.status);
-    const next=nextWorkflowStep(t.status);
+    const idx=t.status==='ARRIVED_PICKUP'&&t.patientReadyAt?WF_STATUS.indexOf('PATIENT_READY'):wfIdx(t.status);
+    const next=nextWorkflowStep(t.status,t);
     const wfEl=$('#tripWorkflow');if(!wfEl)return;
     const startNotice=$('#tripStartNotice');
     const startPolicy=next?.status==='EN_ROUTE'?tripStartPolicy(t):null;
@@ -1799,7 +1803,7 @@
 
   $('#btnAdvanceTrip')?.addEventListener('click',async()=>{
     const t=trips.find(x=>x.ref===activeRef);if(!t)return;
-    const next=nextWorkflowStep(t.status);if(!next)return;
+    const next=nextWorkflowStep(t.status,t);if(!next)return;
     if(next.status==='EN_ROUTE'){
       const vehiclePolicy=inspectionPolicyForTripStart(t);
       if(!vehiclePolicy.allowed){
@@ -1835,7 +1839,9 @@
       }
       const r=await fetch(`/api/bookings/${encodeURIComponent(t.ref)}/update`,{method:'POST',headers:ah(),body:JSON.stringify({status:next.status,vehicleUnit:shift.vehicleUnit||undefined,earlyPickupReason:earlyPickupReason||undefined})});
       if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||`HTTP ${r.status}`);}
-      t.status=next.status;
+      const update=await r.json().catch(()=>({}));
+      t.status=normalizeBookingStatus(update.booking?.status||(next.status==='PATIENT_READY'?t.status:next.status));
+      if(next.status==='PATIENT_READY')t.patientReadyAt=update.booking?.patientReadyAt||new Date().toISOString();
       if(next.status==='EN_ROUTE'){
         shift.lastTripVehicleUnit=shift.vehicleUnit||assignedVehicleUnit(t)||'';
         saveShift();
@@ -2040,7 +2046,7 @@
       if($('#activeTripSub'))$('#activeTripSub').textContent=`${active.pickup} to ${active.destination}`;
       const vehicleWarn=$('#activeTripVehicleWarning');
       if(vehicleWarn){
-        const needsStart=nextWorkflowStep(active.status)?.status==='EN_ROUTE';
+        const needsStart=nextWorkflowStep(active.status,active)?.status==='EN_ROUTE';
         const policy=needsStart?inspectionPolicyForTripStart(active):null;
         if(policy&&!policy.allowed){
           vehicleWarn.hidden=false;

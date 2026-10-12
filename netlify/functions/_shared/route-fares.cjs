@@ -1,7 +1,7 @@
 const crypto=require('node:crypto');
 const Routes=require('../../../nexus-route.js');
 const Fare=require('../../../nexus-fare.js');
-const cacheKey=(booking,yard)=>crypto.createHash('sha256').update(Routes.key({...booking,...Fare.resolveTripSchedule(booking)},yard)).digest('hex');
+const cacheKey=(booking,yard)=>{const trip={...booking,...Fare.resolveTripSchedule(booking)};return crypto.createHash('sha256').update(Routes.key(trip,yard)+'|'+[trip.date instanceof Date?trip.date.toISOString().slice(0,10):String(trip.date||'').slice(0,10),trip.pickupTime||trip.time,trip.returnTripDate,trip.returnTripTime].join('|')).digest('hex');};
 function currentBooking(booking,settings){
  const yard=settings.organization?.yardAddress;
  if(booking.routeFareInputs&&!Routes.matches(booking.routeFareInputs,{...booking,...Fare.resolveTripSchedule(booking)},yard))return {...booking,routeFareInputs:null};

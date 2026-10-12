@@ -239,6 +239,28 @@
   let currentPatientPreferences = null;
   let platformPricing = null;
   let fareRules = { ...DEFAULT_FARE_RULES };
+  let facilityTimingContext={locations:{}};
+  const selectedTimingPlaces=new Map();
+  function getSmartTimingPlan(service=normalizeService($('service')?.value),metrics=estimateState){
+    if(!fareRules.smartTiming?.enabled||!window.NexusTripTiming)return null;
+    const date=$('tripDate')?.value||'',destinations=getRouteDestinations();
+    const outbound=measuredRouteInputs?.passengerLegs?.[0]||{...metrics,miles:metrics.miles??routeStopMetrics.reduce((n,l)=>n+l.miles,0),stopDistancesMiles:routeStopMetrics.map(l=>l.miles),stopDurationMinutes:routeStopMetrics.map(l=>l.durationMinutes),stopTrafficDurationMinutes:routeStopMetrics.map(l=>l.trafficDurationMinutes)};
+    return NexusTripTiming.plan({service,date,time:$('tripTime')?.value,pickup:$('pickup')?.value,destinations,tripType:tripType?.value,returnTripDate:returnTripDate?.value,returnTripTime:returnTripTime?.value,appointmentTime:appointmentTimeInput?.value,timingContext:facilityTimingContext},{...outbound,passengerLegs:measuredRouteInputs?.passengerLegs,scheduleBasis:isPickupTimeBasis()?'PICKUP':'APPOINTMENT',stopAppointmentTimes:getLegAppointments().map(l=>l.appointmentTime),finalAppointmentTime:appointmentTimeInput?.value,deadlineBasis:scheduleBasisInput?.value==='HANDOFF'?'HANDOFF':'APPOINTMENT'},{fareRules});
+  }
+  function renderSmartTiming(plan){
+    let panel=$('smartTimingSummary');
+    if(!panel){panel=document.createElement('div');panel.id='smartTimingSummary';panel.className='smartTimingSummary';panel.setAttribute('aria-live','polite');($('pickupWaitPair')||$('tripTime')?.parentElement)?.after(panel);}
+    if(!panel)return;panel.hidden=!plan||plan.routingPending;if(panel.hidden)return;
+    const stamp=epoch=>new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(epoch));
+    panel.replaceChildren();
+    const grid=document.createElement('div');grid.className='smartTimingGrid';
+    [['Crew arrives at pickup',plan.crewArrivalAt],['Patient arrives at destination',plan.patientArrivalAt],['Vehicle ready after handoff',plan.returnTimePending?null:plan.vehicleAvailableAt]].forEach(([label,at])=>{const item=document.createElement('div'),small=document.createElement('small'),strong=document.createElement('strong');small.textContent=label;strong.textContent=at?stamp(at):'Return time pending';item.append(small,strong);grid.append(item);});
+    const detail=document.createElement('p');detail.textContent=`${plan.preparationMinutes} min preparation and handoff · ${plan.drivingMinutes} min driving · ${plan.bufferMinutes} min buffer${plan.waitingMinutes?` · ${plan.waitingMinutes} min scheduled waiting`:''}. ${plan.confidence==='LOW'?'Planning allowances; facility history is limited.':`Facility history: ${plan.confidence.toLowerCase()} confidence.`}`;
+    const recognized=document.createElement('p');recognized.textContent=plan.legs.slice(0,1).flatMap(l=>[['Pickup',l.pickupHandling],['Destination',l.destinationHandling]]).map(([label,h])=>`${label}: ${h.facilityName||h.facilityType.toLowerCase().replace('_',' ')} (${h.identificationSource==='CMS_CARE_COMPARE'?'CMS provider record':h.identificationSource==='NPPES_NPI_REGISTRY'?'NPI record':h.identificationSource==='GOOGLE_PLACES'?'Google Places':h.identificationSource==='NEXUS_FACILITY_PROFILE'?'Nexus profile':'type not confirmed'})`).join(' · ');
+    const checkin=document.createElement('p');checkin.textContent=isPickupTimeBasis()?'Pickup means crew arrival; the patient departs after preparation and securement.':scheduleBasisInput?.value==='HANDOFF'?'Patient handoff and the reliability buffer finish by the required time.':`Handoff is planned ${NexusTripTiming.policy($('service').value,fareRules).checkInLeadMinutes} minutes before the appointment.`;
+    panel.append(grid,detail,checkin,recognized);
+    plan.alerts.filter(a=>a.code!=='ROUTE_PENDING').forEach(a=>{const warning=document.createElement('p');warning.className='smartTimingWarning';warning.textContent=a.message;panel.append(warning);});
+  }
   let companyYardAddress = DEFAULT_YARD_ADDRESS;
   let preTripInspectionMinutes = DEFAULT_PRETRIP_INSPECTION_MINUTES;
   let yardToPickupDurationMinutes = 0;
@@ -578,13 +600,15 @@
       fare: discountView.total,
       passengerLegs:breakdown.passengerLegs,
       deadheadCharge:Number(breakdown.deadheadCharge || 0), shortNoticeCharge:Number(breakdown.shortNoticeCharge || 0), deadheadSegments:breakdown.deadheadSegments || []
-      ,routeFareInputs:measuredRouteInputs
+      ,routeFareInputs:measuredRouteInputs,timingPlan:breakdown.timingPlan
     };
 
     estMiles.textContent = `${Number(breakdown.passengerMilesTotal||estimateState.miles).toFixed(1)} mi total`;
     estimateState.tripDurationText=breakdown.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.journeyMinutes)}${String(tripType?.value)==='ROUND_TRIP'?' round trip':' trip'}`:'Time pending';
     estimateState.travelBreakdown=[`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving`,breakdown.waitMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:'',breakdown.transitionMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''].filter(Boolean).join(' · ');
+    if(breakdown.timingPlan)estimateState.travelBreakdown+=` · ${breakdown.timingPlan.preparationMinutes} min preparation / handoff · ${breakdown.timingPlan.bufferMinutes} min buffer`;
     estDuration.textContent = estimateState.tripDurationText;
+    renderSmartTiming(breakdown.timingPlan);
     if($('fareTravelBreakdown'))$('fareTravelBreakdown').textContent=estimateState.travelBreakdown;
     if($('rideTimingSummary')){
       const hasReturn=String(tripType?.value)==='ROUND_TRIP';
@@ -705,7 +729,7 @@
       const fare=meta.querySelector('.serviceCardFare');
       const breakdown=miles>0?calculateFareBreakdown(service,miles,date,time,{durationMinutes:estimateState.durationMinutes,trafficDurationMinutes:estimateState.trafficDurationMinutes}):null;
       if(eta){
-        eta.textContent=breakdown?.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} drive`:'Time pending';
+        eta.textContent=breakdown?.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.timingPlan?breakdown.journeyMinutes:breakdown.drivingMinutes)} ${breakdown.timingPlan?'total':'drive'}`:'Time pending';
         eta.title=breakdown?`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving${breakdown.waitMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:''}${breakdown.transitionMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''}`:'Enter the route and schedule to calculate travel time.';
         eta.setAttribute('aria-label',eta.title);
       }
@@ -837,6 +861,14 @@
   }
 
   function getCalculatedWaiting(routeMetrics = estimateState, service = normalizeService($('service')?.value)){
+    const smart=getSmartTimingPlan(service,routeMetrics);
+    if(smart&&!smart.routingPending){
+      const outbound=smart.legs.filter(l=>l.kind==='OUTBOUND');
+      const stopWaitMinutes=outbound.slice(0,-1).map((l,i)=>Math.max(0,Math.round((outbound[i+1].crewArrivalAt-l.vehicleAvailableAt)/60000)));
+      const returning=smart.legs.find(l=>l.kind==='RETURN');
+      const returnWaitMinutes=returning&&!smart.returnTimePending?Math.max(0,Math.round((returning.crewArrivalAt-outbound.at(-1).vehicleAvailableAt)/60000)):0;
+      return {stopWaitMinutes,returnWaitMinutes,waitMinutes:stopWaitMinutes.reduce((n,v)=>n+v,0)+returnWaitMinutes};
+    }
     const appointments = getLegAppointments();
     const hasRoute = Math.max(Number(routeMetrics.durationMinutes || 0), Number(routeMetrics.trafficDurationMinutes || 0)) > 0;
     const stopWaitMinutes = appointments.slice(0, -1).map((item, index) => {
@@ -874,6 +906,8 @@
   }
 
   function syncStopPickupTimesUi(){
+    const smart=getSmartTimingPlan();
+    if(smart){smart.legs.filter(l=>l.kind==='OUTBOUND').slice(1).forEach((leg,index)=>{const input=$(`stopPickupTime-${index+1}`);if(input)input.value=NexusTripTiming.localParts(leg.crewArrivalAt).time;});return;}
     const appointments = getLegAppointments();
     appointments.slice(0, -1).forEach((item, index) => {
       const input = $(`stopPickupTime-${index + 1}`);
@@ -1955,6 +1989,7 @@
   }
 
   function calculateFareBreakdown(service,miles,dateStr,timeStr,routeMetrics={}){
+    const timingPlan=getSmartTimingPlan(service,{...routeMetrics,miles});
     const rawOutbound={...routeMetrics,miles,stopDistancesMiles:routeStopMetrics.map(leg=>leg.miles),stopDurationMinutes:routeStopMetrics.map(leg=>leg.durationMinutes),stopTrafficDurationMinutes:routeStopMetrics.map(leg=>leg.trafficDurationMinutes)};
     const passengerLegs=measuredRouteInputs?.passengerLegs||[{...rawOutbound,kind:'OUTBOUND'},...(String(tripType?.value)==='ROUND_TRIP'?[{...routeMetrics,miles,kind:'RETURN'}]:[])];
     const outbound=getOutboundTravel(service,{...routeMetrics,miles});
@@ -1963,7 +1998,8 @@
       const firstLeg=Math.ceil(outbound.stopScheduledMinutes[0]||outbound.scheduledMinutes);
       if(firstLeg>0)pickupTime=minutesToTime(parseTimeToMinutes(appointmentTimeInput.value)-firstLeg-15);
     }
-    return NexusFare.calculate({service,miles,date:dateStr,time:pickupTime,rate:getPricing(service),rules:fareRules,
+    const smartPickup=timingPlan?NexusTripTiming.localParts(timingPlan.crewArrivalAt):null;
+    return NexusFare.calculate({service,miles,date:smartPickup?.date||dateStr,time:smartPickup?.time||pickupTime,rate:getPricing(service),rules:fareRules,timingPlan,
       tripType:tripType?.value,returnDate:returnTripDate?.value,returnTime:returnTripTime?.value,
       waitMinutes:getWaitingCharge(service,routeMetrics).waitMinutes||0,
       metrics:{...(typeof measuredRouteInputs!=='undefined'?measuredRouteInputs:null),...routeMetrics,passengerLegs,deadheadSegments:routeMetrics.deadheadSegments||[deadheadRouteMiles.toPickup,String(tripType?.value).toUpperCase()==='ROUND_TRIP'?deadheadRouteMiles.fromReturn:deadheadRouteMiles.fromDestination]}});
@@ -1991,6 +2027,7 @@
       }
       if(data?.fareRules && typeof data.fareRules === 'object'){
         fareRules = { ...DEFAULT_FARE_RULES, ...data.fareRules };
+        if($('handoffScheduleOption')){$('handoffScheduleOption').hidden=!fareRules.smartTiming?.enabled;$('handoffScheduleOption').disabled=!fareRules.smartTiming?.enabled;}
       }
       if(data?.organization && typeof data.organization === 'object'){
         const yardAddress = String(data.organization.yardAddress || '').trim();
@@ -2225,6 +2262,8 @@
       syncSectionProgressUi();
       return;
     }
+    const smart=getSmartTimingPlan();
+    if(smart&&!smart.routingPending){$('tripTime').value=NexusTripTiming.localParts(smart.crewArrivalAt).time;renderSmartTiming(smart);syncSectionProgressUi();return;}
     const routeMinutes = getEstimatedRouteMinutes();
     if(!routeMinutes){
       $('tripTime').value = '';
@@ -2243,6 +2282,8 @@
     if(!appointmentTimeInput||!$('tripTime'))return;
     const pickupMinutes=parseTimeToMinutes($('tripTime').value),routeMinutes=getEstimatedRouteMinutes();
     if(pickupMinutes==null||!routeMinutes){appointmentTimeInput.value='';return;}
+    const smart=getSmartTimingPlan();
+    if(smart&&!smart.routingPending){appointmentTimeInput.value=NexusTripTiming.localParts(smart.legs[0].vehicleAvailableAt+NexusTripTiming.policy($('service').value,fareRules).checkInLeadMinutes*60000).time;renderSmartTiming(smart);return;}
     appointmentTimeInput.value=minutesToTime(pickupMinutes+Math.ceil(routeMinutes)+15);
   }
   function applyScheduleTimeCalculation(){if(isPickupTimeBasis())applyAppointmentEstimateFromPickup();else applyPickupEstimateFromAppointment();syncCalculatedWaitingUi();}
@@ -2250,8 +2291,8 @@
     const pickupBasis=isPickupTimeBasis();
     if(appointmentTimeInput){appointmentTimeInput.readOnly=pickupBasis;appointmentTimeInput.required=!pickupBasis;appointmentTimeInput.classList.toggle('systemGeneratedField',pickupBasis);}
     if($('tripTime')){$('tripTime').readOnly=!pickupBasis;$('tripTime').classList.toggle('systemGeneratedField',!pickupBasis);}
-    if(appointmentTimeLabel)appointmentTimeLabel.textContent=pickupBasis?'Estimated Arrival Time':'Appointment Time';
-    if($('pickupTimeSystemHint'))$('pickupTimeSystemHint').textContent=pickupBasis?'Enter the time the patient should be picked up.':'Calculated from the route and appointment time.';
+    if(appointmentTimeLabel)appointmentTimeLabel.textContent=pickupBasis?(fareRules.smartTiming?.enabled?'Estimated Appointment-ready Time':'Estimated Arrival Time'):scheduleBasisInput?.value==='HANDOFF'?'Required Handoff Time':'Appointment Time';
+    if($('pickupTimeSystemHint'))$('pickupTimeSystemHint').textContent=fareRules.smartTiming?.enabled?(pickupBasis?'Enter when the crew should arrive at pickup.':'Calculated from preparation, driving, handoff and your deadline.'):(pickupBasis?'Enter the time the patient should be picked up.':'Calculated from the route and appointment time.');
     applyScheduleTimeCalculation();syncSectionProgressUi();
   }
   function isPrimaryScheduleInputComplete(){return isMultipleStopsEnabled()?areLegAppointmentTimesComplete():(isPickupTimeBasis()?Boolean($('tripTime')?.value):Boolean(appointmentTimeInput?.value));}
@@ -2774,12 +2815,13 @@
       if(!window.google?.maps?.places?.Autocomplete) return false;
       if(!pickupAutocomplete){
         pickupAutocomplete = new google.maps.places.Autocomplete($('pickup'), {
-          fields:['formatted_address','geometry','place_id','name'],
+          fields:['formatted_address','geometry','place_id','name','types'],
           componentRestrictions:{country:'us'},
           types:['geocode','establishment']
         });
         pickupAutocomplete.addListener('place_changed', () => {
           const place = pickupAutocomplete.getPlace();
+          if(place?.formatted_address)selectedTimingPlaces.set(place.formatted_address,{address:place.formatted_address,name:place.name,placeId:place.place_id,types:place.types||[]});
           if(place?.formatted_address || place?.name) $('pickup').value = place.formatted_address || place.name;
           clearFlightLookup();
           resetEstimateUi();
@@ -2787,12 +2829,13 @@
       }
       if(!destinationAutocomplete){
         destinationAutocomplete = new google.maps.places.Autocomplete($('destination'), {
-          fields:['formatted_address','geometry','place_id','name'],
+          fields:['formatted_address','geometry','place_id','name','types'],
           componentRestrictions:{country:'us'},
           types:['geocode','establishment']
         });
         destinationAutocomplete.addListener('place_changed', () => {
           const place = destinationAutocomplete.getPlace();
+          if(place?.formatted_address)selectedTimingPlaces.set(place.formatted_address,{address:place.formatted_address,name:place.name,placeId:place.place_id,types:place.types||[]});
           if(place?.formatted_address || place?.name) $('destination').value = place.formatted_address || place.name;
           clearFlightLookup();
           resetEstimateUi();
@@ -3084,6 +3127,11 @@
     }
 
     let miles = 0;
+    if(fareRules.smartTiming?.enabled){
+      const addresses=[pickup,...destinations];
+      try{const response=await fetch('/api/timing/facilities',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({addresses,places:addresses.map(a=>selectedTimingPlaces.get(a)).filter(Boolean)}),signal:AbortSignal.timeout(8000)});if(!response.ok)throw Error('Facility lookup failed');facilityTimingContext=(await response.json()).context||{locations:{}};}catch{facilityTimingContext={locations:{}};}
+      if(estimateVersion!==routeEstimateVersion)return estimateState;
+    }
     let durationText = '';
     let durationMinutes = 0;
     let trafficDurationMinutes = 0;
@@ -3099,7 +3147,7 @@
       const dirSvc = new google.maps.DirectionsService();
       const waypoints = destinations.slice(0, -1).map((location) => ({ location, stopover: true }));
       const departure=new Date(`${tripDate}T${fareTime}:00`);
-      const result = await new Promise((resolve, reject) => {
+      let result = await new Promise((resolve, reject) => {
         dirSvc.route({
           origin: pickup,
           destination,
@@ -3107,7 +3155,7 @@
           travelMode: google.maps.TravelMode.DRIVING,
           ...(Number.isFinite(departure.getTime())&&departure.getTime()>=Date.now()?{drivingOptions: {
             departureTime: departure,
-            trafficModel: google.maps.TrafficModel.BEST_GUESS
+            trafficModel: fareRules.smartTiming?.enabled?(google.maps.TrafficModel.PESSIMISTIC||google.maps.TrafficModel.BEST_GUESS):google.maps.TrafficModel.BEST_GUESS
           }}:{}),
           unitSystem: google.maps.UnitSystem.IMPERIAL
         }, (res, status) => status === 'OK' ? resolve(res) : reject(new Error(status)));
@@ -3123,15 +3171,20 @@
       if(trafficText && trafficDurationMinutes > durationMinutes){
         durationText = `${durationText} (traffic ${trafficText})`;
       }
-      const routeBooking={pickup,destinations,tripType:tripType?.value,date:tripDate,time:fareTime,returnTripDate:returnTripDate?.value,returnTripTime:returnTripTime?.value};
+      const outboundPlan=getSmartTimingPlan(service,{miles,durationMinutes,trafficDurationMinutes});
+      const routeBooking={pickup,destinations,tripType:tripType?.value,date:tripDate,time:fareTime,returnTripDate:returnTripDate?.value,returnTripTime:returnTripTime?.value,timingPlan:outboundPlan,smartTiming:fareRules.smartTiming?.enabled};
       const provider=NexusRoute.googleProvider(google.maps,routeBooking);
-      const measured=await NexusRoute.measure(routeBooking,companyYardAddress,segment=>segment.kind==='OUTBOUND'?Promise.resolve(result):provider(segment));
+      let timedOutboundResult;
+      const measured=await NexusRoute.measure(routeBooking,companyYardAddress,segment=>segment.kind==='OUTBOUND'&&!fareRules.smartTiming?.enabled?Promise.resolve(result):provider(segment).then(value=>{if(segment.kind==='OUTBOUND')timedOutboundResult=value;return value;}));
       if(estimateVersion!==routeEstimateVersion)return estimateState;
       measuredRouteInputs=measured;
       miles=measured.miles;
+      durationMinutes=measured.durationMinutes;trafficDurationMinutes=measured.trafficDurationMinutes;
+      if(timedOutboundResult){const actualLegs=timedOutboundResult.routes[0].legs;routeStopMetrics=actualLegs.map(l=>({miles:l.distance.value/1609.344,durationMinutes:l.duration.value/60,trafficDurationMinutes:(l.duration_in_traffic?.value??l.duration.value)/60}));routeLegTravelMinutes=routeStopMetrics.map(l=>l.trafficDurationMinutes);}
       yardToPickupDurationMinutes=measured.deadheadRoutes[0].durationMinutes;
       yardToPickupTrafficDurationMinutes=measured.deadheadRoutes[0].trafficDurationMinutes;
       deadheadRouteMiles={toPickup:measured.deadheadSegments[0],fromDestination:measured.deadheadSegments[1],fromReturn:measured.deadheadSegments[1]};
+      if(timedOutboundResult)result=timedOutboundResult;
       renderCustomerRoute(result, pickup, destinations);
       renderMultiStopFeasibility();
     }catch(err){
@@ -3815,7 +3868,8 @@
       deadheadCharge:estimateState.deadheadCharge,
       shortNoticeCharge:estimateState.shortNoticeCharge,
       scheduleFeasibility: evaluateMultiStopFeasibility(),
-      date: $('tripDate').value,
+      date: estimateState.timingPlan?NexusTripTiming.localParts(estimateState.timingPlan.crewArrivalAt).date:$('tripDate').value,
+      appointmentDate:$('tripDate').value,
       scheduleBasis: isPickupTimeBasis()?'PICKUP':'APPOINTMENT',
       appointmentTime: String(appointmentTimeInput?.value || '').trim(),
       time: $('tripTime').value,
@@ -3826,7 +3880,7 @@
       // The server redeems the coupon and applies its discount exactly once.
       estimatedFare: Number((!editingBookingReference ? appliedPromotion?.originalFare : null) ?? estimateState.fare ?? 0),
       memberDiscountPct: Number(estimateState.discountPct || 0),
-      fareInputs:{...estimateState.routeFareInputs,passengerLegs:estimateState.passengerLegs,miles:Number(estimateState.miles||0),durationMinutes:Number(estimateState.durationMinutes||0),trafficDurationMinutes:Number(estimateState.trafficDurationMinutes||0),stopWaitMinutes:getStopWaitMinutes().reduce((sum,value)=>sum+Number(value||0),0),stopAppointmentTimes:getLegAppointments().map(item=>item.appointmentTime),deadheadSegments:estimateState.deadheadSegments||[0,0],discountPct:Number(estimateState.discountPct||0),scheduleBasis:isPickupTimeBasis()?'PICKUP':'APPOINTMENT',finalAppointmentTime:getLegAppointments().at(-1)?.appointmentTime||''},
+      fareInputs:{...estimateState.routeFareInputs,passengerLegs:estimateState.passengerLegs,miles:Number(estimateState.miles||0),durationMinutes:Number(estimateState.durationMinutes||0),trafficDurationMinutes:Number(estimateState.trafficDurationMinutes||0),stopWaitMinutes:getStopWaitMinutes().reduce((sum,value)=>sum+Number(value||0),0),stopAppointmentTimes:getLegAppointments().map(item=>item.appointmentTime),deadheadSegments:estimateState.deadheadSegments||[0,0],discountPct:Number(estimateState.discountPct||0),scheduleBasis:isPickupTimeBasis()?'PICKUP':'APPOINTMENT',finalAppointmentTime:getLegAppointments().at(-1)?.appointmentTime||'',appointmentDate:$('tripDate').value,deadlineBasis:scheduleBasisInput?.value==='HANDOFF'?'HANDOFF':'APPOINTMENT',facilityPlaces:[$('pickup').value,...routeDestinations].map(a=>selectedTimingPlaces.get(a)).filter(Boolean)},
       memberDiscountAmount: Number(estimateState.memberSavings || 0),
       promotionCode: appliedPromotion?.code || '',
       pickupTimeEstimate: String($('tripTime')?.value || '').trim(),

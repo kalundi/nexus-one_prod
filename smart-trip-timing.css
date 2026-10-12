@@ -1,0 +1,6 @@
+.smartTimingSummary{margin:12px 0;padding:14px;border:1px solid #d7e5ef;border-radius:14px;background:#f5faff;color:#16354b}
+.smartTimingGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.smartTimingGrid small,.smartTimingGrid strong{display:block}.smartTimingGrid small{font-size:12px;color:#597086;margin-bottom:4px}.smartTimingGrid strong{font-size:15px}
+.smartTimingSummary p{margin:8px 0 0;font-size:12px;line-height:1.5}.smartTimingSummary .smartTimingWarning{color:#96400e;background:#fff4df;border-radius:8px;padding:8px}
+.facilityTimingForm{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.facilityTimingForm .wide{grid-column:1/-1}.facilityTimingForm label{display:block;font-size:13px;font-weight:700;margin-bottom:5px}.facilityTimingForm input,.facilityTimingForm select,.facilityTimingForm textarea{width:100%;box-sizing:border-box;padding:10px;border:1px solid #cfdeea;border-radius:8px;background:white}
+@media(max-width:620px){.smartTimingGrid,.facilityTimingForm{grid-template-columns:1fr}.smartTimingGrid>div{display:flex;justify-content:space-between;gap:10px}.smartTimingGrid strong{font-size:14px;text-align:right}.smartTimingGrid small{margin:0}.facilityTimingForm .wide{grid-column:auto}}

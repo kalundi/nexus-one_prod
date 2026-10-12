@@ -3,6 +3,9 @@ const NexusFare=require('../../nexus-fare.js');
 const NexusRoute=require('../../nexus-route.js');
 const RouteFares=require('./_shared/route-fares.cjs');
 const ServiceTravelAnalysis=require('./_shared/service-travel-analysis.cjs');
+const TripTiming=require('./_shared/trip-timing.cjs');
+const NexusTripTiming=require('../../nexus-trip-timing.js');
+const TimingAvailability=require('./_shared/timing-availability.cjs');
 const {isDuplicateTrip,duplicateTripResponse}=require('./_shared/booking-duplicate.cjs');
 const {lookupFlight}=require('./_shared/flightaware.cjs');
 const fs=require('fs');
@@ -358,45 +361,31 @@ const SERVICE_VEHICLE_PREFS={
  hospital_discharge:        ['SE-254-01','SUV-254-01','WV-254-01'],
 };
 async function autoAssign(booking){
+ let reservationClient;
  try{
   const svc=(booking.service||'').toLowerCase().replace(/-/g,'_');
   const prefs=SERVICE_VEHICLE_PREFS[svc]||SERVICE_VEHICLE_PREFS.ambulatory;
-  // Find first AVAILABLE vehicle from preference list
-  const vRows=await query(`SELECT unit_number FROM vehicles WHERE unit_number=ANY($1) AND status='AVAILABLE' ORDER BY array_position($1,unit_number) LIMIT 1`,[prefs]);
-  const vehicleUnit=vRows.rows[0]?.unit_number||null;
-  // Find available driver (on shift for the trip date, not on an active trip today)
-  const tripDate=booking.trip_date||new Date().toISOString().slice(0,10);
-  const tripTime=booking.trip_time||'08:00';
-  const weekday=new Date(tripDate+'T12:00:00').getDay()||7;
-  const driverLookup=buildDriverEmployeeLookupSql();
-  const dRows=await query(`
-   SELECT ${driverLookup.select} FROM employees e
-   INNER JOIN employee_shifts es ON e.id=es.employee_id
-   ${driverLookup.join}
-   WHERE e.role='DRIVER' AND e.active=true AND es.active=true
-     AND es.weekday_iso=$1
-     AND es.start_time::time<=$2::time AND es.end_time::time>$2::time
-     AND es.effective_start_date<=$3::date
-     AND (es.effective_end_date IS NULL OR es.effective_end_date>=$3::date)
-   ORDER BY e.display_name LIMIT 5
-  `,[weekday,tripTime,tripDate]);
-  // Pick driver not already on an active trip at the same time
-  let driverName=null;let driverScopeId=null;let driverEmail=null;let driverPhone=null;
-  for(const d of dRows.rows){
-   const busy=await query(`SELECT 1 FROM bookings WHERE driver_name=$1 AND trip_date=$2 AND status NOT IN ('CANCELLED','COMPLETED','DELIVERED') LIMIT 1`,[d.display_name,tripDate]);
-   if(!busy.rows[0]){driverName=d.display_name;driverScopeId=d.scope_id||null;driverEmail=d.email||null;driverPhone=d.phone||null;break;}
-  }
-  if(!driverName&&dRows.rows[0]){driverName=dRows.rows[0].display_name;driverScopeId=dRows.rows[0].scope_id||null;driverEmail=dRows.rows[0].email||null;driverPhone=dRows.rows[0].phone||null;} // fallback: take first on shift
-  if(!vehicleUnit&&!driverName)return {assigned:false,message:'No available vehicle or driver found for this service type.'};
+  const settings=await readPlatformSettings();
+  reservationClient=await getPool().connect();
+  await reservationClient.query('BEGIN');
+  await reservationClient.query("SELECT pg_advisory_xact_lock(hashtext('nexus-trip-assignment'))");
+  const reservedQuery=(sql,args)=>reservationClient.query(sql,args);
+  const availability=await TimingAvailability.resources(mapBooking(booking),settings,reservedQuery,prefs);
+  if(availability.reviewReason||!availability.drivers.length||!availability.vehicles.length){await reservationClient.query('ROLLBACK');return {assigned:false,message:availability.reviewReason||'No driver and vehicle cover the full trip, including preparation and handoff.'};}
+  const driver=availability.drivers[0],vehicleUnit=availability.vehicles[0].unit_number;
+  const driverName=driver.display_name,driverScopeId=driver.scope_id||null,driverEmail=driver.email||null,driverPhone=driver.phone||null;
   const nextStatus=resolveAssignedStatus(booking.status);
   // Update booking
-  await query(`UPDATE bookings SET driver_name=COALESCE($1,driver_name),driver_scope_id=COALESCE($2,driver_scope_id),vehicle_unit=COALESCE($3,vehicle_unit),status=$5,updated_at=now() WHERE reference=$4`,[driverName,driverScopeId,vehicleUnit,nextStatus,booking.reference]);
-  const updatedBookingResult=await query('SELECT * FROM bookings WHERE reference=$1',[booking.reference]);
+  await reservedQuery(`UPDATE bookings SET driver_name=COALESCE($1,driver_name),driver_scope_id=COALESCE($2,driver_scope_id),vehicle_unit=COALESCE($3,vehicle_unit),status=$5,updated_at=now() WHERE reference=$4`,[driverName,driverScopeId,vehicleUnit,nextStatus,booking.reference]);
+  const updatedBookingResult=await reservedQuery('SELECT * FROM bookings WHERE reference=$1',[booking.reference]);
   const updatedBooking=updatedBookingResult.rows[0];
+  await reservationClient.query('COMMIT');
+  reservationClient.release();reservationClient=null;
   await notifyAssignedDriver(updatedBooking,{driverName,driverScopeId,driverEmail,driverPhone,vehicleUnit}).catch(e=>console.error('[ASSIGNMENT_NOTIFY]',e.message));
   await sendTripStakeholderUpdate(booking,updatedBooking,{display_name:'Nexus Dispatch'},'Driver or vehicle assignment updated').catch(e=>console.error('[TRIP_UPDATE_NOTIFY]',e.message));
   return {assigned:true,driverName,vehicleUnit,status:nextStatus,message:`Assigned to ${driverName||'—'} / ${vehicleUnit||'—'}`};
- }catch(e){console.error('[AUTO-ASSIGN]',e.message);return {assigned:false,message:'Auto-assign error: '+e.message};}
+ }catch(e){if(reservationClient)await reservationClient.query('ROLLBACK').catch(()=>{});console.error('[AUTO-ASSIGN]',e.message);return {assigned:false,message:'Auto-assign error: '+e.message};}
+ finally{reservationClient?.release();}
 }
 
 async function createBookingFromBrokerRequest(requestBody,requestRow){
@@ -476,6 +465,7 @@ const DEFAULT_PLATFORM_SETTINGS={
   freeWaitMinutes:15,
   waitingPolicyVersion:2,
   serviceTravelPolicyVersion:3,
+  smartTiming:{enabled:true,checkInLeadMinutes:15,reliabilityBufferMinutes:5,minimumHistorySamples:10,historyPercentile:85},
   deadheadRatePct:50,
   shortNoticeHours:24,
   shortNoticeSurchargePct:30,
@@ -1025,6 +1015,8 @@ function mergeServicePolicies(input,freeWaitMinutes=15,waitingPolicyVersion=2,se
    freeWaitMinutes:waitingPolicyVersion>=2?clamp(n(src.freeWaitMinutes,freeWaitMinutes),0,240):15,
    speedReductionMph:NexusFare.travelPolicy(key,{serviceTravelPolicyVersion,servicePolicies:{[key]:src}}).speedReductionMph,
    transitionBufferMinutes:clamp(n(src.transitionBufferMinutes,NexusFare.travelPolicy(key).transitionBufferMinutes),0,120),
+   pickupPreparationMinutes:clamp(n(src.pickupPreparationMinutes,NexusTripTiming.policy(key).pickupMinutes),0,180),
+   dropoffHandoffMinutes:clamp(n(src.dropoffHandoffMinutes,NexusTripTiming.policy(key).handoffMinutes),0,180),
    cancellationFee:clamp(n(src.cancellationFee,base[key].cancellationFee),0,10000),
    noShowFee:clamp(n(src.noShowFee,base[key].noShowFee),0,10000),
    trafficOverageFeePerHour:clamp(n(src.trafficOverageFeePerHour,base[key].trafficOverageFeePerHour),0,1000),
@@ -1095,6 +1087,7 @@ function mergePlatformSettings(raw){
    waitingPolicyVersion:2,
    serviceTravelPolicyVersion:3,
    minimumPlanningSpeedMph:clamp(n(fareSrc.minimumPlanningSpeedMph,5),1,30),
+   smartTiming:{enabled:fareSrc.smartTiming?.enabled!==false,checkInLeadMinutes:clamp(n(fareSrc.smartTiming?.checkInLeadMinutes,15),0,120),reliabilityBufferMinutes:clamp(n(fareSrc.smartTiming?.reliabilityBufferMinutes,5),0,60),minimumHistorySamples:clamp(n(fareSrc.smartTiming?.minimumHistorySamples,10),5,100),historyPercentile:clamp(n(fareSrc.smartTiming?.historyPercentile,85),80,90)},
    deadheadRatePct:clamp(n(fareSrc.deadheadRatePct,50),0,100),
    shortNoticeHours:clamp(n(fareSrc.shortNoticeHours,24),0,168),
    shortNoticeSurchargePct:clamp(n(fareSrc.shortNoticeSurchargePct,30),0,100),
@@ -2086,6 +2079,27 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p[0]==='timing'&&p[1]==='facilities'&&method==='POST'){
+   const body=parseBody(event),addresses=Array.isArray(body.addresses)?body.addresses:[];
+   if(addresses.length>24||addresses.some(a=>typeof a!=='string'||a.length>500))return json(400,{error:'Provide up to 24 valid addresses.'});
+   const places=(Array.isArray(body.places)?body.places:[]).slice(0,3).map(p=>({address:clean(p.address).slice(0,500),name:clean(p.name).slice(0,200),placeId:clean(p.placeId).slice(0,200),types:(Array.isArray(p.types)?p.types:[]).map(String).slice(0,15)}));
+   const context=await TripTiming.contextFor(addresses,query,places);
+   return json(200,{context:TripTiming.publicContext(context)});
+  }
+  if(p[0]==='admin'&&p[1]==='facility-timing'){
+   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);
+   if(method==='GET'){
+    const result=await query('SELECT * FROM facility_timing_profiles ORDER BY name,address LIMIT 500');
+    return json(200,{profiles:result.rows.map(r=>({...TripTiming.publicProfile(r),accessInstructions:r.access_instructions,updatedAt:r.updated_at}))});
+   }
+   if(method==='POST'){
+    if(u.role!=='ADMIN')return json(403,{error:'Only Admin can change facility timing profiles.'});
+    const profile=TripTiming.validateProfile(parseBody(event));
+    await query(`INSERT INTO facility_timing_profiles(address_key,address,name,facility_type,pickup_extra_minutes,handoff_extra_minutes,peak_windows,access_instructions,receiving_hours) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9::jsonb) ON CONFLICT(address_key) DO UPDATE SET address=EXCLUDED.address,name=EXCLUDED.name,facility_type=EXCLUDED.facility_type,pickup_extra_minutes=EXCLUDED.pickup_extra_minutes,handoff_extra_minutes=EXCLUDED.handoff_extra_minutes,peak_windows=EXCLUDED.peak_windows,access_instructions=EXCLUDED.access_instructions,receiving_hours=EXCLUDED.receiving_hours,updated_at=now()`,[NexusTripTiming.addressKey(profile.address),profile.address,profile.name,profile.type,profile.pickup,profile.handoff,JSON.stringify(profile.windows),profile.instructions,JSON.stringify(profile.receivingHours)]);
+    await audit('FACILITY_TIMING',NexusTripTiming.addressKey(profile.address),'UPDATED',{by:u.id});
+    return json(200,{message:'Facility timing saved.'});
+   }
+  }
   const userManagerResponse=await handleUserManager(event,p,method);
   if(userManagerResponse)return userManagerResponse;
   if(p[0]==='training')return await handleTraining(event,p,method);
@@ -2924,7 +2938,13 @@ async function handler(event){
   const composedNotes=upsertCheckInNote(notesWithAppointment,checkInTime);
 
    const ref=(isMockTrip?'MOCK-':'')+reference();
-   const submittedFare=Math.max(0,Number(b.estimatedFare||0));
+   let submittedFare=Math.max(0,Number(b.estimatedFare||0));
+   if(b.fareInputs){
+    const fareSettings=await readPlatformSettings();
+    const [fareBooking]=await TripTiming.hydrate([{...b,date:b.date,time:pickupTimeEstimate||b.time,pickupTime:pickupTimeEstimate||b.time,appointmentDate:b.appointmentDate||b.date,appointmentTime,tripType,returnTripDate,returnTripTime,bookingSource}],fareSettings,query);
+    if(b.fareInputs.routeVerified)NexusRoute.validate(b.fareInputs,fareBooking,fareSettings.organization?.yardAddress);
+    submittedFare=NexusFare.calculateBooking(fareBooking,{...b.fareInputs,scheduleBasis:'PICKUP'},fareSettings).discountedTotal;
+   }
    const codeHash=clean(b.promotionCode)?promotionHash(b.promotionCode):'';
    if(codeHash)await ensureBookingPromotionsSchema();
   await ensureBookingFlightSchema();
@@ -2942,7 +2962,11 @@ async function handler(event){
      r=await client.query(insertSql,insertParams());
      await client.query('COMMIT');
     }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
-   }else r=await query(insertSql,insertParams());
+  }else r=await query(insertSql,insertParams());
+   if(b.appointmentDate)await query('UPDATE bookings SET appointment_date=$2::date WHERE reference=$1',[ref,normalizeTripDate(b.appointmentDate)]);
+   const timingBooking={...mapBooking(r.rows[0]),appointmentDate:normalizeTripDate(b.appointmentDate||b.date),appointmentTime,fareInputs:b.fareInputs};
+   const timingPlan=await TripTiming.persist(timingBooking,await readPlatformSettings(),query);
+   r.rows[0].timing_plan=timingPlan;r.rows[0].appointment_date=timingBooking.appointmentDate;
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,initialStatus,statusLabel(initialStatus),paymentPolicy.coverageMessage||(paymentPolicy.requiresDeposit?'Awaiting required 25% deposit':paymentPolicy.requiresApproval?'Awaiting payer eligibility approval':'Online transportation request received'),bookingActor?.display_name||bookingSource||'PUBLIC']);
    if(isMockTrip){
     await query("UPDATE bookings SET reminder_sent=true,payment_status='MOCK',balance_due=0 WHERE reference=$1",[ref]);
@@ -3654,8 +3678,10 @@ async function handler(event){
   mappedBooking.intakePayload=intakeAudit?.parsedPayload||{};
   const estimateSettings=await readPlatformSettings();
   const [routedBooking]=await RouteFares.hydrate([mappedBooking],estimateSettings,query);
-  const estimatedBooking=withCurrentEstimate(routedBooking,estimateSettings);
-  return json(200,{booking:estimatedBooking,intakeAudit});
+  const [timedBooking]=await TripTiming.hydrate([routedBooking],estimateSettings,query);
+  const estimatedBooking=withCurrentEstimate(timedBooking,estimateSettings);
+  const [staffBooking]=await TripTiming.loadInstructions([estimatedBooking],query);
+  return json(200,{booking:staffBooking,intakeAudit});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='DELETE'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);
@@ -3755,8 +3781,9 @@ async function handler(event){
    if(hasCalculatedFare){
     const saved=mapBooking(before.rows[0]);
     try{
-     const edited={...saved,service:b.service??saved.service,pickup:b.pickup??saved.pickup,destination:b.destination??saved.destination,date:b.date??saved.date,time:b.time??saved.time,pickupTime:b.time??saved.pickupTime,appointmentTime:b.appointmentTime??saved.appointmentTime,...(b.fareInputs?{fareInputs:b.fareInputs,routeFareInputs:b.fareInputs.routeVerified?b.fareInputs:saved.routeFareInputs}:{}),...(hasTripSchedule?{tripScheduleExplicit:true,tripType:tripTypeValue,returnTripDate:returnDateValue,returnTripTime:returnTimeValue}:{})};
+     let edited={...saved,service:b.service??saved.service,pickup:b.pickup??saved.pickup,destination:b.destination??saved.destination,date:b.date??saved.date,time:b.time??saved.time,pickupTime:b.time??saved.pickupTime,appointmentTime:b.appointmentTime??saved.appointmentTime,...(b.fareInputs?{fareInputs:b.fareInputs,routeFareInputs:b.fareInputs.routeVerified?b.fareInputs:saved.routeFareInputs}:{}),...(hasTripSchedule?{tripScheduleExplicit:true,tripType:tripTypeValue,returnTripDate:returnDateValue,returnTripTime:returnTimeValue}:{})};
      const settings=await readPlatformSettings();
+     if(settings.fareRules?.smartTiming?.enabled)[edited]=await TripTiming.hydrate([edited],settings,query);
      if(b.fareInputs?.routeVerified)NexusRoute.validate(b.fareInputs,edited,settings.organization?.yardAddress);
      calculatedFare=b.recalculateEstimate===true?NexusFare.calculateEstimate(edited,settings):NexusFare.calculateBooking(edited,b.fareInputs,settings);
      if(b.recalculateEstimate===true)b.fareInputs=calculatedFare.inputs;
@@ -3786,6 +3813,16 @@ async function handler(event){
    if(!Number(coverage.rows[0]?.driver_count))return json(409,{error:'This driver has no active schedule covering the pickup time. Adjust the driver schedule or choose another driver.'});
   }
   const hasVehicleUnit=Object.prototype.hasOwnProperty.call(b,'vehicleUnit');
+  const timingChanged=(hasDate&&normalizeTripDate(b.date)!==normalizeTripDate(before.rows[0].trip_date))||(hasTime&&normalizeOptionalTripTime(b.time)!==normalizeOptionalTripTime(before.rows[0].trip_time))||(b.service!=null&&clean(b.service)!==clean(before.rows[0].service))||(hasTripSchedule&&(tripTypeValue!==(before.rows[0].trip_type||'ONE_WAY')||(returnDateValue||'')!==(normalizeTripDate(before.rows[0].return_trip_date)||'')||(returnTimeValue||'')!==(normalizeOptionalTripTime(before.rows[0].return_trip_time)||'')));
+  const driverChanged=hasDriverName&&clean(b.driverName)!==clean(before.rows[0].driver_name),vehicleChanged=hasVehicleUnit&&clean(b.vehicleUnit)!==clean(before.rows[0].vehicle_unit);
+  if(!editingMock&&(driverChanged||vehicleChanged||timingChanged)&&!['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(String(before.rows[0].status).toUpperCase())){
+   const proposed={...mapBooking(before.rows[0]),...b,reference:ref,pickupTime:b.time||b.pickupTime||mapBooking(before.rows[0]).pickupTime};
+   const availability=await TimingAvailability.resources(proposed,await readPlatformSettings(),query,SERVICE_VEHICLE_PREFS[resolveServicePolicyKey(proposed.service)]);
+   if(availability.plan&&!availability.plan.routingPending){
+    if((driverChanged||timingChanged)&&clean(b.driverName)&&!availability.drivers.some(d=>d.display_name===clean(b.driverName)))return json(409,{error:'The driver is unavailable for the full trip, including preparation and handoff. Review schedules and overlapping trips.'});
+    if((vehicleChanged||timingChanged)&&clean(b.vehicleUnit)&&!availability.vehicles.some(v=>v.unit_number===clean(b.vehicleUnit)))return json(409,{error:'This vehicle overlaps another trip through patient handoff. Choose another vehicle or adjust the schedule.'});
+   }
+  }
   const hasNotes=Object.prototype.hasOwnProperty.call(b,'notes');
   const hasDispatchNote=Object.prototype.hasOwnProperty.call(b,'dispatchNote')||Object.prototype.hasOwnProperty.call(b,'note');
    const hasName=Object.prototype.hasOwnProperty.call(b,'name');
@@ -3940,6 +3977,7 @@ async function handler(event){
     }
   }
   const afterRow=hasPickupTime?(await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref])).rows?.[0]||r.rows[0]:r.rows[0];
+  await TripTiming.persist({...mapBooking(afterRow),fareInputs:b.fareInputs},await readPlatformSettings(),query);
 
   if(hasBrokerQuotedRate){
    await query(`UPDATE broker_requests SET broker_quoted_rate=$2,updated_at=now() WHERE id=(SELECT id FROM broker_requests WHERE booking_reference=$1 ORDER BY created_at DESC LIMIT 1)`,[ref,brokerQuotedRateValue]).catch(()=>{});
@@ -4495,7 +4533,7 @@ async function handler(event){
    );
   const sql=`SELECT * FROM bookings WHERE (driver_user_id=$3::uuid OR (driver_user_id IS NULL AND ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)))) AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION','EN_ROUTE','ARRIVED_PICKUP','PATIENT_ON_BOARD','DEPARTED','ARRIVED_DESTINATION','DELIVERED','COMPLETED','NO_SHOW','MISSED','CANCELLED') ORDER BY trip_date,trip_time,created_at`;
    const r=await query(sql,[driverName,scopeId,u.id]);
-   return json(200,{assignments:r.rows.filter(row=>!row.duplicate_of).map(mapBooking)});
+   return json(200,{assignments:await TripTiming.loadInstructions(await mapBookingsWithIntakeAudit(r.rows),query)});
   }
   // Admin: toggle user active/inactive
   // Admin: audit log
@@ -4569,6 +4607,7 @@ async function handler(event){
      if(role==='DRIVER'&&(b.name||b.service||b.pickup||b.destination||b.email||b.alternatePhone||b.alternateEmail||Object.prototype.hasOwnProperty.call(b,'estimatedFare')))return json(403,{error:'Drivers may only update trip status and vehicle data'});
      const currentFallback=getFallbackAssignments(fallbackSession.user).find((item)=>String(item.reference)===String(ref));
      if(!currentFallback)return json(404,{error:'Booking not found'});
+     if(statusInput==='PATIENT_READY')return json(200,{booking:{...mapBooking(currentFallback),patientReadyAt:new Date().toISOString()},message:'Patient readiness recorded for this demo session.'});
      if(statusInput==='EN_ROUTE'){
       const startPolicy=getTripStartPolicy(currentFallback,earlyPickupReason);
       if(!startPolicy.allowed)return json(409,{error:startPolicy.message});
@@ -4586,6 +4625,15 @@ async function handler(event){
     const driverScopeInput=u.role==='DRIVER'?(clean(u.scope_id||u.scopeId||null)||null):null;
     const currentBooking=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
     if(!currentBooking.rows[0])return json(404,{error:'Booking not found'});
+    const assignedDriver=currentBooking.rows[0].driver_user_id?clean(currentBooking.rows[0].driver_user_id)===clean(u.id):currentBooking.rows[0].driver_scope_id?clean(currentBooking.rows[0].driver_scope_id)===clean(u.scope_id):clean(currentBooking.rows[0].driver_name)===clean(u.display_name||u.email);
+    if(u.role==='DRIVER'&&!assignedDriver)return json(403,{error:'This trip is not assigned to you.'});
+    if(statusInput==='PATIENT_READY'){
+     if(currentBooking.rows[0].status!=='ARRIVED_PICKUP')return json(409,{error:'Arrive at pickup before marking the patient ready.'});
+     const ready=await query(`UPDATE bookings SET timing_plan=jsonb_set(COALESCE(timing_plan,'{}'::jsonb),'{patientReadyAt}',to_jsonb(now()::text)),updated_at=now() WHERE reference=$1 AND status='ARRIVED_PICKUP' AND timing_plan->>'patientReadyAt' IS NULL RETURNING *`,[ref]);
+     if(ready.rows[0])await query("INSERT INTO trip_status_history(booking_reference,status,status_label,actor) VALUES($1,'PATIENT_READY','Patient ready',$2)",[ref,u.display_name||u.email]);
+     const row=ready.rows[0]||currentBooking.rows[0];
+     return json(200,{booking:{...mapBooking(row),patientReadyAt:row.timing_plan?.patientReadyAt},message:'Patient readiness recorded.'});
+    }
     if(statusInput==='PATIENT_ON_BOARD'&&requiresFullPaymentBeforeBoarding(currentBooking.rows[0]))return json(409,{error:'Full payment must be confirmed before a self-pay passenger can board.'});
     if(statusInput==='EN_ROUTE'){
      if(u.role==='DRIVER'){
@@ -4596,7 +4644,7 @@ async function handler(event){
      const startPolicy=getTripStartPolicy(currentBooking.rows[0],earlyPickupReason);
      if(!startPolicy.allowed)return json(409,{error:startPolicy.message});
     }
-    const updated=await query(`UPDATE bookings SET status=COALESCE($2,status),vehicle_unit=COALESCE($3,vehicle_unit),driver_name=COALESCE($4,driver_name),driver_scope_id=COALESCE($5,driver_scope_id),updated_at=now() WHERE reference=$1 RETURNING *`,[ref,statusInput,vehicleUnitInput,driverNameInput,driverScopeInput]);
+    const updated=await query(`UPDATE bookings SET timing_plan=CASE WHEN $2='ARRIVED_PICKUP' AND status<>'ARRIVED_PICKUP' THEN COALESCE(timing_plan,'{}'::jsonb)-'patientReadyAt' ELSE timing_plan END,status=COALESCE($2,status),vehicle_unit=COALESCE($3,vehicle_unit),driver_name=COALESCE($4,driver_name),driver_scope_id=COALESCE($5,driver_scope_id),updated_at=now() WHERE reference=$1 RETURNING *`,[ref,statusInput,vehicleUnitInput,driverNameInput,driverScopeInput]);
     if(!updated.rows[0])return json(404,{error:'Booking not found'});
     const note=earlyPickupReason||null;
     await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),note,u.display_name||u.email||u.role]);
@@ -4892,6 +4940,9 @@ function mapBooking(b){
   facilityId:b.facility_id,
   distanceMiles:b.distance_miles!=null?Number(b.distance_miles):b.distanceMiles!=null?Number(b.distanceMiles):null,
   routeFareInputs:b.route_fare_inputs||b.routeFareInputs||null,
+  appointmentDate:b.appointment_date||b.appointmentDate||null,
+  timingPlan:b.timing_plan||b.timingPlan||null,
+  patientReadyAt:b.timing_plan?.patientReadyAt||b.patientReadyAt||null,
   duplicateOf:b.duplicate_of||b.duplicateOf||null,
   estimatedDuration:b.estimated_duration,
   estimatedFare:b.estimated_fare?Number(b.estimated_fare):null,
@@ -4983,6 +5034,7 @@ async function mapBookingsWithIntakeAudit(rows){
  const attachmentByRef=new Map((attachmentCounts.rows||[]).map((row)=>[String(row.booking_reference),Number(row.count||0)]));
  const estimateSettings=await readPlatformSettings();
  mapped=await RouteFares.hydrate(mapped,estimateSettings,query);
+ mapped=await TripTiming.hydrate(mapped,estimateSettings,query);
 
  return mapped.map((booking)=>{
   const intake=intakeByRef.get(String(booking.reference||''))||null;
@@ -5014,10 +5066,16 @@ function withCurrentEstimate(booking,settings){
  const {intakePayload,...publicBooking}=booking;
  const schedule=NexusFare.resolveTripSchedule(booking);
  try{
-  const fare=NexusFare.calculateEstimate(booking,settings);
-  return {...publicBooking,...schedule,ourEstimate:fare.discountedTotal,fareCalculation:fare};
+  const fare=NexusFare.calculateEstimate({...booking,fareInputs:{...NexusFare.resolveBookingInputs(booking,settings),scheduleBasis:'PICKUP'}},settings);
+  const timingPlan=fare.timingPlan||booking.timingPlan;
+  const timingPrediction=NexusTripTiming.predict(timingPlan,booking.timingMilestones||[]);
+  const {timingContext,...safeBooking}=publicBooking;
+  const keys=[booking.pickup,...String(booking.destination||'').split(/\s*→\s*/)].map(NexusTripTiming.addressKey);
+  const selectedContext={locations:Object.fromEntries(keys.filter(k=>timingContext?.locations?.[k]).map(k=>[k,timingContext.locations[k]]))};
+  return {...safeBooking,...schedule,ourEstimate:fare.discountedTotal,fareCalculation:fare,timingPlan,timingPrediction,timingContext:TripTiming.publicContext(selectedContext)};
  }catch{
-  return {...publicBooking,ourEstimate:booking.estimatedFare??0};
+  const {timingContext,...fallbackBooking}=publicBooking;
+  return {...fallbackBooking,ourEstimate:booking.estimatedFare??0};
  }
 }
 

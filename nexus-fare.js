@@ -123,7 +123,8 @@
     const tripType={value:input.tripType||'ONE_WAY'};
     const returnTripDate={value:input.returnDate||''},returnTripTime={value:input.returnTime||''};
     const CARD_PROCESSING_FEE_PCT=Number(fareRules.cardProcessingFeePct??3);
-    const waitMinutes=Math.max(0,Number(input.waitMinutes)||0);
+    const timingPlan=input.timingPlan||null;
+    const waitMinutes=Math.max(0,Number(timingPlan?.waitingMinutes??input.waitMinutes)||0);
     const waiting=getWaitingCharge(waitMinutes,rate,fareRules,service);
     const includedMiles = Number(rate.includedMiles || 0);
     const passengerLegCount = String(tripType?.value || 'ONE_WAY').toUpperCase() === 'ROUND_TRIP' ? 2 : 1;
@@ -143,15 +144,17 @@
       const rawSubtotal=Number(rate.base||0)+mileageCharge+fuelCharge+trafficCharge;
       const date=index?returnTripDate.value||dateStr:dateStr;
       const time=index?(routeMetrics.returnTimePending?'12:00':returnTripTime.value||timeStr):timeStr;
-      const premiumReason=getPremiumRateReason(date,time,index&&routeMetrics.returnTimePending?0:travel.scheduledMinutes);
+      const timingLegs=timingPlan?.legs.filter(leg=>leg.kind===(index?'RETURN':'OUTBOUND'))||[];
+      const operationalMinutes=timingLegs.length?(timingLegs.at(-1).vehicleAvailableAt-timingLegs[0].crewArrivalAt)/60000:travel.scheduledMinutes;
+      const premiumReason=getPremiumRateReason(date,time,index&&routeMetrics.returnTimePending?0:operationalMinutes);
       const premiumPct=premiumReason?Number(policy[premiumRuleKeys[premiumReason]]??fareRules[premiumRuleKeys[premiumReason]]??30):0;
       const subtotal=Math.max(Number(fareRules.minimumFare||0),rawSubtotal*(1+premiumPct/100));
       return {...route,...travel,kind:index?'RETURN':'OUTBOUND',miles:distance,durationMinutes,trafficDurationMinutes,billableMiles,mileageCharge,fuelCharge,trafficCharge,premiumReason,premiumPct,subtotal,premiumAmount:subtotal-Math.max(Number(fareRules.minimumFare||0),rawSubtotal)};
     });
     const outbound=passengerLegs[0],returning=passengerLegs[1];
     const drivingMinutes=passengerLegs.reduce((sum,leg)=>sum+leg.scheduledMinutes,0);
-    const transitionMinutes=Math.max(0,(outbound.stopScheduledMinutes?.length||1)-1)*travelPolicy(service,fareRules).transitionBufferMinutes;
-    const journeyMinutes=drivingMinutes+waitMinutes+transitionMinutes;
+    const transitionMinutes=timingPlan?0:Math.max(0,(outbound.stopScheduledMinutes?.length||1)-1)*travelPolicy(service,fareRules).transitionBufferMinutes;
+    const journeyMinutes=timingPlan?.totalMinutes??(drivingMinutes+waitMinutes+transitionMinutes);
     const premiumRateReason=outbound.premiumReason,returnPremiumRateReason=returning?.premiumReason||'';
     const outboundPremiumPct=outbound.premiumPct,returnPremiumPct=returning?.premiumPct||0;
     const premiumAmount=passengerLegs.reduce((sum,leg)=>sum+leg.premiumAmount,0);
@@ -173,7 +176,7 @@
     const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const taxAmount = normalizedSubtotal * (taxRatePct / 100);
     return {
-      ...waiting,drivingMinutes,transitionMinutes,journeyMinutes,
+      ...waiting,drivingMinutes,transitionMinutes,journeyMinutes,timingPlan,
       deadheadSegments, deadheadDetails, deadheadRate, deadheadCharge, shortNoticeCharge,
       includedMiles,
       passengerLegs,passengerLegCount,passengerMilesTotal:passengerLegs.reduce((sum,leg)=>sum+leg.miles,0),
@@ -237,7 +240,10 @@
       if(!Number.isFinite(arrival))throw Error('Final appointment time is required');
       returnWait=Math.max(0,Math.round((returnAt-arrival)/60000));
     }
-    const result=calculate({service,rate,rules:settings.fareRules||{},miles:Number(inputs.miles),date:String(booking.date).slice(0,10),time:booking.time,tripType:booking.tripType,
+    const timing=typeof module==='object'&&module.exports?require('./nexus-trip-timing.js'):globalThis.NexusTripTiming;
+    const timingPlan=settings.fareRules?.smartTiming?.enabled&&timing?timing.plan(booking,inputs,settings):null;
+    const plannedPickup=timingPlan?timing.localParts(timingPlan.crewArrivalAt):null;
+    const result=calculate({service,rate,rules:settings.fareRules||{},timingPlan,miles:Number(inputs.miles),date:plannedPickup?.date||String(booking.date).slice(0,10),time:plannedPickup?.time||booking.time,tripType:booking.tripType,
       returnDate:String(booking.returnTripDate||'').slice(0,10),returnTime:booking.returnTripTime,
       waitMinutes:stopWait+returnWait,
       metrics:{durationMinutes:Number(inputs.durationMinutes),trafficDurationMinutes:Number(inputs.trafficDurationMinutes),passengerLegs:inputs.passengerLegs,deadheadRoutes:inputs.deadheadRoutes,deadheadSegments:inputs.deadheadSegments.map(Number),returnTimePending:booking.returnTimePending}});
@@ -305,7 +311,7 @@
     return {
       miles:saved.routeVerified?number(saved.miles):brokerTotal?storedMiles/2:storedMiles,
       passengerLegs:saved.routeVerified?saved.passengerLegs:undefined,deadheadRoutes:saved.deadheadRoutes,
-      routeVerified:!!saved.routeVerified,routeAddresses:saved.routeAddresses,mileageSource:saved.mileageSource||(brokerTotal?'BROKER_TOTAL':'SAVED_MILEAGE'),
+      routeVerified:!!saved.routeVerified,routeAddresses:saved.routeAddresses,measuredAt:saved.measuredAt,routeSchedule:saved.routeSchedule,mileageSource:saved.mileageSource||(brokerTotal?'BROKER_TOTAL':'SAVED_MILEAGE'),
       durationMinutes:number(saved.durationMinutes,booking.durationMinutes,intake.duration_minutes,durationText?durationMinutes(durationText.split(/traffic/i)[0]):undefined,elapsed(pickupTime,appointmentTime)),
       trafficDurationMinutes:number(saved.trafficDurationMinutes,booking.trafficDurationMinutes,intake.traffic_duration_minutes,durationText.match(/traffic[^\d]*([^)]*)/i)?.[1]?durationMinutes(durationText.match(/traffic[^\d]*([^)]*)/i)[1]):undefined),
       stopWaitMinutes:number(saved.stopWaitMinutes,explicitStopWait,oneWayWait,stops.length?stops.reduce((sum,value)=>sum+value,0):undefined,repeat?undefined:legacy.waitMinutes),
@@ -315,6 +321,7 @@
       scheduleBasis:saved.scheduleBasis||booking.scheduleBasis||(/Schedule basis:\s*PICKUP/i.test(notes)?'PICKUP':'APPOINTMENT'),
       finalAppointmentTime:appointments.at(-1)||appointmentTime||saved.finalAppointmentTime||'',
       pickupTime
+      ,appointmentDate:bookingDate(saved.appointmentDate||booking.appointmentDate||booking.date),deadlineBasis:saved.deadlineBasis||'APPOINTMENT',facilityPlaces:saved.facilityPlaces||[]
     };
   }
   function routeMatchesBooking(route,booking){

@@ -28,7 +28,8 @@ async function prepare(page,{roundTrip=false,multiStop=false,role}={}){
  await page.locator('#name').fill('Service Duration Test');await page.locator('#phone').fill('(240) 555-0130');await page.locator('#confirmRiderBtn').click();
  if(multiStop){await page.locator('#multipleStopsToggle').check();await page.locator('#appointmentTime-2').fill('11:30');await page.locator('[data-route-stop="true"]').fill('300 Clinic Road, Bethesda, MD');}
  if(roundTrip){await page.locator('#tripType').selectOption('ROUND_TRIP');await page.locator('#returnTripDate').fill('2030-08-15');await page.locator('#returnTripTime').fill('10:45');}
- await page.locator('#pickup').fill('100 Main Street, Rockville, MD');await page.locator('#destination').fill('200 Medical Center Drive, Bethesda, MD');await page.locator('#tripDate').fill('2030-08-15');await page.locator('#appointmentTime').fill('10:00');
+ await page.locator('#tripDate').fill('2030-08-15');await page.locator('#appointmentTime').fill('10:00');
+ await page.locator('#pickup').fill('100 Main Street, Rockville, MD');await page.locator('#destination').fill('200 Medical Center Drive, Bethesda, MD');
  await page.locator('#confirmPickupDropoffBtn').click();
  return {getSubmitted:()=>submitted};
 }
@@ -46,7 +47,7 @@ test('service cards show route duration and each service uses its own planning a
  await page.locator('[data-service="wheelchair"]').click();await expect(page.locator('#tripTime')).toHaveValue('09:05');
  await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~40 min drive');
  const requests=await page.evaluate(()=>window.__directionsRequests.filter(request=>request.origin.startsWith('100 Main')));
- expect(requests.every(request=>request.departure&&request.departure.startsWith('2030-08-15'))).toBe(true);
+ expect(requests.every(request=>request.departure&&request.departure.startsWith('2030-08-15')),JSON.stringify(requests)).toBe(true);
 });
 
 test('stretcher and ambulance pickup estimates use their requested reductions',async({page})=>{

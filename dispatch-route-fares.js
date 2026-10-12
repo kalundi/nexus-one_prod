@@ -24,16 +24,25 @@
   if(!yard)return booking;
   const trip={...booking,...NexusFare.resolveTripSchedule(booking)};
   let inputs=trip.routeFareInputs||trip.fareCalculation?.inputs;
-  if(!NexusRoute.matches(inputs,trip,yard)){
+  const pickupAt=NexusFare.scheduledEpoch(String(trip.date||'').slice(0,10),trip.pickupTime||trip.time);
+  const horizon=pickupAt-Date.now(),maxAge=horizon<=86400000?15*60000:horizon<=7*86400000?86400000:7*86400000;
+  const scheduled=inputs?.routeSchedule;
+  const roundTrip=trip.tripType==='ROUND_TRIP';
+  const scheduleChanged=!scheduled||String(scheduled.date||'').slice(0,10)!==String(trip.date||'').slice(0,10)||scheduled.time!==(trip.pickupTime||trip.time)||(roundTrip&&((scheduled.returnDate||'')!==(trip.returnTripDate||'')||(scheduled.returnTime||'')!==(trip.returnTripTime||'')));
+  const forecastExpired=settings.fareRules?.smartTiming?.enabled&&horizon>=0&&(scheduleChanged||!Number.isFinite(Date.parse(inputs?.measuredAt))||Date.now()-Date.parse(inputs.measuredAt)>maxAge);
+  if(!NexusRoute.matches(inputs,trip,yard)||forecastExpired){
    const providerMaps=await maps(integrations);
    if(!providerMaps)return booking;
-   const key=NexusRoute.key(trip,yard);
+   const key=NexusRoute.key(trip,yard)+'|'+[trip.date,trip.pickupTime||trip.time,trip.returnTripDate,trip.returnTripTime].join('|');
+   if(forecastExpired)measured.delete(key);
+   trip.smartTiming=settings.fareRules?.smartTiming?.enabled;
+   if(trip.smartTiming)trip.timingPlan=NexusTripTiming.plan(trip,{...NexusFare.resolveBookingInputs(trip,settings),scheduleBasis:'PICKUP'},settings);
    if(!measured.has(key))measured.set(key,NexusRoute.measure(trip,yard,NexusRoute.googleProvider(providerMaps,trip)).catch(error=>{measured.delete(key);throw error;}));
    inputs=await measured.get(key);
   }else return booking;
   const routed={...booking,routeFareInputs:inputs,distanceMiles:inputs.miles,estimatedDuration:Math.ceil(inputs.durationMinutes)+' min'};
   const fare=NexusFare.calculateEstimate(routed,settings);
-  const updated={...trip,...routed,routeFareInputs:inputs,fareCalculation:fare,ourEstimate:fare.discountedTotal,distanceMiles:inputs.miles};
+  const updated={...trip,...routed,routeFareInputs:inputs,fareCalculation:fare,timingPlan:fare.timingPlan,ourEstimate:fare.discountedTotal,distanceMiles:inputs.miles};
   if(persist&&booking.reference){
    const token=sessionStorage.getItem('nexusAccessToken')||'';
    const response=await fetch('/api/admin/bookings/'+encodeURIComponent(booking.reference)+'/route-fare-inputs',{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify({routeFareInputs:inputs})});
