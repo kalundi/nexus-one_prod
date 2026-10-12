@@ -14,6 +14,8 @@ const {digest,safeUser,requireUser,audit}=require('./_shared/auth.cjs');
 const handleTraining=createTrainingHandler({query,requireUser});
 const {createUserManager,operatingClock}=require('./_shared/user-manager.cjs');
 const handleUserManager=createUserManager({query,getPool,requireUser,audit});
+const {createApplicantResponseHandler}=require('./_shared/applicant-response.cjs');
+const handleApplicantResponse=createApplicantResponseHandler({query,sendEmail,audit});
 const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestStatus}=require('./_shared/broker-auto-book.cjs');
 const {canAdvanceBookingForAvailability}=require('./_shared/dispatch-approval.cjs');
 const {buildEmailRecipients,buildSmsRecipients}=require('./_shared/notification-routing.cjs');
@@ -1140,7 +1142,7 @@ async function sendEmail(to,subject,html){
  const recipients=Array.isArray(to)?to:buildEmailRecipients(to);
  if(!envEnabled('SENDGRID_API_KEY')||!envEnabled('SENDGRID_FROM_EMAIL')||recipients.length===0)return {status:'skipped'};
  const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:recipients.map(email=>({email}))}],from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Medical Transit'},subject,content:[{type:'text/html',value:html}]})});
- if(!r.ok)throw new Error(`SendGrid request failed (${r.status})`);return {status:'sent'};
+ if(!r.ok)throw Object.assign(new Error(`SendGrid request failed (${r.status})`),{providerStatus:r.status});return {status:'sent'};
 }
 function promotionHash(value){return crypto.createHash('sha256').update(clean(value).toUpperCase()).digest('hex');}
 const PERCENT_PROMOTION_HASHES=`57b75610b8912ac7c24735aa88a6c4b12aedad762c349b29dca7f94c98e5159b:5 7310639b835683b845846b68300a9aefa7af1d744d79d18626d484039adfdb88:5 2754458494e645aac2a2378bd4a0b9bd9a13f74a4b486c73c2f66672343e4285:5 e86dd8770fa39fb76234391576bc56b2f7edce322c8543554aad8c536cc9dc9d:5 7b73e2c2f8037b198417ac930a4a7c4ce7bfec6ea84a60a76747e201abea645c:5 10cc5128938bfcbca21c688a0a5385fa320a693a1737e3ca79303d00d9fd31ce:5 2b4f32cdd96390aa209834605abe9512e65a9377891a95b36c2f10d03b0def5d:5 3ded4e85d4e5987c5f557d485746b19652971bb9320e57559e7e92f6e9246685:5 9e9f4a7c686cb4653a7aefb62ec367b2a394780551d8a65bcda520d8f947fc68:5 f07ddfba2b62947197202060556d3a73af5677a5dd7e354657ba7d87a131a3d3:5
@@ -2201,7 +2203,7 @@ async function handler(event){
    if(method==='GET'&&p[3]==='resume'){const result=await query('SELECT resume_name,resume_mime_type,resume_data FROM career_applications WHERE id=$1',[id]),row=result.rows[0];if(!row?.resume_data)return json(404,{error:'Résumé not found'});return {statusCode:200,isBase64Encoded:true,headers:{'content-type':row.resume_mime_type||'application/octet-stream','content-disposition':`attachment; filename="${clean(row.resume_name).replace(/[^a-zA-Z0-9._-]/g,'_')}"`},body:Buffer.from(row.resume_data).toString('base64')};}
    const b=parseBody(event);
    if(method==='PATCH'&&p.length===3){const status=String(b.status||'').toUpperCase();if(!['NEW','REVIEWING','INTERVIEW','OFFERED','HIRED','DECLINED','ARCHIVED'].includes(status))return json(400,{error:'Select a valid application status'});const updated=await query('UPDATE career_applications SET status=$2,internal_notes=$3,reviewed_by=$4,reviewed_at=now(),updated_at=now() WHERE id=$1 RETURNING *',[id,status,clean(b.internalNotes)||null,me.id]);await audit('CAREER_APPLICATION',id,'REVIEWED',{status,by:me.email});return json(200,{application:updated.rows[0]});}
-   if(method==='POST'&&p[3]==='response'){required(b,['subject','message']);const found=await query('SELECT first_name,last_name,email FROM career_applications WHERE id=$1',[id]),applicant=found.rows[0];if(!applicant)return json(404,{error:'Application not found'});const result=await sendEmail([applicant.email],clean(b.subject),`<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><p>Hello ${clean(applicant.first_name)},</p>${clean(b.message).split(/\n+/).map(line=>`<p>${line.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}</p>`).join('')}<p>Nexus Medical Transit<br>(888) 639-5766</p></div>`);if(result.status!=='sent')return json(503,{error:'Applicant email service is not configured or did not accept the message',emailStatus:result});await query('UPDATE career_applications SET applicant_response=$2,responded_at=now(),reviewed_by=$3,updated_at=now() WHERE id=$1',[id,clean(b.message),me.id]);await audit('CAREER_APPLICATION',id,'APPLICANT_RESPONSE_SENT',{to:applicant.email,by:me.email,status:result.status});return json(200,{sent:true,emailStatus:result});}
+   if(method==='POST'&&p[3]==='response'&&p.length===4)return await handleApplicantResponse(id,b,me);
   }
   if(p[0]==='keymark'){
    const upsertIntegratedAppointment=async(mapped,facilityId=null,organizationId=null)=>{

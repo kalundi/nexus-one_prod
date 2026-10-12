@@ -53,4 +53,35 @@ test('administrator reviews an applicant and sends a tracked email response', as
   await page.locator('#applicantResponseMessage').fill('We would like to schedule an interview.');
   await page.getByRole('button', { name: 'Send email response' }).click();
   expect(responsePayload.message).toContain('schedule an interview');
+  await expect(page.locator('#applicantActionMessage')).toContainText('Email response sent.');
+});
+
+async function openApplicant(page){
+ const application={id:'app-1',first_name:'Jordan',last_name:'Lee',email:'jordan@example.com',phone:'+12025550144',city:'Rockville',state:'Maryland',position:'driver',status:'NEW',created_at:'2026-10-12T12:00:00Z'};
+ await page.addInitScript(()=>{sessionStorage.setItem('nexusAccessToken','applicant-test');sessionStorage.setItem('nexusUser',JSON.stringify({id:'admin-test',role:'ADMIN',displayName:'Admin'}));});
+ await page.route('**/api/**',route=>{const path=new URL(route.request().url()).pathname;let body={settings:{},users:[],requests:[],bookings:[],entries:[],vehicles:[],trips:[]};if(path==='/api/auth/me')body={user:{id:'admin-test',role:'ADMIN',displayName:'Admin'}};if(path==='/api/admin/career-applications')body={applications:[application]};if(path==='/api/admin/career-applications/app-1')body={application};return route.fulfill({status:200,json:body});});
+ await page.goto('/admin.html#applicantsSection');await page.getByRole('button',{name:/Jordan Lee/}).click();await expect(page.locator('#applicantResponseMessage')).toBeVisible();
+ await page.locator('#applicantResponseSubject').fill('Interview invitation');await page.locator('#applicantResponseMessage').fill('Please tell us when you are available.');
+}
+test('an unauthorized email connection retains the draft through review updates and allows retry',async({page})=>{
+ await openApplicant(page);let calls=0;
+ await page.route('**/api/admin/career-applications/app-1/response',route=>{calls++;return route.fulfill({status:calls===1?503:200,json:calls===1?{sent:false,code:'EMAIL_CONNECTION_UNAUTHORIZED',error:'Email was not sent. The SendGrid connection is no longer authorized.'}:{sent:true,recordSaved:true}});});
+ await page.getByRole('button',{name:'Send email response',exact:true}).click();await expect(page.locator('#applicantActionMessage')).toContainText('no longer authorized');await expect(page.locator('#applicantActionMessage')).toContainText('Your draft is retained');await expect(page.locator('#applicantResponseSubject')).toHaveValue('Interview invitation');
+ await page.getByRole('button',{name:'Save review',exact:true}).click();await expect(page.locator('#applicantResponseMessage')).toHaveValue('Please tell us when you are available.');
+ await page.getByRole('button',{name:'Send email response',exact:true}).click();await expect(page.locator('#applicantActionMessage')).toContainText('Email response sent.');await expect(page.locator('#applicantResponseMessage')).toHaveValue('');expect(calls).toBe(2);
+});
+test('an in-flight response blocks repeated clicks and preserves the message after failure',async({page})=>{
+ await openApplicant(page);let calls=0,release;const waiting=new Promise(resolve=>release=resolve);
+ await page.route('**/api/admin/career-applications/app-1/response',async route=>{calls++;await waiting;return route.fulfill({status:503,json:{sent:false,error:'Email was not sent. The SendGrid connection is no longer authorized.'}});});
+ const button=page.locator('#sendApplicantResponse');await button.click();await expect(button).toBeDisabled();await expect(page.locator('#applicantResponseMessage')).toHaveAttribute('readonly','');
+ await button.evaluate(el=>el.dispatchEvent(new MouseEvent('click',{bubbles:true})));expect(calls).toBe(1);release();
+ await expect(button).toBeEnabled();await expect(page.locator('#applicantResponseMessage')).toHaveValue('Please tell us when you are available.');expect(calls).toBe(1);
+});
+test('a transport failure keeps the draft and does not claim that email was sent',async({page})=>{
+ await openApplicant(page);await page.route('**/api/admin/career-applications/app-1/response',route=>route.abort());
+ await page.getByRole('button',{name:'Send email response',exact:true}).click();await expect(page.locator('#applicantActionMessage')).toContainText('Sending could not be confirmed');await expect(page.locator('#applicantResponseMessage')).toHaveValue('Please tell us when you are available.');await expect(page.locator('#sendApplicantResponse')).toBeEnabled();
+});
+test('an accepted email with a recording warning remains sent and clears the draft',async({page})=>{
+ await openApplicant(page);let calls=0;await page.route('**/api/admin/career-applications/app-1/response',route=>{calls++;return route.fulfill({status:200,json:{sent:true,recordSaved:false,warning:'Email was sent, but its response record could not be saved. Do not resend this message.'}});});
+ await page.getByRole('button',{name:'Send email response',exact:true}).click();await expect(page.locator('#applicantActionMessage')).toContainText('Do not resend');await expect(page.locator('#applicantResponseMessage')).toHaveValue('');await page.getByRole('button',{name:'Send email response',exact:true}).click();expect(calls).toBe(1);
 });
