@@ -1,12 +1,14 @@
 const {test,expect}=require('@playwright/test');
 const Fare=require('../nexus-fare.js');
 const Routes=require('../nexus-route.js');
+const Timing=require('../nexus-trip-timing.js');
 const settings={pricing:{ambulatory:{base:75,includedMiles:5,perMile:3.55,waitPer15:12}},fareRules:{}};
 
-async function openEditor(page,{roundTrip=false,mobile=false}={}){
+async function openEditor(page,{roundTrip=false,mobile=false,overrides={},pricingSettings=settings,fleet=[],drivers=[]}={}){
  if(mobile)await page.setViewportSize({width:390,height:844});
  await page.addInitScript(()=>sessionStorage.setItem('nexusAccessToken','save-test'));
  let booking={reference:'SAVE-TEST',name:'Test Patient',phone:'2025550101',email:'patient@example.com',status:'SCHEDULED',bookingSource:'BROKER',service:'ambulatory',pickup:'Patient home',destination:'Medical clinic',date:'2030-08-15',time:'10:00',pickupTime:'10:00',appointmentTime:'10:45',createdAt:'2030-08-12T20:00:00Z',tripType:roundTrip?'ROUND_TRIP':'ONE_WAY',returnTripDate:roundTrip?'2030-08-15':null,returnTripTime:roundTrip?'12:00':null,distanceMiles:20,estimatedDuration:'30 min',brokerQuotedRate:105,brokerAcceptedRate:105,notes:'Use the accessible entrance. | Appointment time: 10:45 AM | Check-in time: 9:15 AM'};
+ booking={...booking,...overrides};
  const state={patches:[],reads:0,failNext:false,mismatch:false};
  await page.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;
@@ -18,8 +20,8 @@ async function openEditor(page,{roundTrip=false,mobile=false}={}){
    booking={...booking,...payload,notes:freeNotes+` | Appointment time: ${payload.appointmentTime} | Check-in time: ${payload.checkInTime} | Fare inputs: ${JSON.stringify(payload.fareInputs)}`};
    if(state.mismatch)booking.name='Server did not persist the new name';
   }else if(path===tripPath)state.reads++;
-  const enriched={...booking,ourEstimate:Fare.calculateEstimate(booking,settings).discountedTotal};
-  const body=path==='/api/auth/me'?{user:{role:'ADMIN',email:'staff@example.com'}}:path==='/api/settings/public'?settings:path===tripPath?{booking:enriched,notifications:{status:'skipped-no-diff'}}:path==='/api/portal/trips'?{trips:[enriched]}:{};
+  const fare=Fare.calculateEstimate(booking,pricingSettings),enriched={...booking,ourEstimate:fare.discountedTotal,timingPrediction:Timing.predict(fare.timingPlan,booking.timingMilestones||[])};
+  const body=path==='/api/auth/me'?{user:{role:'ADMIN',email:'staff@example.com'}}:path==='/api/settings/public'?pricingSettings:path==='/api/fleet/live'?{vehicles:fleet}:path==='/api/dispatch/drivers'?{drivers}:path===tripPath?{booking:enriched,notifications:{status:'skipped-no-diff'}}:path==='/api/portal/trips'?{trips:[enriched]}:{};
   return route.fulfill({status:200,json:body});
  });
  await page.goto('/dispatch.html',{waitUntil:'domcontentloaded'});
@@ -53,6 +55,17 @@ for(const mobile of [false,true])test(`one click saves changed round-trip times 
  await page.evaluate(()=>window.openTripEditor('SAVE-TEST'));
  await expect(page.locator('#dispatchEditTime')).toHaveValue('11:00');
  await expect(page.locator('#dispatchEditReturnTime')).toHaveValue('13:30');
+});
+
+test('stretcher timing uses city travel, vehicle correction retains the driver, and one save applies the recommendation',async({page})=>{
+ const pricingSettings={...settings,organization:{yardAddress:'Company yard',preTripInspectionMinutes:45},pricing:{...settings.pricing,stretcher:{base:455,includedMiles:8,perMile:7.95,waitPer15:36.25}},fareRules:{serviceSpeedModel:'CRUISING_CEILING',cruisingReferenceSpeedMph:65,serviceTravelPolicyVersion:4,smartTiming:{enabled:true,checkInLeadMinutes:15,reliabilityBufferMinutes:5}}};
+ const mock=await openEditor(page,{roundTrip:true,mobile:true,pricingSettings,overrides:{service:'stretcher',driverName:'Fletcher',vehicleUnit:'SH-254-01',timingMilestones:[{status:'ASSIGNED',createdAt:'2030-08-12T12:00:00Z'}]},fleet:[{unit:'SH-254-01',active:true,eligibleServices:['ambulatory','wheelchair']},{unit:'ST-254-01',active:true,eligibleServices:['stretcher']}],drivers:[{name:'Fletcher',active:true,vehicleUnit:'SH-254-01'},{name:'Bankole',active:true,vehicleUnit:'ST-254-01'}]});
+ await expect(page.locator('#dispatchEditVehicleEligibility')).toContainText('Choose ST-254-01');await expect(page.locator('#dispatchEditVehicle option[value="SH-254-01"]')).toBeDisabled();await expect(page.locator('#dispatchSmartTiming')).not.toContainText('Current trip progress');
+ await expect(page.locator('#dispatchSmartTiming')).toContainText('60 min driving');await page.getByRole('button',{name:'Use recommended pickup',exact:true}).click();await expect(page.locator('#dispatchEditTime')).toHaveValue('08:45');
+ await page.locator('#dispatchEditVehicle').selectOption('ST-254-01');await expect(page.locator('#dispatchEditDriver')).toHaveValue('Fletcher');await expect(page.locator('#dispatchEditVehicleEligibility')).toBeHidden();
+ await expect(page.locator('#dispatchSmartTiming')).not.toContainText('exceed the appointment');await expect(page.locator('#dispatchSmartTiming')).not.toContainText('Return pickup overlaps');
+ await page.locator('#dispatchEditSave').click();await expect(page.locator('#dispatchEditMsg')).toContainText('updated successfully');expect(mock.state.patches).toHaveLength(1);expect(mock.state.patches[0]).toMatchObject({driverName:'Fletcher',vehicleUnit:'ST-254-01',time:'08:45',returnTripTime:'12:00'});
+ await page.locator('#dispatchSmartTiming').screenshot({path:'output/dispatch-stretcher-timing-corrected.png'});
 });
 
 test('save waits for a pending route and ignores repeated clicks during preparation',async({page})=>{

@@ -15,7 +15,7 @@ Starting allowances are operational assumptions supplied for Nexus planning, not
 | Routine facility transfer | 30 min | 20 min |
 | BLS, ALS and critical facility transfer | 45 min | 35 min |
 
-Admin → Nexus Pricing Manager → Service travel-time planning controls these allowances, the existing speed reductions, a 5-minute reliability/documentation buffer per leg, and a 15-minute appointment check-in lead. Required handoff time in Booking omits the appointment check-in lead. Driver check-in/yard reporting remains a separate existing operational field.
+Admin → Nexus Pricing Manager → Service travel-time planning controls these allowances, cruising-speed reductions from a configurable 65 mph baseline, a 5-minute reliability/documentation buffer per leg, and a 15-minute appointment check-in lead. Required handoff time in Booking omits the appointment check-in lead. Driver check-in/yard reporting remains a separate existing operational field.
 
 For a wheelchair transfer whose service-adjusted road time is 20 minutes, a 10 AM appointment gives 8:30 AM crew arrival, 9 AM patient departure, 9:20 AM destination arrival, 9:40 AM handoff and 9:45 AM vehicle readiness. The transfer takes 75 minutes. The same 10 AM required-handoff deadline permits an 8:45 AM crew pickup. Facility allowances and history can change these values.
 
@@ -44,3 +44,5 @@ Existing scheduled pickups are preserved. Dispatch sees a recommendation and can
 Driver milestones distinguish patient ready from patient secured. GPS arrival does not confirm handoff. Recorded milestones update progress-based arrival/availability projections and flag threatened deadlines; these projections use planned travel until a new route estimate is obtained. They are not a continuous server-side traffic feed. Existing stakeholder status notifications remain unchanged.
 
 Migration `087.001` creates profiles/identity cache, appointment-date and timing-plan fields and enables shared smart timing. Verification covers real PostgreSQL migration/history/availability queries, booking-to-fare parity, handoff/appointment deadlines, overnight dates, receiving hours, peak boundaries, round trips, multiple stops and mobile layout.
+
+Service speed model: cruising ceilings preserve Google city and traffic estimates. With the default 65 mph baseline, wheelchair is capped at 55 mph, stretcher at 45 mph, ambulance services at 40 mph and Additional Capacity at 30 mph. These are planning assumptions, not speed limits. A 9-mile, 25-minute city route is not reduced to a near-zero speed. Only actual care and driving milestones produce progress-based delay warnings; scheduled and assigned updates do not.

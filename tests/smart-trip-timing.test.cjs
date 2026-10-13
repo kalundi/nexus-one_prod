@@ -62,6 +62,16 @@ test('driver delay projects handoff and vehicle availability, keeping documentat
  assert.equal(Timing.localParts(predicted.predictedVehicleAvailableAt).time,'09:55');
  assert.equal(predicted.delayMinutes,10);assert(predicted.alerts.some(a=>a.code==='LIVE_DELAY'));
 });
+
+test('scheduled and assigned history does not turn a future planning warning into a live driver delay',()=>{
+ const plan=Timing.plan({...booking,time:'09:30'},{...inputs,scheduleBasis:'PICKUP'},settings);
+ const at=Fare.scheduledEpoch(booking.date,'07:00');
+ const predicted=Timing.predict(plan,[{status:'SCHEDULED',createdAt:new Date(at-60000).toISOString()},{status:'ASSIGNED',createdAt:new Date(at).toISOString()}],at);
+ assert.equal(predicted.predicted,false);
+ assert.equal(predicted.predictedPatientArrivalAt,undefined);
+ assert(predicted.alerts.some(a=>a.code==='APPOINTMENT_AT_RISK'));
+ assert(!predicted.alerts.some(a=>a.code==='LIVE_DELAY'));
+});
 test('vehicle intervals overlap through handoff but adjacent completed windows are available',()=>{
  const plan=Timing.plan(booking,inputs,settings);
  assert(Timing.overlaps({start:plan.crewArrivalAt,end:plan.vehicleAvailableAt},{start:Fare.scheduledEpoch(booking.date,'09:30'),end:Fare.scheduledEpoch(booking.date,'10:00')}));

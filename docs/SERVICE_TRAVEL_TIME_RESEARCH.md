@@ -1,10 +1,10 @@
 # Service travel-time research and Nexus calculation
 
-Reviewed October 10, 2026. This research concerns passenger driving estimates and the separate time needed for patient assistance. Publications and the age of their underlying measurements are distinguished below.
+Reviewed October 10, 2026; calculation revised October 12, 2026. This research concerns passenger driving estimates and the separate time needed for patient assistance. Publications and the age of their underlying measurements are distinguished below.
 
 ## What the research supports
 
-The current sources reviewed do not establish universal average speeds for ambulatory, wheelchair, Broda, stretcher or bariatric medical transport vans. The operator has configured route-average reductions of 10 mph for wheelchair, 20 mph for stretcher, 25 mph for ambulance services and 35 mph for Additional Capacity (bariatric). These are Nexus planning assumptions, not established medical standards or directions to drivers. An estimate must account for the route, traffic and service assistance rather than assigning one constant speed to every city and highway trip.
+The current sources reviewed do not establish universal average speeds for ambulatory, wheelchair, Broda, stretcher or bariatric medical transport vans. The operator has configured cruising-speed reductions of 10 mph for wheelchair, 20 mph for stretcher, 25 mph for ambulance services and 35 mph for Additional Capacity (bariatric). These are Nexus planning assumptions, not established medical standards or directions to drivers. An estimate must account for the route, traffic and service assistance rather than assigning one constant speed to every city and highway trip.
 
 ### Recent transport and patient-comfort evidence
 
@@ -45,64 +45,31 @@ These are speeds at measurement locations, not door-to-door averages or recommen
 
 ## Model implemented in Nexus
 
-The input is each measured passenger segment's distance, baseline route duration and traffic duration. Outbound and return directions are measured separately. Multi-stop outbound legs retain separate distances and durations. Empty vehicle segments retain their road estimates.
+Each measured passenger segment supplies distance, baseline road duration and traffic duration. Outbound and return routes are measured separately, and intermediate stops retain their own measurements. Empty vehicle travel retains its Google road estimate.
 
-1. Baseline route average = miles × 60 / baseline route minutes.
-2. Planning average = baseline route average minus the configured service reduction.
-3. A configurable minimum planning average, initially 5 mph, prevents zero or negative speed. It never raises a route average that is already below that minimum.
-4. Service baseline minutes = miles × 60 / planning average.
-5. Traffic delay = max(0, traffic minutes minus original baseline minutes).
-6. Estimated driving minutes = service baseline minutes plus traffic delay.
-7. Journey duration = passenger driving, scheduled waiting and assistance between intermediate stops. It excludes empty vehicle travel and yard preparation.
+1. Road average = miles × 60 / baseline road minutes.
+2. Cruising ceiling = configurable cruising baseline, initially 65 mph, minus the service reduction.
+3. Planning average = min(road average, cruising ceiling). City-route averages are preserved.
+4. The minimum ceiling, initially 5 mph, prevents invalid configured ceilings and never speeds up a slow route.
+5. Service road minutes = miles × 60 / planning average.
+6. Traffic delay = max(0, traffic minutes − original road minutes).
+7. Passenger driving minutes = service road minutes + traffic delay.
 
-The speed allowance is applied to the original route baseline, not to the already-congested average. This preserves traffic delay separately. Original route measurements remain unchanged, so switching services, refreshing estimates and changing settings do not compound the allowance. The allowance does not become a traffic surcharge; actual traffic overage remains based on the original measured traffic delay.
-
-| Service | Initial speed reduction | Assistance between intermediate stops |
+| Service | Reduction | Default cruising ceiling |
 | --- | ---: | ---: |
-| Ambulatory | 0 mph | 10 min |
-| Wheelchair | 10 mph | 15 min |
-| Stretcher | 20 mph | 25 min |
-| Additional Capacity (bariatric) | 35 mph | 25 min |
-| BLS, ALS I, ALS II and critical-care ambulance transfers | 25 mph | 10 min |
-| Broda and routine facility transfer | 0 mph until configured | 10 min |
+| Ambulatory | 0 mph | 65 mph |
+| Wheelchair | 10 mph | 55 mph |
+| Stretcher | 20 mph | 45 mph |
+| BLS, ALS and critical-care transfers | 25 mph | 40 mph |
+| Additional Capacity | 35 mph | 30 mph |
+| Broda and routine facility transfer | 0 mph until configured | 65 mph |
 
-These assistance values retain the existing Nexus scheduling allowances. All reductions and intermediate assistance times can be edited separately for each service in **Nexus Pricing Manager → Service travel-time planning**. Service travel policy version 2 replaces the former zero defaults for stretcher and ambulance services; version 3 replaces the former zero default for Additional Capacity. Subsequent explicit overrides, including zero, are retained. Additional Capacity permits reductions up to 35 mph; other services retain their 30 mph limit. Remaining services retain their route baseline until configured.
+These are operator planning assumptions rather than measured universal patient-transport speeds or speed limits. Actual road conditions, legal limits and patient care govern the driver. Admin can edit the cruising baseline and each service reduction in Nexus Pricing Manager. Policy version 4 selects cruising ceilings; existing service reductions and care allowances remain configurable.
 
-## Worked example
+For a 9-mile city leg with a 25-minute baseline and 6 minutes of traffic delay, all the default ceilings exceed the road average of 21.6 mph. Driving therefore remains 31 minutes. Subtracting 20 mph from that city average is no longer part of the current calculation.
 
-For a 20-mile leg with a 30-minute baseline, the route average is 40 mph. Assume the reverse direction has the same measurements and the scheduled appointment waiting is 60 minutes:
+For a 60-mile highway leg with a 60-minute baseline and 15 minutes of traffic delay, stretcher's 45 mph ceiling gives 80 minutes of road travel and 95 minutes including traffic. The traffic delay is added once, independently of the service allowance.
 
-| Service | Planning average | Outbound driving | Return driving | Waiting | Round-trip duration |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Ambulatory | 40 mph | 30 min | 30 min | 60 min | 2h |
-| Wheelchair | 30 mph | 40 min | 40 min | 60 min | 2h 20m |
-| Stretcher | 20 mph | 60 min | 60 min | 60 min | 3h |
-| Ambulance | 15 mph | 80 min | 80 min | 60 min | 3h 40m |
+Pickup preparation, securement, unloading, handoff, documentation and scheduled waiting remain separate from driving. The shared smart timing planner combines them for journey duration and works backward from appointment or handoff deadlines. Care time is not added as billable waiting. Fare traffic charges continue to use the original measured traffic delay.
 
-If the route also predicts 20 minutes of traffic delay per direction, each leg adds that delay once: ambulatory becomes 50 minutes per leg and wheelchair becomes 60 minutes. With the same 60-minute appointment wait, the round-trip durations become 2h 40m and 3h. Real return distances and traffic can differ from outbound measurements.
-
-For pickup-based bookings, waiting is recalculated from the adjusted arrival to the scheduled return pickup. For appointment-based bookings, pickup moves earlier to preserve the existing 15-minute early-arrival allowance. Intermediate departures are calculated backward from the next appointment using that service's driving time and assistance allowance. Waiting includes the free waiting period in elapsed duration; only its billable portion contributes a waiting charge.
-
-The time above each service fare shows passenger driving, including both directions for a round trip. The selected ride separately shows its return date, waiting included in the fare, intermediate assistance and total elapsed journey. Multi-day gaps are formatted as days and hours rather than hundreds of hours of apparent driving. The default return date follows the outbound date; an explicitly chosen later return date is retained. A later return currently represents continuous waiting under the existing booking policy, so its waiting and charge remain visible for review.
-
-## Traffic and estimation limits
-
-[Google's Directions Service documentation](https://developers.google.com/maps/documentation/javascript/legacy/directions) distinguishes baseline duration from predicted traffic duration. A traffic departure time must be present or future. Traffic duration is unavailable for requests containing stopover waypoints, so multi-stop routes may use baseline travel when the provider supplies no traffic prediction. Historic trips also use baseline duration rather than a fabricated historic traffic value. Future outbound requests now use the entered schedule instead of the current clock.
-
-If routing is unavailable, the existing local fallback is still an approximation; its service travel calculation uses that fallback's distances and baseline durations. It is not a measured fleet average. All displayed times are estimates, rounded upward once at the end.
-
-## How to calibrate the service assumptions
-
-**Nexus Pricing Manager → Recent service speeds and patient-care time** now provides a read-only report for the last 30, 90 or 180 days; 90 days is the default. The report displays the configured speed adjustment, observed passenger driving average, boarding and handoff medians, and separate trip/leg/sample counts for every configured service. Missing measurements remain labelled “No verified data.” It does not replace route predictions or automatically change a fare or speed setting.
-
-Only completed, non-mock bookings are eligible. Passenger driving runs from the recorded `DEPARTED` event to `ARRIVED_DESTINATION`. Boarding runs from `ARRIVED_PICKUP` to departure; handoff runs from destination arrival to `DELIVERED`. Appointment waiting and deadhead are outside those driving windows. A completed round trip can contribute two loaded legs while counting as one distinct trip. Duplicate stage events preserve the first arrival/departure timestamp.
-
-Driving distance is derived from consecutive GPS coordinates assigned to the booking and vehicle. The analysis requires at least three usable fixes, at least 90% coverage of the driving window, endpoints within two minutes, no gap longer than three minutes, and no segment or overall average above 80 mph. Fixes with reported accuracy worse than 50 metres are excluded. Coordinate movements below approximately five metres are omitted to reduce stationary jitter. Boarding and handoff intervals over four hours are omitted as likely incomplete records. These are report quality filters, not service speed instructions.
-
-The observed driving average is total GPS miles divided by total recorded passenger driving hours, including traffic stops. Care intervals use medians and their own sample counts. GPS distance remains approximate: curves between samples can be underestimated and location noise can increase distance. A service-wide average also mixes road types and traffic. Neither sample count nor “ready for route comparison” proves that a new reduction is appropriate.
-
-The database read is limited to the latest 1,000 eligible completed bookings in the selected period. A visible notice identifies truncated reports. Only aggregate service results are returned to authenticated administrators and dispatchers; patient names, addresses, booking references and raw GPS coordinates are not included.
-
-Use completed trips to measure passenger driving separately from loading, securement, waiting and unloading. Exclude mock trips, deadhead, cancellations and incomplete timestamps. Compare similar routes, road mixes and pickup periods, with at least 30 complete trips per comparison group as an initial operational target rather than a statistical guarantee.
-
-For each actual passenger leg, calculate miles / actual driving hours and compare actual driving minutes with the stored baseline and traffic estimate. Report medians and the 80th and 90th percentile arrival error by service and route context. A fixed reduction should be adjusted only after inspecting those errors; a percentage time allowance may ultimately fit better than a fixed mph difference. Preserve the raw route evidence so that changing a planning assumption does not rewrite observed history.
+Completed real trip history supplies facility handling estimates. The recent service analysis report uses verified DEPARTED-to-ARRIVED_DESTINATION movement and separately measured boarding/handoff milestones; it does not automatically change the configured cruising ceilings.

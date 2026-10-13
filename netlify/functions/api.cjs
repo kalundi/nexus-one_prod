@@ -464,7 +464,8 @@ const DEFAULT_PLATFORM_SETTINGS={
   noShowFee:50,
   freeWaitMinutes:15,
   waitingPolicyVersion:2,
-  serviceTravelPolicyVersion:3,
+  serviceTravelPolicyVersion:4,
+  serviceSpeedModel:'CRUISING_CEILING',cruisingReferenceSpeedMph:65,
   smartTiming:{enabled:true,checkInLeadMinutes:15,reliabilityBufferMinutes:5,minimumHistorySamples:10,historyPercentile:85},
   deadheadRatePct:50,
   shortNoticeHours:24,
@@ -1085,7 +1086,8 @@ function mergePlatformSettings(raw){
    noShowFee:clamp(n(fareSrc.noShowFee,DEFAULT_PLATFORM_SETTINGS.fareRules.noShowFee),0,10000),
    freeWaitMinutes:Number(fareSrc.waitingPolicyVersion)>=2?clamp(n(fareSrc.freeWaitMinutes,15),0,240):15,
    waitingPolicyVersion:2,
-   serviceTravelPolicyVersion:3,
+   serviceTravelPolicyVersion:4,
+   serviceSpeedModel:'CRUISING_CEILING',cruisingReferenceSpeedMph:clamp(n(fareSrc.cruisingReferenceSpeedMph,65),40,85),
    minimumPlanningSpeedMph:clamp(n(fareSrc.minimumPlanningSpeedMph,5),1,30),
    smartTiming:{enabled:fareSrc.smartTiming?.enabled!==false,checkInLeadMinutes:clamp(n(fareSrc.smartTiming?.checkInLeadMinutes,15),0,120),reliabilityBufferMinutes:clamp(n(fareSrc.smartTiming?.reliabilityBufferMinutes,5),0,60),minimumHistorySamples:clamp(n(fareSrc.smartTiming?.minimumHistorySamples,10),5,100),historyPercentile:clamp(n(fareSrc.smartTiming?.historyPercentile,85),80,90)},
    deadheadRatePct:clamp(n(fareSrc.deadheadRatePct,50),0,100),
@@ -3813,14 +3815,16 @@ async function handler(event){
    if(!Number(coverage.rows[0]?.driver_count))return json(409,{error:'This driver has no active schedule covering the pickup time. Adjust the driver schedule or choose another driver.'});
   }
   const hasVehicleUnit=Object.prototype.hasOwnProperty.call(b,'vehicleUnit');
-  const timingChanged=(hasDate&&normalizeTripDate(b.date)!==normalizeTripDate(before.rows[0].trip_date))||(hasTime&&normalizeOptionalTripTime(b.time)!==normalizeOptionalTripTime(before.rows[0].trip_time))||(b.service!=null&&clean(b.service)!==clean(before.rows[0].service))||(hasTripSchedule&&(tripTypeValue!==(before.rows[0].trip_type||'ONE_WAY')||(returnDateValue||'')!==(normalizeTripDate(before.rows[0].return_trip_date)||'')||(returnTimeValue||'')!==(normalizeOptionalTripTime(before.rows[0].return_trip_time)||'')));
+  const timingChanged=(hasDate&&normalizeTripDate(b.date)!==normalizeTripDate(before.rows[0].trip_date))||(hasTime&&normalizeOptionalTripTime(b.time)!==normalizeOptionalTripTime(before.rows[0].pickup_time||before.rows[0].trip_time))||(b.service!=null&&resolveServicePolicyKey(b.service)!==resolveServicePolicyKey(before.rows[0].service))||(hasPickup&&clean(b.pickup)!==clean(before.rows[0].pickup))||(hasDestination&&clean(b.destination)!==clean(before.rows[0].destination))||(hasTripSchedule&&(tripTypeValue!==(before.rows[0].trip_type||'ONE_WAY')||(returnDateValue||'')!==(normalizeTripDate(before.rows[0].return_trip_date)||'')||(returnTimeValue||'')!==(normalizeOptionalTripTime(before.rows[0].return_trip_time)||'')));
   const driverChanged=hasDriverName&&clean(b.driverName)!==clean(before.rows[0].driver_name),vehicleChanged=hasVehicleUnit&&clean(b.vehicleUnit)!==clean(before.rows[0].vehicle_unit);
   if(!editingMock&&(driverChanged||vehicleChanged||timingChanged)&&!['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(String(before.rows[0].status).toUpperCase())){
    const proposed={...mapBooking(before.rows[0]),...b,reference:ref,pickupTime:b.time||b.pickupTime||mapBooking(before.rows[0]).pickupTime};
-   const availability=await TimingAvailability.resources(proposed,await readPlatformSettings(),query,SERVICE_VEHICLE_PREFS[resolveServicePolicyKey(proposed.service)]);
+   const eligibleUnits=SERVICE_VEHICLE_PREFS[resolveServicePolicyKey(proposed.service)];
+   if((vehicleChanged||timingChanged)&&clean(b.vehicleUnit)&&eligibleUnits&&!eligibleUnits.includes(clean(b.vehicleUnit)))return json(409,{code:'VEHICLE_SERVICE_MISMATCH',eligibleVehicleUnits:eligibleUnits,error:`${clean(b.vehicleUnit)} is not eligible for ${clean(proposed.service)} service. Choose ${eligibleUnits.join(' or ')}.`});
+   const availability=await TimingAvailability.resources(proposed,await readPlatformSettings(),query,eligibleUnits);
    if(availability.plan&&!availability.plan.routingPending){
     if((driverChanged||timingChanged)&&clean(b.driverName)&&!availability.drivers.some(d=>d.display_name===clean(b.driverName)))return json(409,{error:'The driver is unavailable for the full trip, including preparation and handoff. Review schedules and overlapping trips.'});
-    if((vehicleChanged||timingChanged)&&clean(b.vehicleUnit)&&!availability.vehicles.some(v=>v.unit_number===clean(b.vehicleUnit)))return json(409,{error:'This vehicle overlaps another trip through patient handoff. Choose another vehicle or adjust the schedule.'});
+    if((vehicleChanged||timingChanged)&&clean(b.vehicleUnit)&&!availability.vehicles.some(v=>v.unit_number===clean(b.vehicleUnit)))return json(409,{error:'This vehicle is unavailable for the full trip. Check fleet status and overlapping trips, or choose another vehicle.'});
    }
   }
   const hasNotes=Object.prototype.hasOwnProperty.call(b,'notes');
@@ -4080,7 +4084,7 @@ async function handler(event){
      try{r=await query(sql);break;}catch{}
     }
     if(!r) throw Object.assign(new Error('Fleet records unavailable for current schema'),{statusCode:500});
-    return json(200,{generatedAt:new Date().toISOString(),role:u?.role||'PUBLIC',includeAll,vehicles:r.rows.map(v=>({id:v.unit_number,unit:v.unit_number,type:v.vehicle_type,status:v.status,lat:Number(v.latitude),lng:Number(v.longitude),heading:Number(v.heading||0),speed:Number(v.speed_mph||0),lastSeen:v.last_seen_at,driverScopeId:v.driver_scope_id||null,active:v.active!==false,metadata:v.metadata||{}}))});
+    return json(200,{generatedAt:new Date().toISOString(),role:u?.role||'PUBLIC',includeAll,vehicles:r.rows.map(v=>({id:v.unit_number,unit:v.unit_number,type:v.vehicle_type,status:v.status,lat:Number(v.latitude),lng:Number(v.longitude),heading:Number(v.heading||0),speed:Number(v.speed_mph||0),lastSeen:v.last_seen_at,driverScopeId:v.driver_scope_id||null,active:v.active!==false,eligibleServices:Object.keys(SERVICE_VEHICLE_PREFS).filter(service=>SERVICE_VEHICLE_PREFS[service].includes(v.unit_number)),metadata:v.metadata||{}}))});
   }
   // Auto-assign: find best available driver + vehicle for a booking
   if(p[0]==='dispatch'&&p[1]==='auto-assign'&&method==='POST'){

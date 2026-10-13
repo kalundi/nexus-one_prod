@@ -5,6 +5,30 @@ const Routes=require('../nexus-route.js');
 const rate={base:100,includedMiles:5,perMile:4,waitPer15:20};
 const route={miles:20,durationMinutes:30,trafficDurationMinutes:50};
 
+test('cruising ceilings preserve a slow city route for every service without inventing hours of driving',()=>{
+ const rules={serviceSpeedModel:'CRUISING_CEILING',cruisingReferenceSpeedMph:65,serviceTravelPolicyVersion:4};
+ for(const [service,ceiling] of [['ambulatory',65],['wheelchair',55],['stretcher',45],['bls',40],['als1',40],['als2',40],['facility_transfer_critical',40],['bariatric',30]]){
+  const travel=Fare.serviceTravel({miles:9,durationMinutes:25,trafficDurationMinutes:31},service,rules);
+  assert.equal(travel.cruisingCeilingMph,ceiling,service);
+  assert.equal(travel.serviceDurationMinutes,25,service);
+  assert.equal(travel.scheduledMinutes,31,service);
+ }
+});
+
+test('cruising ceilings extend highway driving and add traffic delay only once',()=>{
+ const rules={serviceSpeedModel:'CRUISING_CEILING',cruisingReferenceSpeedMph:65,serviceTravelPolicyVersion:4};
+ const travel=Fare.serviceTravel({miles:60,durationMinutes:60,trafficDurationMinutes:75},'stretcher',rules);
+ assert.equal(travel.serviceAverageMph,45);assert.equal(travel.serviceDurationMinutes,80);assert.equal(travel.trafficDelayMinutes,15);assert.equal(travel.scheduledMinutes,95);
+ const custom=Fare.serviceTravel({miles:60,durationMinutes:60},'stretcher',{...rules,cruisingReferenceSpeedMph:60,servicePolicies:{stretcher:{speedReductionMph:15}}});
+ assert.equal(custom.cruisingCeilingMph,45);
+});
+
+test('each stop uses the cruising ceiling independently, preserving slower city segments',()=>{
+ const rules={serviceSpeedModel:'CRUISING_CEILING',cruisingReferenceSpeedMph:65,serviceTravelPolicyVersion:4};
+ const travel=Fare.serviceTravel({miles:69,durationMinutes:85,trafficDurationMinutes:106,stopDistancesMiles:[60,9],stopDurationMinutes:[60,25],stopTrafficDurationMinutes:[75,31]},'stretcher',rules);
+ assert.deepEqual(travel.stopScheduledMinutes,[95,31]);assert.equal(travel.scheduledMinutes,126);
+});
+
 test('wheelchair uses the configured reduction from route-average speed and preserves traffic delay',()=>{
  const ambulatory=Fare.serviceTravel(route,'ambulatory');
  const wheelchair=Fare.serviceTravel(route,'wheelchair');

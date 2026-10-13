@@ -45,6 +45,7 @@ test('pricing manager saves all active fare variables and preserves unrelated se
  expect(await capacityReduction.evaluate(input=>input.validity.valid)).toBe(true);
  for(const service of ['bls','als1','als2','facility_transfer_critical'])await expect(page.locator(`[data-service-policy="${service}"] [data-field="speedReductionMph"]`)).toHaveValue('25');
  await page.locator('#minimumPlanningSpeedMph').fill('8');
+ await page.locator('#cruisingReferenceSpeedMph').fill('60');
  await page.locator('[data-service-policy="wheelchair"] [data-field="speedReductionMph"]').fill('7');
  await page.locator('[data-service-policy="wheelchair"] [data-field="transitionBufferMinutes"]').fill('20');
  await page.locator('#savePricing').click();
@@ -55,7 +56,7 @@ test('pricing manager saves all active fare variables and preserves unrelated se
  expect(saved.fareRules.servicePolicies.wheelchair).toMatchObject({freeWaitMinutes:30,afterHoursSurchargePct:10,trafficOverageFeePerHour:0});
  expect(saved.fareRules.minimumPlanningSpeedMph).toBe(8);
  expect(saved.fareRules.servicePolicies.wheelchair).toMatchObject({speedReductionMph:7,transitionBufferMinutes:20});
- expect(saved.fareRules.serviceTravelPolicyVersion).toBe(3);
+ expect(saved.fareRules.serviceTravelPolicyVersion).toBe(4);expect(saved.fareRules.serviceSpeedModel).toBe('CRUISING_CEILING');expect(saved.fareRules.cruisingReferenceSpeedMph).toBe(60);
  expect(saved.fareRules.servicePolicies.bariatric.speedReductionMph).toBe(35);
  expect(saved.fareRules.servicePolicies.stretcher.speedReductionMph).toBe(20);
  for(const service of ['bls','als1','als2','facility_transfer_critical'])expect(saved.fareRules.servicePolicies[service].speedReductionMph).toBe(25);
@@ -113,7 +114,7 @@ test('recent service analysis separates driving and care time without changing p
  await expect(wheelchair).toContainText('15.0 min');
  await expect(wheelchair).toContainText('8.0 min');
  await expect(wheelchair).toContainText('33 trips / 64 legs');
- await expect(wheelchair).toContainText('Route average −10 mph');
+  await expect(wheelchair).toContainText('55 mph cruising ceiling');
  await expect(page.locator('#serviceAnalysisStatus')).toContainText('35 completed trips reviewed');
  await expect(page.locator('#serviceAnalysisRows tr').filter({hasText:'Ambulatory'})).toContainText('No verified data');
  await page.locator('#serviceAnalysisDays').selectOption('30');

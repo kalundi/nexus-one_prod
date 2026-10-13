@@ -91,16 +91,18 @@
     const defaultReduction=key==='wheelchair'?10:key==='stretcher'?20:ambulance?25:key==='bariatric'?35:0;
     // Replace the former zero defaults once; subsequent explicit settings remain editable.
     const migrateZero=Number(policy.speedReductionMph)===0&&((!(Number(rules.serviceTravelPolicyVersion)>=2)&&(key==='stretcher'||ambulance))||(!(Number(rules.serviceTravelPolicyVersion)>=3)&&key==='bariatric'));
-    return {speedReductionMph:bounded(migrateZero?null:policy.speedReductionMph,defaultReduction,0,key==='bariatric'?35:30),minimumPlanningSpeedMph:bounded(rules.minimumPlanningSpeedMph,5,1,30),transitionBufferMinutes:bounded(policy.transitionBufferMinutes,key==='wheelchair'?15:['stretcher','bariatric'].includes(key)?25:10,0,120)};
+    const speedReductionMph=bounded(migrateZero?null:policy.speedReductionMph,defaultReduction,0,key==='bariatric'?35:30);
+    const minimumPlanningSpeedMph=bounded(rules.minimumPlanningSpeedMph,5,1,30),cruisingReferenceSpeedMph=bounded(rules.cruisingReferenceSpeedMph,65,40,85);
+    return {speedReductionMph,minimumPlanningSpeedMph,cruisingReferenceSpeedMph,speedModel:rules.serviceSpeedModel==='CRUISING_CEILING'?'CRUISING_CEILING':'ROUTE_AVERAGE',cruisingCeilingMph:Math.max(minimumPlanningSpeedMph,cruisingReferenceSpeedMph-speedReductionMph),transitionBufferMinutes:bounded(policy.transitionBufferMinutes,key==='wheelchair'?15:['stretcher','bariatric'].includes(key)?25:10,0,120)};
   }
   function serviceTravel(route={},service,rules={}){
     const policy=travelPolicy(service,rules);
     const adjust=(miles,base,traffic)=>{
       miles=Math.max(0,Number(miles)||0);base=Math.max(0,Number(base)||0);traffic=Math.max(base,Number(traffic)||0);
       const routeAverageMph=base>0?miles*60/base:0;
-      // This is a planning adjustment to route-average speed, not a speed limit.
-      // Never make a slow route faster or subtract from already-congested speed.
-      const serviceAverageMph=routeAverageMph>0?Math.min(routeAverageMph,Math.max(policy.minimumPlanningSpeedMph,routeAverageMph-policy.speedReductionMph)):0;
+      // The cruising ceiling applies only where the road baseline exceeds it.
+      // Google city travel and traffic delays remain the minimum time estimate.
+      const serviceAverageMph=routeAverageMph>0?Math.min(routeAverageMph,policy.speedModel==='CRUISING_CEILING'?policy.cruisingCeilingMph:Math.max(policy.minimumPlanningSpeedMph,routeAverageMph-policy.speedReductionMph)):0;
       const serviceDurationMinutes=serviceAverageMph>0&&serviceAverageMph<routeAverageMph?Math.max(base,miles*60/serviceAverageMph):base;
       const trafficDelayMinutes=Math.max(0,traffic-base);
       return {routeAverageMph,serviceAverageMph,serviceDurationMinutes,serviceTrafficDurationMinutes:serviceDurationMinutes+trafficDelayMinutes,trafficDelayMinutes};

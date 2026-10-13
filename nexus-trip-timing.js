@@ -117,7 +117,8 @@
   }
   function predict(planValue,milestones=[],now=Date.now()){
     if(!planValue?.legs?.length)return null;
-    const events=milestones.filter(e=>Number.isFinite(Date.parse(e.createdAt||e.created_at))).sort((a,b)=>Date.parse(a.createdAt||a.created_at)-Date.parse(b.createdAt||b.created_at));
+    const progressStatuses=new Set(['ARRIVED_PICKUP','PATIENT_READY','PATIENT_ON_BOARD','PATIENT_SECURED','DEPARTED','ARRIVED_DESTINATION','DELIVERED','COMPLETED']);
+    const events=milestones.filter(e=>progressStatuses.has(e.status)&&Number.isFinite(Date.parse(e.createdAt||e.created_at))).sort((a,b)=>Date.parse(a.createdAt||a.created_at)-Date.parse(b.createdAt||b.created_at));
     const latest=events.at(-1);if(!latest)return {...planValue,predicted:false};
     const at=Date.parse(latest.createdAt||latest.created_at),status=latest.status;
     const completed=events.filter(e=>e.status==='DELIVERED').length;

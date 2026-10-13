@@ -59,6 +59,10 @@ test('Postgres migration, real facility learning, and resource occupancy work to
  await query("UPDATE vehicles SET active=false WHERE unit_number='EXISTING'");
  await db.exec(fs.readFileSync('database/migrations/088.001_vehicle_availability_active.sql','utf8'));
  assert.equal((await query("SELECT active FROM vehicles WHERE unit_number='EXISTING'")).rows[0].active,false,'rerunning migration preserves deactivated vehicles');
+ await query("UPDATE system_settings SET value=jsonb_set(value,'{fareRules,servicePolicies}','{\"stretcher\":{\"speedReductionMph\":20,\"pickupPreparationMinutes\":40}}'::jsonb)");
+ await db.exec(fs.readFileSync('database/migrations/089.001_cruising_speed_ceilings.sql','utf8'));
+ const persistedRules=(await query("SELECT value->'fareRules' AS rules FROM system_settings")).rows[0].rules;
+ assert.equal(persistedRules.serviceSpeedModel,'CRUISING_CEILING');assert.equal(persistedRules.cruisingReferenceSpeedMph,65);assert.equal(persistedRules.servicePolicies.stretcher.speedReductionMph,20);assert.equal(persistedRules.servicePolicies.stretcher.pickupPreparationMinutes,40);
  assert.equal((await query("SELECT value->'fareRules'->'smartTiming'->>'enabled' AS enabled FROM system_settings")).rows[0].enabled,'true');
  for(let i=0;i<11;i++){
   const ref=i===10?'MOCK-TEST':'REAL-'+i,source=i===10?'MOCK':'CUSTOMER',mins=i===10?170:20+i;

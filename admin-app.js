@@ -700,7 +700,8 @@ async function loadServiceTravelAnalysis(){
     const analysis=data.analysis;
     rows.innerHTML=analysis.services.map(row=>{
       const value=(number,unit)=>number==null?'No verified data':`${Number(number).toFixed(1)} ${unit}`;
-      const adjustment=Number(row.speedReductionMph)>0?`Route average −${Number(row.speedReductionMph)} mph`:'Route baseline';
+      const ceiling=Math.max(Number(currentSettings?.fareRules?.minimumPlanningSpeedMph)||5,(Number(currentSettings?.fareRules?.cruisingReferenceSpeedMph)||65)-Number(row.speedReductionMph||0));
+      const adjustment=`${ceiling} mph cruising ceiling`;
       const evidence=row.evidenceStatus==='REVIEW_READY'?'Ready for route comparison':row.evidenceStatus==='LIMITED_SAMPLE'?'Limited sample':'No verified driving data';
       return `<tr><td><strong>${escapeHtml(row.label)}</strong><br><small>${escapeHtml(row.careFocus)}</small></td><td>${escapeHtml(adjustment)}</td><td>${escapeHtml(value(row.observedAverageMph,'mph'))}</td><td>${escapeHtml(value(row.boardingMedianMinutes,'min'))}<br><small>${Number(row.boardingSamples)||0} samples</small></td><td>${escapeHtml(value(row.handoffMedianMinutes,'min'))}<br><small>${Number(row.handoffSamples)||0} samples</small></td><td>${Number(row.tripCount)||0} trips / ${Number(row.legCount)||0} legs<br><small>${evidence}</small></td></tr>`;
     }).join('');
@@ -715,7 +716,7 @@ document.getElementById('refreshServiceAnalysis')?.addEventListener('click',()=>
 document.getElementById('serviceAnalysisDays')?.addEventListener('change',()=>void loadServiceTravelAnalysis());
 
 function readPricingRules(){
-  const rules={...(currentSettings?.fareRules||{}),waitingPolicyVersion:2,serviceTravelPolicyVersion:3};
+  const rules={...(currentSettings?.fareRules||{}),waitingPolicyVersion:2,serviceTravelPolicyVersion:4,serviceSpeedModel:'CRUISING_CEILING'};
   document.querySelectorAll('#pricingSection [data-fare-rule]').forEach(input=>{
     rules[input.dataset.fareRule]=input.tagName==='SELECT'?input.value:Number(input.value);
   });
