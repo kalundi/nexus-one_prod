@@ -1,9 +1,9 @@
 const { test, expect } = require('@playwright/test');
 
-for (const width of [390, 1280]) {
-  for (const outcome of ['payment', 'invoice', 'error']) {
-    test(`Confirm Fare opens payment while saving: ${width}px, ${outcome}`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 });
+for (const {width, height} of [{width:390,height:900}, {width:1280,height:900}, {width:1280,height:720}, {width:390,height:667}, {width:844,height:390}]) {
+  for (const outcome of ['payment', 'invoice', 'error', 'preparation-error']) {
+    test(`Confirm Fare opens payment while saving: ${width}x${height}, ${outcome}`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
       await page.route('**/api/**', route => {
         const url = route.request().url();
         const body = url.includes('/integrations/config')
@@ -36,7 +36,26 @@ for (const width of [390, 1280]) {
       await page.locator('#confirmPickupDropoffBtn').click();
       await page.locator('[data-service="wheelchair"]').click();
       await page.locator('#continueRideBtn').click();
+      if (outcome === 'preparation-error') {
+        await page.evaluate(() => {
+          const original = window.NexusFare.getWaitingCharge;
+          window.NexusFare.getWaitingCharge = (...args) => {
+            window.NexusFare.getWaitingCharge = original;
+            throw new Error('Fare details unavailable.');
+          };
+        });
+      }
       await page.locator('#fareConfirmAccept').click();
+      if (outcome === 'preparation-error') {
+        await expect(page.locator('#fareConfirmDialog')).not.toBeVisible();
+        await expect(page.locator('#statusMsg')).toContainText('Unable to prepare your booking. Fare details unavailable.');
+        await expect(page.locator('#statusMsg')).toBeVisible();
+        await expect(page.locator('#statusMsg')).toBeInViewport();
+        await expect(page.locator('#paymentSection')).toBeHidden();
+        expect(submissions).toBe(0);
+        releaseBooking();
+        return;
+      }
       await expect(page.locator('#paymentSection')).toBeVisible();
       await expect(page.locator('#payDepositBtn')).toBeVisible();
       await expect(page.locator('#payFullBtn')).toBeVisible();
@@ -54,10 +73,21 @@ for (const width of [390, 1280]) {
         await expect(page.locator('#payFullBtn')).toBeEnabled();
         await expect(page.locator('#depositAmountLabel')).toHaveText('$77.35');
         await expect(page.locator('#fullAmountLabel')).toHaveText('$309.41');
+        // A rendered button can still be clipped by the fixed panel or covered by tabs.
+        await page.locator('#payFullBtn').click({trial:true, timeout:5000});
+        await page.locator('#payDepositBtn').click({trial:true, timeout:5000});
+        const panel = await page.locator('#paymentSection').boundingBox();
+        const tabs = await page.locator('.appTabBar').boundingBox();
+        expect(panel.y + panel.height).toBeLessThanOrEqual(tabs.y + 1);
+        expect(tabs.y + tabs.height).toBeLessThanOrEqual(height + 1);
       } else {
         await expect(page.locator('#paymentSection')).toBeHidden();
         await expect(page.locator('body')).not.toHaveClass(/bookingPaymentMapView/);
-        if (outcome === 'error') await expect(page.locator('#statusMsg')).toContainText('Please try your booking again.');
+        if (outcome === 'error') {
+          await expect(page.locator('#statusMsg')).toContainText('Please try your booking again.');
+          await expect(page.locator('#statusMsg')).toBeVisible();
+          await expect(page.locator('#statusMsg')).toBeInViewport();
+        }
       }
       expect(submissions).toBe(1);
     });

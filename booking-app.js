@@ -1524,8 +1524,10 @@
       const sheetHeight=Math.ceil(Number(sheet?.getBoundingClientRect().height||0));
       const paymentView=document.body.classList.contains('bookingPaymentMapView');
       if(paymentView){
-        const availableHeight=Math.max(260,window.innerHeight-mapTop-64);
-        const mapHeight=Math.max(260,Math.min(520,availableHeight-sheetHeight+18));
+        // Payment gets the available space first, including in short embedded views.
+        // A minimum map height can push checkout behind the fixed navigation.
+        const availableHeight=Math.max(0,window.innerHeight-mapTop-64);
+        const mapHeight=Math.max(18,Math.min(520,availableHeight-sheetHeight+18));
         document.documentElement.style.setProperty('--booking-map-height',`${mapHeight}px`);
         document.documentElement.style.setProperty('--booking-sheet-top',`${mapTop+mapHeight-18}px`);
         const sheetTop=mapTop+mapHeight-18;
@@ -3250,9 +3252,7 @@
       confirmedFareSignature=fareEstimateSignature;
       fareSubmissionAuthorized=true;
       fareConfirmDialog?.close();
-      syncSectionProgressUi();
-      setStatus('Fare estimate confirmed. Sending your ride request...', 'ok');
-      window.setTimeout(()=>form?.requestSubmit(),0);
+      void submitBooking();
     });
     reviewFareBtn?.addEventListener('click',reopenFareConfirmation);
     $('reviewScheduleBtn')?.addEventListener('click',()=>{
@@ -3833,8 +3833,22 @@
   }
 
   async function submitBooking(event){
-    event.preventDefault();
+    event?.preventDefault();
     if(bookingSubmissionPending) return;
+    try{
+      await performBookingSubmission();
+    }catch(err){
+      bookingSubmissionPending = false;
+      paymentSection.hidden = true;
+      journeyNavigationOverride = 'riderDetailsSection';
+      setStatus(`Unable to prepare your booking. ${err.message || 'Please review your details and try again.'}`, 'err');
+      setBookingOutcome('Booking was not submitted', 'pending');
+      revealSectionForAction('riderDetailsSection', 'statusMsg');
+      setBusy(submitBtn, false, 'Booking...', 'Book My Ride');
+    }
+  }
+
+  async function performBookingSubmission(){
     clearStatus();
     setBookingOutcome('', 'pending');
     updateFareConfirmationState();
