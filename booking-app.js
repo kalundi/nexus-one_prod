@@ -57,7 +57,6 @@
   const farePromotionSavings = $('farePromotionSavings');
   const fareConfirmDialog = $('fareConfirmDialog');
   const fareConfirmAmount = $('fareConfirmAmount');
-  const fareConfirmDetails = $('fareConfirmDetails');
   const fareConfirmCancel = $('fareConfirmCancel');
   const fareConfirmAccept = $('fareConfirmAccept');
   const reviewFareBtn = $('reviewFareBtn');
@@ -1640,7 +1639,6 @@
     if(!getProgressState().allRequiredComplete||!destinationConfirmed)return;
     lastPromptedFareSignature=fareEstimateSignature;
     if(fareConfirmAmount)fareConfirmAmount.textContent=`$${Number(estimateState.fare||0).toFixed(2)}`;
-    if(fareConfirmDetails)fareConfirmDetails.textContent=`${Number(estimateState.miles||0).toFixed(1)} miles • ${estimateState.tripDurationText||'Estimated travel time pending'}${estimateState.travelBreakdown?` • ${estimateState.travelBreakdown}`:''}`;
     if(fareConfirmDialog?.showModal)fareConfirmDialog.showModal();
   }
 
