@@ -4519,6 +4519,45 @@ async function handler(event){
      await audit('USER',userId,'CREDENTIALS_REISSUED',{by:me.email,email:target.email,role:target.role,emailDeliveryStatus,policyEnforced});
      return json(200,{ok:true,user:{id:String(target.id),email:target.email,name:target.display_name,role:target.role,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,emailDeliveryStatus,warning});
     }
+  // DriveFlex requests are recruitment/scheduling records, not authorization to begin a shift.
+  if(p[0]==='driveflex'&&p[1]==='shifts'){
+   const u=await requireUser(bearer(event),['DRIVER','ADMIN','DISPATCHER']);
+   const isStaff=['ADMIN','DISPATCHER'].includes(u.role);
+   if(method==='GET'&&p.length===2){
+    const rows=await query("SELECT id,start_at,end_at,service_level,operating_area,vehicle_unit,status FROM driveflex_open_shifts WHERE status='OPEN' AND start_at>now() ORDER BY start_at LIMIT 50");
+    return json(200,{shifts:rows.rows});
+   }
+   if(method==='POST'&&p.length===2){
+    if(!isStaff)return json(403,{error:'Only dispatch may publish shifts'});
+    const b=parseBody(event),start=new Date(b.startAt),end=new Date(b.endAt);
+    if(!Number.isFinite(start.valueOf())||!Number.isFinite(end.valueOf())||start<=new Date()||end<=start||end-start>24*3600000)return json(400,{error:'Provide a valid future shift (24 hours maximum)'});
+    if(!['AMBULATORY','WHEELCHAIR','EMT'].includes(b.serviceLevel)||!clean(b.operatingArea)||clean(b.operatingArea).length>100)return json(400,{error:'Invalid service level or area'});
+    const result=await query("INSERT INTO driveflex_open_shifts(created_by,start_at,end_at,service_level,operating_area,vehicle_unit) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,status",[u.id,start.toISOString(),end.toISOString(),b.serviceLevel,clean(b.operatingArea),clean(b.vehicleUnit)||null]);
+    return json(201,{shift:result.rows[0]});
+   }
+   if(method==='POST'&&p[3]==='request'&&p.length===4){
+    if(u.role!=='DRIVER')return json(403,{error:'Driver account required'});
+    const result=await query(`INSERT INTO driveflex_shift_requests(shift_id,driver_id)
+       SELECT s.id,$2 FROM driveflex_open_shifts s WHERE s.id=$1::uuid AND s.status='OPEN' AND s.start_at>now()
+       ON CONFLICT(shift_id,driver_id) DO NOTHING RETURNING id,status`,[p[2],u.id]);
+    if(!result.rows.length)return json(409,{error:'Shift unavailable or already requested'});
+    return json(201,{request:result.rows[0],message:'Request submitted. Dispatch approval is required; no shift has been assigned.'});
+   }
+   if(method==='GET'&&p[2]==='requests'&&p.length===3){
+    const rows=isStaff?await query("SELECT r.id,r.driver_id,r.shift_id,r.status,r.created_at,s.start_at,s.end_at,s.service_level FROM driveflex_shift_requests r JOIN driveflex_open_shifts s ON s.id=r.shift_id ORDER BY r.created_at DESC LIMIT 100"):await query("SELECT r.id,r.shift_id,r.status,r.created_at,s.start_at,s.end_at,s.service_level FROM driveflex_shift_requests r JOIN driveflex_open_shifts s ON s.id=r.shift_id WHERE r.driver_id=$1 ORDER BY r.created_at DESC LIMIT 50",[u.id]);
+    return json(200,{requests:rows.rows});
+   }
+   if(method==='POST'&&p[2]==='requests'&&p[4]==='review'&&p.length===5){
+    if(!isStaff)return json(403,{error:'Only dispatch can review requests'});
+    const body=parseBody(event),decision=clean(body.decision).toUpperCase();
+    if(!['APPROVED','REJECTED'].includes(decision))return json(400,{error:'Invalid decision'});
+    const result=await query(`UPDATE driveflex_shift_requests r SET status=$2,reviewed_by=$3,reviewed_at=now()
+       FROM driveflex_open_shifts s WHERE r.id=$1::uuid AND r.shift_id=s.id AND r.status='REQUESTED'
+       AND s.status='OPEN' AND s.start_at>now() RETURNING r.id,r.status`,[p[3],decision,u.id]);
+    if(!result.rows.length)return json(409,{error:'Request already processed or shift unavailable'});
+    return json(200,{request:result.rows[0],message:'Decision recorded. Separate roster and credential approval remains required before work begins.'});
+   }
+  }
   if(p[0]==='driver'&&p[1]==='assignments'&&method==='GET'){
    const token=bearer(event);
    let u;
