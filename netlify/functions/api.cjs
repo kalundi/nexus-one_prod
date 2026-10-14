@@ -4555,7 +4555,7 @@ async function handler(event){
      // Conservative preapproval gate: active employee, driver role and no
      // overlap with the existing recurring employee roster. Credential/vehicle
      // validation remains a separate mandatory operational process.
-     const check=await query(`SELECT r.driver_id,s.start_at,s.end_at,
+     const check=await query(`SELECT r.driver_id,s.start_at,s.end_at,s.service_level,
        EXISTS(SELECT 1 FROM employees e JOIN users usr ON usr.id=e.user_id
          WHERE e.user_id=r.driver_id AND e.role='DRIVER' AND e.active=true AND usr.active=true
          AND (usr.role='DRIVER' OR EXISTS(SELECT 1 FROM user_role_requests rr WHERE rr.user_id=usr.id AND rr.role='DRIVER' AND rr.status='APPROVED'))) AS active_driver,
@@ -4573,21 +4573,40 @@ async function handler(event){
        FROM driveflex_shift_requests r JOIN driveflex_open_shifts s ON s.id=r.shift_id
        WHERE r.id=$1::uuid AND r.status='REQUESTED' AND s.status='OPEN' AND s.start_at>now()`,[p[3]]);
      if(!check.rows.length)return json(409,{error:'Request no longer available'});
-     if(!check.rows[0].active_driver)return json(409,{error:'Driver is not an active authorized employee driver'});
+     if(!check.rows[0].active_driver)return json(409,{error:'Driver is not an active authorized empl     // Reuse Nexus's authoritative training approvals and fleet registry.
+     // This is provisional scheduling only, not proof of medical credentials or
+     // transport authority. Clinical service-specific checks remain at dispatch.
      const eligibility=await query(`SELECT
-       EXISTS(SELECT 1 FROM driveflex_driver_eligibility d
-         JOIN driveflex_shift_requests r ON r.driver_id=d.driver_id
-         JOIN driveflex_open_shifts sh ON sh.id=r.shift_id
-         WHERE r.id=$1::uuid AND d.service_level=sh.service_level
-           AND d.revoked_at IS NULL AND d.approved_until>=sh.end_at) AS driver_eligible,
-       EXISTS(SELECT 1 FROM driveflex_open_shifts sh
+       EXISTS(SELECT 1 FROM training_assignments a
+         JOIN driveflex_shift_requests r ON r.driver_id=a.user_id
+         WHERE r.id=$1::uuid) AS has_training,
+       NOT EXISTS(SELECT 1 FROM training_assignments a
+         JOIN driveflex_shift_requests r ON r.driver_id=a.user_id
+         WHERE r.id=$1::uuid
+           AND (a.acknowledged_at IS NULL OR
+                (a.requires_verification AND a.verified_at IS NULL))) AS training_complete,
+       EXISTS(SELECT 1 FROM driveflex_open_shifts sh JOIN vehicles v ON v.unit_number=sh.vehicle_unit
          WHERE sh.id=(SELECT shift_id FROM driveflex_shift_requests WHERE id=$1::uuid)
-           AND sh.vehicle_unit IS NOT NULL AND EXISTS (
-             SELECT 1 FROM driveflex_vehicle_eligibility v
-             WHERE v.vehicle_unit=sh.vehicle_unit AND v.revoked_at IS NULL
-             AND v.approved_until>=sh.end_at)) AS vehicle_eligible`,[p[3]]);
-     if(!eligibility.rows[0]?.driver_eligible)return json(409,{error:'Driver credentials have not been verified for this service and shift'});
-     if(!eligibility.rows[0]?.vehicle_eligible)return json(409,{error:'Shift vehicle is not explicitly approved through the scheduled end time'});
+           AND v.active=true AND v.status='AVAILABLE'
+           AND (v.metadata->>'inspection_expiry') ~ '^\\d{4}-\\d{2}-\\d{2}$'
+           AND (v.metadata->>'insurance_expiry') ~ '^\\d{4}-\\d{2}-\\d{2}$'
+           AND (v.metadata->>'inspection_expiry')::date >= (sh.end_at AT TIME ZONE 'America/New_York')::date
+           AND (v.metadata->>'insurance_expiry')::date >= (sh.end_at AT TIME ZONE 'America/New_York')::date
+           AND CASE sh.service_level
+             WHEN 'AMBULATORY' THEN (v.metadata->'compatible_services') ? 'ambulatory'
+             WHEN 'WHEELCHAIR' THEN (v.metadata->'compatible_services') ? 'wheelchair'
+               AND COALESCE((v.metadata->>'wheelchair_capacity') ~ '^[0-9]+$',false)
+               AND CASE WHEN (v.metadata->>'wheelchair_capacity') ~ '^[0-9]+$'
+                        THEN (v.metadata->>'wheelchair_capacity')::int>0 ELSE false END
+             ELSE false END
+       ) AS vehicle_ready`,[p[3]]);
+     if(!eligibility.rows[0]?.has_training||!eligibility.rows[0]?.training_complete)
+       return json(409,{error:'Existing Nexus training assignments must be completed and verified before approval'});
+     if(!eligibility.rows[0]?.vehicle_ready)
+       return json(409,{error:'Vehicle not verified as ready in the existing Nexus fleet system'});
+     if(check.rows[0].service_level==='EMT')
+       return json(409,{error:'EMT shifts require separate clinical credential review before scheduling'});
+d end time'});
 
      if(check.rows[0].roster_conflict)return json(409,{error:'Driver has an overlapping existing roster shift'});
      // Conservative fail-closed conflict check: a driver with a scheduled
