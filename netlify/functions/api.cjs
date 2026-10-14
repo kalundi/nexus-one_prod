@@ -4575,6 +4575,17 @@ async function handler(event){
      if(!check.rows.length)return json(409,{error:'Request no longer available'});
      if(!check.rows[0].active_driver)return json(409,{error:'Driver is not an active authorized employee driver'});
      if(check.rows[0].roster_conflict)return json(409,{error:'Driver has an overlapping existing roster shift'});
+     // Conservative fail-closed conflict check: a driver with a scheduled
+     // patient booking on the proposed local calendar date cannot receive an
+     // additional provisional shift until dispatch reconciles the itinerary.
+     const booked=await query(`SELECT EXISTS(
+       SELECT 1 FROM bookings b WHERE b.driver_user_id=$1::uuid
+       AND b.trip_date BETWEEN ($2::timestamptz AT TIME ZONE 'America/New_York')::date
+                           AND ($3::timestamptz AT TIME ZONE 'America/New_York')::date
+       AND b.status IN ('ASSIGNED','SCHEDULED','EN_ROUTE','ARRIVED_PICKUP','PICKED_UP','IN_PROGRESS')
+     ) AS assigned_booking`,[check.rows[0].driver_id,check.rows[0].start_at,check.rows[0].end_at]);
+     if(booked.rows[0]?.assigned_booking)return json(409,{error:'Driver has an existing patient booking on this date. Reconcile dispatch before approval.'});
+
     }
     const result=await query(`UPDATE driveflex_shift_requests r SET status=$2,reviewed_by=$3,reviewed_at=now()
        FROM driveflex_open_shifts s WHERE r.id=$1::uuid AND r.shift_id=s.id AND r.status='REQUESTED'
