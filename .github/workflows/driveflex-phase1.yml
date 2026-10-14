@@ -31,4 +31,4 @@ jobs:
           node --check netlify/functions/api.cjs
           node --check tests/career-application-workflow.spec.js
       - name: Test recruitment application and admin review
-        run: npx playwright test tests/career-application-workflow.spec.js --project=chromium
+        run: npx playwright test tests/career-application-workflow.spec.js
