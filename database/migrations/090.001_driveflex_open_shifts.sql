@@ -25,3 +25,5 @@ CREATE TABLE IF NOT EXISTS driveflex_shift_requests (
 CREATE INDEX IF NOT EXISTS idx_driveflex_open_shifts_status_start ON driveflex_open_shifts(status,start_at);
 CREATE INDEX IF NOT EXISTS idx_driveflex_shift_requests_driver ON driveflex_shift_requests(driver_id,created_at DESC);
 REVOKE ALL ON driveflex_open_shifts,driveflex_shift_requests FROM PUBLIC;
+
+INSERT INTO schema_migrations(version,description) VALUES('090.001','DriveFlex open shifts and request tables') ON CONFLICT(version) DO NOTHING;
