@@ -4574,6 +4574,21 @@ async function handler(event){
        WHERE r.id=$1::uuid AND r.status='REQUESTED' AND s.status='OPEN' AND s.start_at>now()`,[p[3]]);
      if(!check.rows.length)return json(409,{error:'Request no longer available'});
      if(!check.rows[0].active_driver)return json(409,{error:'Driver is not an active authorized employee driver'});
+     const eligibility=await query(`SELECT
+       EXISTS(SELECT 1 FROM driveflex_driver_eligibility d
+         JOIN driveflex_shift_requests r ON r.driver_id=d.driver_id
+         JOIN driveflex_open_shifts sh ON sh.id=r.shift_id
+         WHERE r.id=$1::uuid AND d.service_level=sh.service_level
+           AND d.revoked_at IS NULL AND d.approved_until>=sh.end_at) AS driver_eligible,
+       EXISTS(SELECT 1 FROM driveflex_open_shifts sh
+         WHERE sh.id=(SELECT shift_id FROM driveflex_shift_requests WHERE id=$1::uuid)
+           AND sh.vehicle_unit IS NOT NULL AND EXISTS (
+             SELECT 1 FROM driveflex_vehicle_eligibility v
+             WHERE v.vehicle_unit=sh.vehicle_unit AND v.revoked_at IS NULL
+             AND v.approved_until>=sh.end_at)) AS vehicle_eligible`,[p[3]]);
+     if(!eligibility.rows[0]?.driver_eligible)return json(409,{error:'Driver credentials have not been verified for this service and shift'});
+     if(!eligibility.rows[0]?.vehicle_eligible)return json(409,{error:'Shift vehicle is not explicitly approved through the scheduled end time'});
+
      if(check.rows[0].roster_conflict)return json(409,{error:'Driver has an overlapping existing roster shift'});
      // Conservative fail-closed conflict check: a driver with a scheduled
      // patient booking on the proposed local calendar date cannot receive an
