@@ -4551,6 +4551,31 @@ async function handler(event){
     if(!isStaff)return json(403,{error:'Only dispatch can review requests'});
     const body=parseBody(event),decision=clean(body.decision).toUpperCase();
     if(!['APPROVED','REJECTED'].includes(decision))return json(400,{error:'Invalid decision'});
+    if(decision==='APPROVED'){
+     // Conservative preapproval gate: active employee, driver role and no
+     // overlap with the existing recurring employee roster. Credential/vehicle
+     // validation remains a separate mandatory operational process.
+     const check=await query(`SELECT r.driver_id,s.start_at,s.end_at,
+       EXISTS(SELECT 1 FROM employees e JOIN users usr ON usr.id=e.user_id
+         WHERE e.user_id=r.driver_id AND e.role='DRIVER' AND e.active=true AND usr.active=true
+         AND (usr.role='DRIVER' OR EXISTS(SELECT 1 FROM user_role_requests rr WHERE rr.user_id=usr.id AND rr.role='DRIVER' AND rr.status='APPROVED'))) AS active_driver,
+       EXISTS(SELECT 1 FROM employees e JOIN employee_shifts es ON es.employee_id=e.id
+         CROSS JOIN LATERAL generate_series(date(s.start_at AT TIME ZONE 'America/New_York'),
+           date(s.end_at AT TIME ZONE 'America/New_York'),interval '1 day') slot(day)
+         WHERE e.user_id=r.driver_id AND es.active=true
+           AND es.weekday_iso=EXTRACT(ISODOW FROM slot.day)::int
+           AND es.effective_start_date<=slot.day::date
+           AND (es.effective_end_date IS NULL OR es.effective_end_date>=slot.day::date)
+           AND (slot.day::timestamp+es.start_time::time) <
+             (s.end_at AT TIME ZONE 'America/New_York')
+           AND (slot.day::timestamp+es.end_time::time) >
+             (s.start_at AT TIME ZONE 'America/New_York')) AS roster_conflict
+       FROM driveflex_shift_requests r JOIN driveflex_open_shifts s ON s.id=r.shift_id
+       WHERE r.id=$1::uuid AND r.status='REQUESTED' AND s.status='OPEN' AND s.start_at>now()`,[p[3]]);
+     if(!check.rows.length)return json(409,{error:'Request no longer available'});
+     if(!check.rows[0].active_driver)return json(409,{error:'Driver is not an active authorized employee driver'});
+     if(check.rows[0].roster_conflict)return json(409,{error:'Driver has an overlapping existing roster shift'});
+    }
     const result=await query(`UPDATE driveflex_shift_requests r SET status=$2,reviewed_by=$3,reviewed_at=now()
        FROM driveflex_open_shifts s WHERE r.id=$1::uuid AND r.shift_id=s.id AND r.status='REQUESTED'
        AND s.status='OPEN' AND s.start_at>now() RETURNING r.id,r.status`,[p[3],decision,u.id]);
