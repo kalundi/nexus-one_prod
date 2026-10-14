@@ -36,7 +36,7 @@ jobs:
           node --check netlify/functions/api.cjs
           node --check tests/career-application-workflow.spec.js
       - name: Test recruitment application and admin review
-        run: npx playwright test tests/career-application-workflow.spec.js tests/driveflex-shifts.spec.js tests/driveflex-dispatch.spec.js --reporter=line
+        run: npx playwright test --config=playwright.driveflex.config.js --reporter=line
       - name: Upload browser test results on failure
         if: failure()
         uses: actions/upload-artifact@v4
