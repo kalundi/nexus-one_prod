@@ -4573,9 +4573,8 @@ async function handler(event){
        FROM driveflex_shift_requests r JOIN driveflex_open_shifts s ON s.id=r.shift_id
        WHERE r.id=$1::uuid AND r.status='REQUESTED' AND s.status='OPEN' AND s.start_at>now()`,[p[3]]);
      if(!check.rows.length)return json(409,{error:'Request no longer available'});
-     if(!check.rows[0].active_driver)return json(409,{error:'Driver is not an active authorized empl     // Reuse Nexus's authoritative training approvals and fleet registry.
-     // This is provisional scheduling only, not proof of medical credentials or
-     // transport authority. Clinical service-specific checks remain at dispatch.
+     if(!check.rows[0].active_driver)return json(409,{error:'Driver is not an active authorized employee driver'});
+     // Reuse Nexus training approvals and fleet registry for provisional scheduling.
      const eligibility=await query(`SELECT
        EXISTS(SELECT 1 FROM training_assignments a
          JOIN driveflex_shift_requests r ON r.driver_id=a.user_id
@@ -4606,7 +4605,6 @@ async function handler(event){
        return json(409,{error:'Vehicle not verified as ready in the existing Nexus fleet system'});
      if(check.rows[0].service_level==='EMT')
        return json(409,{error:'EMT shifts require separate clinical credential review before scheduling'});
-d end time'});
 
      if(check.rows[0].roster_conflict)return json(409,{error:'Driver has an overlapping existing roster shift'});
      // Conservative fail-closed conflict check: a driver with a scheduled
