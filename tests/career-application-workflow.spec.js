@@ -85,3 +85,42 @@ test('an accepted email with a recording warning remains sent and clears the dra
  await openApplicant(page);let calls=0;await page.route('**/api/admin/career-applications/app-1/response',route=>{calls++;return route.fulfill({status:200,json:{sent:true,recordSaved:false,warning:'Email was sent, but its response record could not be saved. Do not resend this message.'}});});
  await page.getByRole('button',{name:'Send email response',exact:true}).click();await expect(page.locator('#applicantActionMessage')).toContainText('Do not resend');await expect(page.locator('#applicantResponseMessage')).toHaveValue('');await page.getByRole('button',{name:'Send email response',exact:true}).click();expect(calls).toBe(1);
 });
+
+test('DriveFlex applicant submits referral, availability and vehicle preferences', async ({page}) => {
+ let submitted;
+ await page.route('**/api/careers/applications', async route => {
+  submitted=route.request().postDataJSON();
+  await route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({received:true,applicationId:'DF-100'})});
+ });
+ await page.goto('/career-application.html?position=driveflex-driver');
+ await expect(page.locator('#driveflexFields')).toBeVisible();
+ await page.locator('[name="first-name"]').fill('Casey');
+ await page.locator('[name="last-name"]').fill('Taylor');
+ await page.locator('[name="email"]').fill('casey@example.com');
+ await page.locator('[name="phone"]').fill('3015550100');
+ await page.locator('[name="city"]').fill('Clarksburg');
+ await page.locator('[name="state"]').selectOption({label:'Maryland'});
+ await page.locator('[name="employment-preference"]').selectOption({label:'Part-time'});
+ await page.locator('[name="authorized-to-work"]').check();
+ await page.locator('[name="experience-years"]').selectOption({index:2});
+ await page.locator('[name="driveflex-vehicle"]').selectOption('nexus-fleet');
+ await page.locator('[name="driveflex-service"]').selectOption('wheelchair');
+ await page.locator('[name="driveflex-area"]').selectOption('montgomery');
+ await page.locator('[name="driveflex-referral"]').fill('NEXUS-123');
+ await page.locator('[name="interest"]').fill('Flexible patient transportation');
+ await page.locator('[name="certification"]').check();
+ await page.getByRole('button',{name:'Submit application'}).click();
+ await expect(page.locator('#careerApplicationStatus')).toContainText('DF-100');
+ expect(submitted.position).toBe('driveflex-driver');
+ expect(submitted.driveflex.referralCode).toBe('NEXUS-123');
+ expect(submitted.driveflex.preferredArea).toBe('montgomery');
+});
+
+test('DriveFlex carrier intake requires carrier business name', async ({page}) => {
+ await page.goto('/career-application.html?position=driveflex-carrier');
+ await expect(page.locator('#driveflexFields')).toBeVisible();
+ await expect(page.locator('[name="driveflex-carrier-name"]')).toHaveAttribute('required','');
+ await page.locator('#position').selectOption('driver');
+ await expect(page.locator('#driveflexFields')).toBeHidden();
+ await expect(page.locator('[name="driveflex-carrier-name"]')).not.toHaveAttribute('required','');
+});

@@ -146,6 +146,7 @@ function ensureCareerApplicationsSchema(){
   status text NOT NULL DEFAULT 'NEW' CHECK(status IN ('NEW','REVIEWING','INTERVIEW','OFFERED','HIRED','DECLINED','ARCHIVED')),
   internal_notes text,applicant_response text,notification_status jsonb NOT NULL DEFAULT '{}'::jsonb,reviewed_by uuid REFERENCES users(id) ON DELETE SET NULL,
   reviewed_at timestamptz,responded_at timestamptz,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now())`)
+  .then(()=>query("ALTER TABLE career_applications ADD COLUMN IF NOT EXISTS driveflex_details jsonb NOT NULL DEFAULT '{}'::jsonb"))
   .then(()=>query('CREATE INDEX IF NOT EXISTS idx_career_applications_status_created ON career_applications(status,created_at DESC)'))
   .then(()=>query('ALTER TABLE career_applications ENABLE ROW LEVEL SECURITY'))
   .then(()=>query('REVOKE ALL ON TABLE career_applications FROM anon, authenticated').catch(()=>{}))
@@ -2197,9 +2198,20 @@ async function handler(event){
    const resume=b.resume||null,resumeBytes=resume?.dataBase64?Buffer.from(String(resume.dataBase64),'base64'):null;
    const allowedResumeTypes=new Set(['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
    if(resumeBytes&&(!allowedResumeTypes.has(clean(resume.mimeType))||resumeBytes.length>4*1024*1024))return json(400,{error:'Résumé must be a PDF, DOC, or DOCX file no larger than 4 MB'});
+   const driveflexType=['driveflex-driver','driveflex-carrier'].includes(clean(b.position))?clean(b.position):null;
+   const d=b.driveflex&&typeof b.driveflex==='object'&&!Array.isArray(b.driveflex)?b.driveflex:{};
+   const take=(v,n=160)=>clean(v).slice(0,n);
+   const driveflexDetails=driveflexType?{
+     applicationType:driveflexType==='driveflex-carrier'?'CARRIER_PARTNER':'EMPLOYEE_DRIVER',
+     vehicleArrangement:take(d.vehicleArrangement,32),serviceExperience:take(d.serviceExperience,32),
+     preferredArea:take(d.preferredArea,32),referralCode:take(d.referralCode,40).toUpperCase(),
+     carrierName:take(d.carrierName)
+   }:{};
+   if(driveflexType==='driveflex-carrier'&&!driveflexDetails.carrierName)return json(400,{error:'Carrier business name is required'});
+   if(driveflexType==='driveflex-carrier'&&driveflexDetails.vehicleArrangement==='nexus-fleet')return json(400,{error:'Carrier applicants must describe their own fleet arrangement'});
    await ensureCareerApplicationsSchema();
-   const created=await query(`INSERT INTO career_applications(first_name,last_name,email,phone,city,state,position,employment_preference,available_start_date,preferred_shift,authorized_to_work,reliable_transportation,experience_years,license_state,certifications,interest,additional_information,resume_name,resume_mime_type,resume_data)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id,created_at`,[clean(b.firstName),clean(b.lastName),email,clean(b.phone),clean(b.city),clean(b.state),clean(b.position),clean(b.employmentPreference),clean(b.availableStartDate)||null,clean(b.preferredShift)||null,b.reliableTransportation===true,clean(b.experienceYears),clean(b.licenseState)||null,clean(b.certifications)||null,clean(b.interest),clean(b.additionalInformation)||null,resume?clean(resume.name)||null:null,resume?clean(resume.mimeType)||null:null,resumeBytes]);
+   const created=await query(`INSERT INTO career_applications(first_name,last_name,email,phone,city,state,position,employment_preference,available_start_date,preferred_shift,authorized_to_work,reliable_transportation,experience_years,license_state,certifications,interest,additional_information,resume_name,resume_mime_type,resume_data,driveflex_details)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb) RETURNING id,created_at`,[clean(b.firstName),clean(b.lastName),email,clean(b.phone),clean(b.city),clean(b.state),clean(b.position),clean(b.employmentPreference),clean(b.availableStartDate)||null,clean(b.preferredShift)||null,b.reliableTransportation===true,clean(b.experienceYears),clean(b.licenseState)||null,clean(b.certifications)||null,clean(b.interest),clean(b.additionalInformation)||null,resume?clean(resume.name)||null:null,resume?clean(resume.mimeType)||null:null,resumeBytes,JSON.stringify(driveflexDetails)]);
    const applicationId=String(created.rows[0].id),name=`${clean(b.firstName)} ${clean(b.lastName)}`;
    const safe=value=>clean(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
    const applicantEmail=sendEmail([email],'We received your Nexus Medical Transit application',`<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><h2 style="color:#082f49">Application received</h2><p>Hello ${safe(b.firstName)},</p><p>Thank you for applying to Nexus Medical Transit for <strong>${safe(b.position)}</strong>. Our hiring team will review your qualifications and contact you if your experience matches an available opportunity.</p><p><strong>Application reference:</strong> ${applicationId}</p><p>Do not send Social Security numbers or financial information by email.</p><p>Nexus Medical Transit<br>(888) 639-5766</p></div>`);
@@ -2214,7 +2226,7 @@ async function handler(event){
   }
   if(p[0]==='admin'&&p[1]==='career-applications'){
    const me=await requireUser(bearer(event),['ADMIN']);await ensureCareerApplicationsSchema();
-   if(method==='GET'&&p.length===2){const result=await query(`SELECT id,first_name,last_name,email,phone,city,state,position,employment_preference,available_start_date,preferred_shift,authorized_to_work,reliable_transportation,experience_years,license_state,certifications,interest,additional_information,resume_name,status,internal_notes,applicant_response,notification_status,reviewed_at,responded_at,created_at,updated_at FROM career_applications ORDER BY CASE status WHEN 'NEW' THEN 0 WHEN 'REVIEWING' THEN 1 ELSE 2 END,created_at DESC LIMIT 500`);return json(200,{applications:result.rows});}
+   if(method==='GET'&&p.length===2){const result=await query(`SELECT id,first_name,last_name,email,phone,city,state,position,employment_preference,available_start_date,preferred_shift,authorized_to_work,reliable_transportation,experience_years,license_state,certifications,interest,additional_information,resume_name,driveflex_details,status,internal_notes,applicant_response,notification_status,reviewed_at,responded_at,created_at,updated_at FROM career_applications ORDER BY CASE status WHEN 'NEW' THEN 0 WHEN 'REVIEWING' THEN 1 ELSE 2 END,created_at DESC LIMIT 500`);return json(200,{applications:result.rows});}
    const id=decodeURIComponent(p[2]||'');if(!id)return json(404,{error:'Application not found'});
    if(method==='GET'&&p[3]==='resume'){const result=await query('SELECT resume_name,resume_mime_type,resume_data FROM career_applications WHERE id=$1',[id]),row=result.rows[0];if(!row?.resume_data)return json(404,{error:'Résumé not found'});return {statusCode:200,isBase64Encoded:true,headers:{'content-type':row.resume_mime_type||'application/octet-stream','content-disposition':`attachment; filename="${clean(row.resume_name).replace(/[^a-zA-Z0-9._-]/g,'_')}"`},body:Buffer.from(row.resume_data).toString('base64')};}
    const b=parseBody(event);
