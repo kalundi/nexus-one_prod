@@ -64,6 +64,6 @@
   <footer class="footer"><div class="shell footerGrid"></div></footer>
   <script src="./platform.js?v=20261011-footer-spacing"></script>
   <script src="./career-application.js?v=3"></script>
-  <script>const requestedPosition=new URLSearchParams(location.search).get('position');if(requestedPosition&&document.querySelector('#position option[value="'+CSS.escape(requestedPosition)+'"]'))document.getElementById('position').value=requestedPosition;</script>
+  <script>const requestedPosition=new URLSearchParams(location.search).get('position');if(requestedPosition&&document.querySelector('#position option[value="'+CSS.escape(requestedPosition)+'"]')){document.getElementById('position').value=requestedPosition;document.getElementById('position').dispatchEvent(new Event('change'));}</script>
 </body>
 </html>
