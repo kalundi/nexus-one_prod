@@ -28,3 +28,5 @@ ON driveflex_shift_requests FOR EACH ROW EXECUTE FUNCTION driveflex_guard_shift_
 -- A posted shift is initially single-driver capacity; reject competing approvals.
 CREATE UNIQUE INDEX IF NOT EXISTS driveflex_single_approved_driver_per_shift
 ON driveflex_shift_requests(shift_id) WHERE status='APPROVED';
+
+INSERT INTO schema_migrations(version,description) VALUES('091.001','DriveFlex shift approval conflict constraints') ON CONFLICT(version) DO NOTHING;
