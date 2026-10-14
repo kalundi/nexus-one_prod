@@ -7,7 +7,6 @@
  const status=host.querySelector('[data-df-status]');
  const detail=host.querySelector('[data-df-details]');
  const refresh=host.querySelector('[data-df-refresh]');
- const request=host.querySelector('[data-df-request]');
  async function load(){
    if(!token()){status.textContent='Sign in to see your current approved schedule.';return;}
    refresh.disabled=true;status.textContent='Checking approved schedule…';
@@ -24,7 +23,6 @@
    finally{refresh.disabled=false;}
  }
  refresh.addEventListener('click',load);
- request.addEventListener('click',()=>{status.textContent='Additional shift requests must be approved by dispatch. Please contact your supervisor; requests are not submitted through this panel yet.';});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
  load();
 })();
