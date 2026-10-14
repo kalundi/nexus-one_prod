@@ -4519,6 +4519,113 @@ async function handler(event){
      await audit('USER',userId,'CREDENTIALS_REISSUED',{by:me.email,email:target.email,role:target.role,emailDeliveryStatus,policyEnforced});
      return json(200,{ok:true,user:{id:String(target.id),email:target.email,name:target.display_name,role:target.role,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,emailDeliveryStatus,warning});
     }
+  // DriveFlex requests are recruitment/scheduling records, not authorization to begin a shift.
+  if(p[0]==='driveflex'&&p[1]==='shifts'){
+   const u=await requireUser(bearer(event),['DRIVER','ADMIN','DISPATCHER']);
+   const isStaff=['ADMIN','DISPATCHER'].includes(u.role);
+   if(method==='GET'&&p.length===2){
+    const rows=await query("SELECT id,start_at,end_at,service_level,operating_area,vehicle_unit,status FROM driveflex_open_shifts WHERE status='OPEN' AND start_at>now() ORDER BY start_at LIMIT 50");
+    return json(200,{shifts:rows.rows});
+   }
+   if(method==='POST'&&p.length===2){
+    if(!isStaff)return json(403,{error:'Only dispatch may publish shifts'});
+    const b=parseBody(event),start=new Date(b.startAt),end=new Date(b.endAt);
+    if(!Number.isFinite(start.valueOf())||!Number.isFinite(end.valueOf())||start<=new Date()||end<=start||end-start>24*3600000)return json(400,{error:'Provide a valid future shift (24 hours maximum)'});
+    if(!['AMBULATORY','WHEELCHAIR','EMT'].includes(b.serviceLevel)||!clean(b.operatingArea)||clean(b.operatingArea).length>100)return json(400,{error:'Invalid service level or area'});
+    const result=await query("INSERT INTO driveflex_open_shifts(created_by,start_at,end_at,service_level,operating_area,vehicle_unit) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,status",[u.id,start.toISOString(),end.toISOString(),b.serviceLevel,clean(b.operatingArea),clean(b.vehicleUnit)||null]);
+    return json(201,{shift:result.rows[0]});
+   }
+   if(method==='POST'&&p[3]==='request'&&p.length===4){
+    if(u.role!=='DRIVER')return json(403,{error:'Driver account required'});
+    const result=await query(`INSERT INTO driveflex_shift_requests(shift_id,driver_id)
+       SELECT s.id,$2 FROM driveflex_open_shifts s WHERE s.id=$1::uuid AND s.status='OPEN' AND s.start_at>now()
+       ON CONFLICT(shift_id,driver_id) DO NOTHING RETURNING id,status`,[p[2],u.id]);
+    if(!result.rows.length)return json(409,{error:'Shift unavailable or already requested'});
+    return json(201,{request:result.rows[0],message:'Request submitted. Dispatch approval is required; no shift has been assigned.'});
+   }
+   if(method==='GET'&&p[2]==='requests'&&p.length===3){
+    const rows=isStaff?await query("SELECT r.id,r.driver_id,r.shift_id,r.status,r.created_at,s.start_at,s.end_at,s.service_level FROM driveflex_shift_requests r JOIN driveflex_open_shifts s ON s.id=r.shift_id ORDER BY r.created_at DESC LIMIT 100"):await query("SELECT r.id,r.shift_id,r.status,r.created_at,s.start_at,s.end_at,s.service_level FROM driveflex_shift_requests r JOIN driveflex_open_shifts s ON s.id=r.shift_id WHERE r.driver_id=$1 ORDER BY r.created_at DESC LIMIT 50",[u.id]);
+    return json(200,{requests:rows.rows});
+   }
+   if(method==='POST'&&p[2]==='requests'&&p[4]==='review'&&p.length===5){
+    if(!isStaff)return json(403,{error:'Only dispatch can review requests'});
+    const body=parseBody(event),decision=clean(body.decision).toUpperCase();
+    if(!['APPROVED','REJECTED'].includes(decision))return json(400,{error:'Invalid decision'});
+    if(decision==='APPROVED'){
+     // Conservative preapproval gate: active employee, driver role and no
+     // overlap with the existing recurring employee roster. Credential/vehicle
+     // validation remains a separate mandatory operational process.
+     const check=await query(`SELECT r.driver_id,s.start_at,s.end_at,s.service_level,
+       EXISTS(SELECT 1 FROM employees e JOIN users usr ON usr.id=e.user_id
+         WHERE e.user_id=r.driver_id AND e.role='DRIVER' AND e.active=true AND usr.active=true
+         AND (usr.role='DRIVER' OR EXISTS(SELECT 1 FROM user_role_requests rr WHERE rr.user_id=usr.id AND rr.role='DRIVER' AND rr.status='APPROVED'))) AS active_driver,
+       EXISTS(SELECT 1 FROM employees e JOIN employee_shifts es ON es.employee_id=e.id
+         CROSS JOIN LATERAL generate_series(date(s.start_at AT TIME ZONE 'America/New_York'),
+           date(s.end_at AT TIME ZONE 'America/New_York'),interval '1 day') slot(day)
+         WHERE e.user_id=r.driver_id AND es.active=true
+           AND es.weekday_iso=EXTRACT(ISODOW FROM slot.day)::int
+           AND es.effective_start_date<=slot.day::date
+           AND (es.effective_end_date IS NULL OR es.effective_end_date>=slot.day::date)
+           AND (slot.day::timestamp+es.start_time::time) <
+             (s.end_at AT TIME ZONE 'America/New_York')
+           AND (slot.day::timestamp+es.end_time::time) >
+             (s.start_at AT TIME ZONE 'America/New_York')) AS roster_conflict
+       FROM driveflex_shift_requests r JOIN driveflex_open_shifts s ON s.id=r.shift_id
+       WHERE r.id=$1::uuid AND r.status='REQUESTED' AND s.status='OPEN' AND s.start_at>now()`,[p[3]]);
+     if(!check.rows.length)return json(409,{error:'Request no longer available'});
+     if(!check.rows[0].active_driver)return json(409,{error:'Driver is not an active authorized employee driver'});
+     // Reuse Nexus training approvals and fleet registry for provisional scheduling.
+     const eligibility=await query(`SELECT
+       EXISTS(SELECT 1 FROM training_assignments a
+         JOIN driveflex_shift_requests r ON r.driver_id=a.user_id
+         WHERE r.id=$1::uuid) AS has_training,
+       NOT EXISTS(SELECT 1 FROM training_assignments a
+         JOIN driveflex_shift_requests r ON r.driver_id=a.user_id
+         WHERE r.id=$1::uuid
+           AND (a.acknowledged_at IS NULL OR
+                (a.requires_verification AND a.verified_at IS NULL))) AS training_complete,
+       EXISTS(SELECT 1 FROM driveflex_open_shifts sh JOIN vehicles v ON v.unit_number=sh.vehicle_unit
+         WHERE sh.id=(SELECT shift_id FROM driveflex_shift_requests WHERE id=$1::uuid)
+           AND v.active=true AND v.status='AVAILABLE'
+           AND (v.metadata->>'inspection_expiry') ~ '^\\d{4}-\\d{2}-\\d{2}$'
+           AND (v.metadata->>'insurance_expiry') ~ '^\\d{4}-\\d{2}-\\d{2}$'
+           AND (v.metadata->>'inspection_expiry')::date >= (sh.end_at AT TIME ZONE 'America/New_York')::date
+           AND (v.metadata->>'insurance_expiry')::date >= (sh.end_at AT TIME ZONE 'America/New_York')::date
+           AND CASE sh.service_level
+             WHEN 'AMBULATORY' THEN (v.metadata->'compatible_services') ? 'ambulatory'
+             WHEN 'WHEELCHAIR' THEN (v.metadata->'compatible_services') ? 'wheelchair'
+               AND COALESCE((v.metadata->>'wheelchair_capacity') ~ '^[0-9]+$',false)
+               AND CASE WHEN (v.metadata->>'wheelchair_capacity') ~ '^[0-9]+$'
+                        THEN (v.metadata->>'wheelchair_capacity')::int>0 ELSE false END
+             ELSE false END
+       ) AS vehicle_ready`,[p[3]]);
+     if(!eligibility.rows[0]?.has_training||!eligibility.rows[0]?.training_complete)
+       return json(409,{error:'Existing Nexus training assignments must be completed and verified before approval'});
+     if(!eligibility.rows[0]?.vehicle_ready)
+       return json(409,{error:'Vehicle not verified as ready in the existing Nexus fleet system'});
+     if(check.rows[0].service_level==='EMT')
+       return json(409,{error:'EMT shifts require separate clinical credential review before scheduling'});
+
+     if(check.rows[0].roster_conflict)return json(409,{error:'Driver has an overlapping existing roster shift'});
+     // Conservative fail-closed conflict check: a driver with a scheduled
+     // patient booking on the proposed local calendar date cannot receive an
+     // additional provisional shift until dispatch reconciles the itinerary.
+     const booked=await query(`SELECT EXISTS(
+       SELECT 1 FROM bookings b WHERE b.driver_user_id=$1::uuid
+       AND b.trip_date BETWEEN ($2::timestamptz AT TIME ZONE 'America/New_York')::date
+                           AND ($3::timestamptz AT TIME ZONE 'America/New_York')::date
+       AND b.status IN ('ASSIGNED','SCHEDULED','EN_ROUTE','ARRIVED_PICKUP','PICKED_UP','IN_PROGRESS')
+     ) AS assigned_booking`,[check.rows[0].driver_id,check.rows[0].start_at,check.rows[0].end_at]);
+     if(booked.rows[0]?.assigned_booking)return json(409,{error:'Driver has an existing patient booking on this date. Reconcile dispatch before approval.'});
+
+    }
+    const result=await query(`UPDATE driveflex_shift_requests r SET status=$2,reviewed_by=$3,reviewed_at=now()
+       FROM driveflex_open_shifts s WHERE r.id=$1::uuid AND r.shift_id=s.id AND r.status='REQUESTED'
+       AND s.status='OPEN' AND s.start_at>now() RETURNING r.id,r.status`,[p[3],decision,u.id]);
+    if(!result.rows.length)return json(409,{error:'Request already processed or shift unavailable'});
+    return json(200,{request:result.rows[0],message:'Decision recorded. Separate roster and credential approval remains required before work begins.'});
+   }
+  }
   if(p[0]==='driver'&&p[1]==='assignments'&&method==='GET'){
    const token=bearer(event);
    let u;

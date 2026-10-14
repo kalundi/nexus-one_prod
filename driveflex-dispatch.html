@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>DriveFlex | Dispatch Shift Review</title>
+<script src="/auth-guard.js"></script>
+<style>
+:root{font-family:system-ui,sans-serif;color-scheme:light}body{margin:0;background:#f3f7fb;color:#14253a}.wrap{max-width:1050px;margin:auto;padding:22px}header{background:#0c2745;color:white;padding:22px}h1{margin:0;font-size:1.6rem}section{background:white;padding:20px;border:1px solid #d5e0ed;border-radius:16px;margin:18px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}label{display:grid;gap:6px;font-weight:600}input,select,button{min-height:44px;font:inherit;border-radius:9px;padding:9px;border:1px solid #9aacbd;box-sizing:border-box}button{cursor:pointer;background:#0b547c;color:#fff;border:0;font-weight:700}button:disabled{opacity:.6;cursor:not-allowed}.secondary{background:#4a5e72}.row{border-top:1px solid #dce4ef;padding:14px 0}.actions{display:flex;gap:8px;flex-wrap:wrap}.muted{color:#566a7d}a{color:inherit}#message{padding:12px;border-radius:9px;background:#eef5ff}@media(max-width:600px){.wrap{padding:12px}header{padding:17px}}
+</style></head><body><header><div class="wrap"><h1>DriveFlex • Dispatch approval</h1><a href="/admin.html">← Nexus administration</a></div></header>
+<main class="wrap">
+<p id="message" role="status" aria-live="polite">Sign in with an authorized dispatch or admin account.</p>
+<section><h2>Publish an open shift</h2><form id="publish"><div class="grid">
+<label>Start<input type="datetime-local" name="startAt" required></label><label>End<input type="datetime-local" name="endAt" required></label>
+<label>Service<select name="serviceLevel"><option value="AMBULATORY">Ambulatory</option><option value="WHEELCHAIR">Wheelchair</option><option value="EMT">EMT-qualified</option></select></label>
+<label>Service area<input name="operatingArea" maxlength="100" required placeholder="Montgomery County"></label>
+<label>Vehicle unit (optional)<input name="vehicleUnit" maxlength="60"></label></div><p><button type="submit">Publish shift</button></p></form></section>
+<section><div class="actions"><h2 style="flex:1">Driver requests</h2><button type="button" id="refresh">Refresh</button></div>
+<p class="muted">Approval records a provisional scheduling decision only. Driver credentials, actual roster coverage and vehicle eligibility must be checked separately before dispatch.</p><div id="requests">No requests loaded.</div></section></main>
+<script src="/driveflex-dispatch.js?v=1"></script></body></html>

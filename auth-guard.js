@@ -5,6 +5,7 @@
     '/facility.html':['FACILITY','DISPATCHER','ADMIN'],
     '/secure-documents.html':['FACILITY','ADMIN'],
     '/dispatch.html':['DISPATCHER','ADMIN'],
+    '/driveflex-dispatch.html':['DISPATCHER','ADMIN'],
     '/driver-app.html':['DRIVER','DISPATCHER','ADMIN'],
     '/fleet.html':['DISPATCHER','ADMIN'],
     '/billing.html':['BILLING','ADMIN'],
