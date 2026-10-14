@@ -3770,6 +3770,10 @@ async function handler(event){
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='PATCH'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','DRIVER']);
    const b=parseBody(event),ref=decodeURIComponent(p[2]);
+   const timingOverrideRequested=Object.prototype.hasOwnProperty.call(b,'timingOverride');
+   if(timingOverrideRequested&&!['ADMIN','DISPATCHER'].includes(u.role))return json(403,{error:'Only Admin or Dispatch can override timing warnings.'});
+   const timingOverrideReason=timingOverrideRequested?clean(b.timingOverride?.reason):'';
+   if(timingOverrideRequested&&(b.timingOverride?.acknowledged!==true||timingOverrideReason.length<5||timingOverrideReason.length>500))return json(400,{error:'Confirm the timing override and enter a reason (5–500 characters).'});
    const before=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
    if(before.rows[0]?.duplicate_of)return json(409,{error:'This booking is a duplicate of '+before.rows[0].duplicate_of+'. Open that trip to make changes.'});
    if(!before.rows[0])return json(404,{error:'Booking not found'});
@@ -3833,7 +3837,8 @@ async function handler(event){
    const proposed={...mapBooking(before.rows[0]),...b,reference:ref,pickupTime:b.time||b.pickupTime||mapBooking(before.rows[0]).pickupTime};
    const eligibleUnits=SERVICE_VEHICLE_PREFS[resolveServicePolicyKey(proposed.service)];
    if((vehicleChanged||timingChanged)&&clean(b.vehicleUnit)&&eligibleUnits&&!eligibleUnits.includes(clean(b.vehicleUnit)))return json(409,{code:'VEHICLE_SERVICE_MISMATCH',eligibleVehicleUnits:eligibleUnits,error:`${clean(b.vehicleUnit)} is not eligible for ${clean(proposed.service)} service. Choose ${eligibleUnits.join(' or ')}.`});
-   const availability=await TimingAvailability.resources(proposed,await readPlatformSettings(),query,eligibleUnits);
+   const availability=await TimingAvailability.resources(proposed,await readPlatformSettings(),query,eligibleUnits,{allowPastPickup:!!timingOverrideReason});
+   if(availability.reviewCode==='PICKUP_WINDOW_PASSED'&&(((driverChanged||timingChanged)&&clean(b.driverName))||((vehicleChanged||timingChanged)&&clean(b.vehicleUnit))))return json(409,{code:availability.reviewCode,error:availability.reviewReason});
    if(availability.plan&&!availability.plan.routingPending){
     if((driverChanged||timingChanged)&&clean(b.driverName)&&!availability.drivers.some(d=>d.display_name===clean(b.driverName)))return json(409,{error:'The driver is unavailable for the full trip, including preparation and handoff. Review schedules and overlapping trips.'});
     if((vehicleChanged||timingChanged)&&clean(b.vehicleUnit)&&!availability.vehicles.some(v=>v.unit_number===clean(b.vehicleUnit)))return json(409,{error:'This vehicle is unavailable for the full trip. Check fleet status and overlapping trips, or choose another vehicle.'});
@@ -3993,6 +3998,10 @@ async function handler(event){
     }
   }
   const afterRow=hasPickupTime?(await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref])).rows?.[0]||r.rows[0]:r.rows[0];
+  if(timingOverrideReason){
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,afterRow.status,statusLabel(afterRow.status),`Timing override: ${timingOverrideReason}`,u.display_name||u.email||u.role]);
+   await audit('BOOKING',ref,'TIMING_OVERRIDE',{reason:timingOverrideReason,by:u.id||u.email,role:u.role,date:afterRow.trip_date,pickupTime:afterRow.pickup_time||afterRow.trip_time,appointmentTime:b.appointmentTime||getSubmittedAppointmentTime(afterRow)});
+  }
   await TripTiming.persist({...mapBooking(afterRow),fareInputs:b.fareInputs},await readPlatformSettings(),query);
 
   if(hasBrokerQuotedRate){

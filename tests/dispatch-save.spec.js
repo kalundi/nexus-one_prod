@@ -68,6 +68,23 @@ test('stretcher timing uses city travel, vehicle correction retains the driver, 
  await page.locator('#dispatchSmartTiming').screenshot({path:'output/dispatch-stretcher-timing-corrected.png'});
 });
 
+test('timing override requires a reason, preserves entered times, and clears after saving',async({page})=>{
+ const pricingSettings={...settings,fareRules:{smartTiming:{enabled:true,checkInLeadMinutes:15,reliabilityBufferMinutes:5}}};
+ const mock=await openEditor(page,{pricingSettings,mobile:true});
+ await expect(page.locator('#dispatchSmartTiming')).toContainText('exceed the appointment');
+ await page.getByRole('button',{name:'Keep entered times',exact:true}).click();
+ await page.locator('#dispatchTimingAcknowledged').check();
+ await page.locator('#dispatchEditSave').click();
+ await expect(page.locator('#dispatchEditMsg')).toContainText('Enter an override reason');
+ expect(mock.state.patches).toHaveLength(0);
+ await page.locator('#dispatchTimingReason').fill('Facility confirmed the revised arrival time.');
+ await page.locator('#dispatchEditSave').click();
+ await expect(page.locator('#dispatchEditMsg')).toContainText('updated successfully');
+ expect(mock.state.patches[0]).toMatchObject({time:'10:00',appointmentTime:'10:45',timingOverride:{acknowledged:true,reason:'Facility confirmed the revised arrival time.'}});
+ await expect(page.locator('#dispatchTimingAcknowledged')).not.toBeChecked();
+ await expect(page.locator('#dispatchTimingReason')).toHaveValue('');
+});
+
 test('save waits for a pending route and ignores repeated clicks during preparation',async({page})=>{
  const mock=await openEditor(page);
  const updated={...mock.getBooking(),destination:'New clinic'};
