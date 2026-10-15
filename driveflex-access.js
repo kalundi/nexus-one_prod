@@ -1,0 +1,2 @@
+// Remove private access credentials before page scripts or links can observe the URL.
+(()=>{const value=new URLSearchParams(location.hash.slice(1)).get('access');if(value){history.replaceState(null,'',location.pathname+location.search);if(/^[a-f0-9]{64}$/.test(value))sessionStorage.setItem('driveflexApplicantAccess',value);}if(location.pathname.includes('/apply')||location.pathname.includes('/manage')){const meta=document.createElement('meta');meta.name='robots';meta.content='noindex,nofollow';document.head.append(meta);}})();
