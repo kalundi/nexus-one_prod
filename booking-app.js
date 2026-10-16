@@ -312,6 +312,19 @@
   let lastTrackedBookingStep = '';
   const PRIVILEGED_SERVICE_ROLES = new Set(['ADMIN','DISPATCHER','FACILITY','DRIVER']);
   const CUSTOMER_ALLOWED_SERVICES = new Set(['ambulatory','wheelchair','stretcher','bariatric']);
+  const ADMIN_DISPATCH_ROLES = new Set(['ADMIN','DISPATCHER','DISPATCH']);
+  const SERVICE_TYPE_LABELS = {
+    ambulatory:'Ambulatory',
+    wheelchair:'Wheelchair',
+    stretcher:'Stretcher',
+    bariatric:'Additional Capacity',
+    facility_transfer:'IFT Routine',
+    facility_transfer_critical:'IFT High-Acuity',
+    broda:'Broda',
+    bls:'BLS',
+    als1:'ALS 1',
+    als2:'ALS 2'
+  };
   const AUTO_COLLAPSIBLE_SECTION_IDS = ['pickupDropoffSection'];
   const PROGRESSIVE_SECTIONS_ORDER = ['riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'telemetrySection', 'fareSummarySection'];
   const FINAL_HIDDEN_SECTION_IDS = ['bookingLoginSection', 'riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'rateSettingsSection'];
@@ -739,6 +752,11 @@
     const miles=Number(estimateState.miles||0);
     const date=String($('tripDate')?.value||new Date().toISOString().slice(0,10));
     const time=String($('tripTime')?.value||appointmentTimeInput?.value||'10:00');
+    const selected=normalizeService($('service')?.value);
+    const selectedOnly=requiresServiceTypeSelection();
+    const hideUnselected=selectedOnly;
+    const allowed=allowedServicesForRole(currentUserRole);
+    const secondaryExpanded=$('toggleMoreRideOptions')?.getAttribute('aria-expanded')==='true';
     serviceChips.querySelectorAll('.serviceCard').forEach((chip)=>{
       const service=normalizeService(chip.dataset.service);
       let meta=chip.querySelector('.serviceCardMarketMeta');
@@ -755,7 +773,9 @@
       try{
         if(miles>0)breakdown=calculateFareBreakdown(service,miles,date,time,{durationMinutes:estimateState.durationMinutes,trafficDurationMinutes:estimateState.trafficDurationMinutes});
       }catch(error){pricingError=error.message;}
-      chip.disabled=!allowedServicesForRole(currentUserRole).has(service)||!platformPricing?.[service];
+      const canUse=allowed.has(service)&&Boolean(platformPricing?.[service]);
+      chip.disabled=!canUse;
+      chip.hidden=!canUse||(hideUnselected&&service!==selected)||(!selectedOnly&&chip.classList.contains('secondaryRideOption')&&!secondaryExpanded);
       if(eta){
         eta.textContent=breakdown?.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.timingPlan?breakdown.journeyMinutes:breakdown.drivingMinutes)} ${breakdown.timingPlan?'total':'drive'}`:'Time pending';
         eta.title=breakdown?`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving${breakdown.waitMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:''}${breakdown.transitionMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''}`:'Enter the route and schedule to calculate travel time.';
@@ -769,7 +789,22 @@
         fare.classList.toggle('review',requiresReview&&!total);
       }
     });
-    const selected=normalizeService($('service')?.value);
+    const selectionPrompt=$('serviceSelectionPrompt');
+    if(selectionPrompt){
+      selectionPrompt.hidden=!selectedOnly||Boolean(selected);
+    }
+    const catalogSummary=$('serviceCatalogSummary');
+    if(catalogSummary){
+      catalogSummary.textContent=selectedOnly
+        ? (selected ? `${serviceTypeLabel(selected)} pricing` : 'Choose a service type above')
+        : 'Choose a different ride type';
+    }
+    const moreOptions=$('toggleMoreRideOptions');
+    const accessHint=$('specializedRideAccessHint');
+    if(selectedOnly){
+      if(moreOptions){moreOptions.hidden=true;moreOptions.setAttribute('aria-expanded','false');}
+      if(accessHint)accessHint.hidden=true;
+    }
     const selectedChip=serviceChips.querySelector(`[data-service="${selected}"]`);
     const selectedName=selectedChip?.querySelector('.serviceCardName')?.textContent?.trim()||'';
     const continueButton=$('continueRideBtn');
@@ -1151,12 +1186,101 @@
   }
 
   function allVisibleServices(){
-    return Array.from(serviceChips.querySelectorAll('.chip')).map((chip) => normalizeService(chip.dataset.service)).filter(Boolean);
+    return Array.from(serviceChips?.querySelectorAll('.chip') || []).map((chip) => normalizeService(chip.dataset.service)).filter(Boolean);
   }
 
   function allowedServicesForRole(role){
     if(isPrivilegedServiceRole(role)) return new Set(allVisibleServices());
     return new Set(CUSTOMER_ALLOWED_SERVICES);
+  }
+
+  function isAdminOrDispatchRole(role = currentUserRole){
+    return ADMIN_DISPATCH_ROLES.has(String(role || '').toUpperCase());
+  }
+
+  function requiresServiceTypeSelection(role = currentUserRole){
+    return !isAdminOrDispatchRole(role);
+  }
+
+  function normalizeProfileService(value){
+    const candidate = value && typeof value === 'object' ? (value.type || value.code || value.name || value.serviceType || '') : value;
+    const raw = String(candidate || '').trim().toLowerCase().replaceAll('_',' ').replace(/\s+/g,' ');
+    if(!raw) return '';
+    if(raw.includes('broda')) return 'broda';
+    if(raw.includes('high-acuity') || raw.includes('high acuity') || raw.includes('critical') || raw.includes('cct')) return 'facility_transfer_critical';
+    if(raw.includes('ift') || raw.includes('interfacility') || (raw.includes('facility') && raw.includes('transfer'))) return raw.includes('routine') ? 'facility_transfer' : normalizeService(raw);
+    if(raw.includes('additional capacity') || raw.includes('bariatric')) return 'bariatric';
+    if(raw.includes('wheelchair') || raw.includes('wheel chair')) return 'wheelchair';
+    if(raw.includes('stretcher')) return 'stretcher';
+    if(raw.includes('ambulance')) return 'bls';
+    if(raw.includes('als 1') || raw.includes('als i')) return 'als1';
+    if(raw.includes('als 2') || raw.includes('als ii')) return 'als2';
+    if(raw.includes('ambulatory') || raw.includes('walking')) return 'ambulatory';
+    return normalizeService(raw);
+  }
+
+  function profileServiceType(){
+    const profile = currentUser || {};
+    const preferences = profile.preferences || profile.transportationPreferences || {};
+    const candidates = [
+      profile.serviceType,
+      profile.service_type,
+      profile.requestedServiceType,
+      profile.requested_service_type,
+      profile.service,
+      Array.isArray(profile.serviceTypes) ? profile.serviceTypes[0] : '',
+      Array.isArray(profile.service_types) ? profile.service_types[0] : '',
+      profile.transportationService,
+      profile.transportation_service,
+      preferences.serviceType,
+      preferences.service_type,
+      preferences.mobilityType,
+      preferences.mobility_type,
+      currentPatientPreferences?.serviceType,
+      currentPatientPreferences?.service_type,
+      currentPatientPreferences?.mobilityType
+    ];
+    for(const candidate of candidates){
+      const normalized = normalizeProfileService(candidate);
+      if(normalized) return normalized;
+    }
+    return '';
+  }
+
+  function serviceTypeLabel(service){
+    const normalized = normalizeService(service);
+    const chip = serviceChips?.querySelector(`[data-service="${normalized}"]`);
+    return String(chip?.querySelector('.serviceCardName')?.textContent || SERVICE_TYPE_LABELS[normalized] || platformPricing?.[normalized]?.label || normalized).trim();
+  }
+
+  function syncServiceTypeSelector({ applyProfile = true } = {}){
+    const field = $('serviceTypeField');
+    const select = $('serviceTypeSelect');
+    if(!field || !select) return;
+    const required = requiresServiceTypeSelection();
+    field.hidden = !required;
+    select.required = required;
+    const allowed = allowedServicesForRole(currentUserRole);
+    const services = allVisibleServices().filter((service, index, list) => allowed.has(service) && list.indexOf(service) === index);
+    const current = normalizeService($('service')?.value);
+    const preferred = applyProfile ? profileServiceType() : '';
+    const target = required
+      ? (allowed.has(preferred) ? preferred : (allowed.has(current) ? current : ''))
+      : '';
+    const previous = select.value;
+    select.innerHTML = `<option value="">Select service type</option>${services.map((service) => `<option value="${service}">${serviceTypeLabel(service)}</option>`).join('')}`;
+    select.value = target;
+    const hint = $('serviceTypeHint');
+    if(hint){
+      hint.textContent = required && preferred && allowed.has(preferred)
+        ? `Your profile defaults to ${serviceTypeLabel(preferred)}. You can change it for this ride.`
+        : 'Select the one service needed for this ride.';
+    }
+    if(required && target !== current){
+      selectService(target);
+    }else if(!required && previous){
+      select.value = '';
+    }
   }
 
   function setLoginMessage(message, isError=false){
@@ -1190,9 +1314,12 @@
 
     const current = normalizeService($('service').value);
     if(!allowed.has(current)){
-      const fallbackChip = chips.find((chip) => !chip.hidden && !chip.disabled);
-      if(fallbackChip){
-        $('service').value = normalizeService(fallbackChip.dataset.service);
+      const restrictedToSelectedService = !['ADMIN','DISPATCHER','DISPATCH'].includes(String(currentUserRole || '').toUpperCase());
+      if(restrictedToSelectedService){
+        $('service').value = '';
+      }else{
+        const fallbackChip = chips.find((chip) => !chip.hidden && !chip.disabled);
+        if(fallbackChip) $('service').value = normalizeService(fallbackChip.dataset.service);
       }
     }
     setSecondaryRideOptionsExpanded($('toggleMoreRideOptions')?.getAttribute('aria-expanded')==='true');
@@ -1234,6 +1361,7 @@
       }
     }
     applyServiceVisibility();
+    syncServiceTypeSelector({ applyProfile: true });
     applyRateVisibility();
     syncRiderIdentityMode();
     syncSectionProgressUi();
@@ -3510,6 +3638,8 @@
     const allowed = allowedServicesForRole(currentUserRole);
     if(!clean){
       $('service').value = '';
+      const serviceTypeSelect = $('serviceTypeSelect');
+      if(serviceTypeSelect && requiresServiceTypeSelection()) serviceTypeSelect.value = '';
       serviceChips.querySelectorAll('.chip').forEach((chip) => {
         chip.classList.remove('active');
         chip.setAttribute('aria-pressed', 'false');
@@ -3520,12 +3650,23 @@
       return;
     }
     if(!allowed.has(clean)){
+      if(requiresServiceTypeSelection()){
+        $('service').value = '';
+        const serviceTypeSelect = $('serviceTypeSelect');
+        if(serviceTypeSelect) serviceTypeSelect.value = '';
+        setLoginMessage('Select an available service type for this account.', true);
+        renderRideMarketplace();
+        syncSectionProgressUi();
+        return;
+      }
       const fallback = Array.from(allowed)[0] || 'ambulatory';
       $('service').value = fallback;
       setLoginMessage('This role cannot book that ride type.', true);
       return selectService(fallback);
     }
     $('service').value = clean;
+    const serviceTypeSelect = $('serviceTypeSelect');
+    if(serviceTypeSelect && requiresServiceTypeSelection()) serviceTypeSelect.value = clean;
     const selectedServiceChip = serviceChips.querySelector(`[data-service="${clean}"]`);
     if(selectedServiceChip?.classList.contains('secondaryRideOption')) setSecondaryRideOptionsExpanded(true);
     expandedSections.delete('rideTypeSection');
@@ -3556,6 +3697,21 @@
     const allowed = allowedServicesForRole(currentUserRole);
     const secondary = Array.from(serviceChips.querySelectorAll('.secondaryRideOption'));
     const hasOptions = secondary.some((chip) => allowed.has(normalizeService(chip.dataset.service)));
+    const restrictedToSelectedService = !PRIVILEGED_SERVICE_ROLES.has(String(currentUserRole || '').toUpperCase());
+    if(restrictedToSelectedService){
+      const selected = normalizeService($('service')?.value);
+      secondary.forEach((chip) => {
+        const service = normalizeService(chip.dataset.service);
+        chip.hidden = !selected || service !== selected || !allowed.has(service);
+      });
+      if(toggle){
+        toggle.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+      const restrictedHint = $('specializedRideAccessHint');
+      if(restrictedHint) restrictedHint.hidden = hasOptions;
+      return;
+    }
     expanded = Boolean(expanded && hasOptions);
     secondary.forEach((chip) => { chip.hidden = !expanded || !allowed.has(normalizeService(chip.dataset.service)); });
     const accessHint = $('specializedRideAccessHint');
@@ -3568,6 +3724,11 @@
   }
 
   function bindServiceChips(){
+    $('serviceTypeSelect')?.addEventListener('change', (event) => {
+      riderDetailsConfirmed = false;
+      selectService(event.currentTarget.value);
+      syncSectionProgressUi();
+    });
     $('bookingFuelProfile')?.addEventListener('change',()=>{
       rideChoiceConfirmed=false;
       refreshFareForMembership();
@@ -4228,7 +4389,7 @@
     syncRiderIdentityMode();
     applyAuthUi();
     refreshFareForMembership();
-    selectService('ambulatory');
+    selectService(requiresServiceTypeSelection() ? '' : 'ambulatory');
   }
 
   async function signupFromBookingApp(){
