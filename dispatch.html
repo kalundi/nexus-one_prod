@@ -172,7 +172,7 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
   <script src="/i18n.js" defer></script>
 <script src="./auth-guard.js"></script><script src="./nexus-data.js"></script>
 <script src="./nexus-availability.js" defer></script>
-<script src="./universal-booking.js" defer></script><link rel="stylesheet" href="/responsive.css?v=5"></head><body><a class="skip" href="#main">Skip to main content</a><header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="dispatchNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a aria-current="page" href="/dispatch.html">Dispatch</a><a href="/fleet.html">Fleet</a></nav><div class="globalActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18886395766"><small>Call Nexus</small><strong>(888) 639-5766</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true"></span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="dispatchNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header><section class="hero livecareMapHero"><div class="shell livecareExperience">
+<script src="./universal-booking.js" defer></script><link rel="stylesheet" href="/responsive.css?v=5"></head><body><a class="skip" href="#main">Skip to main content</a><header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="dispatchNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a aria-current="page" href="/dispatch.html">Dispatch</a><a href="/fleet.html">Fleet</a><a href="/driveflex/dispatch">DriveFlex</a></nav><div class="globalActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18886395766"><small>Call Nexus</small><strong>(888) 639-5766</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true"></span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="dispatchNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header><section class="hero livecareMapHero"><div class="shell livecareExperience">
 <div class="livecareStoryPanel">
   <div><div class="eyebrow"><span class="liveDot" aria-hidden="true"></span>NEXUS Dispatch</div>
   <h1>A live command center for every trip.</h1>
@@ -272,6 +272,12 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
       <small>Return calls through the Nexus business line.</small>
       <span class="dashSignal normal" data-signal-for="dispatchCallsSection">Ready</span>
     </button>
+    <a class="dispatchDashboardTile" href="/driveflex/dispatch" style="display:flex;flex-direction:column;text-decoration:none;color:inherit;gap:8px">
+      <span class="tileLabel">DriveFlex</span>
+      <strong>Flexible driver shifts</strong>
+      <small>Publish openings and review driver requests using your existing Dispatch access.</small>
+      <span class="dashSignal normal">Open DriveFlex</span>
+    </a>
   </div>
 </section>
 <div class="dispatchFocusToolbar" id="dispatchFocusToolbar" aria-live="polite">
@@ -2575,6 +2581,11 @@ $('saveCustomCompany').addEventListener('click',()=>{
       </div>
     </details>
     <div id="dispatchEditDetails"></div>
+    <details class="editorFoldout" id="dispatchTimingOverride"><summary>Keep entered times / timing override</summary>
+      <p>Reviewed the timing warning? Keep your entered times and record the reason for this trip.</p>
+      <label style="display:flex;gap:10px;align-items:center"><input id="dispatchTimingAcknowledged" type="checkbox" style="width:auto"> I reviewed the timing warning and want to keep these times.</label>
+      <div class="formField"><label for="dispatchTimingReason">Override reason</label><textarea id="dispatchTimingReason" maxlength="500" rows="2" placeholder="Explain why these times should be kept"></textarea></div>
+    </details>
     <div class="editorActions"><button id="dispatchEditSave" class="button primary" type="button">Save trip update</button></div>
   `;
   editorHomeAnchor.appendChild(panel);
@@ -2794,6 +2805,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     const detail=document.createElement('p');detail.textContent=`${plan.preparationMinutes} min preparation / handoff · ${plan.drivingMinutes} min driving · ${plan.bufferMinutes} min buffer · ${plan.confidence.toLowerCase()} confidence. ${plan.source}.`;host.append(detail);
     (currentFareBooking.locationInstructions||[]).forEach(info=>{const line=document.createElement('p');line.textContent=info.address+': '+info.instructions;host.append(line);});
     [...plan.alerts,...(prediction?.alerts||[]).filter(a=>a.code==='LIVE_DELAY')].forEach(a=>{const line=document.createElement('p');line.className='smartTimingWarning';line.textContent=a.message;host.append(line);});
+    if(plan.alerts.length){const keep=document.createElement('button');keep.type='button';keep.className='btn';keep.textContent='Keep entered times';keep.onclick=()=>{get('dispatchTimingOverride').open=true;get('dispatchTimingAcknowledged').focus();};host.append(keep);}
     if(Math.abs(plan.recommendedPickupAt-plan.crewArrivalAt)>60000){const recommendation=document.createElement('p');recommendation.textContent='Recommended pickup to meet the appointment: '+stamp(plan.recommendedPickupAt)+'.';host.append(recommendation);const apply=document.createElement('button');apply.type='button';apply.className='btn';apply.textContent='Use recommended pickup';apply.onclick=()=>{const p=NexusTripTiming.localParts(plan.recommendedPickupAt);get('dispatchEditTime').value=p.time;get('dispatchEditDate').value=p.date;updateCheckInFromPickup();refreshEditorFare();};host.append(apply);}
   }
 
@@ -2901,6 +2913,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
       'dispatchEditPickupLocation','dispatchEditDestinationLocation','dispatchEditName','dispatchEditPhone','dispatchEditEmail','dispatchEditTripNotes'
     ];
     const snapshot={};
+    snapshot.timingOverride=get('dispatchTimingAcknowledged').checked;
+    snapshot.timingReason=get('dispatchTimingReason').value;
     fields.forEach((id)=>{ snapshot[id]=String(get(id)?.value||''); });
     return JSON.stringify(snapshot);
   }
@@ -3541,6 +3555,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
   }
 
   async function applyEditorValues(b){
+    get('dispatchTimingAcknowledged').checked=false;
+    get('dispatchTimingReason').value='';
+    get('dispatchTimingOverride').open=false;
     await loadDispatchOpsSettings();
     applyingEditorValues=true;
     currentFareBooking=b;
@@ -3867,6 +3884,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
   get('dispatchEditSave').addEventListener('click',async()=>{
     if(editorSaveInProgress)return;
     if(!currentRef){setMsg('Click a trip row first.','err');return;}
+    const timingOverride=get('dispatchTimingAcknowledged').checked;
+    const timingReason=get('dispatchTimingReason').value.trim();
+    if(timingOverride&&timingReason.length<5){setMsg('Enter an override reason (at least 5 characters).','err');get('dispatchTimingOverride').open=true;get('dispatchTimingReason').focus();return;}
     const appointmentTime=get('dispatchEditAppointmentTime').value;
     if(!appointmentTime){setMsg('Appointment time is required. Enter appointment time to proceed.','err');return;}
     if(get('dispatchEditTripType').value==='ROUND_TRIP'&&get('dispatchEditReturnTiming').value==='SCHEDULED'&&!get('dispatchEditReturnTime').value){setMsg('Enter the return pickup time or select will-call / time pending.','err');return;}
@@ -3911,11 +3931,12 @@ $('saveCustomCompany').addEventListener('click',()=>{
         dispatchNote:get('dispatchEditNote').value
       };
       const checkInTimeValue=get('dispatchEditCheckInTime').value;
+      if(timingOverride)payload.timingOverride={acknowledged:true,reason:timingReason};
       if(checkInTimeValue) payload.checkInTime=checkInTimeValue;
       const token=sessionStorage.getItem('nexusAccessToken')||'';
       const res=await fetch(`/api/admin/bookings/${encodeURIComponent(currentRef)}`,{method:'PATCH',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(payload)});
       const data=await res.json().catch(()=>({}));
-      if(!res.ok) throw new Error(data.error||'Unable to save trip update');
+      if(!res.ok){if(data.code==='PICKUP_WINDOW_PASSED')get('dispatchTimingOverride').open=true;throw new Error(data.error||'Unable to save trip update');}
       const notify=data.notifications||{};
       const recipients=notify.recipients||null;
       let recipientMsg='';

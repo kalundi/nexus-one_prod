@@ -28,12 +28,24 @@
         <label class="applicationField"><span>State *</span><select name="state" autocomplete="address-level1" required><option value="">Select state</option><option>Maryland</option><option>Washington, DC</option><option>Virginia</option><option>Other</option></select></label>
       </fieldset>
       <fieldset class="formSection"><legend>Role and availability</legend>
-        <label class="applicationField"><span>Position of interest *</span><select id="position" name="position" required><option value="">Select a role</option><option value="driver">Professional Driver</option><option value="emt">EMT / Medical Transport</option><option value="dispatcher">Dispatcher</option><option value="customer-care">Customer Care</option><option value="fleet">Fleet Support</option><option value="other">Other / General Application</option></select></label>
+        <label class="applicationField"><span>Position of interest *</span><select id="position" name="position" required><option value="">Select a role</option><option value="driver">Professional Driver</option><option value="driveflex-driver">DriveFlex Flexible Driver (employee)</option><option value="driveflex-carrier">DriveFlex Independent Carrier Partnership (application only)</option><option value="emt">EMT / Medical Transport</option><option value="dispatcher">Dispatcher</option><option value="customer-care">Customer Care</option><option value="fleet">Fleet Support</option><option value="other">Other / General Application</option></select></label>
         <label class="applicationField"><span>Employment preference *</span><select name="employment-preference" required><option value="">Select preference</option><option>Full-time</option><option>Part-time</option><option>On-call / PRN</option><option>Any available</option></select></label>
         <label class="applicationField"><span>Earliest available start date</span><input type="date" name="available-start-date"></label>
         <label class="applicationField"><span>Preferred shift</span><select name="preferred-shift"><option value="">Select shift</option><option>Day</option><option>Evening</option><option>Overnight</option><option>Weekend</option><option>Flexible</option></select></label>
         <label class="checkField"><input type="checkbox" name="authorized-to-work" value="yes" required><span>I am legally authorized to work in the United States. *</span></label>
         <label class="checkField"><input type="checkbox" name="reliable-transportation" value="yes"><span>I have reliable transportation to report to assigned work locations.</span></label>
+        <div class="full" id="driveflexFields" hidden style="padding:18px;border:1px solid #b9d5e4;border-radius:14px;background:#f2f9fc">
+          <h3 style="margin-top:0">DriveFlex preferences</h3>
+          <p id="driveflexHelp">Applications are screened before any dispatch privileges are considered. Vehicle ownership alone does not qualify a driver or carrier.</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
+            <label class="applicationField"><span>Vehicle arrangement</span><select name="driveflex-vehicle"><option value="">Select arrangement</option><option value="nexus-fleet">Use Nexus vehicle</option><option value="own-vehicle">Own vehicle (approval required)</option><option value="carrier-fleet">Licensed carrier fleet</option></select></label>
+            <label class="applicationField"><span>Service experience</span><select name="driveflex-service"><option value="">Select experience</option><option value="ambulatory">Ambulatory transport</option><option value="wheelchair">Wheelchair transport</option><option value="emt">EMT / medical transport</option><option value="multiple">Multiple services</option></select></label>
+            <label class="applicationField"><span>Preferred area</span><select name="driveflex-area"><option value="">Select area</option><option value="montgomery">Montgomery County</option><option value="pg">Prince George's County</option><option value="dc">Washington, DC</option><option value="dmv">Multiple DMV areas</option></select></label>
+            <label class="applicationField"><span>Referral code (optional)</span><input name="driveflex-referral" maxlength="40" autocomplete="off" placeholder="Code from a Nexus driver"></label>
+            <label class="applicationField full"><span>Carrier business name (carrier applicants only)</span><input name="driveflex-carrier-name" maxlength="160"></label>
+          </div>
+          <p class="privacyNote">Do not upload driver licenses, government IDs, insurance certificates, or patient records here. Nexus will request supporting credentials through its secure verification process.</p>
+        </div>
       </fieldset>
       <fieldset class="formSection"><legend>Qualifications</legend>
         <label class="applicationField"><span>Years of relevant experience *</span><select name="experience-years" required><option value="">Select experience</option><option>Less than 1 year</option><option>1–2 years</option><option>3–5 years</option><option>6–10 years</option><option>More than 10 years</option></select></label>
@@ -51,7 +63,7 @@
   </section><aside class="applicationAside"><h2>Before you submit</h2><ul><li>Review your phone number and email.</li><li>Include role-relevant credentials.</li><li>Attach a current résumé when available.</li><li>Do not send Social Security or financial information.</li></ul><h2>Need an accommodation?</h2><p>Call <a href="tel:+18886395766">(888) 639-5766</a> or email <a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a>.</p><p><a href="/careers.html">Review career opportunities</a></p></aside></div></main>
   <footer class="footer"><div class="shell footerGrid"></div></footer>
   <script src="./platform.js?v=20261011-footer-spacing"></script>
-  <script src="./career-application.js?v=2"></script>
-  <script>const requestedPosition=new URLSearchParams(location.search).get('position');if(requestedPosition&&document.querySelector('#position option[value="'+CSS.escape(requestedPosition)+'"]'))document.getElementById('position').value=requestedPosition;</script>
+  <script src="./career-application.js?v=3"></script>
+  <script>const requestedPosition=new URLSearchParams(location.search).get('position');if(requestedPosition&&document.querySelector('#position option[value="'+CSS.escape(requestedPosition)+'"]')){document.getElementById('position').value=requestedPosition;document.getElementById('position').dispatchEvent(new Event('change'));}</script>
 </body>
 </html>

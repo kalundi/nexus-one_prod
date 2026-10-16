@@ -146,6 +146,7 @@ function ensureCareerApplicationsSchema(){
   status text NOT NULL DEFAULT 'NEW' CHECK(status IN ('NEW','REVIEWING','INTERVIEW','OFFERED','HIRED','DECLINED','ARCHIVED')),
   internal_notes text,applicant_response text,notification_status jsonb NOT NULL DEFAULT '{}'::jsonb,reviewed_by uuid REFERENCES users(id) ON DELETE SET NULL,
   reviewed_at timestamptz,responded_at timestamptz,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now())`)
+  .then(()=>query("ALTER TABLE career_applications ADD COLUMN IF NOT EXISTS driveflex_details jsonb NOT NULL DEFAULT '{}'::jsonb"))
   .then(()=>query('CREATE INDEX IF NOT EXISTS idx_career_applications_status_created ON career_applications(status,created_at DESC)'))
   .then(()=>query('ALTER TABLE career_applications ENABLE ROW LEVEL SECURITY'))
   .then(()=>query('REVOKE ALL ON TABLE career_applications FROM anon, authenticated').catch(()=>{}))
@@ -2197,9 +2198,20 @@ async function handler(event){
    const resume=b.resume||null,resumeBytes=resume?.dataBase64?Buffer.from(String(resume.dataBase64),'base64'):null;
    const allowedResumeTypes=new Set(['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
    if(resumeBytes&&(!allowedResumeTypes.has(clean(resume.mimeType))||resumeBytes.length>4*1024*1024))return json(400,{error:'Résumé must be a PDF, DOC, or DOCX file no larger than 4 MB'});
+   const driveflexType=['driveflex-driver','driveflex-carrier'].includes(clean(b.position))?clean(b.position):null;
+   const d=b.driveflex&&typeof b.driveflex==='object'&&!Array.isArray(b.driveflex)?b.driveflex:{};
+   const take=(v,n=160)=>clean(v).slice(0,n);
+   const driveflexDetails=driveflexType?{
+     applicationType:driveflexType==='driveflex-carrier'?'CARRIER_PARTNER':'EMPLOYEE_DRIVER',
+     vehicleArrangement:take(d.vehicleArrangement,32),serviceExperience:take(d.serviceExperience,32),
+     preferredArea:take(d.preferredArea,32),referralCode:take(d.referralCode,40).toUpperCase(),
+     carrierName:take(d.carrierName)
+   }:{};
+   if(driveflexType==='driveflex-carrier'&&!driveflexDetails.carrierName)return json(400,{error:'Carrier business name is required'});
+   if(driveflexType==='driveflex-carrier'&&driveflexDetails.vehicleArrangement==='nexus-fleet')return json(400,{error:'Carrier applicants must describe their own fleet arrangement'});
    await ensureCareerApplicationsSchema();
-   const created=await query(`INSERT INTO career_applications(first_name,last_name,email,phone,city,state,position,employment_preference,available_start_date,preferred_shift,authorized_to_work,reliable_transportation,experience_years,license_state,certifications,interest,additional_information,resume_name,resume_mime_type,resume_data)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id,created_at`,[clean(b.firstName),clean(b.lastName),email,clean(b.phone),clean(b.city),clean(b.state),clean(b.position),clean(b.employmentPreference),clean(b.availableStartDate)||null,clean(b.preferredShift)||null,b.reliableTransportation===true,clean(b.experienceYears),clean(b.licenseState)||null,clean(b.certifications)||null,clean(b.interest),clean(b.additionalInformation)||null,resume?clean(resume.name)||null:null,resume?clean(resume.mimeType)||null:null,resumeBytes]);
+   const created=await query(`INSERT INTO career_applications(first_name,last_name,email,phone,city,state,position,employment_preference,available_start_date,preferred_shift,authorized_to_work,reliable_transportation,experience_years,license_state,certifications,interest,additional_information,resume_name,resume_mime_type,resume_data,driveflex_details)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb) RETURNING id,created_at`,[clean(b.firstName),clean(b.lastName),email,clean(b.phone),clean(b.city),clean(b.state),clean(b.position),clean(b.employmentPreference),clean(b.availableStartDate)||null,clean(b.preferredShift)||null,b.reliableTransportation===true,clean(b.experienceYears),clean(b.licenseState)||null,clean(b.certifications)||null,clean(b.interest),clean(b.additionalInformation)||null,resume?clean(resume.name)||null:null,resume?clean(resume.mimeType)||null:null,resumeBytes,JSON.stringify(driveflexDetails)]);
    const applicationId=String(created.rows[0].id),name=`${clean(b.firstName)} ${clean(b.lastName)}`;
    const safe=value=>clean(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
    const applicantEmail=sendEmail([email],'We received your Nexus Medical Transit application',`<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><h2 style="color:#082f49">Application received</h2><p>Hello ${safe(b.firstName)},</p><p>Thank you for applying to Nexus Medical Transit for <strong>${safe(b.position)}</strong>. Our hiring team will review your qualifications and contact you if your experience matches an available opportunity.</p><p><strong>Application reference:</strong> ${applicationId}</p><p>Do not send Social Security numbers or financial information by email.</p><p>Nexus Medical Transit<br>(888) 639-5766</p></div>`);
@@ -2214,7 +2226,7 @@ async function handler(event){
   }
   if(p[0]==='admin'&&p[1]==='career-applications'){
    const me=await requireUser(bearer(event),['ADMIN']);await ensureCareerApplicationsSchema();
-   if(method==='GET'&&p.length===2){const result=await query(`SELECT id,first_name,last_name,email,phone,city,state,position,employment_preference,available_start_date,preferred_shift,authorized_to_work,reliable_transportation,experience_years,license_state,certifications,interest,additional_information,resume_name,status,internal_notes,applicant_response,notification_status,reviewed_at,responded_at,created_at,updated_at FROM career_applications ORDER BY CASE status WHEN 'NEW' THEN 0 WHEN 'REVIEWING' THEN 1 ELSE 2 END,created_at DESC LIMIT 500`);return json(200,{applications:result.rows});}
+   if(method==='GET'&&p.length===2){const result=await query(`SELECT id,first_name,last_name,email,phone,city,state,position,employment_preference,available_start_date,preferred_shift,authorized_to_work,reliable_transportation,experience_years,license_state,certifications,interest,additional_information,resume_name,driveflex_details,status,internal_notes,applicant_response,notification_status,reviewed_at,responded_at,created_at,updated_at FROM career_applications ORDER BY CASE status WHEN 'NEW' THEN 0 WHEN 'REVIEWING' THEN 1 ELSE 2 END,created_at DESC LIMIT 500`);return json(200,{applications:result.rows});}
    const id=decodeURIComponent(p[2]||'');if(!id)return json(404,{error:'Application not found'});
    if(method==='GET'&&p[3]==='resume'){const result=await query('SELECT resume_name,resume_mime_type,resume_data FROM career_applications WHERE id=$1',[id]),row=result.rows[0];if(!row?.resume_data)return json(404,{error:'Résumé not found'});return {statusCode:200,isBase64Encoded:true,headers:{'content-type':row.resume_mime_type||'application/octet-stream','content-disposition':`attachment; filename="${clean(row.resume_name).replace(/[^a-zA-Z0-9._-]/g,'_')}"`},body:Buffer.from(row.resume_data).toString('base64')};}
    const b=parseBody(event);
@@ -3764,6 +3776,10 @@ async function handler(event){
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='PATCH'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','DRIVER']);
    const b=parseBody(event),ref=decodeURIComponent(p[2]);
+   const timingOverrideRequested=Object.prototype.hasOwnProperty.call(b,'timingOverride');
+   if(timingOverrideRequested&&!['ADMIN','DISPATCHER'].includes(u.role))return json(403,{error:'Only Admin or Dispatch can override timing warnings.'});
+   const timingOverrideReason=timingOverrideRequested?clean(b.timingOverride?.reason):'';
+   if(timingOverrideRequested&&(b.timingOverride?.acknowledged!==true||timingOverrideReason.length<5||timingOverrideReason.length>500))return json(400,{error:'Confirm the timing override and enter a reason (5–500 characters).'});
    const before=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
    if(before.rows[0]?.duplicate_of)return json(409,{error:'This booking is a duplicate of '+before.rows[0].duplicate_of+'. Open that trip to make changes.'});
    if(!before.rows[0])return json(404,{error:'Booking not found'});
@@ -3827,7 +3843,8 @@ async function handler(event){
    const proposed={...mapBooking(before.rows[0]),...b,reference:ref,pickupTime:b.time||b.pickupTime||mapBooking(before.rows[0]).pickupTime};
    const eligibleUnits=SERVICE_VEHICLE_PREFS[resolveServicePolicyKey(proposed.service)];
    if((vehicleChanged||timingChanged)&&clean(b.vehicleUnit)&&eligibleUnits&&!eligibleUnits.includes(clean(b.vehicleUnit)))return json(409,{code:'VEHICLE_SERVICE_MISMATCH',eligibleVehicleUnits:eligibleUnits,error:`${clean(b.vehicleUnit)} is not eligible for ${clean(proposed.service)} service. Choose ${eligibleUnits.join(' or ')}.`});
-   const availability=await TimingAvailability.resources(proposed,await readPlatformSettings(),query,eligibleUnits);
+   const availability=await TimingAvailability.resources(proposed,await readPlatformSettings(),query,eligibleUnits,{allowPastPickup:!!timingOverrideReason});
+   if(availability.reviewCode==='PICKUP_WINDOW_PASSED'&&(((driverChanged||timingChanged)&&clean(b.driverName))||((vehicleChanged||timingChanged)&&clean(b.vehicleUnit))))return json(409,{code:availability.reviewCode,error:availability.reviewReason});
    if(availability.plan&&!availability.plan.routingPending){
     if((driverChanged||timingChanged)&&clean(b.driverName)&&!availability.drivers.some(d=>d.display_name===clean(b.driverName)))return json(409,{error:'The driver is unavailable for the full trip, including preparation and handoff. Review schedules and overlapping trips.'});
     if((vehicleChanged||timingChanged)&&clean(b.vehicleUnit)&&!availability.vehicles.some(v=>v.unit_number===clean(b.vehicleUnit)))return json(409,{error:'This vehicle is unavailable for the full trip. Check fleet status and overlapping trips, or choose another vehicle.'});
@@ -3987,6 +4004,10 @@ async function handler(event){
     }
   }
   const afterRow=hasPickupTime?(await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref])).rows?.[0]||r.rows[0]:r.rows[0];
+  if(timingOverrideReason){
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,afterRow.status,statusLabel(afterRow.status),`Timing override: ${timingOverrideReason}`,u.display_name||u.email||u.role]);
+   await audit('BOOKING',ref,'TIMING_OVERRIDE',{reason:timingOverrideReason,by:u.id||u.email,role:u.role,date:afterRow.trip_date,pickupTime:afterRow.pickup_time||afterRow.trip_time,appointmentTime:b.appointmentTime||getSubmittedAppointmentTime(afterRow)});
+  }
   await TripTiming.persist({...mapBooking(afterRow),fareInputs:b.fareInputs},await readPlatformSettings(),query);
 
   if(hasBrokerQuotedRate){
@@ -4513,6 +4534,113 @@ async function handler(event){
      await audit('USER',userId,'CREDENTIALS_REISSUED',{by:me.email,email:target.email,role:target.role,emailDeliveryStatus,policyEnforced});
      return json(200,{ok:true,user:{id:String(target.id),email:target.email,name:target.display_name,role:target.role,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,emailDeliveryStatus,warning});
     }
+  // DriveFlex requests are recruitment/scheduling records, not authorization to begin a shift.
+  if(p[0]==='driveflex'&&p[1]==='shifts'){
+   const u=await requireUser(bearer(event),['DRIVER','ADMIN','DISPATCHER']);
+   const isStaff=['ADMIN','DISPATCHER'].includes(u.role);
+   if(method==='GET'&&p.length===2){
+    const rows=await query("SELECT id,start_at,end_at,service_level,operating_area,vehicle_unit,status FROM driveflex_open_shifts WHERE status='OPEN' AND start_at>now() ORDER BY start_at LIMIT 50");
+    return json(200,{shifts:rows.rows});
+   }
+   if(method==='POST'&&p.length===2){
+    if(!isStaff)return json(403,{error:'Only dispatch may publish shifts'});
+    const b=parseBody(event),start=new Date(b.startAt),end=new Date(b.endAt);
+    if(!Number.isFinite(start.valueOf())||!Number.isFinite(end.valueOf())||start<=new Date()||end<=start||end-start>24*3600000)return json(400,{error:'Provide a valid future shift (24 hours maximum)'});
+    if(!['AMBULATORY','WHEELCHAIR','EMT'].includes(b.serviceLevel)||!clean(b.operatingArea)||clean(b.operatingArea).length>100)return json(400,{error:'Invalid service level or area'});
+    const result=await query("INSERT INTO driveflex_open_shifts(created_by,start_at,end_at,service_level,operating_area,vehicle_unit) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,status",[u.id,start.toISOString(),end.toISOString(),b.serviceLevel,clean(b.operatingArea),clean(b.vehicleUnit)||null]);
+    return json(201,{shift:result.rows[0]});
+   }
+   if(method==='POST'&&p[3]==='request'&&p.length===4){
+    if(u.role!=='DRIVER')return json(403,{error:'Driver account required'});
+    const result=await query(`INSERT INTO driveflex_shift_requests(shift_id,driver_id)
+       SELECT s.id,$2 FROM driveflex_open_shifts s WHERE s.id=$1::uuid AND s.status='OPEN' AND s.start_at>now()
+       ON CONFLICT(shift_id,driver_id) DO NOTHING RETURNING id,status`,[p[2],u.id]);
+    if(!result.rows.length)return json(409,{error:'Shift unavailable or already requested'});
+    return json(201,{request:result.rows[0],message:'Request submitted. Dispatch approval is required; no shift has been assigned.'});
+   }
+   if(method==='GET'&&p[2]==='requests'&&p.length===3){
+    const rows=isStaff?await query("SELECT r.id,r.driver_id,r.shift_id,r.status,r.created_at,s.start_at,s.end_at,s.service_level FROM driveflex_shift_requests r JOIN driveflex_open_shifts s ON s.id=r.shift_id ORDER BY r.created_at DESC LIMIT 100"):await query("SELECT r.id,r.shift_id,r.status,r.created_at,s.start_at,s.end_at,s.service_level FROM driveflex_shift_requests r JOIN driveflex_open_shifts s ON s.id=r.shift_id WHERE r.driver_id=$1 ORDER BY r.created_at DESC LIMIT 50",[u.id]);
+    return json(200,{requests:rows.rows});
+   }
+   if(method==='POST'&&p[2]==='requests'&&p[4]==='review'&&p.length===5){
+    if(!isStaff)return json(403,{error:'Only dispatch can review requests'});
+    const body=parseBody(event),decision=clean(body.decision).toUpperCase();
+    if(!['APPROVED','REJECTED'].includes(decision))return json(400,{error:'Invalid decision'});
+    if(decision==='APPROVED'){
+     // Conservative preapproval gate: active employee, driver role and no
+     // overlap with the existing recurring employee roster. Credential/vehicle
+     // validation remains a separate mandatory operational process.
+     const check=await query(`SELECT r.driver_id,s.start_at,s.end_at,s.service_level,
+       EXISTS(SELECT 1 FROM employees e JOIN users usr ON usr.id=e.user_id
+         WHERE e.user_id=r.driver_id AND e.role='DRIVER' AND e.active=true AND usr.active=true
+         AND (usr.role='DRIVER' OR EXISTS(SELECT 1 FROM user_role_requests rr WHERE rr.user_id=usr.id AND rr.role='DRIVER' AND rr.status='APPROVED'))) AS active_driver,
+       EXISTS(SELECT 1 FROM employees e JOIN employee_shifts es ON es.employee_id=e.id
+         CROSS JOIN LATERAL generate_series(date(s.start_at AT TIME ZONE 'America/New_York'),
+           date(s.end_at AT TIME ZONE 'America/New_York'),interval '1 day') slot(day)
+         WHERE e.user_id=r.driver_id AND es.active=true
+           AND es.weekday_iso=EXTRACT(ISODOW FROM slot.day)::int
+           AND es.effective_start_date<=slot.day::date
+           AND (es.effective_end_date IS NULL OR es.effective_end_date>=slot.day::date)
+           AND (slot.day::timestamp+es.start_time::time) <
+             (s.end_at AT TIME ZONE 'America/New_York')
+           AND (slot.day::timestamp+es.end_time::time) >
+             (s.start_at AT TIME ZONE 'America/New_York')) AS roster_conflict
+       FROM driveflex_shift_requests r JOIN driveflex_open_shifts s ON s.id=r.shift_id
+       WHERE r.id=$1::uuid AND r.status='REQUESTED' AND s.status='OPEN' AND s.start_at>now()`,[p[3]]);
+     if(!check.rows.length)return json(409,{error:'Request no longer available'});
+     if(!check.rows[0].active_driver)return json(409,{error:'Driver is not an active authorized employee driver'});
+     // Reuse Nexus training approvals and fleet registry for provisional scheduling.
+     const eligibility=await query(`SELECT
+       EXISTS(SELECT 1 FROM training_assignments a
+         JOIN driveflex_shift_requests r ON r.driver_id=a.user_id
+         WHERE r.id=$1::uuid) AS has_training,
+       NOT EXISTS(SELECT 1 FROM training_assignments a
+         JOIN driveflex_shift_requests r ON r.driver_id=a.user_id
+         WHERE r.id=$1::uuid
+           AND (a.acknowledged_at IS NULL OR
+                (a.requires_verification AND a.verified_at IS NULL))) AS training_complete,
+       EXISTS(SELECT 1 FROM driveflex_open_shifts sh JOIN vehicles v ON v.unit_number=sh.vehicle_unit
+         WHERE sh.id=(SELECT shift_id FROM driveflex_shift_requests WHERE id=$1::uuid)
+           AND v.active=true AND v.status='AVAILABLE'
+           AND (v.metadata->>'inspection_expiry') ~ '^\\d{4}-\\d{2}-\\d{2}$'
+           AND (v.metadata->>'insurance_expiry') ~ '^\\d{4}-\\d{2}-\\d{2}$'
+           AND (v.metadata->>'inspection_expiry')::date >= (sh.end_at AT TIME ZONE 'America/New_York')::date
+           AND (v.metadata->>'insurance_expiry')::date >= (sh.end_at AT TIME ZONE 'America/New_York')::date
+           AND CASE sh.service_level
+             WHEN 'AMBULATORY' THEN (v.metadata->'compatible_services') ? 'ambulatory'
+             WHEN 'WHEELCHAIR' THEN (v.metadata->'compatible_services') ? 'wheelchair'
+               AND COALESCE((v.metadata->>'wheelchair_capacity') ~ '^[0-9]+$',false)
+               AND CASE WHEN (v.metadata->>'wheelchair_capacity') ~ '^[0-9]+$'
+                        THEN (v.metadata->>'wheelchair_capacity')::int>0 ELSE false END
+             ELSE false END
+       ) AS vehicle_ready`,[p[3]]);
+     if(!eligibility.rows[0]?.has_training||!eligibility.rows[0]?.training_complete)
+       return json(409,{error:'Existing Nexus training assignments must be completed and verified before approval'});
+     if(!eligibility.rows[0]?.vehicle_ready)
+       return json(409,{error:'Vehicle not verified as ready in the existing Nexus fleet system'});
+     if(check.rows[0].service_level==='EMT')
+       return json(409,{error:'EMT shifts require separate clinical credential review before scheduling'});
+
+     if(check.rows[0].roster_conflict)return json(409,{error:'Driver has an overlapping existing roster shift'});
+     // Conservative fail-closed conflict check: a driver with a scheduled
+     // patient booking on the proposed local calendar date cannot receive an
+     // additional provisional shift until dispatch reconciles the itinerary.
+     const booked=await query(`SELECT EXISTS(
+       SELECT 1 FROM bookings b WHERE b.driver_user_id=$1::uuid
+       AND b.trip_date BETWEEN ($2::timestamptz AT TIME ZONE 'America/New_York')::date
+                           AND ($3::timestamptz AT TIME ZONE 'America/New_York')::date
+       AND b.status IN ('ASSIGNED','SCHEDULED','EN_ROUTE','ARRIVED_PICKUP','PICKED_UP','IN_PROGRESS')
+     ) AS assigned_booking`,[check.rows[0].driver_id,check.rows[0].start_at,check.rows[0].end_at]);
+     if(booked.rows[0]?.assigned_booking)return json(409,{error:'Driver has an existing patient booking on this date. Reconcile dispatch before approval.'});
+
+    }
+    const result=await query(`UPDATE driveflex_shift_requests r SET status=$2,reviewed_by=$3,reviewed_at=now()
+       FROM driveflex_open_shifts s WHERE r.id=$1::uuid AND r.shift_id=s.id AND r.status='REQUESTED'
+       AND s.status='OPEN' AND s.start_at>now() RETURNING r.id,r.status`,[p[3],decision,u.id]);
+    if(!result.rows.length)return json(409,{error:'Request already processed or shift unavailable'});
+    return json(200,{request:result.rows[0],message:'Decision recorded. Separate roster and credential approval remains required before work begins.'});
+   }
+  }
   if(p[0]==='driver'&&p[1]==='assignments'&&method==='GET'){
    const token=bearer(event);
    let u;
