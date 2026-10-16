@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="/">
+<meta name="robots" content="noindex,nofollow"><title>DriveFlex Dispatch | Nexus Medical Transit</title>
+<script src="/auth-guard.js"></script>
+<link rel="stylesheet" href="/platform.css?v=66"><link rel="stylesheet" href="/responsive.css?v=5"><link rel="stylesheet" href="/driveflex-dispatch.css?v=20261014">
+</head><body class="driveflexSite">
+<a class="skip" href="#main">Skip to main content</a>
+<header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="/nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="driveflexNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a href="/careers.html">Careers</a><a href="/booking-app.html">Book a Ride</a></nav><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="driveflexNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header>
+<main id="main" class="driveflexPage">
+<div class="hero driveflexHero"><div class="shell driveflexHeroInner"><div><span class="eyebrow">Nexus DriveFlex</span><h1>Great care starts<br>with a ready team.</h1><p>Publish open shifts and connect your schedule with available drivers.</p></div><a class="driveflexBack" href="/dispatch.html">Back to dispatch &rarr;</a></div></div>
+<div class="shell driveflexWorkspace">
+<p id="message" role="status" aria-live="polite">Sign in with an authorized dispatch or admin account.</p>
+<section class="driveflexCard" aria-labelledby="publishTitle"><div class="driveflexSectionHead"><div><span class="driveflexEyebrow">Build your schedule</span><h2 id="publishTitle">Publish an open shift</h2><p>Choose when and where your team needs support.</p></div><span class="driveflexStep" aria-hidden="true">01</span></div>
+<form id="publish"><div class="driveflexFormGrid">
+<label>Start<input type="datetime-local" name="startAt" required></label><label>End<input type="datetime-local" name="endAt" required></label>
+<label>Service<select name="serviceLevel"><option value="AMBULATORY">Ambulatory</option><option value="WHEELCHAIR">Wheelchair</option><option value="EMT">EMT-qualified</option></select></label>
+<label>Service area<input name="operatingArea" maxlength="100" required placeholder="Montgomery County"></label>
+<label>Vehicle unit <span class="driveflexOptional">Optional</span><input name="vehicleUnit" maxlength="60" placeholder="Unit number"></label>
+</div><div class="driveflexFormActions"><button type="submit">Publish shift &rarr;</button></div></form></section>
+<section class="driveflexCard" aria-labelledby="requestsTitle"><div class="driveflexSectionHead"><div><span class="driveflexEyebrow">Keep your team moving</span><h2 id="requestsTitle">Driver requests</h2></div><button class="secondary" type="button" id="refresh">Refresh requests</button></div>
+<p class="driveflexReviewNote">Approvals are provisional. Verify driver credentials, roster coverage, and vehicle eligibility before dispatch.</p><div id="requests">No requests loaded.</div></section>
+</div></main>
+<footer class="footer"><div class="shell footerGrid"></div></footer>
+<script src="/platform.js?v=20261011-footer-spacing"></script><script src="/driveflex-dispatch.js?v=1"></script>
+</body></html>

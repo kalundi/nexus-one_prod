@@ -1,0 +1,48 @@
+name: DriveFlex Phase 1 validation
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/driveflex-phase1
+      - feature/driveflex-phase2
+  pull_request:
+    paths:
+      - 'career-application.*'
+      - 'careers.html'
+      - 'admin-app.js'
+      - 'netlify/functions/api.cjs'
+      - 'tests/career-application-workflow.spec.js'
+      - '.github/workflows/driveflex-phase1.yml'
+      - 'driveflex-*.js'
+      - 'driveflex-*.html'
+      - 'tests/driveflex-*.spec.js'
+jobs:
+  recruitment-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Check JavaScript syntax
+        run: |
+          node --check career-application.js
+          node --check admin-app.js
+          node --check netlify/functions/api.cjs
+          node --check tests/career-application-workflow.spec.js
+      - name: Test recruitment application and admin review
+        run: npx playwright test --config=playwright.driveflex.config.js --reporter=line
+      - name: Upload browser test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: driveflex-test-results
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore

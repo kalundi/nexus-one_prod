@@ -15,11 +15,11 @@ function coversWindow(shifts,plan){
  }
  return false;
 }
-async function resources(booking,settings,query,prefs){
+async function resources(booking,settings,query,prefs,{allowPastPickup=false}={}){
  const occupied=await Trips.occupancy(booking,settings,query),plan=occupied.plan;
  if(!plan||plan.routingPending||plan.returnTimePending)return {plan,drivers:[],vehicles:[],reviewReason:'A complete route and return schedule are required to confirm resource availability.'};
  const inProgress=['EN_ROUTE','ARRIVED','ARRIVED_PICKUP','PATIENT_ON_BOARD','DEPARTED','ARRIVED_DESTINATION','DELIVERED','IN_TRANSIT'].includes(String(booking.status||'').toUpperCase().replaceAll('-','_'));
- if(plan.crewArrivalAt<Date.now()&&!inProgress)return {plan,drivers:[],vehicles:[],reviewReason:'The pickup window has passed. Dispatch must review timing before assigning this trip.'};
+ if(plan.crewArrivalAt<Date.now()&&!inProgress&&!allowPastPickup)return {plan,drivers:[],vehicles:[],reviewCode:'PICKUP_WINDOW_PASSED',reviewReason:'The pickup window has passed. Review the entered times and use the timing override to save.'};
  const shifts=await query(`SELECT e.id,e.user_id,e.display_name,e.email,e.phone,${buildDriverScopeSql('u')} AS scope_id,es.weekday_iso,es.start_time::text,es.end_time::text,es.effective_start_date::text,es.effective_end_date::text
   FROM employees e JOIN users u ON u.id=e.user_id JOIN employee_shifts es ON es.employee_id=e.id
   WHERE e.role='DRIVER' AND e.active=true AND u.active=true AND es.active=true AND es.assignment_role='DRIVER'
