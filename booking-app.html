@@ -190,6 +190,9 @@
     .authOptional.authCollapsed .authBadge{display:none}
     .field{display:grid;gap:6px;margin-bottom:10px}
     .field:last-child{margin-bottom:0}
+    .riderPaymentServiceGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+    .riderPaymentServiceGrid .field{min-width:0}
+    @media(max-width:620px){.riderPaymentServiceGrid{grid-template-columns:1fr}}
     .field.autocompleteField{position:relative}
     .field.passwordField{position:relative}
     .flightLookupPanel{margin:12px 0;padding:12px 14px;border:1px solid #d8e5ed;border-radius:12px;background:linear-gradient(145deg,#fff,#f5f9fc)}
@@ -903,21 +906,23 @@
           <label for="email">Email (optional)</label>
           <input id="email" name="email" type="email" placeholder="name@example.com" autocomplete="email">
         </div>
-        <div class="field">
-          <label for="payerType">How will this ride be paid?</label>
-          <select id="payerType" name="payerType">
-            <option value="SELF_PAY">Self-pay / private pay</option>
-            <option value="INSURANCE">Private insurance (plan verification)</option>
-            <option value="MEDICARE">Medicare</option>
-            <option value="MEDICAID">Maryland Medicaid</option>
-          </select>
-        </div>
-        <div class="field" id="serviceTypeField" hidden>
-          <label for="serviceTypeSelect">Service type</label>
-          <select id="serviceTypeSelect" name="serviceType" aria-describedby="serviceTypeHint" required>
-            <option value="">Select service type</option>
-          </select>
-          <small class="subtle" id="serviceTypeHint">Select the one service needed for this ride. Your profile preference is used when available.</small>
+        <div class="riderPaymentServiceGrid">
+          <div class="field">
+            <label for="payerType">How will this ride be paid?</label>
+            <select id="payerType" name="payerType">
+              <option value="SELF_PAY">Self-pay / private pay</option>
+              <option value="INSURANCE">Private insurance (plan verification)</option>
+              <option value="MEDICARE">Medicare</option>
+              <option value="MEDICAID">Maryland Medicaid</option>
+            </select>
+          </div>
+          <div class="field" id="serviceTypeField" hidden>
+            <label for="serviceTypeSelect">Service type</label>
+            <select id="serviceTypeSelect" name="serviceType" aria-describedby="serviceTypeHint" required>
+              <option value="">Select service type</option>
+            </select>
+            <small class="subtle" id="serviceTypeHint">Select the one service needed for this ride. Your profile preference is used when available.</small>
+          </div>
         </div>
         <div class="field" id="insuranceCarrierField" hidden>
           <label for="insuranceCarrier">Private insurance provider</label>
