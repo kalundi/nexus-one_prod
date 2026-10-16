@@ -2700,13 +2700,16 @@ $('saveCustomCompany').addEventListener('click',()=>{
   let currentFareSettings=null;
   let editorRouteVersion=0;
   function fareEditorBooking(){
+    const savedInputs=NexusFare.resolveBookingInputs(currentFareBooking,currentFareSettings||{});
+    const pickupChanged=get('dispatchEditTime').value!==String(currentFareBooking?.pickupTime||currentFareBooking?.time||'').slice(0,5);
+    const appointmentChanged=get('dispatchEditAppointmentTime').value!==String(currentFareBooking?.appointmentTime||savedInputs.finalAppointmentTime||'').slice(0,5);
     return {...currentFareBooking,service:get('dispatchEditService').value||currentFareBooking?.service,
       pickup:get('dispatchEditPickup').value,destination:get('dispatchEditDestination').value,
       date:get('dispatchEditDate').value||currentFareBooking?.date,time:get('dispatchEditTime').value||currentFareBooking?.time,
       pickupTime:get('dispatchEditTime').value||currentFareBooking?.pickupTime,appointmentTime:get('dispatchEditAppointmentTime').value||currentFareBooking?.appointmentTime,
       tripScheduleExplicit:true,tripType:get('dispatchEditTripType').value,returnTripDate:get('dispatchEditReturnDate').value,
       returnTripTime:get('dispatchEditReturnTiming').value==='SCHEDULED'?get('dispatchEditReturnTime').value:null,
-      fareInputs:{...NexusFare.resolveBookingInputs(currentFareBooking,currentFareSettings||{}),...(currentFareSettings?.fareRules?.smartTiming?.enabled?{scheduleBasis:'PICKUP'}:{}),finalAppointmentTime:get('dispatchEditAppointmentTime').value,stopAppointmentTimes:[]}};
+      fareInputs:{...savedInputs,...(currentFareSettings?.fareRules?.smartTiming?.enabled&&pickupChanged?{scheduleBasis:'PICKUP'}:{}),...(appointmentChanged?{finalAppointmentTime:get('dispatchEditAppointmentTime').value,stopAppointmentTimes:[]}: {})}};
   }
   async function updateEditorRoute(){
     if(!currentFareBooking)return;
@@ -2730,8 +2733,9 @@ $('saveCustomCompany').addEventListener('click',()=>{
     if(!currentFareBooking)return null;
     const service=get('dispatchEditService').value||currentFareBooking.service;
     const booking=fareEditorBooking();
-    const settings=currentFareSettings?.pricing?currentFareSettings:{pricing:window.NexusCore?.getPricing?.()||{},fareRules:{}};
+    const settings=currentFareSettings;
     try{
+      if(!settings?.pricing)throw new Error('Current pricing is unavailable. Reload to retrieve the latest rates.');
       const fare=NexusFare.calculateEstimate(booking,settings);
       renderEditorTiming(fare.timingPlan,booking.timingPrediction);
       get('dispatchEditOurEstimate').value='$'+fare.discountedTotal.toFixed(2);

@@ -77,7 +77,7 @@ test('round-trip duration includes independently measured return travel and sche
  await expect(page.locator('#rideTimingSummary')).toContainText('2h 18m trip total');
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'output/booking-service-duration-mobile.png'});
  const overflow=await page.locator('#serviceChips').evaluate(element=>element.scrollWidth>element.clientWidth+1);expect(overflow).toBe(false);
- await page.locator('#continueRideBtn').click();await expect(page.locator('#fareConfirmDetails')).toContainText('2h 18m round trip');await page.locator('#fareConfirmAccept').click();
+ await page.locator('#continueRideBtn').click();await expect(page.locator('#fareConfirmAmount')).toHaveText(await page.locator('#estFare').textContent());await page.locator('#fareConfirmAccept').click();
  await expect(page.locator('#paymentSummary')).toContainText('SERVICE-TIME-1');
  const payload=state.getSubmitted();
  expect(payload.fareInputs.durationMinutes).toBe(30);expect(payload.fareInputs.passengerLegs[0].miles).toBe(20);expect(payload.fareInputs.passengerLegs[1].miles).toBe(25);

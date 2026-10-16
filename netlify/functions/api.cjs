@@ -2940,12 +2940,13 @@ async function handler(event){
   const composedNotes=upsertCheckInNote(notesWithAppointment,checkInTime);
 
    const ref=(isMockTrip?'MOCK-':'')+reference();
-   let submittedFare=Math.max(0,Number(b.estimatedFare||0));
-   if(b.fareInputs){
+   if(!b.fareInputs)return json(400,{error:'Current fare inputs are required. Refresh the booking estimate before submitting.'});
+   let submittedFare;
+   {
     const fareSettings=await readPlatformSettings();
     const [fareBooking]=await TripTiming.hydrate([{...b,date:b.date,time:pickupTimeEstimate||b.time,pickupTime:pickupTimeEstimate||b.time,appointmentDate:b.appointmentDate||b.date,appointmentTime,tripType,returnTripDate,returnTripTime,bookingSource}],fareSettings,query);
     if(b.fareInputs.routeVerified)NexusRoute.validate(b.fareInputs,fareBooking,fareSettings.organization?.yardAddress);
-    submittedFare=NexusFare.calculateBooking(fareBooking,{...b.fareInputs,scheduleBasis:'PICKUP'},fareSettings).discountedTotal;
+    submittedFare=NexusFare.calculateBooking(fareBooking,b.fareInputs,fareSettings).discountedTotal;
    }
    const codeHash=clean(b.promotionCode)?promotionHash(b.promotionCode):'';
    if(codeHash)await ensureBookingPromotionsSchema();
@@ -3303,12 +3304,17 @@ async function handler(event){
    if(found.rows[0].driver_name||found.rows[0].driver_scope_id)return json(409,{error:'A driver is already assigned. Please call dispatch to change this trip.'});
   const flightInfo=normalizeBookingFlightInfo(b.flightInfo,b.date);
   await ensureBookingFlightSchema();
-   const fare=Math.max(0,Number(b.estimatedFare||0));
+   if(!b.fareInputs)return json(400,{error:'Current fare inputs are required. Refresh the booking estimate before submitting.'});
+   const fareSettings=await readPlatformSettings();
+   const [fareBooking]=await TripTiming.hydrate([{...mapBooking(found.rows[0]),...b,pickupTime:b.time}],fareSettings,query);
+   if(b.fareInputs.routeVerified)NexusRoute.validate(b.fareInputs,fareBooking,fareSettings.organization?.yardAddress);
+   const fare=NexusFare.calculateBooking(fareBooking,b.fareInputs,fareSettings).discountedTotal;
   const flightNote=flightInfo?`Airport flight: ${flightInfo.flightNumber||'unspecified'} ${flightInfo.movement.toLowerCase()} at ${flightInfo.airport.name||flightInfo.airport.code||flightInfo.airportName||'selected airport'}${flightInfo.terminal?`, terminal ${flightInfo.terminal}`:''}${flightInfo.gate?`, gate ${flightInfo.gate}`:''} (${flightInfo.terminalSource})`:'';
   const waitingNote=Number(b.waitMinutes)>0?`Additional driver waiting: ${Math.max(0,Number(b.waitMinutes)||0)} min`:'';
   const stopWaitingNote=Array.isArray(b.stopWaitMinutes)&&b.stopWaitMinutes.length?`Expected stop times: ${b.stopWaitMinutes.map((minutes,index)=>`Stop ${index+1}: ${Math.max(0,Number(minutes)||0)} min`).join('; ')}`:'';
-  const updatedNotes=upsertAppointmentNote([clean(b.notes),flightNote,waitingNote,stopWaitingNote].filter(Boolean).join('\n'),clean(b.appointmentTime));
-  const updated=await query(`UPDATE bookings SET name=$2,email=$3,service=$4,pickup=$5,destination=$6,trip_date=$7,trip_time=$8,notes=$9,distance_miles=$10,estimated_duration=$11,estimated_fare=$12,deposit_amount=CASE WHEN requires_deposit THEN $12*.25 ELSE deposit_amount END,balance_due=CASE WHEN requires_deposit THEN $12*.75 ELSE $12 END,flight_info=$13::jsonb,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,clean(b.name),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,clean(b.time),updatedNotes,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,flightInfo?JSON.stringify(flightInfo):null]);
+  const fareNotes=clean(b.notes).replace(/\s*\|?\s*Fare inputs: \{[^\n|]*\}/g,'').trim();
+  const updatedNotes=upsertAppointmentNote([fareNotes,flightNote,waitingNote,stopWaitingNote,`Fare inputs: ${JSON.stringify(b.fareInputs)}`].filter(Boolean).join('\n'),clean(b.appointmentTime));
+  const updated=await query(`UPDATE bookings SET name=$2,email=$3,service=$4,pickup=$5,destination=$6,trip_date=$7,trip_time=$8,notes=$9,distance_miles=$10,estimated_duration=$11,estimated_fare=$12,deposit_amount=CASE WHEN requires_deposit THEN $12*.25 ELSE deposit_amount END,balance_due=CASE WHEN requires_deposit THEN $12*.75 ELSE $12 END,flight_info=$13::jsonb,route_fare_inputs=$14::jsonb,trip_type=$15,return_trip_date=$16::date,return_trip_time=$17::time,appointment_date=$18::date,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,clean(b.name),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,clean(b.time),updatedNotes,b.fareInputs.miles,clean(b.estimatedDuration)||null,fare,flightInfo?JSON.stringify(flightInfo):null,b.fareInputs.routeVerified?JSON.stringify(b.fareInputs):null,fareBooking.tripType||'ONE_WAY',fareBooking.tripType==='ROUND_TRIP'?fareBooking.returnTripDate:null,fareBooking.tripType==='ROUND_TRIP'?fareBooking.returnTripTime||null:null,b.fareInputs.appointmentDate||b.appointmentDate||b.date]);
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),'Rider updated booking details','PASSENGER']);
    await audit('BOOKING',ref,'RIDER_UPDATED',{service:b.service,date:b.date,time:b.time});
    const notifications=await sendTripStakeholderUpdate(found.rows[0],updated.rows[0],{display_name:'Passenger'},'Booking details updated online').catch(()=>({status:'failed'}));
@@ -5070,7 +5076,7 @@ function withCurrentEstimate(booking,settings){
  const {intakePayload,...publicBooking}=booking;
  const schedule=NexusFare.resolveTripSchedule(booking);
  try{
-  const fare=NexusFare.calculateEstimate({...booking,fareInputs:{...NexusFare.resolveBookingInputs(booking,settings),scheduleBasis:'PICKUP'}},settings);
+  const fare=NexusFare.calculateEstimate(booking,settings);
   const timingPlan=fare.timingPlan||booking.timingPlan;
   const timingPrediction=NexusTripTiming.predict(timingPlan,booking.timingMilestones||[]);
   const {timingContext,...safeBooking}=publicBooking;
