@@ -311,7 +311,7 @@
   let manageActionsBound = false;
   let lastTrackedBookingStep = '';
   const PRIVILEGED_SERVICE_ROLES = new Set(['ADMIN','DISPATCHER','FACILITY','DRIVER']);
-  const CUSTOMER_ALLOWED_SERVICES = new Set(['ambulatory','wheelchair','stretcher','bariatric']);
+  const CUSTOMER_ALLOWED_SERVICES = new Set(['ambulatory','facility_transfer','facility_transfer_critical','wheelchair','stretcher','broda','bariatric','bls','als1','als2']);
   const ADMIN_DISPATCH_ROLES = new Set(['ADMIN','DISPATCHER','DISPATCH']);
   const SERVICE_TYPE_LABELS = {
     ambulatory:'Ambulatory',
