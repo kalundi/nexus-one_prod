@@ -119,9 +119,31 @@
     if(minutes>=1440)return `${Math.floor(minutes/1440)}d${minutes%1440>=60?` ${Math.floor(minutes%1440/60)}h`:''}${minutes%60?` ${minutes%60}m`:''}`;
     return minutes<60?`${minutes} min`:`${Math.floor(minutes/60)}h${minutes%60?` ${minutes%60}m`:''}`;
   }
+  const fuelProfiles={
+    ambulance:{label:'Diesel ambulance',efficiency:'9 MPG',rate:0.7052},
+    bus:{label:'Gasoline bus',efficiency:'7.5 MPG',rate:0.5595},
+    land_rover:{label:'Land Rover / SUV',efficiency:'18 MPG',rate:0.2842},
+    gasoline_sedan:{label:'Gasoline sedan',efficiency:'30 MPG',rate:0.1399},
+    hybrid_sedan:{label:'Hybrid sedan',efficiency:'45 MPG',rate:0.0933},
+    electric_public:{label:'Electric sedan — public fast charging',efficiency:'0.30 kWh/mile',rate:0.18},
+    electric_home:{label:'Electric sedan — home charging',efficiency:'0.30 kWh/mile',rate:0.0642},
+    electric_depot:{label:'Electric sedan — commercial depot',efficiency:'0.30 kWh/mile',rate:0.0525}
+  };
+  function fuelPolicy(service,rules={},vehicleUnit='',requestedProfile=''){
+    const classes={ambulatory:'land_rover',wheelchair:'bus',stretcher:'bus',broda:'bus',bariatric:'bus',bls:'ambulance',als1:'ambulance',als2:'ambulance',facility_transfer:'ambulance',facility_transfer_critical:'ambulance'};
+    const serviceKey=normalizeService(service);
+    const assigned=rules.vehicleFuelProfiles?.[vehicleUnit];
+    const chosen=serviceKey==='ambulatory'&&fuelProfiles[requestedProfile]&&!['ambulance','bus'].includes(requestedProfile)?requestedProfile:'';
+    const defaultProfile=chosen||(serviceKey==='ambulatory'?(rules.ambulatoryFuelProfile||'land_rover'):classes[serviceKey]);
+    const vehicleClass=chosen||(fuelProfiles[assigned]?assigned:fuelProfiles[defaultProfile]?defaultProfile:'');
+    const configured=rules.vehicleFuelRatesPerMile?.[vehicleClass];
+    const hasVehicleRate=configured!=null&&configured!==''&&Number.isFinite(Number(configured))&&Number(configured)>=0;
+    return {fuelVehicleClass:hasVehicleRate?vehicleClass:'',fuelVehicleLabel:hasVehicleRate?fuelProfiles[vehicleClass].label:'Fleet',fuelRatePerMile:hasVehicleRate?Number(configured):Math.max(0,Number(rules.fuelSurchargePerMile)||0)};
+  }
   function calculate(input){
     const {service,miles,date:dateStr,time:timeStr,rate,rules:fareRules={},metrics:routeMetrics={}}=input;
     const policy=fareRules.servicePolicies?.[service]||{};
+    const fuel=fuelPolicy(service,fareRules,input.vehicleUnit,input.fuelProfile);
     const tripType={value:input.tripType||'ONE_WAY'};
     const returnTripDate={value:input.returnDate||''},returnTripTime={value:input.returnTime||''};
     const CARD_PROCESSING_FEE_PCT=Number(fareRules.cardProcessingFeePct??3);
@@ -141,7 +163,7 @@
       const travel=serviceTravel({...route,miles:distance,durationMinutes,trafficDurationMinutes},service,fareRules);
       const overageMinutes=Math.max(0,trafficDurationMinutes-durationMinutes-Number(fareRules.trafficOverageGraceMinutes||0));
       const mileageCharge=billableMiles*Number(rate.perMile||0);
-      const fuelCharge=distance*Number(fareRules.fuelSurchargePerMile||0);
+      const fuelCharge=distance*fuel.fuelRatePerMile;
       const trafficCharge=overageMinutes/60*Math.max(0,Number(policy.trafficOverageFeePerHour??fareRules.trafficOverageFeePerHour??0));
       const rawSubtotal=Number(rate.base||0)+mileageCharge+fuelCharge+trafficCharge;
       const date=index?returnTripDate.value||dateStr:dateStr;
@@ -178,7 +200,7 @@
     const taxRatePct = CARD_PROCESSING_FEE_PCT;
     const taxAmount = normalizedSubtotal * (taxRatePct / 100);
     return {
-      ...waiting,drivingMinutes,transitionMinutes,journeyMinutes,timingPlan,
+      ...waiting,...fuel,drivingMinutes,transitionMinutes,journeyMinutes,timingPlan,
       deadheadSegments, deadheadDetails, deadheadRate, deadheadCharge, shortNoticeCharge,
       includedMiles,
       passengerLegs,passengerLegCount,passengerMilesTotal:passengerLegs.reduce((sum,leg)=>sum+leg.miles,0),
@@ -214,6 +236,7 @@
     return {fullFare,total,memberSavings:roundMoney(fullFare-total)};
   }
   function calculateBooking(booking,inputs,settings){
+    if(inputs.fuelProfile&&(normalizeService(booking.service)!=='ambulatory'||!Object.prototype.hasOwnProperty.call(fuelProfiles,inputs.fuelProfile)||['ambulance','bus'].includes(inputs.fuelProfile)))throw Error('Invalid Ambulatory vehicle fuel profile');
     for(const key of ['miles','durationMinutes','trafficDurationMinutes','stopWaitMinutes','discountPct']){
       if(inputs[key]==null||inputs[key]===''||!Number.isFinite(Number(inputs[key]))||Number(inputs[key])<0)throw Error(`Missing or invalid fare input: ${key}`);
     }
@@ -245,7 +268,7 @@
     const timing=typeof module==='object'&&module.exports?require('./nexus-trip-timing.js'):globalThis.NexusTripTiming;
     const timingPlan=settings.fareRules?.smartTiming?.enabled&&timing?timing.plan(booking,inputs,settings):null;
     const plannedPickup=timingPlan?timing.localParts(timingPlan.crewArrivalAt):null;
-    const result=calculate({service,rate,rules:settings.fareRules||{},timingPlan,miles:Number(inputs.miles),date:plannedPickup?.date||String(booking.date).slice(0,10),time:plannedPickup?.time||booking.time,tripType:booking.tripType,
+    const result=calculate({service,vehicleUnit:booking.vehicleUnit,fuelProfile:inputs.fuelProfile,rate,rules:settings.fareRules||{},timingPlan,miles:Number(inputs.miles),date:plannedPickup?.date||String(booking.date).slice(0,10),time:plannedPickup?.time||booking.time,tripType:booking.tripType,
       returnDate:String(booking.returnTripDate||'').slice(0,10),returnTime:booking.returnTripTime,
       waitMinutes:stopWait+returnWait,
       metrics:{durationMinutes:Number(inputs.durationMinutes),trafficDurationMinutes:Number(inputs.trafficDurationMinutes),passengerLegs:inputs.passengerLegs,deadheadRoutes:inputs.deadheadRoutes,deadheadSegments:inputs.deadheadSegments.map(Number),returnTimePending:booking.returnTimePending}});
@@ -260,6 +283,7 @@
   }
   function normalizeService(value){
     const raw=String(value||'').trim().toLowerCase().replace(/[ -]+/g,'_');
+    if(['suv','sedan','gasoline_sedan','hybrid_sedan','electric_sedan','land_rover','range_rover'].includes(raw))return 'ambulatory';
     if(raw==='wc'||raw.startsWith('wheelchair'))return 'wheelchair';
     if(raw==='amb'||raw.startsWith('ambulatory'))return 'ambulatory';
     if(raw.startsWith('stretcher'))return 'stretcher';
@@ -284,7 +308,7 @@
       saved=other;
     }
     const route=booking.routeFareInputs;
-    if(route?.routeVerified&&matchesRoute(route))saved={...saved,...route};
+    if(route?.routeVerified&&matchesRoute(route))saved={...saved,...route,...(saved.fuelProfile!=null?{fuelProfile:saved.fuelProfile}:{})};
     let legacy={};
     try{legacy=JSON.parse(notes.match(/Fare breakdown: (\{.*\})\. Member savings:/)?.[1]||'{}');}catch{}
     const intake=booking.intakePayload||{};
@@ -322,7 +346,7 @@
       discountPct:[0,5,10].includes(discountPct)?discountPct:0,
       scheduleBasis:saved.scheduleBasis||booking.scheduleBasis||(/Schedule basis:\s*PICKUP/i.test(notes)?'PICKUP':'APPOINTMENT'),
       finalAppointmentTime:appointments.at(-1)||appointmentTime||saved.finalAppointmentTime||'',
-      pickupTime
+      pickupTime,fuelProfile:normalizeService(booking.service)==='ambulatory'?saved.fuelProfile||'':''
       ,appointmentDate:bookingDate(saved.appointmentDate||booking.appointmentDate||booking.date),deadlineBasis:saved.deadlineBasis||'APPOINTMENT',facilityPlaces:saved.facilityPlaces||[]
     };
   }
@@ -371,5 +395,5 @@
     const fare=calculateBooking(normalized,inputs,settings);
     return {...fare,inputs};
   }
-  return {calculate,calculateBooking,calculateEstimate,resolveTripSchedule,resolveBookingInputs,routeMatchesBooking,getWaitingCharge,applySavings,roundMoney,scheduledEpoch,getPremiumRateReason,travelPolicy,serviceTravel,formatTravelMinutes};
+  return {calculate,calculateBooking,calculateEstimate,resolveTripSchedule,resolveBookingInputs,routeMatchesBooking,getWaitingCharge,applySavings,roundMoney,scheduledEpoch,getPremiumRateReason,travelPolicy,serviceTravel,formatTravelMinutes,fuelPolicy,fuelProfiles};
 });

@@ -610,7 +610,7 @@
       fare: discountView.total,
       passengerLegs:breakdown.passengerLegs,
       deadheadCharge:Number(breakdown.deadheadCharge || 0), shortNoticeCharge:Number(breakdown.shortNoticeCharge || 0), deadheadSegments:breakdown.deadheadSegments || []
-      ,routeFareInputs:measuredRouteInputs,timingPlan:breakdown.timingPlan
+      ,routeFareInputs:measuredRouteInputs,timingPlan:breakdown.timingPlan,fareInputs:breakdown.inputs
     };
 
     estMiles.textContent = `${Number(breakdown.passengerMilesTotal||estimateState.miles).toFixed(1)} mi total`;
@@ -631,6 +631,11 @@
     const legCopy=(breakdown.passengerLegs||[]).map(leg=>`${leg.kind==='RETURN'?'Return':'Outbound'}: ${leg.miles.toFixed(2)} miles (${leg.billableMiles.toFixed(2)} billable)`).join('. ');
     const mileageCopy=`Each leg: $${Number(selectedRate.base||0).toFixed(2)} base includes ${Number(selectedRate.includedMiles||0)} miles; additional miles are $${Number(selectedRate.perMile||0).toFixed(2)} each. ${legCopy}.`;
     if(rateSourceLabel)rateSourceLabel.textContent=mileageCopy;
+    const fuelCopy=`Fuel (${breakdown.fuelVehicleLabel}): ${Number(breakdown.passengerMilesTotal||0).toFixed(2)} passenger mi × $${Number(breakdown.fuelRatePerMile||0).toFixed(4)}/mi = $${Number(breakdown.fuelCharge||0).toFixed(2)} before schedule premiums, processing and savings. Included in your estimate.`;
+    if($('estFuelRow'))$('estFuelRow').hidden=false;
+    if($('estFuelLabel'))$('estFuelLabel').textContent=`Fuel · ${breakdown.fuelVehicleLabel} ($${Number(breakdown.fuelRatePerMile||0).toFixed(4)}/mi)`;
+    if($('estFuelCharge'))$('estFuelCharge').textContent=`$${Number(breakdown.fuelCharge||0).toFixed(2)}`;
+    if($('fareConfirmFuel')){$('fareConfirmFuel').textContent=fuelCopy;$('fareConfirmFuel').hidden=false;}
     ['fareSummaryMileage','fareConfirmMileage'].forEach(id=>{
       if($(id)){ $(id).textContent=mileageCopy; $(id).hidden=Number(miles||0)<=0; }
     });
@@ -722,6 +727,15 @@
 
   function renderRideMarketplace(){
     if(!serviceChips)return;
+    const fuelSelect=$('bookingFuelProfile');
+    if(fuelSelect){
+      const selected=fuelSelect.value;
+      const profileOptions=Object.entries(NexusFare.fuelProfiles).filter(([key])=>!['ambulance','bus'].includes(key));
+      const defaultProfile=fareRules.ambulatoryFuelProfile||'land_rover';
+      fuelSelect.innerHTML=`<option value="">Automatic — estimate using ${NexusFare.fuelProfiles[defaultProfile]?.label||'Land Rover / SUV'}</option>`+profileOptions.map(([key,profile])=>`<option value="${key}">${profile.label} — $${Number(fareRules.vehicleFuelRatesPerMile?.[key]??profile.rate).toFixed(4)}/mi</option>`).join('');
+      fuelSelect.value=selected;
+      if($('ambulatoryFuelChoiceField'))$('ambulatoryFuelChoiceField').hidden=normalizeService($('service')?.value)!=='ambulatory';
+    }
     const miles=Number(estimateState.miles||0);
     const date=String($('tripDate')?.value||new Date().toISOString().slice(0,10));
     const time=String($('tripTime')?.value||appointmentTimeInput?.value||'10:00');
@@ -736,7 +750,12 @@
       }
       const eta=meta.querySelector('.serviceCardEta');
       const fare=meta.querySelector('.serviceCardFare');
-      const breakdown=miles>0?calculateFareBreakdown(service,miles,date,time,{durationMinutes:estimateState.durationMinutes,trafficDurationMinutes:estimateState.trafficDurationMinutes}):null;
+      let breakdown=null;
+      let pricingError='';
+      try{
+        if(miles>0)breakdown=calculateFareBreakdown(service,miles,date,time,{durationMinutes:estimateState.durationMinutes,trafficDurationMinutes:estimateState.trafficDurationMinutes});
+      }catch(error){pricingError=error.message;}
+      chip.disabled=!allowedServicesForRole(currentUserRole).has(service)||!platformPricing?.[service];
       if(eta){
         eta.textContent=breakdown?.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.timingPlan?breakdown.journeyMinutes:breakdown.drivingMinutes)} ${breakdown.timingPlan?'total':'drive'}`:'Time pending';
         eta.title=breakdown?`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving${breakdown.waitMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:''}${breakdown.transitionMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''}`:'Enter the route and schedule to calculate travel time.';
@@ -745,7 +764,8 @@
       const requiresReview=service==='stretcher'||service==='bariatric';
       if(fare){
         const total=breakdown?pricingWithMembership(breakdown.total).total:0;
-        fare.textContent=requiresReview&&!total?'Review':(total?`$${total.toFixed(2)}`:'Estimate');
+        fare.textContent=pricingError?'Estimate unavailable':requiresReview&&!total?'Review':(total?`$${total.toFixed(2)}`:'Estimate');
+        fare.title=pricingError;
         fare.classList.toggle('review',requiresReview&&!total);
       }
     });
@@ -1175,6 +1195,7 @@
         $('service').value = normalizeService(fallbackChip.dataset.service);
       }
     }
+    setSecondaryRideOptionsExpanded($('toggleMoreRideOptions')?.getAttribute('aria-expanded')==='true');
   }
 
   function applyAuthUi(){
@@ -1620,7 +1641,7 @@
   }
 
   function buildFareEstimateSignature(){
-    return [normalizeService($('service')?.value),String($('pickup')?.value||'').trim(),getRouteDestinations().join('|'),String($('tripDate')?.value||''),String(tripType?.value||''),String(returnTripDate?.value||''),String(returnTripTime?.value||''),getLegAppointments().map((item) => item.appointmentTime).join('|'),getStopWaitMinutes().join('|'),Number(estimateState.fare||0).toFixed(2),Number(estimateState.miles||0).toFixed(2)].join('::');
+    return [String($('bookingFuelProfile')?.value||''),normalizeService($('service')?.value),String($('pickup')?.value||'').trim(),getRouteDestinations().join('|'),String($('tripDate')?.value||''),String(tripType?.value||''),String(returnTripDate?.value||''),String(returnTripTime?.value||''),getLegAppointments().map((item) => item.appointmentTime).join('|'),getStopWaitMinutes().join('|'),Number(estimateState.fare||0).toFixed(2),Number(estimateState.miles||0).toFixed(2)].join('::');
   }
 
   function updateFareConfirmationState(){
@@ -1984,12 +2005,14 @@
 
   function getPricing(service){
     const svc = normalizeService(service);
-    const fromCore = platformPricing || window.NexusCore?.getPricing?.() || FALLBACK_PRICING;
-    return fromCore[svc] || FALLBACK_PRICING[svc] || FALLBACK_PRICING.ambulatory;
+    const rate = platformPricing?.[svc];
+    if(!rate) throw new Error('Current pricing is unavailable. Reload the page to retrieve the latest rates.');
+    return rate;
   }
 
   function getAllPricing(){
-    return platformPricing || window.NexusCore?.getPricing?.() || FALLBACK_PRICING;
+    if(!platformPricing) throw new Error('Current pricing is unavailable. Reload the page to retrieve the latest rates.');
+    return platformPricing;
   }
 
   function getServicePolicy(service){
@@ -2009,10 +2032,21 @@
       if(firstLeg>0)pickupTime=minutesToTime(parseTimeToMinutes(appointmentTimeInput.value)-firstLeg-15);
     }
     const smartPickup=timingPlan?NexusTripTiming.localParts(timingPlan.crewArrivalAt):null;
-    return NexusFare.calculate({service,miles,date:smartPickup?.date||dateStr,time:smartPickup?.time||pickupTime,rate:getPricing(service),rules:fareRules,timingPlan,
-      tripType:tripType?.value,returnDate:returnTripDate?.value,returnTime:returnTripTime?.value,
-      waitMinutes:getWaitingCharge(service,routeMetrics).waitMinutes||0,
-      metrics:{...(typeof measuredRouteInputs!=='undefined'?measuredRouteInputs:null),...routeMetrics,passengerLegs,deadheadSegments:routeMetrics.deadheadSegments||[deadheadRouteMiles.toPickup,String(tripType?.value).toUpperCase()==='ROUND_TRIP'?deadheadRouteMiles.fromReturn:deadheadRouteMiles.fromDestination]}});
+    const appointments=getLegAppointments().map(item=>item.appointmentTime);
+    const inputs={...measuredRouteInputs,...routeMetrics,miles:Number(miles||0),
+      fuelProfile:service==='ambulatory'?$('bookingFuelProfile')?.value||'':'',
+      durationMinutes:Number(routeMetrics.durationMinutes??estimateState.durationMinutes??0),trafficDurationMinutes:Number(routeMetrics.trafficDurationMinutes??estimateState.trafficDurationMinutes??0),passengerLegs,
+      stopWaitMinutes:getCalculatedWaiting(routeMetrics,service).stopWaitMinutes.reduce((sum,value)=>sum+value,0),stopAppointmentTimes:appointments,
+      deadheadSegments:routeMetrics.deadheadSegments||[deadheadRouteMiles.toPickup,String(tripType?.value).toUpperCase()==='ROUND_TRIP'?deadheadRouteMiles.fromReturn:deadheadRouteMiles.fromDestination],
+      discountPct:pricingWithMembership(0).discountPct,scheduleBasis:isPickupTimeBasis()?'PICKUP':'APPOINTMENT',
+      finalAppointmentTime:appointments.at(-1)||appointmentTimeInput?.value||'',appointmentDate:dateStr,
+      deadlineBasis:scheduleBasisInput?.value==='HANDOFF'?'HANDOFF':'APPOINTMENT',facilityPlaces:[$('pickup').value,...getRouteDestinations()].map(a=>selectedTimingPlaces.get(a)).filter(Boolean)};
+    const booking={service,date:smartPickup?.date||dateStr,time:smartPickup?.time||pickupTime,
+      pickup:$('pickup').value,destinations:getRouteDestinations(),appointmentDate:dateStr,appointmentTime:appointmentTimeInput?.value,
+      timingContext:facilityTimingContext,tripType:tripType?.value,returnTripDate:returnTripDate?.value,returnTripTime:returnTripTime?.value,
+      returnTimePending:tripType?.value==='ROUND_TRIP'&&!returnTripTime?.value};
+    const result=NexusFare.calculateBooking(booking,inputs,{pricing:{[service]:getPricing(service)},fareRules});
+    return {...result,inputs};
   }
 
   function calculateFare(service, miles, dateStr, timeStr, routeMetrics = {}){
@@ -2030,13 +2064,14 @@
   async function loadPlatformSettings(){
     try{
       const r = await fetch('/api/settings/public', { cache: 'no-store' });
-      if(!r.ok) return;
+      if(!r.ok) throw new Error('Current pricing could not be loaded. Reload the page to try again.');
       const data = await r.json();
+      if(!data?.pricing||typeof data.pricing!=='object'||!data?.fareRules||typeof data.fareRules!=='object') throw new Error('Current pricing could not be loaded. Reload the page to try again.');
       if(data?.pricing && typeof data.pricing === 'object'){
         platformPricing = data.pricing;
       }
       if(data?.fareRules && typeof data.fareRules === 'object'){
-        fareRules = { ...DEFAULT_FARE_RULES, ...data.fareRules };
+        fareRules = data.fareRules;
         if($('handoffScheduleOption')){$('handoffScheduleOption').hidden=!fareRules.smartTiming?.enabled;$('handoffScheduleOption').disabled=!fareRules.smartTiming?.enabled;}
       }
       if(data?.organization && typeof data.organization === 'object'){
@@ -2045,7 +2080,10 @@
         const preTrip = Number(data.organization.preTripInspectionMinutes);
         preTripInspectionMinutes = Number.isFinite(preTrip) ? Math.max(0, Math.min(180, preTrip)) : DEFAULT_PRETRIP_INSPECTION_MINUTES;
       }
-    }catch{}
+    }catch(error){
+      platformPricing=null;
+      throw error;
+    }
   }
 
   function resolveRouteDepartureTime(tripDate, appointmentTime){
@@ -2212,6 +2250,8 @@
     estMiles.textContent = '-';
     if($('estWaitRow')) $('estWaitRow').hidden=true;
     if($('estPremiumRow')) $('estPremiumRow').hidden=true;
+    if($('estFuelRow'))$('estFuelRow').hidden=true;
+    if($('fareConfirmFuel'))$('fareConfirmFuel').hidden=true;
     ['fareSummaryMileage','fareConfirmMileage'].forEach(id=>{ if($(id)) $(id).hidden=true; });
     ['fareSummaryPremium','fareConfirmPremium'].forEach(id=>{ if($(id)) $(id).hidden=true; });
     ['fareSummaryWaiting','fareConfirmWaiting'].forEach(id=>{ if($(id)) $(id).hidden=true; });
@@ -3513,14 +3553,27 @@
 
   function setSecondaryRideOptionsExpanded(expanded){
     const toggle = $('toggleMoreRideOptions');
-    serviceChips.querySelectorAll('.secondaryRideOption').forEach((chip) => { chip.hidden = !expanded; });
+    const allowed = allowedServicesForRole(currentUserRole);
+    const secondary = Array.from(serviceChips.querySelectorAll('.secondaryRideOption'));
+    const hasOptions = secondary.some((chip) => allowed.has(normalizeService(chip.dataset.service)));
+    expanded = Boolean(expanded && hasOptions);
+    secondary.forEach((chip) => { chip.hidden = !expanded || !allowed.has(normalizeService(chip.dataset.service)); });
+    const accessHint = $('specializedRideAccessHint');
+    if(accessHint) accessHint.hidden = hasOptions;
     if(toggle){
+      toggle.hidden = !hasOptions;
       toggle.setAttribute('aria-expanded', String(expanded));
       toggle.textContent = expanded ? 'Show fewer ride options' : 'Show more ride options';
     }
   }
 
   function bindServiceChips(){
+    $('bookingFuelProfile')?.addEventListener('change',()=>{
+      rideChoiceConfirmed=false;
+      refreshFareForMembership();
+      renderRideMarketplace();
+      syncSectionProgressUi();
+    });
     serviceChips.querySelectorAll('.chip').forEach((chip) => {
       chip.addEventListener('click', () => selectService(chip.dataset.service));
     });
@@ -3902,7 +3955,7 @@
       // The server redeems the coupon and applies its discount exactly once.
       estimatedFare: Number((!editingBookingReference ? appliedPromotion?.originalFare : null) ?? estimateState.fare ?? 0),
       memberDiscountPct: Number(estimateState.discountPct || 0),
-      fareInputs:{...estimateState.routeFareInputs,passengerLegs:estimateState.passengerLegs,miles:Number(estimateState.miles||0),durationMinutes:Number(estimateState.durationMinutes||0),trafficDurationMinutes:Number(estimateState.trafficDurationMinutes||0),stopWaitMinutes:getStopWaitMinutes().reduce((sum,value)=>sum+Number(value||0),0),stopAppointmentTimes:getLegAppointments().map(item=>item.appointmentTime),deadheadSegments:estimateState.deadheadSegments||[0,0],discountPct:Number(estimateState.discountPct||0),scheduleBasis:isPickupTimeBasis()?'PICKUP':'APPOINTMENT',finalAppointmentTime:getLegAppointments().at(-1)?.appointmentTime||'',appointmentDate:$('tripDate').value,deadlineBasis:scheduleBasisInput?.value==='HANDOFF'?'HANDOFF':'APPOINTMENT',facilityPlaces:[$('pickup').value,...routeDestinations].map(a=>selectedTimingPlaces.get(a)).filter(Boolean)},
+      fareInputs:{...estimateState.fareInputs,discountPct:Number(estimateState.discountPct||0)},
       memberDiscountAmount: Number(estimateState.memberSavings || 0),
       promotionCode: appliedPromotion?.code || '',
       pickupTimeEstimate: String($('tripTime')?.value || '').trim(),
@@ -4370,7 +4423,11 @@
     bindAuthActions();
 
     await loadIntegrationConfig();
-    await loadPlatformSettings();
+    try{await loadPlatformSettings();}catch(error){
+      setStatus(error.message,'err');
+      if(submitBtn)submitBtn.disabled=true;
+      return;
+    }
     await resolveUserAccess();
     applyAuthUi();
     bindServiceChips();

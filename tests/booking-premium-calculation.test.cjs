@@ -11,6 +11,10 @@ function calculator({ roundTrip = false, returnDate = '', returnTime = '', rate 
   const context = vm.createContext({
     NexusFare:Fare, getPricing: () => rate, getServicePolicy: () => ({}),
     fareRules, CARD_PROCESSING_FEE_PCT:3,
+    getSmartTimingPlan:()=>null,getLegAppointments:()=>[],isPickupTimeBasis:()=>true,
+    getCalculatedWaiting:()=>({stopWaitMinutes:[]}),pricingWithMembership:()=>({discountPct:0}),
+    estimateState:{durationMinutes:0,trafficDurationMinutes:0},appointmentTimeInput:{value:''},scheduleBasisInput:{value:'PICKUP'},
+    selectedTimingPlaces:new Map(),facilityTimingContext:{},getRouteDestinations:()=>[],$:()=>({value:''}),
     routeStopMetrics:[],measuredRouteInputs:null,getOutboundTravel:(service,route)=>Fare.serviceTravel(route,service,fareRules),
     getWaitingCharge: () => ({ waitCharge:0 }),
     deadheadRouteMiles:{toPickup:0,fromDestination:0,fromReturn:0},

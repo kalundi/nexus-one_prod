@@ -597,7 +597,7 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
 </section>
 <section class="grid cols2 dispatchSection" style="margin-top:22px" id="driverStatusSection"><article class="card"><div class="sectionHead"><div><p class="eyebrow">Driver coverage</p><h2>Driver roster (on-duty + off-duty)</h2></div><span id="driversOnDutyCount" class="status blue">Loading</span></div><div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-top:10px"><label class="field" style="margin:0">Plan date<input id="driverStatusDate" type="date"></label><label class="field" style="margin:0">Plan time<input id="driverStatusTime" type="time"></label><button id="refreshDrivers" class="button secondary" style="min-height:40px;font-size:13px;align-self:end">Apply</button></div><div id="driverRoster" style="margin-top:14px"><p style="color:var(--muted)">Loading driver roster</p></div></article><article class="card"><div class="sectionHead"><div><p class="eyebrow">Fleet visibility</p><h2>Fleet + staffing details</h2></div><button id="resetDriverStatusNow" class="button secondary" style="min-height:36px;font-size:13px">Now</button></div><div id="availabilitySummary" style="margin-top:14px"><p style="color:var(--muted)">Loading</p></div></article></section>
 <section id="aiSection" class="grid cols2 dispatchSection" style="margin-top:22px"><article class="card"><h2>AI dispatch recommendations</h2><div id="aiRecommendations" class="insightList"></div><p class="aiDisclosure">Decision support only. Dispatchers remain responsible for assignments and safety decisions.</p></article><article class="card"><h2>Demand forecast</h2><div id="demandForecast" class="forecastBars"></div></article></section>
-</main><footer class="footer"><div class="shell footerGrid" data-unified-footer-applied="1" data-compact-redesign-applied="1"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Patients</strong><a href="/booking-app.html">Book Transportation</a><a href="/livecare.html">Track a Ride</a></div><div><strong>Authorized portals</strong><a href="/facility.html">Facility</a><a href="/dispatch.html">Dispatch</a><a href="/driver-app.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18886395766">Main line: (888) 639-5766</a><a href="tel:+18887604990">Customer service: (888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true"></span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-smart-timing"><script src="./nexus-fare.js?v=20261012-cruising-ceilings"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script><script src="./dispatch-route-fares.js?v=20261012-smart-timing"></script><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js?v=20261011-footer-spacing"></script><script>
+</main><footer class="footer"><div class="shell footerGrid" data-unified-footer-applied="1" data-compact-redesign-applied="1"><div><img class="logo footerLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"><p>Access Drives Equity.</p></div><div><strong>Patients</strong><a href="/booking-app.html">Book Transportation</a><a href="/livecare.html">Track a Ride</a></div><div><strong>Authorized portals</strong><a href="/facility.html">Facility</a><a href="/dispatch.html">Dispatch</a><a href="/driver-app.html">Driver</a></div><div><strong>Contact</strong><a href="tel:+18886395766">Main line: (888) 639-5766</a><a href="tel:+18887604990">Customer service: (888) 760-4990</a><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a><small>For emergencies call 911.</small></div></div></footer><div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true"></span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div><link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-smart-timing"><script src="./nexus-fare.js?v=20261016-vehicle-fuel"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script><script src="./dispatch-route-fares.js?v=20261012-smart-timing"></script><script src="./nexus-core.js"></script><script src="./nexus-ai.js"></script><script src="./platform.js?v=20261011-footer-spacing"></script><script>
 let dispatchHeroMap=null;
 
 function createDispatchHeroMap(el){
@@ -2558,6 +2558,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       <div class="formField"><label for="dispatchEditDriver">Driver</label><select id="dispatchEditDriver"><option value="">Select driver</option></select></div>
       <div class="formField"><label for="dispatchEditVehicle">Vehicle</label><select id="dispatchEditVehicle"><option value="">Select vehicle</option></select></div>
     </div>
+    <details class="formField" id="dispatchEditFuelProfileField" hidden><summary>Vehicle preference (optional)</summary><label for="dispatchEditFuelProfile">Ambulatory vehicle / fuel estimate</label><select id="dispatchEditFuelProfile"><option value="">Use assigned vehicle or service default</option></select></details>
     <div class="formRow editorGrid3" id="dispatchEditRates">
       <div class="formField"><label for="dispatchEditOurEstimate">Our estimate</label><input id="dispatchEditOurEstimate" type="text" readonly title="Calculated automatically using current service rates"></div>
       <div class="formField"><label for="dispatchEditBrokerQuotedRate">Broker quoted rate</label><input id="dispatchEditBrokerQuotedRate" type="number" min="0" step="0.01" placeholder="Not provided" readonly></div>
@@ -2711,13 +2712,17 @@ $('saveCustomCompany').addEventListener('click',()=>{
   let currentFareSettings=null;
   let editorRouteVersion=0;
   function fareEditorBooking(){
+    const savedInputs=NexusFare.resolveBookingInputs(currentFareBooking,currentFareSettings||{});
+    const pickupChanged=get('dispatchEditTime').value!==String(currentFareBooking?.pickupTime||currentFareBooking?.time||'').slice(0,5);
+    const appointmentChanged=get('dispatchEditAppointmentTime').value!==String(currentFareBooking?.appointmentTime||savedInputs.finalAppointmentTime||'').slice(0,5);
     return {...currentFareBooking,service:get('dispatchEditService').value||currentFareBooking?.service,
+      vehicleUnit:get('dispatchEditVehicle').value,
       pickup:get('dispatchEditPickup').value,destination:get('dispatchEditDestination').value,
       date:get('dispatchEditDate').value||currentFareBooking?.date,time:get('dispatchEditTime').value||currentFareBooking?.time,
       pickupTime:get('dispatchEditTime').value||currentFareBooking?.pickupTime,appointmentTime:get('dispatchEditAppointmentTime').value||currentFareBooking?.appointmentTime,
       tripScheduleExplicit:true,tripType:get('dispatchEditTripType').value,returnTripDate:get('dispatchEditReturnDate').value,
       returnTripTime:get('dispatchEditReturnTiming').value==='SCHEDULED'?get('dispatchEditReturnTime').value:null,
-      fareInputs:{...NexusFare.resolveBookingInputs(currentFareBooking,currentFareSettings||{}),...(currentFareSettings?.fareRules?.smartTiming?.enabled?{scheduleBasis:'PICKUP'}:{}),finalAppointmentTime:get('dispatchEditAppointmentTime').value,stopAppointmentTimes:[]}};
+      fareInputs:{...savedInputs,fuelProfile:(get('dispatchEditService').value||currentFareBooking?.service)==='ambulatory'?(get('dispatchEditFuelProfile')?.value??savedInputs.fuelProfile??''):'',...(currentFareSettings?.fareRules?.smartTiming?.enabled&&pickupChanged?{scheduleBasis:'PICKUP'}:{}),...(appointmentChanged?{finalAppointmentTime:get('dispatchEditAppointmentTime').value,stopAppointmentTimes:[]}: {})}};
   }
   async function updateEditorRoute(){
     if(!currentFareBooking)return;
@@ -2740,9 +2745,11 @@ $('saveCustomCompany').addEventListener('click',()=>{
   function refreshEditorFare(){
     if(!currentFareBooking)return null;
     const service=get('dispatchEditService').value||currentFareBooking.service;
+    get('dispatchEditFuelProfileField').hidden=service!=='ambulatory';
     const booking=fareEditorBooking();
-    const settings=currentFareSettings?.pricing?currentFareSettings:{pricing:window.NexusCore?.getPricing?.()||{},fareRules:{}};
+    const settings=currentFareSettings;
     try{
+      if(!settings?.pricing)throw new Error('Current pricing is unavailable. Reload to retrieve the latest rates.');
       const fare=NexusFare.calculateEstimate(booking,settings);
       renderEditorTiming(fare.timingPlan,booking.timingPrediction);
       get('dispatchEditOurEstimate').value='$'+fare.discountedTotal.toFixed(2);
@@ -2755,7 +2762,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
         ['Passenger mileage ('+fare.passengerMilesTotal.toFixed(2)+' mi total; '+fare.includedMiles+' included per leg)',mileage],
         ['Waiting ('+fare.waitMinutes+' min; '+fare.freeWaitMinutes+' free; '+fare.billableWaitMinutes+' billable)',fare.waitCharge],
         ['Schedule premium',fare.premiumAmount],['Pickup within the next '+Number(settings.fareRules?.shortNoticeHours??24)+' hours',fare.shortNoticeCharge],
-        ['Fuel',fuel],['Traffic',traffic]
+        [`Fuel · ${fare.fuelVehicleLabel} (${fare.passengerMilesTotal.toFixed(2)} mi × $${fare.fuelRatePerMile.toFixed(4)}/mi)`,fuel],['Traffic',traffic]
       ].filter(([,amount],index)=>index<2||amount>0||(index===2&&fare.waitMinutes>0));
       fare.deadheadDetails.forEach((segment,index)=>rows.splice(3+index,0,[`Empty miles ${index===0?'to pickup':'after last leg'} (${segment.miles.toFixed(2)} mi; ${segment.billableMiles.toFixed(2)} × $${segment.rate.toFixed(3)})`,segment.charge]));
       rows.push(['Subtotal',fare.subtotal],[`Card processing (${fare.taxRatePct}%)`,fare.taxAmount]);
@@ -3557,6 +3564,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
     await loadDispatchOpsSettings();
     applyingEditorValues=true;
     currentFareBooking=b;
+    get('dispatchEditFuelProfile').innerHTML='<option value="">Use assigned vehicle or service default</option>'+Object.entries(NexusFare.fuelProfiles).filter(([key])=>!['ambulance','bus'].includes(key)).map(([key,profile])=>`<option value="${key}">${profile.label} — $${Number(currentFareSettings?.fareRules?.vehicleFuelRatesPerMile?.[key]??profile.rate).toFixed(4)}/mi</option>`).join('');
+    get('dispatchEditFuelProfile').value=NexusFare.resolveBookingInputs(b,currentFareSettings||{}).fuelProfile||'';
     currentPersistedTripState={
       status:String(b.status||''),
       submitterType:String(b.bookingSource||'CUSTOMER'),

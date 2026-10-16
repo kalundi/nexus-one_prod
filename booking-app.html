@@ -1032,12 +1032,19 @@ Destination: -</p>
           <button class="chip serviceCard" type="button" data-service="stretcher"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 15h18M5 15v3M19 15v3M5 11h14a2 2 0 0 1 2 2v2H3v-2a2 2 0 0 1 2-2Z"/><circle cx="7" cy="8" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Stretcher</span><span class="serviceCardDescription">For riders who must travel lying down; needs may require review.</span><span class="serviceCardBest">Best for: non-ambulatory transport</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip secondaryRideOption" type="button" data-service="broda" hidden>Broda</button>
           <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Additional Capacity</span><span class="serviceCardDescription">Additional space, capacity, or specialized mobility support.</span><span class="serviceCardBest">Best for: riders needing more space</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip secondaryRideOption" type="button" data-service="bls" hidden>BLS</button>
-          <button class="chip secondaryRideOption" type="button" data-service="als1" hidden>ALS 1</button>
-          <button class="chip secondaryRideOption" type="button" data-service="als2" hidden>ALS 2</button>
+          <button class="chip serviceCard secondaryRideOption" type="button" data-service="bls" hidden><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v12H3zM14 10h4l3 4v4h-7M7 9v6M4 12h6"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">BLS</span><span class="serviceCardDescription">Basic life support ambulance transportation.</span><span class="serviceCardBest">Basic life support</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard secondaryRideOption" type="button" data-service="als1" hidden><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v12H3zM14 10h4l3 4v4h-7M7 9v6M4 12h6"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">ALS 1</span><span class="serviceCardDescription">Advanced life support level 1 ambulance transportation.</span><span class="serviceCardBest">Advanced life support · Level 1</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard secondaryRideOption" type="button" data-service="als2" hidden><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v12H3zM14 10h4l3 4v4h-7M7 9v6M4 12h6"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">ALS 2</span><span class="serviceCardDescription">Advanced life support level 2 ambulance transportation.</span><span class="serviceCardBest">Advanced life support · Level 2</span></span><span class="serviceSelectedMark">Selected</span></button>
         </div>
-        <button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button></details>
+        <button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button>
+        <p class="muted" id="specializedRideAccessHint" hidden>BLS and other specialized ride options require an Admin, Dispatcher, Facility, or Driver account. Use Sign In to access them with an authorized account.</p></details>
         <input id="service" name="service" type="hidden" value="">
+        <details id="ambulatoryFuelChoiceField" hidden>
+          <summary>Vehicle preference (optional)</summary>
+          <div class="field"><label for="bookingFuelProfile">SUV / sedan preference</label>
+          <select id="bookingFuelProfile"><option value="">Automatic — match rider needs</option></select>
+          <small class="subtle">Nexus normally selects a suitable available vehicle. Select a preference only when needed. Fuel is included in the estimate.</small></div>
+        </details>
 
         <div id="routeScheduleFields">
         <div class="field" id="staffTripModeField" hidden>
@@ -1107,6 +1114,7 @@ Destination: -</p>
           <div class="line" id="estWaitRow" hidden><b id="estWaitLabel">Waiting time</b><span id="estWaitCharge">-</span></div>
           <div class="line" id="estDeadheadRow" hidden><b>Deadhead mileage</b><span id="estDeadheadCharge">-</span></div>
           <div class="line" id="estShortNoticeRow" hidden><b id="estShortNoticeLabel">Pickup within the next 24 hours (base +30%)</b><span id="estShortNoticeCharge">-</span></div>
+          <div class="line" id="estFuelRow" hidden><b id="estFuelLabel">Fuel</b><span id="estFuelCharge">-</span></div>
           <div class="line"><b>Subtotal</b><span id="estSubtotal">-</span></div>
           <div class="line"><b>Card Processing Fee (3%)</b><span id="estTax">-</span></div>
           <div class="line" id="estMemberSavingsRow" hidden><b id="estSavingsLabel">Ride savings</b><span id="estMemberSavings">-</span></div>
@@ -1205,6 +1213,7 @@ Destination: -</p>
           <p class="fareDialogIntro">Let us take care of the journey.</p>
           <div class="fareDialogPrice"><span class="fareDialogPriceLabel">Your estimated fare</span><div class="fareDialogAmount" id="fareConfirmAmount">$0.00</div></div>
           <p class="fareDialogNote" id="fareConfirmDetails">Confirm your estimate, then choose a deposit or full payment.</p>
+          <p class="fareDialogNote" id="fareConfirmFuel" hidden></p>
           <div class="fareDialogActions">
             <button type="button" class="primary" id="fareConfirmAccept">Continue to payment &rarr;</button>
             <button type="button" class="ghost" id="fareConfirmCancel">Review trip</button>
@@ -1299,7 +1308,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=20261011-footer-spacing"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261012-cruising-ceilings"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-app.js?v=20261013-welcoming-fare"></script>
+<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261016-vehicle-fuel"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-app.js?v=20261016-vehicle-fuel"></script>
 <script src="./patient-booking-bridge.js?v=20261010"></script>
 </body>
 </html>
