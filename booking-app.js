@@ -742,12 +742,13 @@
     if(!serviceChips)return;
     const fuelSelect=$('bookingFuelProfile');
     if(fuelSelect){
-      const selected=fuelSelect.value;
+      const canChooseVehiclePreference=isAdminOrDispatchRole();
+      const selected=canChooseVehiclePreference?fuelSelect.value:'';
       const profileOptions=Object.entries(NexusFare.fuelProfiles).filter(([key])=>!['ambulance','bus'].includes(key));
       const defaultProfile=fareRules.ambulatoryFuelProfile||'land_rover';
       fuelSelect.innerHTML=`<option value="">Automatic — estimate using ${NexusFare.fuelProfiles[defaultProfile]?.label||'Land Rover / SUV'}</option>`+profileOptions.map(([key,profile])=>`<option value="${key}">${profile.label} — $${Number(fareRules.vehicleFuelRatesPerMile?.[key]??profile.rate).toFixed(4)}/mi</option>`).join('');
       fuelSelect.value=selected;
-      if($('ambulatoryFuelChoiceField'))$('ambulatoryFuelChoiceField').hidden=normalizeService($('service')?.value)!=='ambulatory';
+      if($('ambulatoryFuelChoiceField'))$('ambulatoryFuelChoiceField').hidden=!canChooseVehiclePreference||normalizeService($('service')?.value)!=='ambulatory';
     }
     const miles=Number(estimateState.miles||0);
     const date=String($('tripDate')?.value||new Date().toISOString().slice(0,10));
@@ -1362,6 +1363,11 @@
     }
     applyServiceVisibility();
     syncServiceTypeSelector({ applyProfile: true });
+    const vehiclePreferenceSelect = $('bookingFuelProfile');
+    const vehiclePreferenceField = $('ambulatoryFuelChoiceField');
+    const canChooseVehiclePreference = isAdminOrDispatchRole(role);
+    if(vehiclePreferenceSelect && !canChooseVehiclePreference) vehiclePreferenceSelect.value = '';
+    if(vehiclePreferenceField) vehiclePreferenceField.hidden = !canChooseVehiclePreference || normalizeService($('service')?.value) !== 'ambulatory';
     applyRateVisibility();
     syncRiderIdentityMode();
     syncSectionProgressUi();
@@ -2162,7 +2168,7 @@
     const smartPickup=timingPlan?NexusTripTiming.localParts(timingPlan.crewArrivalAt):null;
     const appointments=getLegAppointments().map(item=>item.appointmentTime);
     const inputs={...measuredRouteInputs,...routeMetrics,miles:Number(miles||0),
-      fuelProfile:service==='ambulatory'?$('bookingFuelProfile')?.value||'':'',
+      fuelProfile:service==='ambulatory'&&isAdminOrDispatchRole()?$('bookingFuelProfile')?.value||'':'',
       durationMinutes:Number(routeMetrics.durationMinutes??estimateState.durationMinutes??0),trafficDurationMinutes:Number(routeMetrics.trafficDurationMinutes??estimateState.trafficDurationMinutes??0),passengerLegs,
       stopWaitMinutes:getCalculatedWaiting(routeMetrics,service).stopWaitMinutes.reduce((sum,value)=>sum+value,0),stopAppointmentTimes:appointments,
       deadheadSegments:routeMetrics.deadheadSegments||[deadheadRouteMiles.toPickup,String(tripType?.value).toUpperCase()==='ROUND_TRIP'?deadheadRouteMiles.fromReturn:deadheadRouteMiles.fromDestination],
