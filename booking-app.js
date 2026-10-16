@@ -631,6 +631,11 @@
     const legCopy=(breakdown.passengerLegs||[]).map(leg=>`${leg.kind==='RETURN'?'Return':'Outbound'}: ${leg.miles.toFixed(2)} miles (${leg.billableMiles.toFixed(2)} billable)`).join('. ');
     const mileageCopy=`Each leg: $${Number(selectedRate.base||0).toFixed(2)} base includes ${Number(selectedRate.includedMiles||0)} miles; additional miles are $${Number(selectedRate.perMile||0).toFixed(2)} each. ${legCopy}.`;
     if(rateSourceLabel)rateSourceLabel.textContent=mileageCopy;
+    const fuelCopy=`Fuel (${breakdown.fuelVehicleLabel}): ${Number(breakdown.passengerMilesTotal||0).toFixed(2)} passenger mi × $${Number(breakdown.fuelRatePerMile||0).toFixed(4)}/mi = $${Number(breakdown.fuelCharge||0).toFixed(2)} before schedule premiums, processing and savings. Included in your estimate.`;
+    if($('estFuelRow'))$('estFuelRow').hidden=false;
+    if($('estFuelLabel'))$('estFuelLabel').textContent=`Fuel · ${breakdown.fuelVehicleLabel} ($${Number(breakdown.fuelRatePerMile||0).toFixed(4)}/mi)`;
+    if($('estFuelCharge'))$('estFuelCharge').textContent=`$${Number(breakdown.fuelCharge||0).toFixed(2)}`;
+    if($('fareConfirmFuel')){$('fareConfirmFuel').textContent=fuelCopy;$('fareConfirmFuel').hidden=false;}
     ['fareSummaryMileage','fareConfirmMileage'].forEach(id=>{
       if($(id)){ $(id).textContent=mileageCopy; $(id).hidden=Number(miles||0)<=0; }
     });
@@ -722,6 +727,15 @@
 
   function renderRideMarketplace(){
     if(!serviceChips)return;
+    const fuelSelect=$('bookingFuelProfile');
+    if(fuelSelect){
+      const selected=fuelSelect.value;
+      const profileOptions=Object.entries(NexusFare.fuelProfiles).filter(([key])=>!['ambulance','bus'].includes(key));
+      const defaultProfile=fareRules.ambulatoryFuelProfile||'land_rover';
+      fuelSelect.innerHTML=`<option value="">Automatic — estimate using ${NexusFare.fuelProfiles[defaultProfile]?.label||'Land Rover / SUV'}</option>`+profileOptions.map(([key,profile])=>`<option value="${key}">${profile.label} — $${Number(fareRules.vehicleFuelRatesPerMile?.[key]??profile.rate).toFixed(4)}/mi</option>`).join('');
+      fuelSelect.value=selected;
+      if($('ambulatoryFuelChoiceField'))$('ambulatoryFuelChoiceField').hidden=normalizeService($('service')?.value)!=='ambulatory';
+    }
     const miles=Number(estimateState.miles||0);
     const date=String($('tripDate')?.value||new Date().toISOString().slice(0,10));
     const time=String($('tripTime')?.value||appointmentTimeInput?.value||'10:00');
@@ -1627,7 +1641,7 @@
   }
 
   function buildFareEstimateSignature(){
-    return [normalizeService($('service')?.value),String($('pickup')?.value||'').trim(),getRouteDestinations().join('|'),String($('tripDate')?.value||''),String(tripType?.value||''),String(returnTripDate?.value||''),String(returnTripTime?.value||''),getLegAppointments().map((item) => item.appointmentTime).join('|'),getStopWaitMinutes().join('|'),Number(estimateState.fare||0).toFixed(2),Number(estimateState.miles||0).toFixed(2)].join('::');
+    return [String($('bookingFuelProfile')?.value||''),normalizeService($('service')?.value),String($('pickup')?.value||'').trim(),getRouteDestinations().join('|'),String($('tripDate')?.value||''),String(tripType?.value||''),String(returnTripDate?.value||''),String(returnTripTime?.value||''),getLegAppointments().map((item) => item.appointmentTime).join('|'),getStopWaitMinutes().join('|'),Number(estimateState.fare||0).toFixed(2),Number(estimateState.miles||0).toFixed(2)].join('::');
   }
 
   function updateFareConfirmationState(){
@@ -2020,6 +2034,7 @@
     const smartPickup=timingPlan?NexusTripTiming.localParts(timingPlan.crewArrivalAt):null;
     const appointments=getLegAppointments().map(item=>item.appointmentTime);
     const inputs={...measuredRouteInputs,...routeMetrics,miles:Number(miles||0),
+      fuelProfile:service==='ambulatory'?$('bookingFuelProfile')?.value||'':'',
       durationMinutes:Number(routeMetrics.durationMinutes??estimateState.durationMinutes??0),trafficDurationMinutes:Number(routeMetrics.trafficDurationMinutes??estimateState.trafficDurationMinutes??0),passengerLegs,
       stopWaitMinutes:getCalculatedWaiting(routeMetrics,service).stopWaitMinutes.reduce((sum,value)=>sum+value,0),stopAppointmentTimes:appointments,
       deadheadSegments:routeMetrics.deadheadSegments||[deadheadRouteMiles.toPickup,String(tripType?.value).toUpperCase()==='ROUND_TRIP'?deadheadRouteMiles.fromReturn:deadheadRouteMiles.fromDestination],
@@ -2235,6 +2250,8 @@
     estMiles.textContent = '-';
     if($('estWaitRow')) $('estWaitRow').hidden=true;
     if($('estPremiumRow')) $('estPremiumRow').hidden=true;
+    if($('estFuelRow'))$('estFuelRow').hidden=true;
+    if($('fareConfirmFuel'))$('fareConfirmFuel').hidden=true;
     ['fareSummaryMileage','fareConfirmMileage'].forEach(id=>{ if($(id)) $(id).hidden=true; });
     ['fareSummaryPremium','fareConfirmPremium'].forEach(id=>{ if($(id)) $(id).hidden=true; });
     ['fareSummaryWaiting','fareConfirmWaiting'].forEach(id=>{ if($(id)) $(id).hidden=true; });
@@ -3551,6 +3568,12 @@
   }
 
   function bindServiceChips(){
+    $('bookingFuelProfile')?.addEventListener('change',()=>{
+      rideChoiceConfirmed=false;
+      refreshFareForMembership();
+      renderRideMarketplace();
+      syncSectionProgressUi();
+    });
     serviceChips.querySelectorAll('.chip').forEach((chip) => {
       chip.addEventListener('click', () => selectService(chip.dataset.service));
     });

@@ -9,6 +9,7 @@ const userRole=()=>{
 };
 const canEditSettings=()=>userRole()==='ADMIN';
 let currentSettings=null;
+let fuelFleetUnits=[];
 const ADMIN_DASHBOARD_SECTIONS=['userSection','pricingSection','manageTripSection','adminTripsSection','settingsSection','costAnalyzerSection','socialSection','applicantsSection','auditSection'];
 const ADMIN_DASHBOARD_LABELS={
   userSection:'User management',
@@ -721,6 +722,13 @@ function readPricingRules(){
     rules[input.dataset.fareRule]=input.tagName==='SELECT'?input.value:Number(input.value);
   });
   rules.servicePolicies=readServicePoliciesFromTable();
+  rules.vehicleFuelRatesPerMile={...(rules.vehicleFuelRatesPerMile||{})};
+  document.querySelectorAll('[data-fuel-vehicle-class]').forEach(input=>{rules.vehicleFuelRatesPerMile[input.dataset.fuelVehicleClass]=Number(input.value);});
+  rules.vehicleFuelProfiles={...(rules.vehicleFuelProfiles||{})};
+  document.querySelectorAll('[data-fuel-unit]').forEach(input=>{
+    if(input.value)rules.vehicleFuelProfiles[input.dataset.fuelUnit]=input.value;
+    else delete rules.vehicleFuelProfiles[input.dataset.fuelUnit];
+  });
   rules.smartTiming={...(rules.smartTiming||{}),enabled:true};
   document.querySelectorAll('[data-timing-rule]').forEach(input=>{rules.smartTiming[input.dataset.timingRule]=Number(input.value);});
   return rules;
@@ -785,10 +793,28 @@ function applyFuelModeUi(){
   if(btn) btn.disabled=!canEditSettings();
 }
 
+function renderVehicleFuelSettings(fare){
+  const options=selected=>Object.entries(NexusFare.fuelProfiles).map(([key,profile])=>`<option value="${key}" ${selected===key?'selected':''}>${escapeHtml(profile.label)}</option>`).join('');
+  const defaultSelect=document.getElementById('ambulatoryFuelProfile');
+  defaultSelect.innerHTML=Object.entries(NexusFare.fuelProfiles).filter(([key])=>!['ambulance','bus'].includes(key)).map(([key,profile])=>`<option value="${key}">${escapeHtml(profile.label)}</option>`).join('');
+  defaultSelect.value=fare.ambulatoryFuelProfile||'land_rover';
+  document.getElementById('vehicleFuelRateRows').innerHTML=Object.entries(NexusFare.fuelProfiles).map(([key,profile])=>{
+    const rate=Number(fare.vehicleFuelRatesPerMile?.[key]??profile.rate);
+    return `<tr><td>${escapeHtml(profile.label)}</td><td>${escapeHtml(profile.efficiency)}</td><td><input aria-label="${escapeHtml(profile.label)} fuel per passenger mile" data-fuel-vehicle-class="${key}" type="number" min="0" max="25" step="0.0001" value="${rate}" ${canEditSettings()?'':'disabled'}></td><td data-fuel-hundred="${key}">${(rate*100).toFixed(2)}</td></tr>`;
+  }).join('');
+  const units=[...new Set([...fuelFleetUnits,...Object.keys(fare.vehicleFuelProfiles||{})])].sort();
+  document.getElementById('vehicleFuelAssignmentRows').innerHTML=units.map(unit=>`<tr><td>${escapeHtml(unit)}</td><td><select aria-label="${escapeHtml(unit)} fuel profile" data-fuel-unit="${escapeHtml(unit)}" ${canEditSettings()?'':'disabled'}><option value="">Use service default</option>${options(fare.vehicleFuelProfiles?.[unit])}</select></td></tr>`).join('');
+}
+document.getElementById('vehicleFuelRateRows').addEventListener('input',event=>{
+  const key=event.target.dataset.fuelVehicleClass;
+  const cell=key&&document.querySelector(`[data-fuel-hundred="${key}"]`);
+  if(cell)cell.textContent=(Number(event.target.value)*100).toFixed(2);
+});
 function applySettingsToForm(settings){
   if(!settings)return;
   const org=settings.organization||{};
   const fare=settings.fareRules||{};
+  renderVehicleFuelSettings(fare);
   document.querySelectorAll('#pricingSection [data-fare-rule]').forEach(input=>{
     if(fare[input.dataset.fareRule]!=null)input.value=fare[input.dataset.fareRule];
     input.dataset.previousValue=input.value;
@@ -800,6 +826,10 @@ function applySettingsToForm(settings){
   document.getElementById('orgWebsite').value=org.website??'';
   document.getElementById('minimumFare').value=fare.minimumFare==null?'':Number(fare.minimumFare);
   document.getElementById('fuelSurchargePerMile').value=fare.fuelSurchargePerMile==null?'':Number(fare.fuelSurchargePerMile);
+  document.querySelectorAll('[data-fuel-vehicle-class]').forEach(input=>{
+    input.value=fare.vehicleFuelRatesPerMile?.[input.dataset.fuelVehicleClass]??NexusFare.fuelProfiles[input.dataset.fuelVehicleClass].rate;
+    input.disabled=!canEditSettings();
+  });
   document.getElementById('fuelPricingMode').value=(fare.fuelPricingMode||'MANUAL').toUpperCase()==='AUTO'?'AUTO':'MANUAL';
   document.getElementById('fuelIndexPricePerGallon').value=fare.fuelIndexPricePerGallon==null?'':Number(fare.fuelIndexPricePerGallon);
   document.getElementById('fuelBaselinePricePerGallon').value=fare.fuelBaselinePricePerGallon==null?'':Number(fare.fuelBaselinePricePerGallon);
@@ -838,6 +868,13 @@ async function loadPlatformSettings(){
   const data=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(data.error||'Failed to load settings');
   currentSettings=data.settings||null;
+  try{
+    const response=await fetch('/api/fleet/live?includeAll=true',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});
+    const fleet=await response.json();
+    if(!response.ok||!Array.isArray(fleet.vehicles))throw Error('Fleet unavailable');
+    fuelFleetUnits=fleet.vehicles.map(vehicle=>vehicle.unit).filter(Boolean);
+    document.getElementById('vehicleFuelStatus').textContent=fuelFleetUnits.length?'':'No fleet vehicles available.';
+  }catch{document.getElementById('vehicleFuelStatus').textContent='Fleet could not load. Existing fuel assignments are still shown.';}
   renderPricing();
   applySettingsToForm(currentSettings);
   updateDashboardSignals();
