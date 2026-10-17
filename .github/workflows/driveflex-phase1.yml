@@ -16,6 +16,12 @@ on:
       - 'driveflex-*.js'
       - 'driveflex-*.html'
       - 'tests/driveflex-*.spec.js'
+      - 'tests/driveflex-*.node.cjs'
+      - 'driveflex.*'
+      - 'driveflex-*.css'
+      - 'netlify/functions/_shared/driveflex-*.cjs'
+      - 'database/migrations/*driveflex*.sql'
+      - 'playwright.driveflex*.js'
 jobs:
   recruitment-tests:
     runs-on: ubuntu-latest
@@ -37,6 +43,10 @@ jobs:
           node --check tests/career-application-workflow.spec.js
       - name: Test recruitment application and admin review
         run: npx playwright test --config=playwright.driveflex.config.js --reporter=line
+      - name: Test marketplace database and document safeguards
+        run: node --test tests/driveflex-marketplace.node.cjs
+      - name: Test DriveFlex dashboard and marketplace
+        run: npx playwright test --config=playwright.driveflex-design.config.js --reporter=line
       - name: Upload browser test results on failure
         if: failure()
         uses: actions/upload-artifact@v4
