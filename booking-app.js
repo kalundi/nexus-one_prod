@@ -310,8 +310,10 @@
   let authActionsBound = false;
   let manageActionsBound = false;
   let lastTrackedBookingStep = '';
-  const PRIVILEGED_SERVICE_ROLES = new Set(['ADMIN','ADMINISTRATOR','DISPATCH','DISPATCHER','FACILITY','FACILITY_MANAGER','TESTER','TEST','QA']);
+  const PRIVILEGED_SERVICE_ROLES = new Set(['ADMIN','ADMINISTRATOR','DISPATCH','DISPATCHER','FACILITY','FACILITY_MANAGER','FACILITYMANAGER','TESTER','TEST','TEST_ACCOUNT','QA']);
   const CUSTOMER_ALLOWED_SERVICES = new Set(['ambulatory','wheelchair','broda','stretcher','bariatric']);
+  const ADMIN_DISPATCH_ROLES = new Set(['ADMIN','DISPATCHER']);
+  const SERVICE_TYPE_LABELS = {ambulatory:'Ambulatory',wheelchair:'Wheelchair',broda:'Broda',stretcher:'Stretcher',bariatric:'Bariatric',facility_transfer:'IFT Routine',facility_transfer_critical:'IFT High-Acuity',bls:'BLS',als1:'ALS 1',als2:'ALS 2'};
   const AUTO_COLLAPSIBLE_SECTION_IDS = ['pickupDropoffSection'];
   const PROGRESSIVE_SECTIONS_ORDER = ['riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'telemetrySection', 'fareSummarySection'];
   const FINAL_HIDDEN_SECTION_IDS = ['bookingLoginSection', 'riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'rateSettingsSection'];
@@ -729,16 +731,22 @@
     if(!serviceChips)return;
     const fuelSelect=$('bookingFuelProfile');
     if(fuelSelect){
-      const selected=fuelSelect.value;
+      const canChooseVehiclePreference=isAdminOrDispatchRole();
+      const selected=canChooseVehiclePreference?fuelSelect.value:'';
       const profileOptions=Object.entries(NexusFare.fuelProfiles).filter(([key])=>!['ambulance','bus'].includes(key));
       const defaultProfile=fareRules.ambulatoryFuelProfile||'land_rover';
       fuelSelect.innerHTML=`<option value="">Automatic — estimate using ${NexusFare.fuelProfiles[defaultProfile]?.label||'Land Rover / SUV'}</option>`+profileOptions.map(([key,profile])=>`<option value="${key}">${profile.label} — $${Number(fareRules.vehicleFuelRatesPerMile?.[key]??profile.rate).toFixed(4)}/mi</option>`).join('');
       fuelSelect.value=selected;
-      if($('ambulatoryFuelChoiceField'))$('ambulatoryFuelChoiceField').hidden=normalizeService($('service')?.value)!=='ambulatory';
+      if($('ambulatoryFuelChoiceField'))$('ambulatoryFuelChoiceField').hidden=!canChooseVehiclePreference||normalizeService($('service')?.value)!=='ambulatory';
     }
     const miles=Number(estimateState.miles||0);
     const date=String($('tripDate')?.value||new Date().toISOString().slice(0,10));
     const time=String($('tripTime')?.value||appointmentTimeInput?.value||'10:00');
+    const selected=normalizeService($('service')?.value);
+    const selectedOnly=false;
+    const hideUnselected=false;
+    const allowed=allowedServicesForRole(currentUserRole);
+    const secondaryExpanded=$('toggleMoreRideOptions')?.getAttribute('aria-expanded')==='true';
     serviceChips.querySelectorAll('.serviceCard').forEach((chip)=>{
       const service=normalizeService(chip.dataset.service);
       let meta=chip.querySelector('.serviceCardMarketMeta');
@@ -755,7 +763,9 @@
       try{
         if(miles>0)breakdown=calculateFareBreakdown(service,miles,date,time,{durationMinutes:estimateState.durationMinutes,trafficDurationMinutes:estimateState.trafficDurationMinutes});
       }catch(error){pricingError=error.message;}
-      chip.disabled=!allowedServicesForRole(currentUserRole).has(service)||!platformPricing?.[service];
+      const canUse=allowed.has(service)&&Boolean(platformPricing?.[service]);
+      chip.disabled=!canUse;
+      chip.hidden=!canUse||(hideUnselected&&service!==selected)||(!selectedOnly&&chip.classList.contains('secondaryRideOption')&&!secondaryExpanded);
       if(eta){
         eta.textContent=breakdown?.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.timingPlan?breakdown.journeyMinutes:breakdown.drivingMinutes)} ${breakdown.timingPlan?'total':'drive'}`:'Time pending';
         eta.title=breakdown?`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving${breakdown.waitMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:''}${breakdown.transitionMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''}`:'Enter the route and schedule to calculate travel time.';
@@ -769,7 +779,20 @@
         fare.classList.toggle('review',requiresReview&&!total);
       }
     });
-    const selected=normalizeService($('service')?.value);
+    const selectionPrompt=$('serviceSelectionPrompt');
+    if(selectionPrompt){
+      selectionPrompt.hidden=!selectedOnly||Boolean(selected);
+    }
+    const catalogSummary=$('serviceCatalogSummary');
+    if(catalogSummary){
+      catalogSummary.textContent='Choose a service';
+    }
+    const moreOptions=$('toggleMoreRideOptions');
+    const accessHint=$('specializedRideAccessHint');
+    if(selectedOnly){
+      if(moreOptions){moreOptions.hidden=true;moreOptions.setAttribute('aria-expanded','false');}
+      if(accessHint)accessHint.hidden=true;
+    }
     const selectedChip=serviceChips.querySelector(`[data-service="${selected}"]`);
     const selectedName=selectedChip?.querySelector('.serviceCardName')?.textContent?.trim()||'';
     const continueButton=$('continueRideBtn');
@@ -1161,12 +1184,20 @@
   }
 
   function allVisibleServices(){
-    return Array.from(serviceChips.querySelectorAll('.chip')).map((chip) => normalizeService(chip.dataset.service)).filter(Boolean);
+    return Array.from(serviceChips?.querySelectorAll('.chip') || []).map((chip) => normalizeService(chip.dataset.service)).filter(Boolean);
   }
 
   function allowedServicesForRole(role){
     if(isPrivilegedServiceRole(role)) return new Set(allVisibleServices());
     return new Set(CUSTOMER_ALLOWED_SERVICES);
+  }
+
+  function isAdminOrDispatchRole(role=currentUserRole){return ADMIN_DISPATCH_ROLES.has(normalizeRole(role));}
+
+  function serviceTypeLabel(service){
+    const normalized=normalizeService(service);
+    const chip=serviceChips?.querySelector(`[data-service="${normalized}"]`);
+    return String(chip?.querySelector('.serviceCardName')?.textContent||SERVICE_TYPE_LABELS[normalized]||platformPricing?.[normalized]?.label||normalized).trim();
   }
 
   function setServiceValidationError(invalid){
@@ -1261,6 +1292,11 @@
       }
     }
     applyServiceVisibility();
+    const vehiclePreferenceSelect = $('bookingFuelProfile');
+    const vehiclePreferenceField = $('ambulatoryFuelChoiceField');
+    const canChooseVehiclePreference = isAdminOrDispatchRole(role);
+    if(vehiclePreferenceSelect && !canChooseVehiclePreference) vehiclePreferenceSelect.value = '';
+    if(vehiclePreferenceField) vehiclePreferenceField.hidden = !canChooseVehiclePreference || normalizeService($('service')?.value) !== 'ambulatory';
     applyRateVisibility();
     syncRiderIdentityMode();
     syncSectionProgressUi();
@@ -2063,7 +2099,7 @@
     const smartPickup=timingPlan?NexusTripTiming.localParts(timingPlan.crewArrivalAt):null;
     const appointments=getLegAppointments().map(item=>item.appointmentTime);
     const inputs={...measuredRouteInputs,...routeMetrics,miles:Number(miles||0),
-      fuelProfile:service==='ambulatory'?$('bookingFuelProfile')?.value||'':'',
+      fuelProfile:service==='ambulatory'&&isAdminOrDispatchRole()?$('bookingFuelProfile')?.value||'':'',
       durationMinutes:Number(routeMetrics.durationMinutes??estimateState.durationMinutes??0),trafficDurationMinutes:Number(routeMetrics.trafficDurationMinutes??estimateState.trafficDurationMinutes??0),passengerLegs,
       stopWaitMinutes:getCalculatedWaiting(routeMetrics,service).stopWaitMinutes.reduce((sum,value)=>sum+value,0),stopAppointmentTimes:appointments,
       deadheadSegments:routeMetrics.deadheadSegments||[deadheadRouteMiles.toPickup,String(tripType?.value).toUpperCase()==='ROUND_TRIP'?deadheadRouteMiles.fromReturn:deadheadRouteMiles.fromDestination],
@@ -4275,8 +4311,7 @@
     syncRiderIdentityMode();
     applyAuthUi();
     refreshFareForMembership();
-    selectService('');
-  }
+    selectService('');  }
 
   async function signupFromBookingApp(){
     const riderName = String(signupName?.value || '').trim();

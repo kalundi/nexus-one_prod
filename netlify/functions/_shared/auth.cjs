@@ -13,7 +13,7 @@ function resolveSessionRoles(user,roleRows=[]){
   const role=approved.has(requested)?requested:baseRole;
   return {...user,role,scope_id:approved.get(role)||null,available_roles:[...approved.keys()]};
 }
-function safeUser(row){return {id:row.id,userCode:row.user_code||null,email:row.email,phone:row.phone||'',displayName:row.display_name,role:row.role,roles:Array.isArray(row.available_roles)?row.available_roles:[row.role],functions:row.functions||[],scopeId:row.scope_id||null,mustChangePassword:!!row.must_change_password}}
+function safeUser(row){return {id:row.id,userCode:row.user_code||null,email:row.email,phone:row.phone||'',displayName:row.display_name,role:row.role,roles:Array.isArray(row.available_roles)?row.available_roles:[row.role],functions:row.functions||[],scopeId:row.scope_id||null,serviceType:row.service_type||row.serviceType||row.default_service_type||null,mustChangePassword:!!row.must_change_password}}
 
 // Inactivity timeout: 1 hour for non-DRIVER roles, 12 hours for DRIVER
 const INACTIVITY_MS = {DRIVER: 12*60*60*1000, DEFAULT: 60*60*1000};

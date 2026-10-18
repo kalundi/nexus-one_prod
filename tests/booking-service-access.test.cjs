@@ -44,5 +44,4 @@ test('changing from privileged to restricted role clears a now disallowed select
 test('legacy Additional Capacity values normalize to bariatric',()=>{
   vm.runInNewContext(extract('  function normalizeService(', '  function getRequestedServiceFromUrl('),globalThis);
   assert.equal(globalThis.normalizeService('Additional Capacity'),'bariatric');
-  delete globalThis.normalizeService;
-});
+  delete globalThis.normalizeService;});

@@ -190,6 +190,9 @@
     .authOptional.authCollapsed .authBadge{display:none}
     .field{display:grid;gap:6px;margin-bottom:10px}
     .field:last-child{margin-bottom:0}
+    .riderPaymentServiceGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+    .riderPaymentServiceGrid .field{min-width:0}
+    @media(max-width:620px){.riderPaymentServiceGrid{grid-template-columns:1fr}}
     .field.autocompleteField{position:relative}
     .field.passwordField{position:relative}
     .flightLookupPanel{margin:12px 0;padding:12px 14px;border:1px solid #d8e5ed;border-radius:12px;background:linear-gradient(145deg,#fff,#f5f9fc)}
@@ -1021,7 +1024,8 @@ Destination: -</p>
           <span class="fieldLabel">Service type <span class="requiredMark">*</span></span>
           <p class="subtle" style="margin:2px 0 8px">* Required field</p>
           <p class="inlineFieldError" id="serviceError" hidden role="alert">Service type is required. Select a service to continue.</p>
-          <details class="serviceCatalog" id="serviceCatalogDetails" open><summary>Choose a service</summary>
+          <p class="subtle" id="rideTimingSummary" aria-live="polite" hidden></p>
+          <details class="serviceCatalog" id="serviceCatalogDetails" open><summary id="serviceCatalogSummary">Choose a service</summary>
           <div class="serviceChips rideMarketplace" id="serviceChips" role="radiogroup" aria-label="Service type" aria-required="true" aria-describedby="serviceError" tabindex="-1">
             <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span></span><span class="serviceSelectedMark">Selected</span></button>
             <button class="chip secondaryRideOption" type="button" data-service="facility_transfer" hidden>IFT Routine</button><button class="chip secondaryRideOption" type="button" data-service="facility_transfer_critical" hidden>IFT High-Acuity</button>
@@ -1031,12 +1035,12 @@ Destination: -</p>
             <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardCopy"><span class="serviceCardName">Bariatric</span><span class="serviceCardDescription">For riders who need a bariatric service, including additional space or support.</span></span><span class="serviceSelectedMark">Selected</span></button>
             <button class="chip serviceCard secondaryRideOption" type="button" data-service="bls" hidden>BLS</button><button class="chip serviceCard secondaryRideOption" type="button" data-service="als1" hidden>ALS 1</button><button class="chip serviceCard secondaryRideOption" type="button" data-service="als2" hidden>ALS 2</button>
           </div>
+          <p class="subtle" id="serviceSelectionPrompt" hidden>Select a service type above to see its fare estimate.</p>
           <button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help me choose</button>
           <button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button>
           <p class="muted" id="specializedRideAccessHint" hidden>BLS and other specialized ride options require an Admin, Dispatcher, Facility Manager, or Tester account. Use Sign In to access them with an authorized account.</p></details>
         </div>
-        <input id="service" name="service" type="hidden" value="" required>
-        <details id="ambulatoryFuelChoiceField" hidden>
+        <input id="service" name="service" type="hidden" value="" required>        <details id="ambulatoryFuelChoiceField" hidden>
           <summary>Vehicle preference (optional)</summary>
           <div class="field"><label for="bookingFuelProfile">SUV / sedan preference</label>
           <select id="bookingFuelProfile"><option value="">Automatic — match rider needs</option></select>
@@ -1105,7 +1109,7 @@ Destination: -</p>
 
         <div class="estimate" aria-live="polite">
           <div class="line"><b>Distance</b><span id="estMiles">-</span></div>
-          <div class="line"><b>Trip duration</b><span id="estDuration">-</span></div><p class="subtle" id="fareTravelBreakdown"></p><p class="subtle" id="rideTimingSummary" aria-live="polite" hidden></p>
+          <div class="line"><b>Trip duration</b><span id="estDuration">-</span></div><p class="subtle" id="fareTravelBreakdown"></p>
           <div class="line" id="estPremiumRow" hidden><b>Schedule premium (included)</b><span id="estPremiumCharge">-</span></div>
           <div class="line" id="estWaitRow" hidden><b id="estWaitLabel">Waiting time</b><span id="estWaitCharge">-</span></div>
           <div class="line" id="estDeadheadRow" hidden><b>Deadhead mileage</b><span id="estDeadheadCharge">-</span></div>
