@@ -28,6 +28,7 @@ for (const {width, height} of [{width:390,height:900}, {width:1280,height:900}, 
       await page.goto('/booking-app.html', {waitUntil:'domcontentloaded'});
       await page.locator('#name').fill('Jordan Sample');
       await page.locator('#phone').fill('(240) 555-0148');
+      await page.locator('#serviceTypeSelect').selectOption('ambulatory');
       await page.locator('#confirmRiderBtn').click();
       await page.locator('#pickup').fill('100 Main Street, Rockville, MD');
       await page.locator('#destination').fill('200 Medical Center Drive, Bethesda, MD');

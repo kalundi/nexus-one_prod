@@ -61,6 +61,7 @@ test('capture the Uber booking flow with dummy data', async ({ page }) => {
   await page.locator('#name').fill('Jordan Sample');
   await page.locator('#phone').fill('(240) 555-0148');
   await page.locator('#email').fill('jordan.sample@example.com');
+  await page.locator('#serviceTypeSelect').selectOption('ambulatory');
   await page.locator('#confirmRiderBtn').click();
   await expect(page.locator('#pickupDropoffSection')).toBeVisible();
   await page.waitForTimeout(stepDelay);

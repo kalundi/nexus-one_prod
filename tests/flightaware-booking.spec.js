@@ -17,6 +17,7 @@ test('booking flight lookup displays the correct airport terminal and resets whe
  await page.goto('/booking-app.html');
  await page.locator('#name').fill('Flight Lookup Test');
  await page.locator('#phone').fill('(240) 555-0148');
+ await page.locator('#serviceTypeSelect').selectOption('ambulatory');
  await page.locator('#confirmRiderBtn').click();
  await page.locator('#flightLookupPanel summary').click();
  await page.locator('#pickup').fill('100 Main Street, Rockville, MD');

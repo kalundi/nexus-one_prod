@@ -12,9 +12,10 @@ function extract(startMarker,endMarker){
 function setup(role){
   const services=['ambulatory','wheelchair','broda','stretcher','bariatric','bls','als1','als2','facility_transfer','facility_transfer_critical'];
   const chips=services.map(service=>({dataset:{service},hidden:false,disabled:false,classList:{remove(){}}}));
-  const fields={service:{value:'ambulatory'},specializedRideAccessHint:{hidden:true},toggleMoreRideOptions:{hidden:false,attrs:{'aria-expanded':'false'},getAttribute(key){return this.attrs[key];},setAttribute(key,value){this.attrs[key]=value;}}};
+  const options=services.map(service=>({value:service,dataset:{optionService:service},hidden:false,disabled:false}));
+  const fields={service:{value:'ambulatory'},serviceTypeSelect:{value:'ambulatory',querySelectorAll:()=>options},specializedRideAccessHint:{hidden:true},toggleMoreRideOptions:{hidden:false,attrs:{'aria-expanded':'false'},getAttribute(key){return this.attrs[key];},setAttribute(key,value){this.attrs[key]=value;}}};
   const context=vm.createContext({currentUserRole:role,CUSTOMER_ALLOWED_SERVICES:new Set(['ambulatory','wheelchair','broda','stretcher','bariatric']),normalizeService:value=>value,$:id=>fields[id],serviceChips:{querySelectorAll:()=>chips}});
-  context.selectService=(service)=>{fields.service.value=service;};
+  context.selectService=(service)=>{fields.service.value=service;fields.serviceTypeSelect.value=service;};
   vm.runInContext(extract('  function normalizeRole(', '  function setServiceValidationError('),context);
   vm.runInContext(extract('  function applyServiceVisibility(', '  function applyAuthUi('),context);
   vm.runInContext(extract('  function setSecondaryRideOptionsExpanded(', '  function bindServiceChips('),context);
@@ -23,15 +24,17 @@ function setup(role){
 
 for(const role of ['ADMIN','Administrator','DISPATCH','Dispatcher','FACILITY','Facility Manager','Tester','TESTER','TEST_ACCOUNT','QA']){
   test(`${role} can access the complete service catalogue`,()=>{
-    const {context,chips}=setup(role);context.applyServiceVisibility();context.setSecondaryRideOptionsExpanded(true);
+    const {context,chips,fields}=setup(role);context.applyServiceVisibility();context.setSecondaryRideOptionsExpanded(true);
     assert.ok(chips.every(chip=>!chip.hidden&&!chip.disabled));
+    assert.ok(fields.serviceTypeSelect.querySelectorAll().every(option=>!option.hidden&&!option.disabled));
   });
 }
 
 for(const role of ['CUSTOMER','PATIENT','RIDER','DRIVER','BILLING','EXECUTIVE','STAFF']){
   test(`${role} can access only ambulatory, wheelchair, Broda, stretcher, and bariatric`,()=>{
-    const {context,chips}=setup(role);context.applyServiceVisibility();context.setSecondaryRideOptionsExpanded(true);
+    const {context,chips,fields}=setup(role);context.applyServiceVisibility();context.setSecondaryRideOptionsExpanded(true);
     for(const chip of chips){const allowed=['ambulatory','wheelchair','broda','stretcher','bariatric'].includes(chip.dataset.service);assert.equal(chip.hidden,!allowed,chip.dataset.service);assert.equal(chip.disabled,!allowed,chip.dataset.service);}
+    for(const option of fields.serviceTypeSelect.querySelectorAll()){const allowed=['ambulatory','wheelchair','broda','stretcher','bariatric'].includes(option.value);assert.equal(option.hidden,!allowed,option.value);assert.equal(option.disabled,!allowed,option.value);}
   });
 }
 

@@ -22,6 +22,7 @@ for (const width of [390, 1280]) {
     await expect(page.locator('#confirmRiderBtn')).toBeEnabled({ timeout: 3000 });
     await page.locator('#name').fill('Section Progression Test');
     await page.locator('#phone').fill('(240) 555-0148');
+    await page.locator('#serviceTypeSelect').selectOption('ambulatory');
     await page.locator('#confirmRiderBtn').click();
     await expect(page.locator('#pickup')).toBeVisible();
     await page.locator('#pickup').fill('100 Main Street, Rockville, MD');
