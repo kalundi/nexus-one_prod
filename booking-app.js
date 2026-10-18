@@ -742,10 +742,22 @@
     const miles=Number(estimateState.miles||0);
     const date=String($('tripDate')?.value||new Date().toISOString().slice(0,10));
     const time=String($('tripTime')?.value||appointmentTimeInput?.value||'10:00');
-    const selected=normalizeService($('service')?.value);
+    let selected=normalizeService($('service')?.value);
     const selectedOnly=false;
     const hideUnselected=false;
     const allowed=allowedServicesForRole(currentUserRole);
+    const serviceTypeSelect=$('serviceTypeSelect');
+    if(selected&&!allowed.has(selected)){
+      selected='';
+      $('service').value='';
+      setServiceValidationError(false);
+    }
+    serviceTypeSelect?.querySelectorAll('option[data-option-service]').forEach((option)=>{
+      const available=allowed.has(normalizeService(option.dataset.optionService));
+      option.hidden=!available;
+      option.disabled=!available;
+    });
+    if(serviceTypeSelect&&serviceTypeSelect.value!==selected)serviceTypeSelect.value=selected;
     const secondaryExpanded=$('toggleMoreRideOptions')?.getAttribute('aria-expanded')==='true';
     serviceChips.querySelectorAll('.serviceCard').forEach((chip)=>{
       const service=normalizeService(chip.dataset.service);
@@ -779,10 +791,7 @@
         fare.classList.toggle('review',requiresReview&&!total);
       }
     });
-    const selectionPrompt=$('serviceSelectionPrompt');
-    if(selectionPrompt){
-      selectionPrompt.hidden=!selectedOnly||Boolean(selected);
-    }
+    setSecondaryRideOptionsExpanded(secondaryExpanded);
     const catalogSummary=$('serviceCatalogSummary');
     if(catalogSummary){
       catalogSummary.textContent='Choose a service';
@@ -1202,8 +1211,13 @@
 
   function setServiceValidationError(invalid){
     const group=$('serviceChips');
+    const selector=$('serviceTypeSelect');
     const error=$('serviceError');
-    if(group) group.setAttribute('aria-invalid',String(Boolean(invalid)));
+    [group,selector].forEach((field)=>{
+      if(!field)return;
+      if(invalid){field.setAttribute('aria-invalid','true');field.setAttribute('aria-describedby','serviceError');}
+      else {field.removeAttribute('aria-invalid');field.removeAttribute('aria-describedby');}
+    });
     if(error) error.hidden=!invalid;
     $('serviceTypeField')?.classList.toggle('invalid',Boolean(invalid));
   }
@@ -1215,9 +1229,11 @@
     setServiceValidationError(!valid);
     if(!valid&&focus){
       rideChoiceConfirmed=false;
-      revealSectionForAction('rideTypeSection','serviceTypeField');
-      $('serviceTypeField')?.scrollIntoView({behavior:'smooth',block:'center'});
-      $('serviceChips')?.focus();
+      const targetId=riderDetailsConfirmed?'serviceChips':'serviceTypeSelect';
+      const sectionId=riderDetailsConfirmed?'rideTypeSection':'riderDetailsSection';
+      revealSectionForAction(sectionId,targetId);
+      $(targetId)?.scrollIntoView({behavior:'smooth',block:'center'});
+      $(targetId)?.focus();
     }
     return valid;
   }
@@ -1250,9 +1266,16 @@
       chip.disabled = !canUse;
       if(!canUse) chip.classList.remove('active');
     });
+    const serviceTypeSelect=$('serviceTypeSelect');
+    serviceTypeSelect?.querySelectorAll('option[data-option-service]').forEach((option)=>{
+      const available=allowed.has(normalizeService(option.dataset.optionService));
+      option.hidden=!available;
+      option.disabled=!available;
+    });
 
     const current = normalizeService($('service').value);
     if(current && !allowed.has(current)) selectService('');
+    if(serviceTypeSelect&&serviceTypeSelect.value!==normalizeService($('service').value))serviceTypeSelect.value=normalizeService($('service').value);
     setSecondaryRideOptionsExpanded($('toggleMoreRideOptions')?.getAttribute('aria-expanded')==='true');
   }
 
@@ -1806,6 +1829,14 @@
   }
 
   function confirmRiderDetails(){
+    const pickerSelection=normalizeService($('serviceTypeSelect')?.value);
+    if(pickerSelection&&pickerSelection!==normalizeService($('service')?.value))selectService(pickerSelection);
+    if(!validateRequiredService({focus:true})){
+      setStatus('Service type is required. Select a service to continue.', 'err');
+      riderDetailsConfirmed = false;
+      syncSectionProgressUi();
+      return;
+    }
     const name = String($('name')?.value || '').trim();
     const phone = String($('phone')?.value || '').trim();
     if(!name || !phone){
@@ -3580,7 +3611,8 @@
     const allowed = allowedServicesForRole(currentUserRole);
     if(!clean){
       $('service').value = '';
-      setServiceValidationError(false);
+      if($('serviceTypeSelect'))$('serviceTypeSelect').value='';
+      setServiceValidationError(Boolean($('serviceError')&&!$('serviceError').hidden));
       serviceChips.querySelectorAll('.chip').forEach((chip) => {
         chip.classList.remove('active');
         chip.setAttribute('aria-pressed', 'false');
@@ -3592,11 +3624,13 @@
     }
     if(!allowed.has(clean)){
       $('service').value = '';
+      if($('serviceTypeSelect'))$('serviceTypeSelect').value='';
       setLoginMessage('This role cannot book that ride type. Choose an available service.', true);
       setServiceValidationError(true);
       return false;
     }
     $('service').value = clean;
+    if($('serviceTypeSelect'))$('serviceTypeSelect').value=clean;
     setServiceValidationError(false);
     const selectedServiceChip = serviceChips.querySelector(`[data-service="${clean}"]`);
     if(selectedServiceChip?.classList.contains('secondaryRideOption')) setSecondaryRideOptionsExpanded(true);
@@ -3640,6 +3674,10 @@
   }
 
   function bindServiceChips(){
+    $('serviceTypeSelect')?.addEventListener('change',(event)=>{
+      selectService(event.currentTarget.value);
+      if(event.currentTarget.value&&!normalizeService($('service')?.value))event.currentTarget.value='';
+    });
     $('bookingFuelProfile')?.addEventListener('change',()=>{
       rideChoiceConfirmed=false;
       refreshFareForMembership();

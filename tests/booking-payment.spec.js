@@ -81,6 +81,7 @@ test('shows the payment section after a successful booking submission', async ({
   await page.locator('#name').fill('Ava Patel');
   await page.locator('#phone').fill('(240) 555-0101');
   await page.locator('#email').fill('ava@example.com');
+  await page.locator('#serviceTypeSelect').selectOption('ambulatory');
   await page.locator('#confirmRiderBtn').click();
 
   await page.locator('#pickup').fill('155 Limpkin Avenue, Clarksburg, Maryland');
@@ -192,6 +193,7 @@ test('falls back to Square when Stripe is unavailable', async ({ page }) => {
   await page.locator('#name').fill('Ava Patel');
   await page.locator('#phone').fill('(240) 555-0102');
   await page.locator('#email').fill('ava2@example.com');
+  await page.locator('#serviceTypeSelect').selectOption('ambulatory');
   await page.locator('#confirmRiderBtn').click();
 
   await page.locator('#pickup').fill('155 Limpkin Avenue, Clarksburg, Maryland');

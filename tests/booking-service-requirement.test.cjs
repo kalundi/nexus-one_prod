@@ -7,14 +7,21 @@ const api=fs.readFileSync(require.resolve('../netlify/functions/api.cjs'),'utf8'
 const guidance=require('../booking-service-guidance.js');
 
 test('booking service is visible, required, and followed by one helper button',()=>{
-  const section=html.slice(html.indexOf('id="rideTypeSection"'),html.indexOf('id="routeScheduleFields"'));
-  assert.match(section,/id="serviceTypeField"/);assert.match(section,/Service type[^]*?\*/);assert.match(section,/id="serviceChips"[^>]*aria-required="true"/);
-  assert.equal((html.match(/id="helpChooseRideBtn"/g)||[]).length,1);assert.ok(section.indexOf('id="helpChooseRideBtn"')>section.indexOf('id="serviceChips"'));
-  assert.match(section,/id="serviceError"[^>]*role="alert"/);assert.match(section,/aria-describedby="serviceError"/);
+  const riderSection=html.slice(html.indexOf('id="riderDetailsSection"'),html.indexOf('id="pickupDropoffSection"'));
+  const rideSection=html.slice(html.indexOf('id="rideTypeSection"'),html.indexOf('id="routeScheduleFields"'));
+  assert.match(riderSection,/id="serviceTypeField"/);assert.match(riderSection,/Service type[^]*?\*/);assert.match(riderSection,/id="serviceTypeSelect"[^>]*required/);
+  assert.equal((html.match(/id="helpChooseRideBtn"/g)||[]).length,1);assert.ok(riderSection.indexOf('id="helpChooseRideBtn"')>riderSection.indexOf('id="serviceTypeSelect"'));
+  assert.match(riderSection,/id="serviceError"[^>]*role="alert"/);assert.match(riderSection,/aria-describedby="serviceError"/);
+  assert.ok(riderSection.indexOf('id="serviceTypeField"')<riderSection.indexOf('id="confirmRiderBtn"'),'service selection must precede rider confirmation');
+  assert.match(rideSection,/id="serviceChips"[^>]*aria-required="true"/);
+  assert.equal((html.match(/id="serviceChips"/g)||[]).length,1);
+  assert.equal((html.match(/id="serviceChips"/g)||[]).length,1);
+  assert.match(html,/@media \(min-width:640px\)\{\.serviceChips\.rideMarketplace\{grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
 });
 
 test('service requirement blocks client submission and server booking creation',()=>{
   assert.match(app,/validateRequiredService\(\{focus:true\}\)/);assert.match(app,/Service type is required\. Select a service to continue\./);
+  assert.match(app,/function confirmRiderDetails\(\)\{[^]*?if\(!validateRequiredService\(\{focus:true\}\)\)\{/);
   assert.match(api,/if\(!normalizedService\)return json\(400/);assert.match(api,/restrictedServices\.has\(normalizedService\)/);
 });
 

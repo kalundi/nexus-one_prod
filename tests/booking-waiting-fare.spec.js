@@ -34,6 +34,7 @@ for (const scenario of [
   await page.goto('/booking-app.html');
   await page.locator('#name').fill('Waiting Fare Test');
   await page.locator('#phone').fill('(240) 555-0148');
+  await page.locator('#serviceTypeSelect').selectOption('ambulatory');
   await page.locator('#confirmRiderBtn').click();
   if(scenario.stopTime){
     await page.locator('#multipleStopsToggle').check();

@@ -12,6 +12,7 @@ async function prepareRide(page,{signedIn=false,tripType='ONE_WAY'}={}){
  await page.goto('/booking-app.html');
  await page.locator('#name').fill('Schedule Discount Test');
  await page.locator('#phone').fill('(240) 555-0148');
+ await page.locator('#serviceTypeSelect').selectOption('ambulatory');
  await page.locator('#confirmRiderBtn').click();
  await page.locator('#tripType').selectOption(tripType);
  if(tripType==='ROUND_TRIP'){

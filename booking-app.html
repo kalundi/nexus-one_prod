@@ -312,11 +312,11 @@
     .serviceCardIcon{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#e7f5fb;color:#075985;font-size:23px}
     .serviceCardCopy{display:grid;gap:3px}.serviceCardName{font:800 var(--text-md)/1.2 Sora,sans-serif}.serviceCardDescription{font:600 var(--text-sm)/1.4 'Nunito Sans',sans-serif;color:#476476}.serviceCardBest{font:800 var(--text-xs)/1.35 Sora,sans-serif;color:#0a6b99}
     .serviceSelectedMark{position:absolute;right:10px;top:10px;border-radius:999px;padding:3px 7px;background:#7f1010;color:#fff;font:800 10px Sora,sans-serif;opacity:0}.serviceCard.active .serviceSelectedMark{opacity:1}
-    .serviceChips.rideMarketplace{display:grid;grid-template-columns:1fr;gap:0;border:1px solid #d8e1e8;border-radius:16px;overflow:hidden;background:#fff}
-    .rideMarketplace .serviceCard{grid-template-columns:52px minmax(0,1fr) auto;min-height:88px;border:0;border-radius:0;padding:13px 12px;background:#fff;box-shadow:none}
-    .rideMarketplace .serviceCard+.serviceCard{border-top:1px solid #e5e9ed}
-    .rideMarketplace .serviceCard.active{z-index:1;border:2px solid #111827;border-radius:14px;background:#fff;padding:11px 10px;box-shadow:0 7px 18px rgba(15,23,42,.1)}
-    .rideMarketplace .serviceCardDescription{display:none}.rideMarketplace .serviceCardBest{color:#597083;font-weight:700}
+    .serviceChips.rideMarketplace{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:10px;width:100%;box-sizing:border-box;overflow:visible;border:0;border-radius:0;background:transparent}
+    .rideMarketplace .serviceCard{grid-template-columns:minmax(0,1fr);align-content:space-between;min-width:0;min-height:90px;border:1px solid #d8e1e8;border-radius:12px;padding:12px;background:#fff;box-shadow:none}
+    .rideMarketplace .serviceCard+.serviceCard{border-top:1px solid #d8e1e8}
+    .rideMarketplace .serviceCard.active{z-index:1;border:2px solid #111827;border-radius:12px;background:#fff;padding:11px;box-shadow:0 7px 18px rgba(15,23,42,.1)}
+    .rideMarketplace .serviceCardDescription{display:none}.rideMarketplace .serviceCardName{overflow-wrap:normal;word-break:normal}.rideMarketplace .serviceCardBest{color:#597083;font-weight:700}
     .serviceCardMarketMeta{align-self:center;display:grid;gap:4px;text-align:right;min-width:76px}.serviceCardEta{font:800 11px/1.2 Sora,sans-serif;color:#42596b}.serviceCardFare{font:900 15px/1.2 Sora,sans-serif;color:#102f43}.serviceCardFare.review{font-size:11px;color:#8a5a00}
     .rideMarketplace .serviceSelectedMark{display:none}.rideMarketplaceIntro{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:0 0 10px}.rideMarketplaceIntro h2{margin:0}.rideMarketplaceIntro span{font:800 11px Sora,sans-serif;color:#0a6b99}
     .chooseRideBtn{position:sticky;bottom:128px;z-index:30;width:100%;margin-top:12px;background:#101214!important;color:#fff!important;box-shadow:0 12px 25px rgba(0,0,0,.2)!important}
@@ -664,7 +664,9 @@
       .appTabBar{left:50%;right:auto;width:min(820px,100%);transform:translateX(-50%);border-left:1px solid #c8d8e6;border-right:1px solid #c8d8e6}
       .bottomInner{max-width:820px}
       .serviceChips{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .serviceChips.rideMarketplace{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
     }
+    @media (min-width:640px){.serviceChips.rideMarketplace{grid-template-columns:repeat(5,minmax(0,1fr))}.rideMarketplace .serviceCard{padding:10px}.rideMarketplace .serviceCard.active{padding:9px}}
     @media (max-width:600px){.journeyHeader{height:40px;padding:4px 7px}.journeyStep{padding:4px 7px}.journeyStepLabel{display:none}.journeyHeader:not(.compact) .journeyStep.current .journeyStepLabel{display:inline}.journeyStepNumber{display:inline}.journeyConnector{max-width:20px}.nextStepGuide{top:44px}.journeyHeader.compact ~ form .nextStepGuide{top:36px}}
     @media (max-width:700px){body.bookingUberFlow #telemetrySection.unlocked{display:block!important;min-height:0!important;margin:0 -14px 10px}}
     @media (max-width:600px){
@@ -906,6 +908,7 @@
           <label for="email">Email (optional)</label>
           <input id="email" name="email" type="email" placeholder="name@example.com" autocomplete="email">
         </div>
+        <div class="metaRow riderServicePaymentGrid">
         <div class="field">
           <label for="payerType">How will this ride be paid?</label>
           <select id="payerType" name="payerType">
@@ -914,6 +917,16 @@
             <option value="MEDICARE">Medicare</option>
             <option value="MEDICAID">Maryland Medicaid</option>
           </select>
+        </div>
+        <div class="field serviceTypeField riderServiceTypeField" id="serviceTypeField">
+          <label for="serviceTypeSelect">Service type <span class="requiredMark">*</span></label>
+          <p class="subtle" style="margin:2px 0 8px">* Required field</p>
+          <select id="serviceTypeSelect" name="serviceTypeSelect" required aria-describedby="serviceError">
+            <option value="">Select service type</option><option value="ambulatory" data-option-service="ambulatory">Ambulatory</option><option value="wheelchair" data-option-service="wheelchair">Wheelchair</option><option value="broda" data-option-service="broda">Broda</option><option value="stretcher" data-option-service="stretcher">Stretcher</option><option value="bariatric" data-option-service="bariatric">Bariatric</option><option value="bls" data-option-service="bls">BLS</option><option value="als1" data-option-service="als1">ALS 1</option><option value="als2" data-option-service="als2">ALS 2</option><option value="facility_transfer" data-option-service="facility_transfer">IFT Routine</option><option value="facility_transfer_critical" data-option-service="facility_transfer_critical">IFT High-Acuity</option>
+          </select>
+          <button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help me choose</button>
+          <p class="inlineFieldError" id="serviceError" hidden role="alert">Service type is required. Select a service to continue.</p>
+        </div>
         </div>
         <div class="field" id="insuranceCarrierField" hidden>
           <label for="insuranceCarrier">Private insurance provider <span class="requiredMark" id="insuranceCarrierRequiredMark" hidden>*</span></label>
@@ -932,6 +945,7 @@
           <label for="notes">Notes (optional)</label>
           <textarea id="notes" name="notes" placeholder="Gate code, mobility info, or pickup instructions"></textarea>
         </div>
+        <input id="service" name="service" type="hidden" value="" required>
         <div class="authActions" style="margin-top:8px">
           <button type="button" class="primary" id="confirmRiderBtn" disabled>Loading booking...</button>
         </div>
@@ -1020,27 +1034,17 @@ Destination: -</p>
         <p class="subtle rideGuidancePrompt">Answer three quick questions. We will recommend the most suitable ride option.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
         <div class="rideContextBar"><button type="button" class="rideContextPill" id="rideSchedulePill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><span id="rideSchedulePillText">Scheduled pickup</span></button><button type="button" class="rideContextPill" id="rideRiderPill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span id="rideRiderPillText">For rider</span></button></div>
-        <div class="field serviceTypeField" id="serviceTypeField" tabindex="-1">
-          <span class="fieldLabel">Service type <span class="requiredMark">*</span></span>
-          <p class="subtle" style="margin:2px 0 8px">* Required field</p>
-          <p class="inlineFieldError" id="serviceError" hidden role="alert">Service type is required. Select a service to continue.</p>
-          <p class="subtle" id="rideTimingSummary" aria-live="polite" hidden></p>
-          <details class="serviceCatalog" id="serviceCatalogDetails" open><summary id="serviceCatalogSummary">Choose a service</summary>
-          <div class="serviceChips rideMarketplace" id="serviceChips" role="radiogroup" aria-label="Service type" aria-required="true" aria-describedby="serviceError" tabindex="-1">
-            <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span></span><span class="serviceSelectedMark">Selected</span></button>
-            <button class="chip secondaryRideOption" type="button" data-service="facility_transfer" hidden>IFT Routine</button><button class="chip secondaryRideOption" type="button" data-service="facility_transfer_critical" hidden>IFT High-Acuity</button>
-            <button class="chip serviceCard" type="button" data-service="wheelchair"><span class="serviceCardCopy"><span class="serviceCardName">Wheelchair</span><span class="serviceCardDescription">Accessible vehicle and securement for riders remaining in a wheelchair.</span></span><span class="serviceSelectedMark">Selected</span></button>
-            <button class="chip serviceCard" type="button" data-service="stretcher"><span class="serviceCardCopy"><span class="serviceCardName">Stretcher</span><span class="serviceCardDescription">For riders who must travel lying down; needs may require review.</span></span><span class="serviceSelectedMark">Selected</span></button>
-            <button class="chip serviceCard" type="button" data-service="broda"><span class="serviceCardCopy"><span class="serviceCardName">Broda</span><span class="serviceCardDescription">For riders who use a Broda chair.</span></span><span class="serviceSelectedMark">Selected</span></button>
-            <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardCopy"><span class="serviceCardName">Bariatric</span><span class="serviceCardDescription">For riders who need a bariatric service, including additional space or support.</span></span><span class="serviceSelectedMark">Selected</span></button>
-            <button class="chip serviceCard secondaryRideOption" type="button" data-service="bls" hidden>BLS</button><button class="chip serviceCard secondaryRideOption" type="button" data-service="als1" hidden>ALS 1</button><button class="chip serviceCard secondaryRideOption" type="button" data-service="als2" hidden>ALS 2</button>
-          </div>
-          <p class="subtle" id="serviceSelectionPrompt" hidden>Select a service type above to see its fare estimate.</p>
-          <button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help me choose</button>
-          <button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button>
-          <p class="muted" id="specializedRideAccessHint" hidden>BLS and other specialized ride options require an Admin, Dispatcher, Facility Manager, or Tester account. Use Sign In to access them with an authorized account.</p></details>
-        </div>
-        <input id="service" name="service" type="hidden" value="" required>        <details id="ambulatoryFuelChoiceField" hidden>
+        <div class="field rideOptionsField"><span class="fieldLabel">Compare available ride estimates</span><div class="serviceChips rideMarketplace" id="serviceChips" role="radiogroup" aria-label="Available ride options" aria-required="true" aria-describedby="serviceError" tabindex="-1">
+          <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip secondaryRideOption" type="button" data-service="facility_transfer" hidden>IFT Routine</button><button class="chip secondaryRideOption" type="button" data-service="facility_transfer_critical" hidden>IFT High-Acuity</button>
+          <button class="chip serviceCard" type="button" data-service="wheelchair"><span class="serviceCardCopy"><span class="serviceCardName">Wheelchair</span><span class="serviceCardDescription">Accessible vehicle and securement for riders remaining in a wheelchair.</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="stretcher"><span class="serviceCardCopy"><span class="serviceCardName">Stretcher</span><span class="serviceCardDescription">For riders who must travel lying down; needs may require review.</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="broda"><span class="serviceCardCopy"><span class="serviceCardName">Broda</span><span class="serviceCardDescription">For riders who use a Broda chair.</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardCopy"><span class="serviceCardName">Bariatric</span><span class="serviceCardDescription">For riders who need a bariatric service, including additional space or support.</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard secondaryRideOption" type="button" data-service="bls" hidden>BLS</button><button class="chip serviceCard secondaryRideOption" type="button" data-service="als1" hidden>ALS 1</button><button class="chip serviceCard secondaryRideOption" type="button" data-service="als2" hidden>ALS 2</button>
+        </div><button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button><p class="muted" id="specializedRideAccessHint" hidden>BLS and other specialized ride options require an Admin, Dispatcher, Facility Manager, or Tester account. Use Sign In to access them with an authorized account.</p></div>
+        <p class="subtle" id="rideTimingSummary" aria-live="polite" hidden></p>
+        <details id="ambulatoryFuelChoiceField" hidden>
           <summary>Vehicle preference (optional)</summary>
           <div class="field"><label for="bookingFuelProfile">SUV / sedan preference</label>
           <select id="bookingFuelProfile"><option value="">Automatic — match rider needs</option></select>

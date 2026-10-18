@@ -107,6 +107,7 @@ test('confirming restored insurance selection reveals the required provider fiel
   await expect(page.locator('#confirmRiderBtn')).toBeEnabled();
   await page.locator('#name').fill('Jamie Patient');
   await page.locator('#phone').fill('(240) 555-0101');
+  await page.locator('#serviceTypeSelect').selectOption('ambulatory');
   await page.locator('#payerType').evaluate((select) => { select.value='INSURANCE'; });
   await page.locator('#confirmRiderBtn').click();
   await expect(page.locator('#insuranceCarrierField')).toBeVisible();

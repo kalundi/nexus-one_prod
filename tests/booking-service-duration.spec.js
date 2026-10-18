@@ -1,7 +1,7 @@
 const {test,expect}=require('@playwright/test');
 const Fare=require('../nexus-fare.js');
 const settings={organization:{yardAddress:'Company yard',preTripInspectionMinutes:45},pricing:Object.fromEntries(['ambulatory','wheelchair','stretcher','bariatric','bls','als1','als2','facility_transfer_critical'].map(service=>[service,{base:100,includedMiles:100,perMile:0,waitPer15:20}])),fareRules:{waitingPolicyVersion:2,freeWaitMinutes:15,fuelSurchargePerMile:0,trafficOverageFeePerHour:0,servicePolicies:{wheelchair:{trafficOverageFeePerHour:0},stretcher:{speedReductionMph:0},bariatric:{speedReductionMph:0},bls:{speedReductionMph:0},als1:{speedReductionMph:0},als2:{speedReductionMph:0},facility_transfer_critical:{speedReductionMph:0}}}};
-async function prepare(page,{roundTrip=false,multiStop=false,role}={}){
+async function prepare(page,{roundTrip=false,multiStop=false,role,service='ambulatory'}={}){
  let submitted;
  if(role)await page.addInitScript(role=>{
   sessionStorage.setItem('nexusAccessToken','service-duration-staff-test');
@@ -25,7 +25,9 @@ async function prepare(page,{roundTrip=false,multiStop=false,role}={}){
   return route.fulfill({json});
  });
  await page.goto('/booking-app.html');
+ if(service)await page.locator('#serviceTypeSelect').selectOption(service);
  await page.locator('#name').fill('Service Duration Test');await page.locator('#phone').fill('(240) 555-0130');await page.locator('#confirmRiderBtn').click();
+ if(!service)return {getSubmitted:()=>submitted};
  if(multiStop){await page.locator('#multipleStopsToggle').check();await page.locator('#appointmentTime-2').fill('11:30');await page.locator('[data-route-stop="true"]').fill('300 Clinic Road, Bethesda, MD');}
  if(roundTrip){await page.locator('#tripType').selectOption('ROUND_TRIP');await page.locator('#returnTripDate').fill('2030-08-15');await page.locator('#returnTripTime').fill('10:45');}
  await page.locator('#tripDate').fill('2030-08-15');await page.locator('#appointmentTime').fill('10:00');
@@ -34,37 +36,44 @@ async function prepare(page,{roundTrip=false,multiStop=false,role}={}){
  return {getSubmitted:()=>submitted};
 }
 
-test('service cards show route duration and each service uses its own planning adjustment',async({page})=>{
- await prepare(page);
+test('service choice is made before rider confirmation and route timing uses that choice',async({page})=>{
+ await prepare(page,{service:'wheelchair'});
+ await expect(page.locator('#service')).toHaveValue('wheelchair');
  await expect(page.locator('[data-service="ambulatory"] .serviceCardEta')).toHaveText('~30 min drive');
  await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~40 min drive');
  await expect(page.locator('[data-service="stretcher"] .serviceCardEta')).toHaveText('~1h drive');
  await expect(page.locator('[data-service="bariatric"]')).toContainText('Bariatric');
  await expect(page.locator('[data-service="bariatric"] .serviceCardEta')).toHaveText('~4h drive');
- await page.locator('[data-service="wheelchair"]').click();await expect(page.locator('#tripTime')).toHaveValue('09:05');
+ await expect(page.locator('#tripTime')).toHaveValue('09:05');
  await expect(page.locator('#estDuration')).toHaveText('~40 min trip');
- await page.locator('[data-service="ambulatory"]').click();await expect(page.locator('#tripTime')).toHaveValue('09:15');
- await page.locator('[data-service="wheelchair"]').click();await expect(page.locator('#tripTime')).toHaveValue('09:05');
  await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~40 min drive');
  const requests=await page.evaluate(()=>window.__directionsRequests.filter(request=>request.origin.startsWith('100 Main')));
  expect(requests.every(request=>request.departure&&request.departure.startsWith('2030-08-15')),JSON.stringify(requests)).toBe(true);
 });
 
-test('service is not preselected and required validation focuses the field then clears on selection',async({page})=>{
- await prepare(page);
- await expect(page.locator('#statusMsg')).toContainText('Pickup and destination confirmed.');
+test('service is required before confirming rider details and validation clears on selection',async({page})=>{
+ await prepare(page,{service:null});
  await expect(page.locator('#serviceTypeField')).toBeVisible();
  await expect(page.locator('#service')).toHaveValue('');
  await expect(page.locator('#helpChooseRideBtn')).toBeVisible();
- await expect(page.locator('#continueRideBtn')).toBeEnabled();
- await page.locator('#continueRideBtn').click();
  await expect(page.locator('#serviceError')).toBeVisible();
  await expect(page.locator('#serviceChips')).toHaveAttribute('aria-invalid','true');
- await expect.poll(()=>page.evaluate(()=>document.activeElement.id)).toBe('serviceChips');
- await page.locator('[data-service="wheelchair"]').click();
+ await expect.poll(()=>page.evaluate(()=>document.activeElement.id)).toBe('serviceTypeSelect');
+ await expect(page.locator('#pickupDropoffSection')).toBeHidden();
+ await page.locator('#serviceTypeSelect').selectOption('wheelchair');
  await expect(page.locator('#service')).toHaveValue('wheelchair');
  await expect(page.locator('#serviceError')).toBeHidden();
  await expect(page.locator('#serviceChips')).not.toHaveAttribute('aria-invalid','true');
+ await page.locator('#helpChooseRideBtn').click();
+ await expect(page.locator('#rideGuidanceDialog')).toBeVisible();
+ await page.locator('input[name="lyingDown"][value="yes"]').check();
+ await page.locator('#getRideRecommendationBtn').click();
+ await expect(page.locator('#rideGuidanceResult')).toBeVisible();
+ await page.locator('#useRideRecommendationBtn').click();
+ await expect(page.locator('#serviceTypeSelect')).toHaveValue('stretcher');
+ await expect(page.locator('#rideGuidanceDialog')).toBeHidden();
+ await page.locator('#confirmRiderBtn').click();
+ await expect(page.locator('#pickupDropoffSection')).toBeVisible();
 });
 
 test('stretcher and ambulance pickup estimates use their requested reductions',async({page})=>{

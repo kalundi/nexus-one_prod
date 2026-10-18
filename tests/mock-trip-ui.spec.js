@@ -10,7 +10,7 @@ for(const role of ['ADMIN','DISPATCHER','PATIENT'])test(`${role} sees the approp
  await page.waitForFunction(()=>Boolean(window.NexusBookingApp));
  expect(await page.locator('#staffTripModeField').evaluate(element=>element.hidden)).toBe(role==='PATIENT');
  if(role!=='PATIENT'){
-  await page.locator('#name').fill('Staff Mock Test');await page.locator('#phone').fill('(240) 555-0199');await page.locator('#confirmRiderBtn').click();
+  await page.locator('#name').fill('Staff Mock Test');await page.locator('#phone').fill('(240) 555-0199');await page.locator('#serviceTypeSelect').selectOption('ambulatory');await page.locator('#confirmRiderBtn').click();
   await page.locator('#staffTripMode').selectOption('MOCK');
   await expect(page.locator('#staffTripMode')).toHaveValue('MOCK');
  }
