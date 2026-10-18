@@ -4,7 +4,7 @@ Reviewed October 10, 2026; calculation revised October 12, 2026. This research c
 
 ## What the research supports
 
-The current sources reviewed do not establish universal average speeds for ambulatory, wheelchair, Broda, stretcher or bariatric medical transport vans. The operator has configured cruising-speed reductions of 10 mph for wheelchair, 20 mph for stretcher, 25 mph for ambulance services and 35 mph for Additional Capacity (bariatric). These are Nexus planning assumptions, not established medical standards or directions to drivers. An estimate must account for the route, traffic and service assistance rather than assigning one constant speed to every city and highway trip.
+The current sources reviewed do not establish universal average speeds for ambulatory, wheelchair, Broda, stretcher or bariatric medical transport vans. The operator has configured cruising-speed reductions of 10 mph for wheelchair, 20 mph for stretcher, 25 mph for ambulance services and 35 mph for Bariatric service. These are Nexus planning assumptions, not established medical standards or directions to drivers. An estimate must account for the route, traffic and service assistance rather than assigning one constant speed to every city and highway trip.
 
 ### Recent transport and patient-comfort evidence
 
@@ -61,7 +61,7 @@ Each measured passenger segment supplies distance, baseline road duration and tr
 | Wheelchair | 10 mph | 55 mph |
 | Stretcher | 20 mph | 45 mph |
 | BLS, ALS and critical-care transfers | 25 mph | 40 mph |
-| Additional Capacity | 35 mph | 30 mph |
+| Bariatric | 35 mph | 30 mph |
 | Broda and routine facility transfer | 0 mph until configured | 65 mph |
 
 These are operator planning assumptions rather than measured universal patient-transport speeds or speed limits. Actual road conditions, legal limits and patient care govern the driver. Admin can edit the cruising baseline and each service reduction in Nexus Pricing Manager. Policy version 4 selects cruising ceilings; existing service reductions and care allowances remain configurable.

@@ -39,7 +39,7 @@ test('service cards show route duration and each service uses its own planning a
  await expect(page.locator('[data-service="ambulatory"] .serviceCardEta')).toHaveText('~30 min drive');
  await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~40 min drive');
  await expect(page.locator('[data-service="stretcher"] .serviceCardEta')).toHaveText('~1h drive');
- await expect(page.locator('[data-service="bariatric"]')).toContainText('Additional Capacity');
+ await expect(page.locator('[data-service="bariatric"]')).toContainText('Bariatric');
  await expect(page.locator('[data-service="bariatric"] .serviceCardEta')).toHaveText('~4h drive');
  await page.locator('[data-service="wheelchair"]').click();await expect(page.locator('#tripTime')).toHaveValue('09:05');
  await expect(page.locator('#estDuration')).toHaveText('~40 min trip');
@@ -48,6 +48,23 @@ test('service cards show route duration and each service uses its own planning a
  await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~40 min drive');
  const requests=await page.evaluate(()=>window.__directionsRequests.filter(request=>request.origin.startsWith('100 Main')));
  expect(requests.every(request=>request.departure&&request.departure.startsWith('2030-08-15')),JSON.stringify(requests)).toBe(true);
+});
+
+test('service is not preselected and required validation focuses the field then clears on selection',async({page})=>{
+ await prepare(page);
+ await expect(page.locator('#statusMsg')).toContainText('Pickup and destination confirmed.');
+ await expect(page.locator('#serviceTypeField')).toBeVisible();
+ await expect(page.locator('#service')).toHaveValue('');
+ await expect(page.locator('#helpChooseRideBtn')).toBeVisible();
+ await expect(page.locator('#continueRideBtn')).toBeEnabled();
+ await page.locator('#continueRideBtn').click();
+ await expect(page.locator('#serviceError')).toBeVisible();
+ await expect(page.locator('#serviceChips')).toHaveAttribute('aria-invalid','true');
+ await expect.poll(()=>page.evaluate(()=>document.activeElement.id)).toBe('serviceChips');
+ await page.locator('[data-service="wheelchair"]').click();
+ await expect(page.locator('#service')).toHaveValue('wheelchair');
+ await expect(page.locator('#serviceError')).toBeHidden();
+ await expect(page.locator('#serviceChips')).not.toHaveAttribute('aria-invalid','true');
 });
 
 test('stretcher and ambulance pickup estimates use their requested reductions',async({page})=>{

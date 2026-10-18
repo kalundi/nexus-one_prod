@@ -155,6 +155,10 @@ function ensureCareerApplicationsSchema(){
 }
 const DEMO_SOURCES=new Set(['DEMO','LOCAL','MOCK','TEST']);
 const required=(body,fields)=>{for(const f of fields)if(!clean(body[f]))throw Object.assign(new Error(`${f} is required`),{statusCode:400})};
+const normalizeBariatricService=value=>{
+ const raw=clean(value);const key=raw.toLowerCase().replace(/[_-]+/g,' ');
+ return key==='additional capacity'?'bariatric':raw;
+};
 const secureDocumentSlug=value=>clean(value).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,56)||'document';
 async function listUploadedSecureDocuments(){
  const result=await query(`SELECT document_key,title,description,original_name,mime_type,file_size,created_at
@@ -2887,16 +2891,28 @@ async function handler(event){
    return json(200,{valid:true,total,savings:Math.max(0,currentFare-total),percentOff,description:promotion.description});
   }
   if(p[0]==='bookings'&&method==='POST'&&p.length===1){
-   const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time']);
+   const b=parseBody(event);required(b,['name','phone','pickup','destination','date','time']);
+   const submittedService=normalizeBariatricService(b.service).toLowerCase().replace(/[_-]+/g,' ');
+   const serviceAliases={'additional capacity':'bariatric','facility transfer':'facility_transfer','ift':'facility_transfer','critical care':'facility_transfer_critical'};
+   const normalizedService=serviceAliases[submittedService]||clean(b.service).toLowerCase();
+   const restrictedServices=new Set(['ambulatory','wheelchair','broda','stretcher','bariatric']);
+   const privilegedServiceRoles=new Set(['ADMIN','ADMINISTRATOR','DISPATCH','DISPATCHER','FACILITY','FACILITY_MANAGER','TESTER','TEST','TEST_ACCOUNT','QA']);
+   let bookingActor=null;
+   try{if(bearer(event))bookingActor=await requireUser(bearer(event))}catch{}
+   const actorRole=String(bookingActor?.role||'CUSTOMER').trim().toUpperCase().replace(/[\s-]+/g,'_');
+   const roleAliases={ADMINISTRATOR:'ADMIN',DISPATCH:'DISPATCHER',FACILITY_MANAGER:'FACILITY',TEST:'TESTER',TEST_ACCOUNT:'TESTER',QA:'TESTER'};
+   const normalizedRole=roleAliases[actorRole]||actorRole;
+   if(!normalizedService)return json(400,{error:'Service type is required. Select a service to continue.'});
+   if(!['ambulatory','wheelchair','broda','stretcher','bariatric','bls','als1','als2','facility_transfer','facility_transfer_critical'].includes(normalizedService))return json(400,{error:'Select a valid service type.'});
+   if(!privilegedServiceRoles.has(actorRole)&&!privilegedServiceRoles.has(normalizedRole)&&!restrictedServices.has(normalizedService))return json(403,{error:'This account cannot book that service type.'});
+   b.service=normalizedService;
    const phoneDigits=normalizeE164(b.phone);
    if(!phoneDigits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});
    // Validate email if provided
    if(b.email){const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;if(!emailPattern.test(b.email.trim()))return json(400,{error:'Please enter a valid email address'});}
    if(clean(b.payerType).toUpperCase()==='INSURANCE'&&!clean(b.insuranceCarrier))return json(400,{error:'Private insurance provider is required'});
   // Detect booking source and billing behavior by role.
-   let bookingActor=null;
-   try{if(bearer(event))bookingActor=await requireUser(bearer(event))}catch{}
-  const actorRole=String(bookingActor?.role||'CUSTOMER').toUpperCase();
+  // The actor was resolved above so service access is checked before booking work begins.
   const isMockTrip=clean(b.tripMode).toUpperCase()==='MOCK';
   if(isMockTrip&&!['ADMIN','DISPATCHER'].includes(actorRole))return json(403,{error:'Only Admin or Dispatch can create mock trips.'});
   const caretakerSubject=await require('./_shared/caretaker-access.cjs').bookingSubject(bookingActor,b);
@@ -3377,7 +3393,7 @@ async function handler(event){
     .sort((a,b)=>`${a.date||a.tripDate||a.trip_date||''} ${a.time||a.tripTime||a.trip_time||''}`.localeCompare(`${b.date||b.tripDate||b.trip_date||''} ${b.time||b.tripTime||b.trip_time||''}`));
    return json(200,{
     user:safeUser(u),
-    preferences:{mobilityType:preferenceRow.mobility_type||'AMBULATORY',remainsInWheelchair:!!preferenceRow.remains_in_wheelchair,transferAssistance:!!preferenceRow.transfer_assistance,oxygenRequired:!!preferenceRow.oxygen_required,preferredLanguage:preferenceRow.preferred_language||'',communicationPreference:preferenceRow.communication_preference||'SMS',defaultPickup:preferenceRow.default_pickup||'',accessibilityNotes:preferenceRow.accessibility_notes||''},
+    preferences:{mobilityType:normalizeBariatricService(preferenceRow.mobility_type||'AMBULATORY').toUpperCase(),remainsInWheelchair:!!preferenceRow.remains_in_wheelchair,transferAssistance:!!preferenceRow.transfer_assistance,oxygenRequired:!!preferenceRow.oxygen_required,preferredLanguage:preferenceRow.preferred_language||'',communicationPreference:preferenceRow.communication_preference||'SMS',defaultPickup:preferenceRow.default_pickup||'',accessibilityNotes:preferenceRow.accessibility_notes||''},
     nextRide:upcoming[0]||null,
     recentRides:trips
    });
@@ -3385,11 +3401,11 @@ async function handler(event){
   if(p[0]==='patient'&&p[1]==='preferences'&&method==='GET'){
    const u=await requireUser(bearer(event),['PATIENT']);await ensurePatientPreferencesSchema();
    const result=await query('SELECT * FROM patient_transport_preferences WHERE user_id=$1 LIMIT 1',[u.id]),row=result.rows[0]||{};
-   return json(200,{preferences:{mobilityType:row.mobility_type||'AMBULATORY',remainsInWheelchair:!!row.remains_in_wheelchair,transferAssistance:!!row.transfer_assistance,oxygenRequired:!!row.oxygen_required,preferredLanguage:row.preferred_language||'',communicationPreference:row.communication_preference||'SMS',defaultPickup:row.default_pickup||'',accessibilityNotes:row.accessibility_notes||''}});
+   return json(200,{preferences:{mobilityType:normalizeBariatricService(row.mobility_type||'AMBULATORY').toUpperCase(),remainsInWheelchair:!!row.remains_in_wheelchair,transferAssistance:!!row.transfer_assistance,oxygenRequired:!!row.oxygen_required,preferredLanguage:row.preferred_language||'',communicationPreference:row.communication_preference||'SMS',defaultPickup:row.default_pickup||'',accessibilityNotes:row.accessibility_notes||''}});
   }
   if(p[0]==='patient'&&p[1]==='preferences'&&method==='PATCH'){
    const u=await requireUser(bearer(event),['PATIENT']),b=parseBody(event);await ensurePatientPreferencesSchema();
-   const mobilityType=String(b.mobilityType||'AMBULATORY').toUpperCase(),communicationPreference=String(b.communicationPreference||'SMS').toUpperCase();
+   const mobilityType=normalizeBariatricService(b.mobilityType||'AMBULATORY').toUpperCase(),communicationPreference=String(b.communicationPreference||'SMS').toUpperCase();
    if(!['AMBULATORY','WHEELCHAIR','BRODA','STRETCHER','BARIATRIC'].includes(mobilityType))return json(400,{error:'Select a valid mobility type'});
    if(!['SMS','VOICE','EMAIL'].includes(communicationPreference))return json(400,{error:'Select a valid communication preference'});
    const result=await query(`INSERT INTO patient_transport_preferences(user_id,mobility_type,remains_in_wheelchair,transfer_assistance,oxygen_required,preferred_language,communication_preference,default_pickup,accessibility_notes,updated_at)
@@ -5066,7 +5082,7 @@ function mapBooking(b){
   email:b.email,
   alternatePhone:b.alternate_phone,
   alternateEmail:b.alternate_email,
-  service:b.service,
+  service:normalizeBariatricService(b.service),
   pickupLocation:b.pickup_location||b.pickupLocation||null,
   pickup:b.pickup,
   destination:b.destination,

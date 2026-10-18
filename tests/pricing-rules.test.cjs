@@ -1,6 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
 const Fare=require('../nexus-fare.js');
+const NexusTripTiming=require('../nexus-trip-timing.js');
 const rate={base:100,includedMiles:8,perMile:4,waitPer15:20};
 for(const [minutes,charge] of [[0,0],[1,0],[15,0],[15.01,20],[16,20],[30,20],[31,40],[45,40],[46,60]])test(`waiting after 15 minutes: ${minutes} minutes costs $${charge}`,()=>{
  const result=Fare.getWaitingCharge(minutes,rate,{freeWaitMinutes:0,servicePolicies:{wheelchair:{freeWaitMinutes:0}}},'wheelchair');
@@ -37,7 +38,7 @@ test('service schedule premiums and zero fees override global percentages withou
 });
 test('server settings migrate old waits once and retain all fare variables after save',()=>{
  const source=fs.readFileSync('netlify/functions/api.cjs','utf8');
- const context=vm.createContext({NexusFare:Fare,clean:value=>String(value??'').trim(),n:(value,fallback=0)=>value==null||value===''?fallback:Number.isFinite(Number(value))?Number(value):fallback,clamp:(value,min,max)=>Math.min(max,Math.max(min,value))});
+ const context=vm.createContext({NexusFare:Fare,NexusTripTiming,clean:value=>String(value??'').trim(),n:(value,fallback=0)=>value==null||value===''?fallback:Number.isFinite(Number(value))?Number(value):fallback,clamp:(value,min,max)=>Math.min(max,Math.max(min,value))});
  vm.runInContext(source.slice(source.indexOf('const DEFAULT_PRICING='),source.indexOf('async function ensureSettingsTable('))+source.slice(source.indexOf('function mergePricing('),source.indexOf('async function readPlatformSettings(')),context);
  const old=context.mergePlatformSettings({fareRules:{freeWaitMinutes:0,servicePolicies:{wheelchair:{freeWaitMinutes:0}}}});
  assert.equal(old.fareRules.waitingPolicyVersion,2);
@@ -45,7 +46,7 @@ test('server settings migrate old waits once and retain all fare variables after
  assert.equal(old.fareRules.minimumPlanningSpeedMph,5);
  assert.equal(old.fareRules.servicePolicies.wheelchair.speedReductionMph,10);
  assert.equal(old.fareRules.servicePolicies.ambulatory.speedReductionMph,0);
- assert.equal(old.fareRules.serviceTravelPolicyVersion,3);
+ assert.equal(old.fareRules.serviceTravelPolicyVersion,4);
  assert.equal(old.fareRules.servicePolicies.bariatric.speedReductionMph,35);
  assert.equal(old.fareRules.servicePolicies.stretcher.speedReductionMph,20);
  for(const service of ['bls','als1','als2','facility_transfer_critical'])assert.equal(old.fareRules.servicePolicies[service].speedReductionMph,25);

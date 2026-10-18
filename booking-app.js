@@ -310,8 +310,8 @@
   let authActionsBound = false;
   let manageActionsBound = false;
   let lastTrackedBookingStep = '';
-  const PRIVILEGED_SERVICE_ROLES = new Set(['ADMIN','DISPATCHER','FACILITY','DRIVER']);
-  const CUSTOMER_ALLOWED_SERVICES = new Set(['ambulatory','wheelchair','stretcher','bariatric']);
+  const PRIVILEGED_SERVICE_ROLES = new Set(['ADMIN','ADMINISTRATOR','DISPATCH','DISPATCHER','FACILITY','FACILITY_MANAGER','TESTER','TEST','QA']);
+  const CUSTOMER_ALLOWED_SERVICES = new Set(['ambulatory','wheelchair','broda','stretcher','bariatric']);
   const AUTO_COLLAPSIBLE_SECTION_IDS = ['pickupDropoffSection'];
   const PROGRESSIVE_SECTIONS_ORDER = ['riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'telemetrySection', 'fareSummarySection'];
   const FINAL_HIDDEN_SECTION_IDS = ['bookingLoginSection', 'riderDetailsSection', 'pickupDropoffSection', 'rideTypeSection', 'rateSettingsSection'];
@@ -615,7 +615,7 @@
 
     estMiles.textContent = `${Number(breakdown.passengerMilesTotal||estimateState.miles).toFixed(1)} mi total`;
     estimateState.tripDurationText=breakdown.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.journeyMinutes)}${String(tripType?.value)==='ROUND_TRIP'?' round trip':' trip'}`:'Time pending';
-    estimateState.travelBreakdown=[`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving`,breakdown.waitMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:'',breakdown.transitionMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''].filter(Boolean).join(' · ');
+    estimateState.travelBreakdown=[`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving`,breakdown.waitMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:'',breakdown.transitionMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''].filter(Boolean).join(' \u00b7 ');
     estDuration.textContent = estimateState.tripDurationText;
     renderSmartTiming(breakdown.timingPlan);
     if($('fareTravelBreakdown'))$('fareTravelBreakdown').textContent=estimateState.travelBreakdown;
@@ -624,7 +624,7 @@
       const returnDate=returnTripDate?.value;
       const returnLabel=returnDate?new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(returnDate+'T12:00:00Z')):'';
       const parts=[hasReturn&&returnLabel&&returnTripTime?.value?`Return ${returnLabel} at ${returnTripTime.value}`:'',breakdown.waitMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting included in fare`:'',breakdown.transitionMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:'',breakdown.drivingMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.journeyMinutes)} trip total`:''];
-      $('rideTimingSummary').textContent=parts.filter(Boolean).join(' · ');
+      $('rideTimingSummary').textContent=parts.filter(Boolean).join(' | ')
       $('rideTimingSummary').hidden=!(hasReturn||isMultipleStopsEnabled())||!breakdown.drivingMinutes;
     }
     const selectedRate=getPricing(normalizeService($('service').value));
@@ -777,7 +777,8 @@
       continueButton.textContent='Book My Ride';
       continueButton.title=selectedName?`Book the selected ${selectedName} ride`:'Select a Nexus ride to continue';
       continueButton.setAttribute('aria-label',selectedName?`Book My Ride: ${selectedName}`:'Book My Ride');
-      continueButton.disabled=!selected;
+      const routeAndScheduleReady=destinationConfirmed&&Boolean($('tripDate')?.value&&isPrimaryScheduleInputComplete());
+      continueButton.disabled=!routeAndScheduleReady;
     }
   }
 
@@ -1107,7 +1108,7 @@
       return;
     }
     const previouslySelectedService=normalizeService($('service')?.value);
-    if(!previouslySelectedService)selectService('ambulatory');
+    if(previouslySelectedService&&!allowedServicesForRole(currentUserRole).has(previouslySelectedService))selectService('');
     autoEstimate.cancel();
     setBusy(confirmPickupDropoffBtn,true,'Calculating prices...','Confirm Details');
     try{await estimateRouteAndFare({promptConfirmation:false});}
@@ -1124,7 +1125,6 @@
       (isPickupTimeBasis() ? $('tripTime') : appointmentTimeInput)?.focus();
       return;
     }
-    if(!previouslySelectedService)selectService('');
     markDestinationConfirmed();
     journeyNavigationOverride='';
     const serviceCatalogDetails=$('serviceCatalogDetails');
@@ -1134,6 +1134,7 @@
     syncSectionProgressUi();
     PROGRESSIVE_SECTIONS_ORDER.forEach((sectionId)=>$(sectionId)?.classList.remove('currentBookingCard'));
     $('rideTypeSection')?.classList.add('unlocked','currentBookingCard');
+    renderRideMarketplace();
     $('rideTypeSection')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
 
@@ -1146,8 +1147,17 @@
     sessionStorage.removeItem('nexusUser');
   }
 
+  function normalizeRole(role){
+    const raw=String(role||'').trim().toUpperCase().replace(/[\s-]+/g,'_');
+    if(raw==='ADMIN'||raw==='ADMINISTRATOR')return 'ADMIN';
+    if(raw==='DISPATCH'||raw==='DISPATCHER')return 'DISPATCHER';
+    if(['FACILITY','FACILITY_MANAGER','FACILITYMANAGER'].includes(raw))return 'FACILITY';
+    if(['TEST','TESTER','TEST_ACCOUNT','QA'].includes(raw))return 'TESTER';
+    return raw;
+  }
+
   function isPrivilegedServiceRole(role){
-    return PRIVILEGED_SERVICE_ROLES.has(String(role || '').toUpperCase());
+    return ['ADMIN','DISPATCHER','FACILITY','TESTER'].includes(normalizeRole(role));
   }
 
   function allVisibleServices(){
@@ -1157,6 +1167,28 @@
   function allowedServicesForRole(role){
     if(isPrivilegedServiceRole(role)) return new Set(allVisibleServices());
     return new Set(CUSTOMER_ALLOWED_SERVICES);
+  }
+
+  function setServiceValidationError(invalid){
+    const group=$('serviceChips');
+    const error=$('serviceError');
+    if(group) group.setAttribute('aria-invalid',String(Boolean(invalid)));
+    if(error) error.hidden=!invalid;
+    $('serviceTypeField')?.classList.toggle('invalid',Boolean(invalid));
+  }
+
+  function validateRequiredService({focus=false}={}){
+    const service=normalizeService($('service')?.value);
+    const allowed=allowedServicesForRole(currentUserRole);
+    const valid=Boolean(service&&allowed.has(service));
+    setServiceValidationError(!valid);
+    if(!valid&&focus){
+      rideChoiceConfirmed=false;
+      revealSectionForAction('rideTypeSection','serviceTypeField');
+      $('serviceTypeField')?.scrollIntoView({behavior:'smooth',block:'center'});
+      $('serviceChips')?.focus();
+    }
+    return valid;
   }
 
   function setLoginMessage(message, isError=false){
@@ -1189,12 +1221,7 @@
     });
 
     const current = normalizeService($('service').value);
-    if(!allowed.has(current)){
-      const fallbackChip = chips.find((chip) => !chip.hidden && !chip.disabled);
-      if(fallbackChip){
-        $('service').value = normalizeService(fallbackChip.dataset.service);
-      }
-    }
+    if(current && !allowed.has(current)) selectService('');
     setSecondaryRideOptionsExpanded($('toggleMoreRideOptions')?.getAttribute('aria-expanded')==='true');
   }
 
@@ -1321,9 +1348,9 @@
     const reviewServiceChip = Array.from(serviceChips?.querySelectorAll('.chip') || []).find((chip) => normalizeService(chip.dataset.service) === reviewServiceValue);
     const reviewServiceLabel = String(reviewServiceChip?.querySelector('.serviceCardName')?.textContent || reviewServiceChip?.textContent || reviewServiceValue || '-').trim();
     if($('reviewRider')) $('reviewRider').textContent = String($('name')?.value || '-').trim() || '-';
-    if($('reviewRoute')) $('reviewRoute').textContent = `${String($('pickup')?.value || '-').trim() || '-'} to ${getRouteDestinations().join(' → ') || '-'}`;
+    if($('reviewRoute')) $('reviewRoute').textContent = `${String($('pickup')?.value || '-').trim() || '-'} to ${getRouteDestinations().join(' ? ') || '-'}`;
     if($('reviewSchedule')) $('reviewSchedule').textContent = `${String($('tripDate')?.value || '-')} at ${String(appointmentTimeInput?.value || '-')}`;
-    if($('reviewScheduleSummary')) $('reviewScheduleSummary').textContent = `${String($('tripDate')?.value || 'Date pending')} at ${String(appointmentTimeInput?.value || 'time pending')} · Pickup estimate ${String($('tripTime')?.value || 'pending')}`;
+    if($('reviewScheduleSummary')) $('reviewScheduleSummary').textContent = `${String($('tripDate')?.value || 'Date pending')} at ${String(appointmentTimeInput?.value || 'time pending')} � Pickup estimate ${String($('tripTime')?.value || 'pending')}`;
     if($('rideSchedulePillText')) $('rideSchedulePillText').textContent = $('tripTime')?.value ? `Pickup ${String($('tripTime').value)}` : 'Scheduled pickup';
     if($('rideRiderPillText')) $('rideRiderPillText').textContent = String($('name')?.value || 'For rider').trim() || 'For rider';
     if($('reviewService')) $('reviewService').textContent = reviewServiceLabel;
@@ -1511,7 +1538,7 @@
       segment.setAttribute('aria-label',`${labels[index]}${available?'':' unavailable'}`);
     });
     Array.from(journeySegments?.querySelectorAll('.journeyStep')||[]).forEach((segment,index)=>{segment.classList.toggle('complete',index<step-1);segment.classList.toggle('current',index===step-1);});
-    if(journeyHeaderAction){journeyHeaderAction.dataset.target=targetId;journeyHeaderAction.dataset.focus=focusId;journeyHeaderAction.textContent=step===5?'Continue to booking ↓':`Continue to ${labels[step].toLowerCase()} ↓`;}
+    if(journeyHeaderAction){journeyHeaderAction.dataset.target=targetId;journeyHeaderAction.dataset.focus=focusId;journeyHeaderAction.textContent=step===5?'Continue to booking ?':`Continue to ${labels[step].toLowerCase()} ?`;}
   }
 
   function currentDraftStep(){
@@ -1756,6 +1783,7 @@
       riderDetailsConfirmed=false;
       if(insuranceCarrierField) insuranceCarrierField.hidden=false;
       if(insuranceCarrier) insuranceCarrier.required=true;
+      if($('insuranceCarrierRequiredMark')) $('insuranceCarrierRequiredMark').hidden=false;
       insuranceCarrierField?.scrollIntoView({behavior:'smooth',block:'center'});
       insuranceCarrier?.focus();
       syncSectionProgressUi();
@@ -1982,6 +2010,7 @@
   function normalizeService(value){
     const raw = String(value || '').trim().toLowerCase();
     if(!raw) return '';
+    if(raw === 'additional capacity' || raw === 'additional_capacity') return 'bariatric';
     if(raw === 'cct' || raw.includes('critical') || raw.includes('high-acuity') || raw.includes('high acuity') || raw.includes('icu')) return 'facility_transfer_critical';
     if(raw.includes('interfacility') && (raw.includes('als') || raw.includes('critical') || raw.includes('icu') || raw.includes('cct'))) return 'facility_transfer_critical';
     if(raw === 'ift' || raw === 'interfacility') return 'facility_transfer';
@@ -2149,7 +2178,7 @@
         const banner=document.createElement('div');
         banner.id='testModeBanner';
         banner.setAttribute('role','status');
-        banner.textContent='TEST MODE — bookings and payments are simulated';
+        banner.textContent='TEST MODE � bookings and payments are simulated';
         banner.style.cssText='position:sticky;top:0;z-index:10000;padding:9px 12px;background:#fff3cd;color:#5f4500;border-bottom:1px solid #e6c65c;text-align:center;font:800 12px/1.3 Sora,sans-serif;letter-spacing:.03em';
         document.body.prepend(banner);
         document.body.classList.add('nexusTestMode');
@@ -2431,8 +2460,8 @@
     const mode = ['deposit','full'].includes(paymentMode) ? paymentMode : 'full';
     const button = mode === 'deposit' ? payDepositBtn : payFullBtn;
     const idleText = mode === 'deposit'
-      ? `Pay 25% Deposit — $${(Math.round(Math.round(currentBookingFare * 100) / 4) / 100).toFixed(2)}`
-      : `Pay in Full — $${currentBookingFare.toFixed(2)}`;
+      ? `Pay 25% Deposit � $${(Math.round(Math.round(currentBookingFare * 100) / 4) / 100).toFixed(2)}`
+      : `Pay in Full � $${currentBookingFare.toFixed(2)}`;
     const busyText = mode === 'deposit' ? 'Opening deposit checkout...' : 'Opening full payment checkout...';
     setBusy(button, true, busyText, idleText);
     const fallbackNotice = resolvedProvider !== provider ? ` (using ${resolvedProvider === 'stripe' ? 'Stripe' : 'Square'})` : '';
@@ -3158,19 +3187,16 @@
     const destinations = getRouteDestinations();
     const destination = destinations[destinations.length - 1] || '';
     const service = normalizeService($('service').value);
+    const estimateService = service || 'ambulatory';
     const tripDate = $('tripDate').value;
     const fareTime = resolveFareTimeForEstimate();
 
-    if(!service){
-      setStatus('Select a ride type before estimating fare.', 'err');
-      syncSectionProgressUi();
-      return estimateState;
-    }
-
     if(!pickup || !destination){
       markDestinationUnconfirmed();
-      const breakdown = calculateFareBreakdown(service, 0, tripDate, fareTime, { durationMinutes: 0, trafficDurationMinutes: 0 });
-      renderFareEstimateBreakdown(breakdown, 0, '-', 0, 0);
+      if(service){
+        const breakdown = calculateFareBreakdown(service, 0, tripDate, fareTime, { durationMinutes: 0, trafficDurationMinutes: 0 });
+        renderFareEstimateBreakdown(breakdown, 0, '-', 0, 0);
+      }
       setStatus('Enter pickup and destination stops to estimate route miles.', 'err');
       syncSectionProgressUi();
       return estimateState;
@@ -3221,7 +3247,7 @@
       if(trafficText && trafficDurationMinutes > durationMinutes){
         durationText = `${durationText} (traffic ${trafficText})`;
       }
-      const outboundPlan=getSmartTimingPlan(service,{miles,durationMinutes,trafficDurationMinutes});
+      const outboundPlan=getSmartTimingPlan(estimateService,{miles,durationMinutes,trafficDurationMinutes});
       const routeBooking={pickup,destinations,tripType:tripType?.value,date:tripDate,time:fareTime,returnTripDate:returnTripDate?.value,returnTripTime:returnTripTime?.value,timingPlan:outboundPlan,smartTiming:fareRules.smartTiming?.enabled};
       const provider=NexusRoute.googleProvider(google.maps,routeBooking);
       let timedOutboundResult;
@@ -3249,24 +3275,32 @@
         const fallbackDurationMinutes = fallbackLegTravelMinutes.reduce((sum, minutes) => sum + minutes, 0);
         routeLegTravelMinutes = fallbackLegTravelMinutes;
         routeStopMetrics = fallbackLegMetrics;
-        const fallbackBreakdown = calculateFareBreakdown(service, fallbackMiles, tripDate, fareTime, { durationMinutes: fallbackDurationMinutes, trafficDurationMinutes: fallbackDurationMinutes });
-        renderFareEstimateBreakdown(fallbackBreakdown, fallbackMiles, `Estimated locally (~${fallbackDurationMinutes} min)`, fallbackDurationMinutes, fallbackDurationMinutes);
-        setStatus('Your route and fare were estimated using the available location information.', 'ok');
+        estimateState.miles=fallbackMiles;estimateState.durationMinutes=fallbackDurationMinutes;estimateState.trafficDurationMinutes=fallbackDurationMinutes;estimateState.durationText=`Estimated locally (~${fallbackDurationMinutes} min)`;
+        if(service){
+          const fallbackBreakdown = calculateFareBreakdown(service, fallbackMiles, tripDate, fareTime, { durationMinutes: fallbackDurationMinutes, trafficDurationMinutes: fallbackDurationMinutes });
+          renderFareEstimateBreakdown(fallbackBreakdown, fallbackMiles, estimateState.durationText, fallbackDurationMinutes, fallbackDurationMinutes);
+        }else renderRideMarketplace();
+        setStatus(service?'Your route and fare were estimated using the available location information.':'Route measured. Select a service type to calculate its fare.', 'ok');
         syncSectionProgressUi();
         return estimateState;
       }
       markDestinationUnconfirmed();
-      const fallbackBreakdown = calculateFareBreakdown(service, 0, tripDate, fareTime, { durationMinutes: 0, trafficDurationMinutes: 0 });
-      renderFareEstimateBreakdown(fallbackBreakdown, 0, '-', 0, 0);
+      if(service){const fallbackBreakdown = calculateFareBreakdown(service, 0, tripDate, fareTime, { durationMinutes: 0, trafficDurationMinutes: 0 });renderFareEstimateBreakdown(fallbackBreakdown, 0, '-', 0, 0);}
       setStatus('We could not calculate this route. Check the addresses or call (888) 760-4990 for booking help.', 'err');
       syncSectionProgressUi();
       return estimateState;
     }
 
-    const breakdown = calculateFareBreakdown(service, miles, tripDate, fareTime, { durationMinutes, trafficDurationMinutes });
-    renderFareEstimateBreakdown(breakdown, miles, durationText || '-', durationMinutes, trafficDurationMinutes);
+    estimateState.miles=miles;estimateState.durationMinutes=durationMinutes;estimateState.trafficDurationMinutes=trafficDurationMinutes;estimateState.durationText=durationText||'-';
+    if(service){
+      const breakdown = calculateFareBreakdown(service, miles, tripDate, fareTime, { durationMinutes, trafficDurationMinutes });
+      renderFareEstimateBreakdown(breakdown, miles, durationText || '-', durationMinutes, trafficDurationMinutes);
+      setStatus('Route and fare estimate updated.', 'ok');
+    }else{
+      renderRideMarketplace();
+      setStatus('Route measured. Select a service type to calculate its fare.', 'ok');
+    }
     renderMultiStopFeasibility();
-    setStatus('Route and fare estimate updated.', 'ok');
     syncSectionProgressUi();
     saveBookingDraft();
     return estimateState;
@@ -3309,7 +3343,7 @@
       appointmentTimeInput.value=timeInput.value;
       $('tripDate').dispatchEvent(new Event('change',{bubbles:true}));
       appointmentTimeInput.dispatchEvent(new Event('change',{bubbles:true}));
-      if(message)message.textContent='Recalculating your pickup time and fare…';
+      if(message)message.textContent='Recalculating your pickup time and fare�';
       try{
         await estimateRouteAndFare({promptConfirmation:false});
         applyPickupEstimateFromAppointment();
@@ -3510,6 +3544,7 @@
     const allowed = allowedServicesForRole(currentUserRole);
     if(!clean){
       $('service').value = '';
+      setServiceValidationError(false);
       serviceChips.querySelectorAll('.chip').forEach((chip) => {
         chip.classList.remove('active');
         chip.setAttribute('aria-pressed', 'false');
@@ -3520,12 +3555,13 @@
       return;
     }
     if(!allowed.has(clean)){
-      const fallback = Array.from(allowed)[0] || 'ambulatory';
-      $('service').value = fallback;
-      setLoginMessage('This role cannot book that ride type.', true);
-      return selectService(fallback);
+      $('service').value = '';
+      setLoginMessage('This role cannot book that ride type. Choose an available service.', true);
+      setServiceValidationError(true);
+      return false;
     }
     $('service').value = clean;
+    setServiceValidationError(false);
     const selectedServiceChip = serviceChips.querySelector(`[data-service="${clean}"]`);
     if(selectedServiceChip?.classList.contains('secondaryRideOption')) setSecondaryRideOptionsExpanded(true);
     expandedSections.delete('rideTypeSection');
@@ -3588,13 +3624,15 @@
         lyingDown: document.querySelector('input[name="quickLyingDown"]:checked')?.value || 'no',
         extraSpace: document.querySelector('input[name="quickExtraSpace"]:checked')?.value || 'no'
       };
-      const recommendation = window.NexusServiceGuidance?.recommendRideType(answers);
+      const recommendation = window.NexusServiceGuidance?.recommendRideType(answers,allowedServicesForRole(currentUserRole));
       if(!recommendation) return;
-      selectService(recommendation.service);
-      const chip = serviceChips.querySelector(`[data-service="${recommendation.service}"]`);
+      const allowed=allowedServicesForRole(currentUserRole);
+      const recommendationService=allowed.has(normalizeService(recommendation.service))?normalizeService(recommendation.service):'ambulatory';
+      selectService(recommendationService);
+      const chip = serviceChips.querySelector(`[data-service="${recommendationService}"]`);
       const label = String(chip?.querySelector('.serviceCardName')?.textContent || chip?.textContent || recommendation.service).trim();
       if(mobilityRecommendation) mobilityRecommendation.textContent = `Recommended: ${label}. ${recommendation.reason}`;
-      window.nexusTrack?.('booking_mobility_recommendation', { service_type: recommendation.service });
+      window.nexusTrack?.('booking_mobility_recommendation', { service_type: recommendationService });
     };
     mobilityQuestions?.querySelectorAll('input[type="radio"]').forEach((input) => input.addEventListener('change', applyQuickRecommendation));
   }
@@ -3691,10 +3729,10 @@
 
   function renderManifestCard(booking){
     const card=document.createElement('article');card.className='tripManifestCard';
-    const title=document.createElement('h3');title.textContent=`${booking?.date||'Date pending'} · ${booking?.reference||booking?.id||'Trip'}`;
+    const title=document.createElement('h3');title.textContent=`${booking?.date||'Date pending'} � ${booking?.reference||booking?.id||'Trip'}`;
     const status=document.createElement('span');status.className='tripStatusPill';status.textContent=booking?.statusLabel||booking?.status||'Pending';
-    const route=document.createElement('p');route.className='tripManifestMeta';route.textContent=[booking?.pickup,booking?.destination].filter(Boolean).join(' → ')||'Route pending';
-    const time=document.createElement('p');time.className='tripManifestMeta';time.textContent=`Pickup: ${booking?.time||'-'} · ${String(booking?.service||'Ride').replaceAll('_',' ')}`;
+    const route=document.createElement('p');route.className='tripManifestMeta';route.textContent=[booking?.pickup,booking?.destination].filter(Boolean).join(' ? ')||'Route pending';
+    const time=document.createElement('p');time.className='tripManifestMeta';time.textContent=`Pickup: ${booking?.time||'-'} � ${String(booking?.service||'Ride').replaceAll('_',' ')}`;
     const reuse=document.createElement('button');reuse.type='button';reuse.className='ghost reuseRouteBtn';reuse.textContent='Book this route again';reuse.addEventListener('click',()=>reuseTripRoute(booking));
     card.append(title,status,route,time,reuse);return card;
   }
@@ -3709,7 +3747,7 @@
   async function loadTripManifest(){
     const signedIn=Boolean(token());if(signedInManifest)signedInManifest.hidden=!signedIn;if(guestManifestLookup)guestManifestLookup.hidden=signedIn;
     if(!signedIn)return;
-    if(tripManifestList){tripManifestList.replaceChildren();const loading=document.createElement('p');loading.className='subtle';loading.textContent='Loading your trips…';tripManifestList.append(loading);}
+    if(tripManifestList){tripManifestList.replaceChildren();const loading=document.createElement('p');loading.className='subtle';loading.textContent='Loading your trips�';tripManifestList.append(loading);}
     try{const r=await fetch('/api/portal/trips',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Unable to load trips');manifestTrips=Array.isArray(data.trips)?data.trips:[];renderSignedInManifest();}catch(err){if(tripManifestList){tripManifestList.replaceChildren();const error=document.createElement('p');error.className='subtle';error.textContent=String(err.message||'Unable to load trips');tripManifestList.append(error);}}
   }
 
@@ -3762,7 +3800,7 @@
   async function lookupGuestManifest(){
     const reference=String($('manifestReference')?.value||'').trim();const phone=formatPhone(String($('manifestPhone')?.value||''));const message=$('manifestLookupMessage');
     if(!reference||!phone){if(message)message.textContent='Enter the booking reference and phone number.';return;}
-    if(message)message.textContent='Finding your trip…';if(guestManifestResult)guestManifestResult.replaceChildren();
+    if(message)message.textContent='Finding your trip�';if(guestManifestResult)guestManifestResult.replaceChildren();
     try{const r=await fetch(`/api/bookings/${encodeURIComponent(reference)}?phone=${encodeURIComponent(phone)}`,{cache:'no-store'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Trip not found');if(guestManifestResult)guestManifestResult.append(renderManifestCard(data.booking));if(message)message.textContent='Trip found.';}catch(err){if(message)message.textContent=String(err.message||'Unable to find trip.');}
   }
 
@@ -3794,15 +3832,19 @@
     getRideRecommendationBtn?.addEventListener('click',()=>{
       const answers={};
       rideGuidanceForm.querySelectorAll('input[type="radio"]:checked').forEach((input)=>{answers[input.name]=input.value;});
-      const recommendation=window.NexusServiceGuidance?.recommendRideType(answers);
-      if(!recommendation) return;
+      const allowed=allowedServicesForRole(currentUserRole);
+      const rawRecommendation=window.NexusServiceGuidance?.recommendRideType(answers,allowed);
+      if(!rawRecommendation) return;
+      const recommendationService=allowed.has(normalizeService(rawRecommendation.service))?normalizeService(rawRecommendation.service):'ambulatory';
+      const unavailable=!allowed.has(normalizeService(rawRecommendation.service));
+      const recommendation={...rawRecommendation,service:recommendationService,reason:unavailable?`${rawRecommendation.reason} That option is unavailable for this account; Ambulatory is the closest available service.`:rawRecommendation.reason};
       recommendedRideService=recommendation.service;
       const label=serviceChips.querySelector(`[data-service="${recommendation.service}"] .serviceCardName`)?.textContent || recommendation.service;
       $('rideGuidanceRecommendation').textContent=`Recommended: ${label}`;
       $('rideGuidanceReason').textContent=`Why it may fit: ${recommendation.reason}`;
       $('rideGuidanceResult').hidden=false; useRideRecommendationBtn.hidden=false;
     });
-    useRideRecommendationBtn?.addEventListener('click',()=>{if(!recommendedRideService)return;selectService(recommendedRideService);rideGuidanceDialog.close();serviceChips.querySelector(`[data-service="${recommendedRideService}"]`)?.focus();});
+    useRideRecommendationBtn?.addEventListener('click',()=>{if(!recommendedRideService||!allowedServicesForRole(currentUserRole).has(normalizeService(recommendedRideService))){recommendedRideService='';return;}selectService(recommendedRideService);rideGuidanceDialog.close();serviceChips.querySelector(`[data-service="${recommendedRideService}"]`)?.focus();});
     $('closeRideGuidanceBtn')?.addEventListener('click',()=>rideGuidanceDialog.close());
   }
 
@@ -3902,6 +3944,11 @@
   async function performBookingSubmission(){
     clearStatus();
     setBookingOutcome('', 'pending');
+    if(!validateRequiredService({focus:true})){
+      setStatus('Service type is required. Select a service to continue.', 'err');
+      setBookingOutcome('Action required before booking', 'pending');
+      return;
+    }
     updateFareConfirmationState();
     if(!fareEstimateSignature||confirmedFareSignature!==fareEstimateSignature||!fareSubmissionAuthorized){
       fareSubmissionAuthorized=false;
@@ -3929,7 +3976,7 @@
       recurrenceEndDate: String(recurrenceEndDate?.value || '').trim(),
       service: normalizeService($('service').value),
       pickup: $('pickup').value.trim(),
-      destination: routeDestinations.length > 1 ? routeDestinations.join(' → ') : String(routeDestinations[0] || '').trim(),
+      destination: routeDestinations.length > 1 ? routeDestinations.join(' ? ') : String(routeDestinations[0] || '').trim(),
       flightInfo: getFlightDetailsPayload(),
       destinations: routeDestinations,
       multipleStops: routeDestinations.length > 1,
@@ -4068,7 +4115,7 @@
       const coverageNotAvailable = data.coverageNotAvailable === true;
       const bookingStatus = String(data.booking?.status || '').toUpperCase().replaceAll('-', '_');
       const isPending = requiresDeposit || pendingApproval || data.persisted === false || r.status === 202 || bookingStatus === 'PENDING' || bookingStatus === 'PENDING_PAYMENT' || bookingStatus === 'PENDING_APPROVAL';
-      const outcomeText = coverageNotAvailable ? 'Medicare not generally covered — self-pay required' : requiresDeposit ? '25% deposit required to confirm booking' : pendingApproval ? 'Booking Pending Approval' : isPending ? 'Booking Pending' : 'Booking Confirmed';
+      const outcomeText = coverageNotAvailable ? 'Medicare not generally covered � self-pay required' : requiresDeposit ? '25% deposit required to confirm booking' : pendingApproval ? 'Booking Pending Approval' : isPending ? 'Booking Pending' : 'Booking Confirmed';
       const popupMessage = confirmationMessage || `Booking created. Reference: ${ref}`;
       if(data.requiresOnlinePayment===false){
         window.NexusTripPopup?.show({
@@ -4228,7 +4275,7 @@
     syncRiderIdentityMode();
     applyAuthUi();
     refreshFareForMembership();
-    selectService('ambulatory');
+    selectService('');
   }
 
   async function signupFromBookingApp(){
@@ -4434,7 +4481,7 @@
     bindBookingNudge();
     bindAccessibilityControls();
     bindRideGuidance();
-    const syncInsuranceCarrierUi=()=>{const isPrivateInsurance=String(payerType?.value||'').toUpperCase()==='INSURANCE';if(insuranceCarrierField)insuranceCarrierField.hidden=!isPrivateInsurance;if(insuranceCarrier){insuranceCarrier.required=isPrivateInsurance;if(!isPrivateInsurance)insuranceCarrier.value='';}riderDetailsConfirmed=false;};
+    const syncInsuranceCarrierUi=()=>{const isPrivateInsurance=String(payerType?.value||'').toUpperCase()==='INSURANCE';if(insuranceCarrierField)insuranceCarrierField.hidden=!isPrivateInsurance;if(insuranceCarrier){insuranceCarrier.required=isPrivateInsurance;if(!isPrivateInsurance)insuranceCarrier.value='';}const marker=$('insuranceCarrierRequiredMark');if(marker)marker.hidden=!isPrivateInsurance;riderDetailsConfirmed=false;};
     payerType?.addEventListener('change',()=>{syncInsuranceCarrierUi();syncSectionProgressUi();});
     insuranceCarrier?.addEventListener('change',()=>{riderDetailsConfirmed=false;syncSectionProgressUi();});
     syncInsuranceCarrierUi();
@@ -4506,7 +4553,8 @@
       const continueButton=$('continueRideBtn');
       if(!riderDetailsConfirmed){setStatus('Confirm the rider details first.','err');revealSectionForAction('riderDetailsSection','name');return;}
       if(!destinationConfirmed){setStatus('Confirm the pickup and destination first.','err');revealSectionForAction('pickupDropoffSection','pickup');return;}
-      if(!normalizeService($('service')?.value)||!$('tripDate')?.value||!isPrimaryScheduleInputComplete()){setStatus(isMultipleStopsEnabled()?'Choose a ride and enter the appointment time for every stop.':'Choose a ride and enter either a pickup or appointment time.','err');return;}
+      if(!normalizeService($('service')?.value)){validateRequiredService({focus:true});setStatus('Service type is required. Select a service to continue.','err');return;}
+      if(!$('tripDate')?.value||!isPrimaryScheduleInputComplete()){setStatus(isMultipleStopsEnabled()?'Choose a ride and enter the appointment time for every stop.':'Choose a ride and enter either a pickup or appointment time.','err');return;}
       const feasibility=renderMultiStopFeasibility();
       if(isMultipleStopsEnabled()&&!feasibility.feasible&&!feasibility.pending){setStatus(feasibility.message,'err');return;}
       rideChoiceConfirmed=true;

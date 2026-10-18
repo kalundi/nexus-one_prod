@@ -9,7 +9,7 @@ Starting allowances are operational assumptions supplied for Nexus planning, not
 | Ambulatory | 10 min | 10 min |
 | Wheelchair | 30 min | 20 min |
 | Stretcher | 40 min | 30 min |
-| Additional Capacity | 45 min | 35 min |
+| Bariatric | 45 min | 35 min |
 | Broda | 35 min | 25 min |
 | Hospital discharge | 20 min | 20 min |
 | Routine facility transfer | 30 min | 20 min |
@@ -45,4 +45,4 @@ Driver milestones distinguish patient ready from patient secured. GPS arrival do
 
 Migration `087.001` creates profiles/identity cache, appointment-date and timing-plan fields and enables shared smart timing. Verification covers real PostgreSQL migration/history/availability queries, booking-to-fare parity, handoff/appointment deadlines, overnight dates, receiving hours, peak boundaries, round trips, multiple stops and mobile layout.
 
-Service speed model: cruising ceilings preserve Google city and traffic estimates. With the default 65 mph baseline, wheelchair is capped at 55 mph, stretcher at 45 mph, ambulance services at 40 mph and Additional Capacity at 30 mph. These are planning assumptions, not speed limits. A 9-mile, 25-minute city route is not reduced to a near-zero speed. Only actual care and driving milestones produce progress-based delay warnings; scheduled and assigned updates do not.
+Service speed model: cruising ceilings preserve Google city and traffic estimates. With the default 65 mph baseline, wheelchair is capped at 55 mph, stretcher at 45 mph, ambulance services at 40 mph and Bariatric service at 30 mph. These are planning assumptions, not speed limits. A 9-mile, 25-minute city route is not reduced to a near-zero speed. Only actual care and driving milestones produce progress-based delay warnings; scheduled and assigned updates do not.
