@@ -1,4 +1,4 @@
-import {cp,mkdir,rm,readdir,access} from 'node:fs/promises';import path from 'node:path';import {spawn} from 'node:child_process';
+import {cp,mkdir,rm,readdir,access,readFile,writeFile} from 'node:fs/promises';import path from 'node:path';import {spawn} from 'node:child_process';
 const root=process.cwd(),dist=path.resolve(root,process.env.NEXUS_BUILD_DIR||'dist');
 const relative=path.relative(root,dist);
 if(!relative||relative.startsWith('..')||path.isAbsolute(relative))throw Error('Build destination must be a child of the workspace');
@@ -11,6 +11,18 @@ for(const item of await readdir(root,{withFileTypes:true})){
  await cp(path.join(root,item.name),path.join(dist,item.name),{recursive:true});
 }
 try{await access(path.join(root,'__deploy_temp','index.html'));await cp(path.join(root,'__deploy_temp','index.html'),path.join(dist,'index.html'));console.log('Root index.html created from __deploy_temp.');}catch(e){console.warn('No deploy-temp index.html found; root entry page was not generated.');}
+// Install the small offline recovery client on every published top-level page.
+// It registers the worker that can serve the cached recovery page on a later
+// visit when the origin is unreachable or returns a server error.
+for(const item of await readdir(dist,{withFileTypes:true})){
+ if(!item.isFile()||!item.name.toLowerCase().endsWith('.html'))continue;
+ const file=path.join(dist,item.name);
+ let html=await readFile(file,'utf8');
+ if(!html.includes('/offline-resilience.js')){
+  html=html.replace(/<\/body>/i,'<script src="/offline-resilience.js" defer></script></body>');
+  await writeFile(file,html);
+ }
+}
 console.log('Static application copied to dist.');
 // Patch Google Maps API key configuration
 try{await new Promise((resolve,reject)=>{const proc=spawn('node',['scripts/patch-google-maps.mjs'],{cwd:root,stdio:'inherit'});proc.on('exit',code=>code===0?resolve():reject(new Error(`Patch script exited with code ${code}`)))});}catch(e){console.warn('Note: Google Maps patching incomplete -',e.message);}
