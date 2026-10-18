@@ -126,7 +126,7 @@
     .patientDefaultsHead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.patientDefaultsHead h2{margin:4px 0 5px;font:800 18px/1.2 Sora,sans-serif;color:#10324a}.patientDefaultsHead p{margin:0;color:#526579;font-size:13px}.patientDefaultsBadge{flex:0 0 auto;padding:5px 9px;border-radius:999px;background:#d9f3ee;color:#076b61;font:800 10px/1 Sora,sans-serif;letter-spacing:.07em;text-transform:uppercase}.patientDefaultsList{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.patientDefaultsList span{padding:7px 10px;border:1px solid #cce3e3;border-radius:999px;background:#fff;color:#174456;font:800 11px/1.2 Sora,sans-serif}.patientDefaultsActions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:13px}.patientDefaultsActions small{color:#526579}.patientDefaultsActions a{color:#087f8c;font:800 12px Sora,sans-serif;text-underline-offset:3px}
     @media(max-width:520px){.patientDefaultsHead,.patientDefaultsActions{display:grid}.patientDefaultsBadge{justify-self:start}.patientDefaultsList span{width:100%;border-radius:9px}}
     .journeyHeader{position:sticky;top:0;z-index:60;width:100%;height:48px;padding:6px 10px;border-bottom:2px solid #d7263d;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.12);transition:height .15s ease,padding .15s ease}
-    .journeySteps{height:100%;display:flex;align-items:center;justify-content:center;gap:5px}.journeyStep{min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 8px;border:1px solid #d7dee5;border-radius:999px;background:#f5f6f7;color:#536170;font:800 10px/1 Sora,sans-serif;transition:padding .15s ease,gap .15s ease,background .15s ease}.journeyStepIcon{font-size:13px}.journeyStepNumber{display:none}.journeyStep.current{border:2px solid #d7263d;color:#9f1328;background:#fff}.journeyStep.complete{border-color:#d7263d;background:#d7263d;color:#fff}.journeyStep.complete .journeyStepIcon{font-size:0}.journeyStep.complete .journeyStepIcon::after{content:'?';font-size:13px}.journeyConnector{flex:1 1 16px;max-width:34px;height:1px;background:#ccd4dc}.journeyHeaderButton{display:none}
+    .journeySteps{height:100%;display:flex;align-items:center;justify-content:center;gap:5px}.journeyStep{min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 8px;border:1px solid #d7dee5;border-radius:999px;background:#f5f6f7;color:#536170;font:800 10px/1 Sora,sans-serif;transition:padding .15s ease,gap .15s ease,background .15s ease}.journeyStepIcon{font-size:13px}.journeyStepNumber{display:none}.journeyStep.current{border:2px solid #d7263d;color:#9f1328;background:#fff}.journeyStep.complete{border-color:#d7263d;background:#d7263d;color:#fff}.journeyStep.complete .journeyStepIcon{font-size:0}.journeyStep.complete .journeyStepIcon::after{content:'✓';font-size:13px}.journeyConnector{flex:1 1 16px;max-width:34px;height:1px;background:#ccd4dc}.journeyHeaderButton{display:none}
     .journeyHeader.compact{height:32px;padding:3px 10px;box-shadow:0 4px 12px rgba(15,23,42,.18)}.journeyHeader.compact .journeyStep{padding:3px 6px;gap:2px}.journeyHeader.compact .journeyStepLabel{width:0;opacity:0;overflow:hidden}.journeyHeader.compact .journeyStepNumber{display:inline}.journeyHeader.compact .journeyConnector{max-width:22px}
     .section{
       background:var(--sheet);
@@ -325,7 +325,7 @@
     body.bookingUberFlow #serviceCatalogDetails>summary{display:none}
     body.bookingUberFlow #serviceCatalogDetails{display:block;margin-top:0}
     .rideSheetToggle{width:42px;height:34px;padding:0;display:grid;place-items:center;border:0;background:#eef2f5;color:#102f43;border-radius:999px;font-size:20px;line-height:1}
-    .rideSheetToggle::before{content:'?'}
+    .rideSheetToggle::before{content:'⌄'}
     .rideContextBar{display:flex;gap:8px;margin:0 0 10px}.rideContextPill{min-height:36px;padding:8px 11px;border:1px solid #d8e1e8;border-radius:999px;background:#f4f6f8;color:#102f43;font:800 11px/1.2 Sora,sans-serif;display:flex;align-items:center;gap:7px}.rideContextPill svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
     body.bookingRideMarketplaceView .phone,body.bookingReviewMapView .phone,body.bookingPaymentMapView .phone{padding-bottom:84px;background:transparent!important;border-color:transparent!important;box-shadow:none!important}
     body.bookingRideMarketplaceView #telemetrySection,body.bookingReviewMapView #telemetrySection,body.bookingPaymentMapView #telemetrySection{position:fixed;top:var(--booking-map-top,140px);right:0;bottom:var(--booking-map-bottom,64px);left:0;z-index:8;width:min(780px,calc(100% - 40px));margin:auto!important;display:block!important;background:#dbe7eb!important;border-top:0!important;border-radius:0!important;overflow:hidden;isolation:isolate;transition:height .2s ease,bottom .2s ease}
@@ -341,7 +341,7 @@
     body.bookingRideMarketplaceView.rideSheetCollapsed #rideTypeSection{height:30px;max-height:30px;padding:5px 0 0;overflow:hidden;border-radius:16px 16px 0 0}
     body.bookingRideMarketplaceView.rideSheetCollapsed #rideTypeSection>:not(.rideSheetHandle){display:none!important}
     body.bookingRideMarketplaceView.rideSheetCollapsed #continueRideBtn{display:none!important}
-    body.bookingRideMarketplaceView.rideSheetCollapsed .rideSheetToggle::before{content:'^'}
+    body.bookingRideMarketplaceView.rideSheetCollapsed .rideSheetToggle::before{content:'⌃'}
     body.bookingRideMarketplaceView.rideSheetCollapsed .rideMarketplaceIntro{margin-bottom:0}
     body.bookingReviewMapView #fareSummarySection{position:fixed;left:50%;bottom:70px;z-index:45;width:min(820px,100%);min-height:0!important;max-height:min(62dvh,590px);margin:0;overflow:auto;transform:translateX(-50%);border-radius:22px 22px 0 0;box-shadow:0 -12px 32px rgba(8,26,44,.24)}
     body.bookingReviewMapView #fareSummarySection::before{content:'';display:block;width:42px;height:5px;margin:0 auto 10px;border-radius:999px;background:#c8d0d6}
@@ -366,7 +366,7 @@
     .fareReviewActions{display:grid;grid-template-columns:minmax(0,1fr) minmax(145px,auto);gap:10px;margin-top:12px}.fareReviewActions .fareConfirmLauncher{margin:0}.scheduleRideIconBtn{min-height:48px;padding:8px 13px;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid #9eb8c7;border-radius:12px;background:#fff;color:#102f43;font:800 12px/1.2 Sora,sans-serif}.scheduleRideIconBtn svg{width:21px;height:21px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.scheduleSummary{margin:0;padding:11px 12px;border-radius:10px;background:#edf6f8;color:#214b5c;font:800 13px/1.4 Sora,sans-serif}.scheduleEditGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.scheduleEditGrid .field{margin:0}.scheduleEditGrid input{width:100%;box-sizing:border-box}.scheduleEditMessage{min-height:18px;margin:0;color:#9a3412;font-weight:700}.fareTrustHeader{display:flex;justify-content:space-between;align-items:start;gap:14px}.fareTrustEyebrow{display:block;color:#08746f;font:900 11px/1.3 Sora,sans-serif;letter-spacing:.08em;text-transform:uppercase}.fareTrustTitle{margin:3px 0 0;color:#0b2f4a;font:800 21px/1.2 Sora,sans-serif}.fareTrustMessage{margin:2px 0 4px;color:#476579;font:600 13px/1.45 'Nunito Sans',sans-serif}.fareAssurances{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:4px}.fareAssurance{padding:8px;border:1px solid #c8e2df;border-radius:10px;background:#f3fbfa;color:#24565a;font:800 11px/1.25 Sora,sans-serif;text-align:center}.fareEstimateNote{margin:2px 0 0;color:#587080;font:600 11px/1.35 'Nunito Sans',sans-serif}
     @media (max-width:600px){body.bookingRideMarketplaceView #telemetrySection,body.bookingReviewMapView #telemetrySection,body.bookingPaymentMapView #telemetrySection,body.bookingRideMarketplaceView #rideTypeSection,body.bookingReviewMapView #fareSummarySection,body.bookingPaymentMapView #paymentSection,body.bookingRideMarketplaceView .appTabBar,body.bookingReviewMapView .appTabBar,body.bookingPaymentMapView .appTabBar{width:100%}body.bookingRideMarketplaceView #rideTypeSection{max-height:min(58dvh,510px);padding:10px 12px 12px}.rideMarketplaceIntro{align-items:center}.rideMarketplaceIntro h2{font-size:18px}.rideMarketplaceIntro span{font-size:10px}.rideMarketplace .serviceCard{min-height:72px;padding:10px}.rideMarketplace .serviceCard.active{padding:8px}.serviceCardIcon{width:40px;height:40px}.rideContextBar{overflow-x:auto;scrollbar-width:none}.rideContextPill{flex:0 0 auto}.rideSheetToggle{display:none}}
     .rideTypeHeading{display:flex;align-items:center;justify-content:space-between;gap:10px}.rideTypeHeading h2{margin:0}.helpChooseBtn{padding:9px 11px;font-size:12px;white-space:nowrap}
-    .accessibilityBar{margin:8px 0;border:1px solid #cfe0ea;border-radius:13px;background:rgba(255,255,255,.72)}.accessibilityBar summary{min-height:42px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;list-style:none;font:800 11px Sora,sans-serif;color:#496273;text-transform:uppercase;letter-spacing:.06em}.accessibilityBar summary::-webkit-details-marker{display:none}.accessibilityBar summary::after{content:'+';font:800 18px/1 Sora,sans-serif;color:#163e55}.accessibilityBar[open] summary::after{content:'-'}.accessibilityControls{display:flex;gap:6px;flex-wrap:wrap;padding:0 10px 10px}.accessibilityControls button{padding:7px 9px;border:1px solid #bfd0dc;background:#fff;color:#163e55;font-size:11px}.accessibilityControls button[aria-pressed="true"]{background:#0b3954;color:#fff;border-color:#0b3954}
+    .accessibilityBar{margin:8px 0;border:1px solid #cfe0ea;border-radius:13px;background:rgba(255,255,255,.72)}.accessibilityBar summary{min-height:42px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;list-style:none;font:800 11px Sora,sans-serif;color:#496273;text-transform:uppercase;letter-spacing:.06em}.accessibilityBar summary::-webkit-details-marker{display:none}.accessibilityBar summary::after{content:'+';font:800 18px/1 Sora,sans-serif;color:#163e55}.accessibilityBar[open] summary::after{content:'−'}.accessibilityControls{display:flex;gap:6px;flex-wrap:wrap;padding:0 10px 10px}.accessibilityControls button{padding:7px 9px;border:1px solid #bfd0dc;background:#fff;color:#163e55;font-size:11px}.accessibilityControls button[aria-pressed="true"]{background:#0b3954;color:#fff;border-color:#0b3954}
     body.accessLargeText{--text-xs:14px;--text-sm:16px;--text-md:18px;--text-lg:22px;font-size:118%}
     body.accessHighContrast{--ink:#000;--muted:#17202a;--line:#000;background:#fff;color:#000}body.accessHighContrast .phone,body.accessHighContrast .section,body.accessHighContrast .accessibilityBar{background:#fff;border-color:#000}body.accessHighContrast button,body.accessHighContrast input,body.accessHighContrast select,body.accessHighContrast textarea{border:2px solid #000}body.accessHighContrast :focus-visible{outline:4px solid #ffbf00!important;outline-offset:3px}
     body.accessReducedMotion *,body.accessReducedMotion *::before,body.accessReducedMotion *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
@@ -728,7 +728,7 @@
   <main class="phone">
     <header class="top">
       <h1><span>Book</span><a class="brandLockup brandLink" href="/" aria-label="Nexus Medical Transit home"><img class="brandLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"></a><span>Ride</span></h1>
-      <p class="topTagline">Secure booking ? Progress saved automatically ? Live trip visibility</p>
+      <p class="topTagline">Secure booking · Progress saved automatically · Live trip visibility</p>
     </header>
     <nav class="journeyHeader" id="journeyHeader" role="progressbar" aria-label="Booking progress" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1">
       <span class="srOnly">Current: <strong id="journeyCurrent">Rider</strong>. Next: <strong id="journeyNext">Route</strong>.</span>
@@ -765,7 +765,7 @@
       </div>
       <aside class="nextStepGuide" id="nextStepGuide" aria-live="polite">
         <span class="nextStepArrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4v16M6 14l6 6 6-6"/></svg></span>
-        <span class="nextStepCopy"><small>Next step</small><strong id="nextStepText">Enter the rider?s details.</strong></span>
+        <span class="nextStepCopy"><small>Next step</small><strong id="nextStepText">Enter the rider’s details.</strong></span>
         <button type="button" class="ghost" id="nextStepAction">Go</button>
       </aside>
 
@@ -1045,7 +1045,7 @@ Destination: -</p>
         <div id="routeScheduleFields">
         <div class="field" id="staffTripModeField" hidden>
           <label for="staffTripMode">Create a real or mock trip</label>
-          <select id="staffTripMode"><option value="REAL">Real trip</option><option value="MOCK">Mock trip ? pricing test only</option></select>
+          <select id="staffTripMode"><option value="REAL">Real trip</option><option value="MOCK">Mock trip — pricing test only</option></select>
           <small class="subtle">Mock trips appear in Trip Management under Mock Trips. They do not request transport or collect payment.</small>
         </div>
         <div class="field" style="margin-top:12px">
@@ -1260,7 +1260,7 @@ Destination: -</p>
         </div>
       </div>
     </form>
-    <a class="bookingHelpCall" href="tel:+18886395766" aria-label="Call Nexus for booking help"><span aria-hidden="true">?</span><span>Need help? Call Nexus</span></a>
+    <a class="bookingHelpCall" href="tel:+18886395766" aria-label="Call Nexus for booking help"><span aria-hidden="true">☎</span><span>Need help? Call Nexus</span></a>
 
     <section class="tabPanel" id="manifestTabPanel" hidden tabindex="-1" aria-labelledby="manifestTabButton">
       <section class="section">
@@ -1293,9 +1293,9 @@ Destination: -</p>
     </section>
 
     <aside class="bookingNudge" id="bookingNudge" role="status" aria-live="polite" hidden>
-      <span class="bookingNudgeIcon" aria-hidden="true">?</span>
+      <span class="bookingNudgeIcon" aria-hidden="true">→</span>
       <span class="bookingNudgeCopy"><strong>Your ride request is still in progress.</strong><span>Finish the remaining steps so Nexus can review your transportation request.</span></span>
-      <span class="bookingNudgeActions"><button type="button" class="primary" id="bookingNudgeContinue">Continue booking</button><button type="button" class="bookingNudgeDismiss" id="bookingNudgeDismiss" aria-label="Dismiss reminder">?</button></span>
+      <span class="bookingNudgeActions"><button type="button" class="primary" id="bookingNudgeContinue">Continue booking</button><button type="button" class="bookingNudgeDismiss" id="bookingNudgeDismiss" aria-label="Dismiss reminder">×</button></span>
     </aside>
 
     <nav class="appTabBar" aria-label="Booking app navigation"><button type="button" class="active" id="bookTabButton" data-app-tab="book" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Book a Ride</button><button type="button" id="manifestTabButton" data-app-tab="manifest"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Trip Manifest</button><button type="button" id="contactTabButton" data-app-tab="contact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8c1.6 3.2 3.4 5 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.2c1.1.4 2.3.6 3.6.6v3.5a1 1 0 0 1-1 1C10.7 20.1 3.9 13.3 3.9 5a1 1 0 0 1 1-1h3.5c0 1.3.2 2.5.6 3.6a1 1 0 0 1-.2 1l-2.2 2.2Z"/></svg>Contact</button></nav>
