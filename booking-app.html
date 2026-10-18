@@ -891,14 +891,14 @@
       <section class="section sectionProgressive unlocked currentBookingCard" id="riderDetailsSection">
         <h2>Rider Details</h2>
         <p class="sectionSummary" id="bookingLoginSummary">Passenger: -</p>
-        <p class="subtle" style="margin:8px 0 10px">Enter the passenger details below.</p>
+        <p class="subtle" style="margin:8px 0 10px">Enter the passenger details below. <span class="requiredMark">* Required field</span></p>
 
         <div class="field">
-          <label for="name">Passenger name</label>
+          <label for="name">Passenger name <span class="requiredMark">*</span></label>
           <input id="name" name="name" placeholder="Full name" autocomplete="name" required>
         </div>
         <div class="field">
-          <label for="phone">Phone</label>
+          <label for="phone">Phone <span class="requiredMark">*</span></label>
           <input id="phone" name="phone" type="tel" placeholder="(240) 555-0101" autocomplete="tel" required>
           <small class="subtle">By providing your number and continuing, you agree to receive transactional booking and ride texts from Nexus Medical Transit, including one reminder if an unfinished booking is inactive for five minutes. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to opt out. Consent is not a condition of purchase.</small>
         </div>
@@ -906,26 +906,17 @@
           <label for="email">Email (optional)</label>
           <input id="email" name="email" type="email" placeholder="name@example.com" autocomplete="email">
         </div>
-        <div class="riderPaymentServiceGrid">
-          <div class="field">
-            <label for="payerType">How will this ride be paid?</label>
-            <select id="payerType" name="payerType">
-              <option value="SELF_PAY">Self-pay / private pay</option>
-              <option value="INSURANCE">Private insurance (plan verification)</option>
-              <option value="MEDICARE">Medicare</option>
-              <option value="MEDICAID">Maryland Medicaid</option>
-            </select>
-          </div>
-          <div class="field" id="serviceTypeField" hidden>
-            <label for="serviceTypeSelect">Service type</label>
-            <select id="serviceTypeSelect" name="serviceType" aria-describedby="serviceTypeHint" required>
-              <option value="">Select service type</option>
-            </select>
-            <small class="subtle" id="serviceTypeHint">Select the one service needed for this ride. Your profile preference is used when available.</small>
-          </div>
+        <div class="field">
+          <label for="payerType">How will this ride be paid?</label>
+          <select id="payerType" name="payerType">
+            <option value="SELF_PAY">Self-pay / private pay</option>
+            <option value="INSURANCE">Private insurance (plan verification)</option>
+            <option value="MEDICARE">Medicare</option>
+            <option value="MEDICAID">Maryland Medicaid</option>
+          </select>
         </div>
         <div class="field" id="insuranceCarrierField" hidden>
-          <label for="insuranceCarrier">Private insurance provider</label>
+          <label for="insuranceCarrier">Private insurance provider <span class="requiredMark" id="insuranceCarrierRequiredMark" hidden>*</span></label>
           <select id="insuranceCarrier" name="insuranceCarrier">
             <option value="">Select insurance provider</option>
             <option value="Aetna">Aetna</option><option value="CareFirst BlueCross BlueShield">CareFirst BlueCross BlueShield</option>
@@ -968,12 +959,12 @@
         <p class="sectionSummary" id="pickupDropoffSummary">Pickup: -
 Destination: -</p>
         <div class="field autocompleteField">
-          <label for="pickup">Pickup</label>
+          <label for="pickup">Pickup <span class="requiredMark">*</span></label>
           <input id="pickup" name="pickup" placeholder="Pickup address" autocomplete="off" required>
           <div id="pickupSuggestionsPanel" class="suggestions" hidden></div>
         </div>
         <div class="field autocompleteField">
-          <label for="destination">Destination</label>
+          <label for="destination">Destination <span class="requiredMark">*</span></label>
           <input id="destination" name="destination" placeholder="Destination address" autocomplete="off" required>
           <div id="destinationSuggestionsPanel" class="suggestions" hidden></div>
         </div>
@@ -1024,41 +1015,37 @@ Destination: -</p>
 
       <section class="section sectionProgressive" id="rideTypeSection">
         <button type="button" class="rideSheetHandle" id="rideSheetHandle" aria-label="Collapse ride choices" aria-expanded="true"></button>
-        <div class="rideMarketplaceIntro"><div><h2>Choose your Nexus ride</h2><span>Route-based time and fare</span></div><button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help me choose</button><button type="button" class="rideSheetToggle" id="rideSheetToggle" aria-label="Collapse ride choices" aria-expanded="true"></button></div><p class="subtle" id="rideTravelHint">Times above fares show driving. Round trips include both directions; waiting is shown separately.</p>
+        <div class="rideMarketplaceIntro"><div><h2>Choose your Nexus ride</h2><span>Route-based time and fare</span></div><button type="button" class="rideSheetToggle" id="rideSheetToggle" aria-label="Collapse ride choices" aria-expanded="true"></button></div>
+        <p class="subtle" id="rideTravelHint">Times above fares show driving. Round trips include both directions; waiting is shown separately.</p>
         <p class="subtle rideGuidancePrompt">Answer three quick questions. We will recommend the most suitable ride option.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
-        <div class="mobilityQuestions" id="mobilityQuestions">
-          <fieldset class="mobilityQuestion"><legend>Will the rider stay in a wheelchair during the ride?</legend><div class="mobilityAnswers"><label><input type="radio" name="quickWheelchair" value="yes">Yes</label><label><input type="radio" name="quickWheelchair" value="no" checked>No</label></div></fieldset>
-          <fieldset class="mobilityQuestion"><legend>Does the rider need to travel lying down?</legend><div class="mobilityAnswers"><label><input type="radio" name="quickLyingDown" value="yes">Yes</label><label><input type="radio" name="quickLyingDown" value="no" checked>No</label></div></fieldset>
-          <fieldset class="mobilityQuestion"><legend>Does the rider need additional space or capacity?</legend><div class="mobilityAnswers"><label><input type="radio" name="quickExtraSpace" value="yes">Yes</label><label><input type="radio" name="quickExtraSpace" value="no" checked>No</label></div></fieldset>
-        </div>
-        <p class="mobilityRecommendation" id="mobilityRecommendation" aria-live="polite">Recommended: Ambulatory transportation</p>
         <div class="rideContextBar"><button type="button" class="rideContextPill" id="rideSchedulePill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><span id="rideSchedulePillText">Scheduled pickup</span></button><button type="button" class="rideContextPill" id="rideRiderPill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span id="rideRiderPillText">For rider</span></button></div>
-        <p class="subtle" id="rideTimingSummary" aria-live="polite" hidden></p>
-        <details class="serviceCatalog" id="serviceCatalogDetails" open><summary id="serviceCatalogSummary">Choose a different ride type</summary>
-        <div class="serviceChips rideMarketplace" id="serviceChips" role="radiogroup" aria-label="Service type">
-          <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="4" r="2"/><path d="m10 22 1-7-3-3 2-5 4 3 3 1M11 15l5 7"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span><span class="serviceCardBest">Best for: walking riders</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard secondaryRideOption" type="button" data-service="facility_transfer" hidden><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v12H3zM14 10h4l3 4v4h-7M7 9v6M4 12h6"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">IFT Routine</span><span class="serviceCardDescription">Routine facility-to-facility transfer transportation.</span><span class="serviceCardBest">Best for: routine interfacility transfers</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard secondaryRideOption" type="button" data-service="facility_transfer_critical" hidden><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v12H3zM14 10h4l3 4v4h-7M7 9v6M4 12h6"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">IFT High-Acuity</span><span class="serviceCardDescription">High-acuity facility-to-facility transfer transportation.</span><span class="serviceCardBest">Best for: high-acuity interfacility transfers</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard" type="button" data-service="wheelchair"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="17" r="4"/><circle cx="9" cy="5" r="2"/><path d="M9 8v5h5l3 5M9 11h4"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Wheelchair</span><span class="serviceCardDescription">Accessible vehicle and securement for riders remaining in a wheelchair.</span><span class="serviceCardBest">Best for: wheelchair users</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard" type="button" data-service="stretcher"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 15h18M5 15v3M19 15v3M5 11h14a2 2 0 0 1 2 2v2H3v-2a2 2 0 0 1 2-2Z"/><circle cx="7" cy="8" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Stretcher</span><span class="serviceCardDescription">For riders who must travel lying down; needs may require review.</span><span class="serviceCardBest">Best for: non-ambulatory transport</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard secondaryRideOption" type="button" data-service="broda" hidden><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="17" r="4"/><circle cx="9" cy="5" r="2"/><path d="M9 8v5h5l3 5M9 11h4"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Broda</span><span class="serviceCardDescription">Supportive chair transportation for riders who need additional positioning.</span><span class="serviceCardBest">Best for: Broda chair users</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">Additional Capacity</span><span class="serviceCardDescription">Additional space, capacity, or specialized mobility support.</span><span class="serviceCardBest">Best for: riders needing more space</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard secondaryRideOption" type="button" data-service="bls" hidden><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v12H3zM14 10h4l3 4v4h-7M7 9v6M4 12h6"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">BLS</span><span class="serviceCardDescription">Basic life support ambulance transportation.</span><span class="serviceCardBest">Basic life support</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard secondaryRideOption" type="button" data-service="als1" hidden><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v12H3zM14 10h4l3 4v4h-7M7 9v6M4 12h6"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">ALS 1</span><span class="serviceCardDescription">Advanced life support level 1 ambulance transportation.</span><span class="serviceCardBest">Advanced life support · Level 1</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard secondaryRideOption" type="button" data-service="als2" hidden><span class="serviceCardIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v12H3zM14 10h4l3 4v4h-7M7 9v6M4 12h6"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg></span><span class="serviceCardCopy"><span class="serviceCardName">ALS 2</span><span class="serviceCardDescription">Advanced life support level 2 ambulance transportation.</span><span class="serviceCardBest">Advanced life support · Level 2</span></span><span class="serviceSelectedMark">Selected</span></button>
+        <div class="field serviceTypeField" id="serviceTypeField" tabindex="-1">
+          <span class="fieldLabel">Service type <span class="requiredMark">*</span></span>
+          <p class="subtle" style="margin:2px 0 8px">* Required field</p>
+          <p class="inlineFieldError" id="serviceError" hidden role="alert">Service type is required. Select a service to continue.</p>
+          <p class="subtle" id="rideTimingSummary" aria-live="polite" hidden></p>
+          <details class="serviceCatalog" id="serviceCatalogDetails" open><summary id="serviceCatalogSummary">Choose a service</summary>
+          <div class="serviceChips rideMarketplace" id="serviceChips" role="radiogroup" aria-label="Service type" aria-required="true" aria-describedby="serviceError" tabindex="-1">
+            <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span></span><span class="serviceSelectedMark">Selected</span></button>
+            <button class="chip secondaryRideOption" type="button" data-service="facility_transfer" hidden>IFT Routine</button><button class="chip secondaryRideOption" type="button" data-service="facility_transfer_critical" hidden>IFT High-Acuity</button>
+            <button class="chip serviceCard" type="button" data-service="wheelchair"><span class="serviceCardCopy"><span class="serviceCardName">Wheelchair</span><span class="serviceCardDescription">Accessible vehicle and securement for riders remaining in a wheelchair.</span></span><span class="serviceSelectedMark">Selected</span></button>
+            <button class="chip serviceCard" type="button" data-service="stretcher"><span class="serviceCardCopy"><span class="serviceCardName">Stretcher</span><span class="serviceCardDescription">For riders who must travel lying down; needs may require review.</span></span><span class="serviceSelectedMark">Selected</span></button>
+            <button class="chip serviceCard" type="button" data-service="broda"><span class="serviceCardCopy"><span class="serviceCardName">Broda</span><span class="serviceCardDescription">For riders who use a Broda chair.</span></span><span class="serviceSelectedMark">Selected</span></button>
+            <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardCopy"><span class="serviceCardName">Bariatric</span><span class="serviceCardDescription">For riders who need a bariatric service, including additional space or support.</span></span><span class="serviceSelectedMark">Selected</span></button>
+            <button class="chip serviceCard secondaryRideOption" type="button" data-service="bls" hidden>BLS</button><button class="chip serviceCard secondaryRideOption" type="button" data-service="als1" hidden>ALS 1</button><button class="chip serviceCard secondaryRideOption" type="button" data-service="als2" hidden>ALS 2</button>
+          </div>
+          <p class="subtle" id="serviceSelectionPrompt" hidden>Select a service type above to see its fare estimate.</p>
+          <button type="button" class="ghost helpChooseBtn" id="helpChooseRideBtn">Help me choose</button>
+          <button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button>
+          <p class="muted" id="specializedRideAccessHint" hidden>BLS and other specialized ride options require an Admin, Dispatcher, Facility Manager, or Tester account. Use Sign In to access them with an authorized account.</p></details>
         </div>
-        <p class="subtle" id="serviceSelectionPrompt" hidden>Select a service type above to see its fare estimate.</p>
-        <button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button>
-        <p class="muted" id="specializedRideAccessHint" hidden>BLS and other specialized ride options require an Admin, Dispatcher, Facility, or Driver account. Use Sign In to access them with an authorized account.</p></details>
-        <input id="service" name="service" type="hidden" value="">
-        <details id="ambulatoryFuelChoiceField" hidden>
+        <input id="service" name="service" type="hidden" value="" required>        <details id="ambulatoryFuelChoiceField" hidden>
           <summary>Vehicle preference (optional)</summary>
           <div class="field"><label for="bookingFuelProfile">SUV / sedan preference</label>
           <select id="bookingFuelProfile"><option value="">Automatic — match rider needs</option></select>
           <small class="subtle">Nexus normally selects a suitable available vehicle. Select a preference only when needed. Fuel is included in the estimate.</small></div>
         </details>
-
         <div id="routeScheduleFields">
         <div class="field" id="staffTripModeField" hidden>
           <label for="staffTripMode">Create a real or mock trip</label>
@@ -1079,11 +1066,11 @@ Destination: -</p>
             <small class="subtle">Enter either time. We calculate the other from the route.</small>
           </div>
           <div class="field">
-            <label for="tripDate">Outbound date</label>
+            <label for="tripDate">Outbound date <span class="requiredMark">*</span></label>
             <input id="tripDate" name="tripDate" type="date" required>
           </div>
           <div class="field">
-            <label for="appointmentTime">Appointment Time</label>
+            <label for="appointmentTime">Appointment Time <span class="requiredMark">*</span></label>
             <input id="appointmentTime" name="appointmentTime" type="time" required>
           </div>
           <div class="pickupWaitPair" id="pickupWaitPair"><div class="field">
@@ -1106,17 +1093,17 @@ Destination: -</p>
           <h3 class="scheduleGroupTitle" id="returnScheduleTitle">Return ride</h3>
           <p class="scheduleGroupHint">Choose when the rider should be picked up for the ride back. Waiting is calculated from estimated arrival until this pickup.</p>
           <div class="metaRow returnScheduleRow">
-            <div class="field"><label for="returnTripDate">Return date</label><input id="returnTripDate" name="returnTripDate" type="date"></div>
-            <div class="field"><label for="returnTripTime">Return pickup time</label><input id="returnTripTime" name="returnTripTime" type="time"></div>
+            <div class="field"><label for="returnTripDate">Return date <span class="requiredMark">*</span></label><input id="returnTripDate" name="returnTripDate" type="date"></div>
+            <div class="field"><label for="returnTripTime">Return pickup time <span class="requiredMark">*</span></label><input id="returnTripTime" name="returnTripTime" type="time"></div>
           </div>
         </div>
         <div id="recurringRideFields" class="scheduleGroup" aria-labelledby="recurringScheduleTitle" hidden>
           <h3 class="scheduleGroupTitle" id="recurringScheduleTitle">Repeat this ride</h3>
           <p class="scheduleGroupHint">Repeat the outbound schedule on the days selected below.</p>
-          <fieldset class="guidanceQuestion"><legend>Repeat on</legend><div class="accessibilityControls" id="recurrenceDays">
+          <fieldset class="guidanceQuestion"><legend>Repeat on <span class="requiredMark">*</span></legend><div class="accessibilityControls" id="recurrenceDays">
             <label><input type="checkbox" name="recurrenceDay" value="MON"> Mon</label><label><input type="checkbox" name="recurrenceDay" value="TUE"> Tue</label><label><input type="checkbox" name="recurrenceDay" value="WED"> Wed</label><label><input type="checkbox" name="recurrenceDay" value="THU"> Thu</label><label><input type="checkbox" name="recurrenceDay" value="FRI"> Fri</label><label><input type="checkbox" name="recurrenceDay" value="SAT"> Sat</label><label><input type="checkbox" name="recurrenceDay" value="SUN"> Sun</label>
           </div></fieldset>
-          <div class="field"><label for="recurrenceEndDate">Repeat through</label><input id="recurrenceEndDate" name="recurrenceEndDate" type="date"><small class="subtle">Recurring schedules can be requested for up to 12 weeks.</small></div>
+          <div class="field"><label for="recurrenceEndDate">Repeat through <span class="requiredMark">*</span></label><input id="recurrenceEndDate" name="recurrenceEndDate" type="date"><small class="subtle">Recurring schedules can be requested for up to 12 weeks.</small></div>
         </div>
         </div>
 
@@ -1213,7 +1200,7 @@ Destination: -</p>
           <p class="subtle">Answer a few mobility questions. This aid does not make a clinical determination.</p>
           <fieldset class="guidanceQuestion"><legend>Will the rider remain in a wheelchair?</legend><div class="guidanceOptions"><label><input type="radio" name="remainsInWheelchair" value="yes"> Yes</label><label><input type="radio" name="remainsInWheelchair" value="no" checked> No</label></div></fieldset>
           <fieldset class="guidanceQuestion"><legend>Must the rider travel lying down?</legend><div class="guidanceOptions"><label><input type="radio" name="lyingDown" value="yes"> Yes</label><label><input type="radio" name="lyingDown" value="no" checked> No</label></div></fieldset>
-          <fieldset class="guidanceQuestion"><legend>Does the rider need additional space or capacity?</legend><div class="guidanceOptions"><label><input type="radio" name="extraSpace" value="yes"> Yes</label><label><input type="radio" name="extraSpace" value="no" checked> No</label></div></fieldset>
+          <fieldset class="guidanceQuestion"><legend>Does the rider need a bariatric service or additional space/support?</legend><div class="guidanceOptions"><label><input type="radio" name="extraSpace" value="yes"> Yes</label><label><input type="radio" name="extraSpace" value="no" checked> No</label></div></fieldset>
           <div class="guidanceResult" id="rideGuidanceResult" hidden aria-live="polite"><strong id="rideGuidanceRecommendation"></strong><p id="rideGuidanceReason"></p></div>
           <div class="guidanceActions"><button type="button" class="primary" id="getRideRecommendationBtn">Show recommendation</button><button type="button" class="primary" id="useRideRecommendationBtn" hidden>Use this ride type</button><button type="button" class="ghost" id="closeRideGuidanceBtn">Review other options</button></div>
         </div>

@@ -60,7 +60,7 @@ test('legacy zero reductions migrate while current explicit overrides remain edi
  assert.equal(Fare.serviceTravel(route,'bls',current).scheduledMinutes,50);
 });
 
-test('Additional Capacity subtracts 35 mph and migrates only its former zero setting',()=>{
+test('Bariatric subtracts 35 mph and migrates only its former zero setting',()=>{
  const route={miles:20,durationMinutes:24,trafficDurationMinutes:34};
  const legacy={serviceTravelPolicyVersion:2,servicePolicies:{bariatric:{speedReductionMph:0},stretcher:{speedReductionMph:0},bls:{speedReductionMph:7}}};
  for(const service of ['bariatric','Additional Capacity']){
