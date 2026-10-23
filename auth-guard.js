@@ -30,6 +30,11 @@
   const allowed=policy[pathname];
   if(!allowed) return;
 
+  // Password-reset links are public entry points to their page's reset form.
+  // Keep the rest of the driver workspace protected by normal session checks.
+  const params=new URLSearchParams(location.search);
+  if(pathname==='/driver-app.html'&&params.get('action')==='reset'&&params.get('token')) return;
+
   const root=document.documentElement;
   if(root){
     root.dataset.authState='checking';
@@ -37,7 +42,7 @@
   }
 
   const token=sessionStorage.getItem('nexusAccessToken');
-  const loginUrl='/?login=1&redirect='+encodeURIComponent(pathname);
+  const loginUrl='/livecare.html?login=1&redirect='+encodeURIComponent(pathname);
   let settled=false;
 
   const clearSession=()=>{
