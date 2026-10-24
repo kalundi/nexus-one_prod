@@ -3486,11 +3486,12 @@ $('saveCustomCompany').addEventListener('click',()=>{
 
   function collectSaveMismatches(saved,payload){
     const mismatches=[];
+    const normalizeStatus=value=>String(value||'').trim().toUpperCase().replaceAll('-','_').replaceAll(' ','_');
     const expected={
       appointmentTime:normalizeHHMM(payload.appointmentTime),
       pickupTime:normalizeHHMM(payload.time),
       checkInTime:normalizeHHMM(payload.checkInTime||''),
-      status:String(payload.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
+      status:normalizeStatus(payload.status),
       service:String(payload.service||''),
       date:String(payload.date||'').slice(0,10),
       pickupLocation:String(payload.pickupLocation||''),
@@ -3515,7 +3516,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
       appointmentTime:normalizeHHMM(getBookingAppointmentTime(saved)),
       pickupTime:normalizeHHMM(String(saved?.time||'')),
       checkInTime:normalizeHHMM(String(saved?.checkInTime||'')),
-      status:String(saved?.status||'').toUpperCase().replaceAll('-','_').replaceAll(' ','_'),
+      status:normalizeStatus(saved?.status),
       service:String(saved?.service||''),
       date:String(saved?.date||'').slice(0,10),
       pickupLocation:String(saved?.pickupLocation||''),
@@ -3551,8 +3552,14 @@ $('saveCustomCompany').addEventListener('click',()=>{
       const brokerAcceptedRateNum=Number(expected.brokerAcceptedRate);
       expected.brokerAcceptedRate=Number.isFinite(brokerAcceptedRateNum)?brokerAcceptedRateNum.toFixed(2):expected.brokerAcceptedRate;
     }
+    const optionalKeys=new Set(['checkInTime','pickupLocation','destinationLocation','submitterEntity','brokerCompanyName','brokerAcceptedRate','patientEmail','returnTripTime']);
     Object.keys(expected).forEach((key)=>{
-      if(expected[key].trim()!==actual[key].trim()) mismatches.push(key);
+      // The API preserves unset optional values as null/empty. Treat those as
+      // equivalent so a successful write does not leave the editor "dirty".
+      const expectedValue=String(expected[key]??'').trim();
+      const actualValue=String(actual[key]??'').trim();
+      if(optionalKeys.has(key)&&!expectedValue&&!actualValue)return;
+      if(expectedValue!==actualValue) mismatches.push(key);
     });
     return [...new Set(mismatches)];
   }
@@ -3967,7 +3974,8 @@ $('saveCustomCompany').addEventListener('click',()=>{
       if(saved){
         const mismatches=collectSaveMismatches(saved,payload);
         if(mismatches.length){
-          editorHasUnsavedChanges=true;
+          await applyEditorValues(saved);
+          markEditorBaseline();
           const labelMap={
             appointmentTime:'Appointment',
             pickupTime:'Pickup',
@@ -3988,7 +3996,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
             returnTripTime:'Return pickup time'
           };
           const labels=mismatches.map((k)=>labelMap[k]||k).join(', ');
-          setMsg(`Trip ${currentRef} update response received, but these changes were not confirmed: ${labels}. Your entries have been kept. Refresh the trip to check its saved values.`,'err');
+          setMsg(`Trip ${currentRef} was saved, but the server returned different values for: ${labels}. The editor now shows the saved values.`,'err');
           return;
         }
         await applyEditorValues(saved);
