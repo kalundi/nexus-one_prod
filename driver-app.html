@@ -941,7 +941,11 @@ a{color:#7fc1ff;text-decoration:none}
         resetNotice.textContent=(j&&(j.message||j.error))||(r.ok?'Password updated successfully.':'Unable to reset password.');
         if(r.ok){
           resetForm.reset();
-          if(resetPanel) resetPanel.style.display='none';
+          if(resetForm) resetForm.style.display='none';
+          const resetBackLink=document.createElement('p');
+          resetBackLink.style.cssText='margin:12px 0 0;text-align:center';
+          resetBackLink.innerHTML='<a href="/driver-app.html" style="font-weight:800">Return to driver sign in</a>';
+          resetForm?.parentNode?.appendChild(resetBackLink);
           window.history.replaceState({},'',window.location.pathname);
         }
       }catch(_err){
