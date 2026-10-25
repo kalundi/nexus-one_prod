@@ -3497,13 +3497,13 @@ async function handler(event){
   // Forgot password — send reset link via email
   if(p[0]==='auth'&&p[1]==='forgot-password'&&method==='POST'){
     await ensurePasswordResetColumns();
+   const b=parseBody(event),email=clean(b.email).toLowerCase();
+   if(!email)return json(400,{error:'Email is required'});
+   if(email===DemoAccount.EMAIL&&!await DemoAccount.claimRecovery(query,event))return json(429,{error:'Too many reset requests. Try again in 30 minutes or ask an administrator to issue a demo password.'});
    const emailServiceReady=envEnabled('SENDGRID_API_KEY')&&envEnabled('SENDGRID_FROM_EMAIL');
    if(!emailServiceReady){
     return json(200,{message:'Password reset email service is temporarily unavailable. Call (888) 639-5766 for immediate access reset.'});
    }
-   const b=parseBody(event);
-   const email=clean(b.email).toLowerCase();
-   if(!email)return json(400,{error:'Email is required'});
    const r=await query('SELECT id,email,role FROM users WHERE lower(email)=$1 AND active=true',[email]);
    // Always return success to prevent email enumeration
    if(r.rows[0]){
@@ -3514,6 +3514,7 @@ async function handler(event){
     const isDriver=r.rows[0].role==='DRIVER';
     const resetUrl=isDriver
       ?`${base}/driver-app.html?action=reset&token=${encodeURIComponent(resetToken)}`
+      :email===DemoAccount.EMAIL?`${base}/facility-demo.html?action=reset&token=${encodeURIComponent(resetToken)}`
       :`${base}/livecare.html?action=reset&token=${encodeURIComponent(resetToken)}`;
     try{
      await sendEmail(r.rows[0].email,'Reset your Nexus password',
@@ -3537,13 +3538,12 @@ async function handler(event){
     await ensurePasswordResetColumns();
    const b=parseBody(event);
    const token=clean(b.token);
-   const newPass=clean(b.newPassword);
+   const newPass=String(b.newPassword||'');
    if(!token||!newPass)return json(400,{error:'Token and new password are required'});
-   if(newPass.length<8)return json(400,{error:'Password must be at least 8 characters'});
-   const r=await query('SELECT id,role FROM users WHERE password_reset_token=$1 AND password_reset_used=false AND password_reset_expires>now()',[token]);
-   if(!r.rows[0])return json(400,{error:'Reset link is invalid or has expired. Please request a new one.'});
+   if(newPass.length<8||newPass.length>256||!newPass.trim())return json(400,{error:'Password must be between 8 and 256 characters'});
    const newHash=crypto.createHash('sha256').update(newPass).digest('hex');
-   await query('UPDATE users SET password_hash=$1,must_change_password=false,password_reset_token=null,password_reset_expires=null,password_reset_used=true,updated_at=now() WHERE id=$2',[newHash,r.rows[0].id]);
+   const r=await query('UPDATE users SET password_hash=$1,must_change_password=false,password_reset_token=null,password_reset_expires=null,password_reset_used=true,updated_at=now() WHERE password_reset_token=$2 AND password_reset_used=false AND password_reset_expires>now() AND active=true RETURNING id,role',[newHash,token]);
+   if(!r.rows[0])return json(400,{error:'Reset link is invalid or has expired. Please request a new one.'});
    await audit('USER',r.rows[0].id,'PASSWORD_RESET',{via:'token'});
    return json(200,{message:'Password updated successfully. You can now sign in.'});
   }
