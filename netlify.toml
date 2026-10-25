@@ -17,6 +17,10 @@
 [functions.api]
   included_files = ["netlify/functions/_private-documents/**"]
 
+# Read-only production health checks; public HTTP invocation is disabled by scheduling.
+[functions.maintenance-monitor]
+  schedule = "*/5 * * * *"
+
 # Preview contexts simulate bookings and payments and skip database setup tasks.
 [context.deploy-preview]
   command = "node scripts/build-static.mjs"

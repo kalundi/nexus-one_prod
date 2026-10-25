@@ -15,6 +15,8 @@ const {createTrainingHandler}=require('./_shared/training.cjs');
 const {json,parseBody,bearer,routePath}=require('./_shared/http.cjs');
 const {digest,safeUser,requireUser,audit}=require('./_shared/auth.cjs');
 const handleTraining=createTrainingHandler({query,requireUser});
+const Maintenance=require('./_shared/maintenance.cjs');
+const handleMaintenance=Maintenance.createHandler({monitor:Maintenance.createMonitor({query}),requireUser,bearer,json,parseBody});
 const {createUserManager,operatingClock}=require('./_shared/user-manager.cjs');
 const handleUserManager=createUserManager({query,getPool,requireUser,audit});
 const {createApplicantResponseHandler}=require('./_shared/applicant-response.cjs');
@@ -2103,6 +2105,8 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  const maintenanceResponse=await handleMaintenance(event,p,method);
+  if(maintenanceResponse)return maintenanceResponse;
   if(p[0]==='facility-demo'){const response=await handleFacilityDemo(event,p,method);if(response)return response;}
   if(p.join('/')==='livecare/demo'&&method==='POST'){
    const actor=await requireUser(bearer(event),['ADMIN','DISPATCHER']);
