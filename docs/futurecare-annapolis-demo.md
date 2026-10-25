@@ -6,6 +6,14 @@ The sign-in screen and dashboard use the existing Nexus logo and platform navy, 
 
 The sign-in page fills the desktop with two equal-height, equal-width halves: Nexus messaging and branded transport imagery on the left; full-panel FutureCare exterior, reception and rehabilitation photography on the right, behind the manager login card. On narrow screens the two sections stack. All existing sign-in and demo controls retain their original behavior.
 
+## Facility manager workspace and booking
+
+The signed-in workspace follows the Nexus admin layout, with persistent site navigation and footer. Overview combines the daily manifest and route map on wide screens; smaller screens use focused Trip board, Routes, Communications and Billing views. Collaboration photos, playback controls, return edits and presenter scenarios expand when needed. Routes can still fill the page.
+
+**Book demo trip** opens a round-trip booking form for the selected service day. Each seeded day starts at its five-trip limit, so use View trip → Cancel demo trip to free a slot, or Edit booking to change an existing trip. The form supports a fictional patient, configured service, one of the five verified destination addresses, pickup/appointment/return times, vehicle waiting and simulated destination/caregiver monitoring recipients. The facility manager, receiving team and dispatch are always included. Cancelled trips can be restored if a daily vehicle slot is available.
+
+Bookings, edits, soft cancellations, restores and notification events are saved atomically in the isolated PostgreSQL demo configuration (`system_settings`, demo scope). No production transport booking is dispatched. Other demo-manager sessions see database updates through polling. Duplicate submissions with the same form request ID are idempotent. Route inputs and shared NexusFare invoices recalculate after changes, and older invoice revisions remain archived. New confirmations and booking changes appear in the manager inbox, with intended recipients and explicitly simulated delivery. No real SMS or email is sent.
+
 The week uses **25 distinct fictional residents**, with a different set of five each day. The board is the daily outbound manifest, not the facility census. Each resident has a unique demo patient ID that is used consistently in selection, return edits, route tracking, alerts, notifications and invoice lines. The five destination/service slots remain the presentation template. Existing saved return schedules migrate to their corresponding daily slot; prior invoice versions remain archived when current resident labels are updated.
 
 ## Route overview and expanded map
