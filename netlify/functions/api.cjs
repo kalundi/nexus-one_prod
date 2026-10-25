@@ -37,6 +37,7 @@ const {getSecureDocument,listSecureDocuments}=require('./_shared/secure-document
 const {sendSms}=require('./_shared/sms-consent.cjs');
 const {canPatientSeeDriverLocation,distanceMiles}=require('./_shared/patient-driver-location.cjs');
 const LivecareDemo=require('./_shared/livecare-demo.cjs');
+const handleFacilityDemo=require('./_shared/facility-demo.cjs').createHandler({query,getPool,requireUser,bearer,json,parseBody});
 const {syncBookingCalendar,cancelBookingCalendar}=require('./_shared/booking-calendar.cjs');
 const montgomeryOutreachPilot=require('../../data/montgomery-tier-a-outreach-pilot.json');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_APPROVAL:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
@@ -2102,6 +2103,7 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p[0]==='facility-demo'){const response=await handleFacilityDemo(event,p,method);if(response)return response;}
   if(p.join('/')==='livecare/demo'&&method==='POST'){
    const actor=await requireUser(bearer(event),['ADMIN','DISPATCHER']);
    const client=await getPool().connect();
