@@ -1,3 +1,4 @@
+const Billing=require('./facility-demo-billing.cjs');
 const crypto=require('node:crypto');
 const SCOPE='futurecare-annapolis-demo',KEY='demo:facility:futurecare-annapolis',USERNAME='annapolis.demo@nexusmt.com';
 const FACILITY={name:'FutureCare Annapolis',address:'2700 Southaven Road, Annapolis, MD 21401',source:'https://www.futurecare.com/locations/annapolis/'};
@@ -87,7 +88,7 @@ function mergedEvents(state){const overrides=new Map((state.overrides||[]).map(e
 function encodeToken(secret,now=Date.now()){const payload=Buffer.from(JSON.stringify({scope:SCOPE,expires:now+8*3600000,nonce:crypto.randomBytes(12).toString('hex')})).toString('base64url');return `${payload}.${crypto.createHmac('sha256',secret).update(payload).digest('base64url')}`;}
 function validToken(token,secret,now=Date.now()){try{const [payload,signature,...extra]=String(token).split('.');if(extra.length||!payload||!signature)return false;const expected=crypto.createHmac('sha256',secret).update(payload).digest();const supplied=Buffer.from(signature,'base64url');if(supplied.length!==expected.length||!crypto.timingSafeEqual(supplied,expected))return false;const data=JSON.parse(Buffer.from(payload,'base64url'));return data.scope===SCOPE&&Number(data.expires)>now;}catch{return false;}}
 function passwordHash(password,salt){return crypto.scryptSync(String(password),salt,32).toString('hex');}
-function createHandler({query,getPool,requireUser,bearer,json,parseBody}){
+function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlatformSettings}){
  return async function handle(event,p,method){
   if(p[0]!=='facility-demo')return null;
   if(method==='POST'&&p[1]==='setup'){
@@ -114,6 +115,17 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody}){
   let admin=false;try{admin=(await requireUser(bearer(event),['ADMIN'])).role==='ADMIN';}catch{}
   if(!config)return json(admin?409:401,{error:admin?'Prepare demo manager access first.':'Sign in to the facility demo.'});
   if(!admin&&!validToken(bearer(event),config.secret))return json(401,{error:'Your demo session expired. Sign in again.'});
+  if(method==='GET'&&['state','billing'].includes(p[1])&&readPlatformSettings){
+   const settings=await readPlatformSettings(),client=await getPool().connect();let invoice,snapshot;
+   try{await client.query('BEGIN');const locked=(await client.query('SELECT value FROM system_settings WHERE key=$1 FOR UPDATE',[KEY])).rows[0].value;
+    snapshot=project(locked.state);invoice=Billing.finalize(locked.billing||Billing.create(PATIENTS,settings),snapshot);
+    if(JSON.stringify(invoice)!==JSON.stringify(locked.billing)){locked.billing=invoice;await client.query('UPDATE system_settings SET value=$2::jsonb,updated_at=now() WHERE key=$1',[KEY,JSON.stringify(locked)]);}
+    await client.query('COMMIT');
+   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
+   if(p[1]==='billing'){const params=event.queryStringParameters||{};return json(200,Billing.view(invoice,params.period||Billing.DATE,params.mode||'day'));}
+   if(invoice.delivery){snapshot.messages.unshift({id:invoice.delivery.id,patientId:'billing',patient:'Facility billing',at:invoice.delivery.at,time:invoice.delivery.time,title:'Daily invoice delivered (demo)',text:`${invoice.id}: 10 transport legs. Total $${(invoice.total/100).toFixed(2)}. Open Daily invoicing to review the itemized invoice.`,severity:'success',recipients:[invoice.delivery.recipient],delivery:'Simulated manager inbox delivery. No external email sent.'});}
+   return json(200,{dashboard:snapshot,admin});
+  }
   if(method==='GET'&&p[1]==='state')return json(200,{dashboard:project(config.state),admin});
   if(method==='POST'&&p[1]==='control'){
    const client=await getPool().connect();

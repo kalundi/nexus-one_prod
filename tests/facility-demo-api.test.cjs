@@ -1,6 +1,8 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {PGlite}=require('@electric-sql/pglite');
 const Demo=require('../netlify/functions/_shared/facility-demo.cjs');
+const factory=Demo.createHandler;
+Demo.createHandler=options=>factory({...options,readPlatformSettings:async()=>({pricing:{ambulatory:{base:40,perMile:3},wheelchair:{base:65,perMile:4},stretcher:{base:100,perMile:5}},fareRules:{shortNoticeSurchargePct:0}})});
 test('demo login and shared manager controls work through isolated PostgreSQL without exposing secrets',async()=>{
  const db=new PGlite();
  try{
@@ -17,6 +19,12 @@ test('demo login and shared manager controls work through isolated PostgreSQL wi
   await request('control','POST',{action:'ack'},token);assert.equal((await request('state','GET',{},token)).body.dashboard.metrics.unread,0);
   await assert.rejects(request('control','POST',{action:'seek',minute:-1},token));assert.equal((await request('state','GET',{},token)).body.dashboard.minute,505);
   const secondLogin=await request('login','POST',{email:Demo.USERNAME,password:setup.body.password});assert.equal((await request('state','GET',{},secondLogin.body.token)).body.dashboard.minute,505);
+  assert.equal((await request('billing')).statusCode,401);
+  const draft=await request('billing','GET',{},token);assert.equal(draft.body.invoices[0].status,'draft');assert.equal(draft.body.invoices[0].rows.length,10);
+  await request('control','POST',{action:'seek',minute:930},token);
+  const closed=await request('state','GET',{},token);assert.equal(closed.body.dashboard.messages.filter(m=>m.patientId==='billing').length,1);
+  const final=await request('billing','GET',{},token);assert.equal(final.body.invoices[0].status,'issued');
+  await request('control','POST',{action:'restart'},token);assert.deepEqual((await request('billing','GET',{},token)).body.invoices[0],final.body.invoices[0]);
   const repeated=await request('setup','POST',{},'test-admin');assert.equal(repeated.statusCode,200);assert.equal(repeated.body.password,undefined);
   let rateLimited=false;for(let i=0;i<21;i++){const attempt=await request('login','POST',{email:Demo.USERNAME,password:'wrong'});if(attempt.statusCode===429){rateLimited=true;break;}}assert.equal(rateLimited,true);
  }finally{await db.close();}
