@@ -40,6 +40,7 @@ const {sendSms}=require('./_shared/sms-consent.cjs');
 const {canPatientSeeDriverLocation,distanceMiles}=require('./_shared/patient-driver-location.cjs');
 const LivecareDemo=require('./_shared/livecare-demo.cjs');
 const handleFacilityDemo=require('./_shared/facility-demo.cjs').createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlatformSettings});
+const DemoAccount=require('./_shared/facility-demo-account.cjs');
 const {syncBookingCalendar,cancelBookingCalendar}=require('./_shared/booking-calendar.cjs');
 const montgomeryOutreachPilot=require('../../data/montgomery-tier-a-outreach-pilot.json');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_APPROVAL:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
@@ -2105,6 +2106,7 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p.join('/')==='auth/login'&&method==='POST'&&String(parseBody(event).email||'').trim().toLowerCase()===DemoAccount.EMAIL)return await handleFacilityDemo(event,['facility-demo','login'],method);
   const maintenanceResponse=await handleMaintenance(event,p,method);
   if(maintenanceResponse)return maintenanceResponse;
   if(p[0]==='facility-demo'){const response=await handleFacilityDemo(event,p,method);if(response)return response;}
@@ -4316,6 +4318,7 @@ async function handler(event){
    await ensurePasswordResetColumns();
    const b=parseBody(event);
    const targetEmail=clean(b.email).toLowerCase();
+   if(targetEmail===DemoAccount.EMAIL)return json(400,{error:'Use User Management → Manage → Issue demo password for this presentation account.'});
    if(!targetEmail)return json(400,{error:'email is required'});
    const userRes=await query('SELECT id,email,display_name,role,active FROM users WHERE lower(email)=lower($1) LIMIT 1',[targetEmail]);
    const target=userRes.rows[0];
@@ -4371,6 +4374,7 @@ async function handler(event){
    const b=parseBody(event);
    const targetEmail=clean(b.email).toLowerCase();
    const newPassword=String(b.password||'');
+   if(targetEmail===DemoAccount.EMAIL)return json(400,{error:'Use User Management → Manage → Issue demo password for this presentation account.'});
    const sendCredentialEmail=Boolean(b.sendEmail);
    if(!targetEmail)return json(400,{error:'email is required'});
    if(newPassword.length<8)return json(400,{error:'password must be at least 8 characters'});
@@ -4523,6 +4527,7 @@ async function handler(event){
      const userId=decodeURIComponent(p[2]);
      const userRes=await query('SELECT id,email,display_name,role,active FROM users WHERE id=$1 LIMIT 1',[userId]);
      const target=userRes.rows[0];
+     if(DemoAccount.isDemoUser(target))return json(400,{error:'Use User Management → Manage → Issue demo password. Demo credentials are displayed to the administrator, not emailed.'});
      if(!target)return json(404,{error:'User not found'});
      if(target.active===false)return json(409,{error:'Cannot resend credentials for inactive user'});
 

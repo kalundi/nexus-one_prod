@@ -1,5 +1,5 @@
 [build]
-  command = "npm run db:migrate && npm run training:seed && (npm run admin:create-test || echo 'Admin init skipped') && (npm run test:create-users || echo 'Test users skipped') && (npm run fleet:seed || echo 'Fleet seeding skipped') && npm run build"
+  command = "npm run db:migrate && node scripts/seed-annapolis-demo-user.mjs && npm run training:seed && (npm run admin:create-test || echo 'Admin init skipped') && (npm run test:create-users || echo 'Test users skipped') && (npm run fleet:seed || echo 'Fleet seeding skipped') && npm run build"
   publish = "dist"
   functions = "netlify/functions"
 

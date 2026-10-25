@@ -1,5 +1,6 @@
 const {json,parseBody,bearer}=require('./http.cjs');
 const {normalizeE164}=require('./phone.cjs');
+const DemoAccount=require('./facility-demo-account.cjs');
 const ROLES=['ADMIN','DISPATCHER','DRIVER','FACILITY','STAFF','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER'];
 const FUNCTIONS={ADMINISTRATION:'Administration',DISPATCH:'Dispatch',DRIVING:'Driving',PATIENT_CARE:'Patient care',FACILITY_COORDINATION:'Facility coordination',BILLING:'Billing',QUALITY_REVIEW:'Quality review',OPERATIONS:'Operations',CARE_SUPPORT:'Care support'};
 const clean=v=>String(v??'').trim();
@@ -19,7 +20,7 @@ function parseSchedule(body){
  if(!weekdays.length||weekdays.some(day=>!Number.isInteger(day)||day<1||day>7))fail('Select at least one valid weekday.');
  return {startTime,endTime,effectiveStartDate,effectiveEndDate,weekdays};
 }
-function mapUser(u){const roles=[...new Set([u.role,...(u.approved_roles||[]),'PATIENT'])];return {id:String(u.id),userCode:u.user_code,email:u.email,name:u.display_name,phone:u.phone||'',role:u.role,scopeId:u.scope_id||'',functions:u.functions||[],roles:roles.includes('ADMIN')?ROLES:roles,active:u.active,employeeActive:u.employee_active??null,createdAt:u.created_at};}
+function mapUser(u){const demoOnly=DemoAccount.isDemoUser(u),roles=demoOnly?['FACILITY']:[...new Set([u.role,...(u.approved_roles||[]),'PATIENT'])];return {id:String(u.id),userCode:u.user_code,email:u.email,name:u.display_name,phone:u.phone||'',role:u.role,scopeId:u.scope_id||'',demoOnly,loginUrl:demoOnly?'/facility-demo.html':null,functions:u.functions||[],roles:roles.includes('ADMIN')?ROLES:roles,active:u.active,employeeActive:u.employee_active??null,createdAt:u.created_at};}
 function createUserManager({query,getPool,requireUser,audit}){
  async function transaction(work){
   const client=await getPool().connect();
@@ -113,6 +114,7 @@ function createUserManager({query,getPool,requireUser,audit}){
   if(Object.hasOwn(body,'functions')&&(!Array.isArray(body.functions)||body.functions.some(f=>!Object.hasOwn(FUNCTIONS,f))))return json(400,{error:'Choose valid operational functions.'});
   const user=await transaction(async q=>{
    const current=await findUser(q,key,true);if(!current)throw Object.assign(new Error('User not found.'),{statusCode:404});
+   if(DemoAccount.isDemoUser(current)&&((body.role&&body.role!=='FACILITY')||(Object.hasOwn(body,'scopeId')&&body.scopeId!==DemoAccount.SCOPE)))throw Object.assign(Error('This presentation account must retain its demo-only facility role and scope.'),{statusCode:400});
    if(String(current.id)===String(me.id)&&(body.active===false||(body.role&&body.role!==current.role)))throw Object.assign(new Error('Use another administrator account to change your own access.'),{statusCode:409});
    const next={...current,display_name:Object.hasOwn(body,'name')?clean(body.name):current.display_name,phone:Object.hasOwn(body,'phone')?normalizeE164(body.phone):current.phone,role:body.role||current.role,
     scope_id:Object.hasOwn(body,'scopeId')?clean(body.scopeId)||null:current.scope_id,functions:body.functions?[...new Set(body.functions)]:current.functions,active:body.active??current.active};
@@ -122,6 +124,7 @@ function createUserManager({query,getPool,requireUser,audit}){
    // Also update approved scopes and every live session's access on its next request.
    if(next.role===current.role&&next.scope_id!==current.scope_id)await q("UPDATE user_role_requests SET scope_id=$3 WHERE user_id=$1 AND role=$2 AND status='APPROVED'",[current.id,next.role,next.scope_id]);
    if(!next.active)await q('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',[current.id]);
+   if(DemoAccount.isDemoUser(current)&&Object.hasOwn(body,'active'))await DemoAccount.revokeDemoSessions(q);
    if(Object.hasOwn(body,'active'))await q('UPDATE employees SET active=$2,updated_at=now() WHERE user_id=$1',[current.id,next.active]);
    if(next.role!==current.role&&current.role!=='PATIENT')await q("UPDATE user_role_requests SET status='REJECTED',reviewed_at=now() WHERE user_id=$1 AND role=$2 AND status='APPROVED'",[current.id,current.role]);
    await q('UPDATE employees SET display_name=$2,email=$3,phone=$4,updated_at=now() WHERE user_id=$1',[current.id,next.display_name,next.email,next.phone]);
@@ -143,6 +146,12 @@ function createUserManager({query,getPool,requireUser,audit}){
    return json(200,{userCode:me.user_code,available:!!shift?.employee_active,date:clock.date,time:clock.time,timezone:'America/New_York',shift:shift?{startTime:String(shift.start_time).slice(0,5),endTime:String(shift.end_time).slice(0,5)}:null});
   }
   if(p[0]!=='admin')return null;
+  if(p[1]==='users'&&p.length===4&&p[3]==='demo-password'&&method==='POST'){
+   const me=await requireUser(bearer(event),['ADMIN']);
+   const issued=await transaction(q=>DemoAccount.issuePassword(q,decodeURIComponent(p[2])));
+   await audit('USER',p[2],'CREDENTIALS_REISSUED',{email:issued.email,demoOnly:true,by:me.user_code||me.email});
+   return json(200,issued);
+  }
   if(p[1]==='driver-schedule'&&p.length===2){
    const me=await requireUser(bearer(event),method==='GET'?['ADMIN','DISPATCHER']:['ADMIN']);
    if(method==='GET')return schedules(event);
