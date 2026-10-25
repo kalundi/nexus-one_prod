@@ -1,6 +1,7 @@
 (function(){
   // Protect portal pages until the server verifies the active session.
   const policy={
+    '/apps.html':['ADMIN'],
     '/training.html':['STAFF','DRIVER','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN'],
     '/facility.html':['FACILITY','DISPATCHER','ADMIN'],
     '/secure-documents.html':['FACILITY','ADMIN'],
@@ -107,11 +108,16 @@
     }
 
     const payload=await response.json();
-    const user=payload && payload.user;
+    let user=payload && payload.user;
     if(!user || typeof user.role!=='string'){
       throw new Error('Authentication response did not include a valid user role');
     }
 
+    if(!allowed.includes(user.role.toUpperCase()) && user.roles?.includes('ADMIN')){
+      const switched=await fetch('/api/auth/switch-role',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({role:'ADMIN'})});
+      if(!switched.ok) throw new Error('Administrator experience could not be restored');
+      user=(await switched.json()).user;
+    }
     const role=user.role.toUpperCase();
     user.role=role;
     if(!allowed.includes(role)){

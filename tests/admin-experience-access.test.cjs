@@ -8,7 +8,7 @@ function authFor(user,approved=[]){
   if(sql.includes('FROM user_role_requests'))return {rows:approved};
   throw Error('Unexpected query in access test');
  };
- vm.runInNewContext(fs.readFileSync('netlify/functions/_shared/auth.cjs','utf8'),{module,exports:module.exports,require:name=>name==='./db.cjs'?{query}:name==='./fallback-auth.cjs'?{getFallbackSession:()=>null}:require(name)});
+ vm.runInNewContext(fs.readFileSync('netlify/functions/_shared/auth.cjs','utf8'),{module,exports:module.exports,require:name=>name==='./facility-demo-account.cjs'?require('../netlify/functions/_shared/facility-demo-account.cjs'):name==='./db.cjs'?{query}:name==='./fallback-auth.cjs'?{getFallbackSession:()=>null}:require(name)});
  return module.exports;
 }
 const roles=['ADMIN','DISPATCHER','DRIVER','FACILITY','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER','STAFF'];

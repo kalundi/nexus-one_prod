@@ -1,5 +1,7 @@
 (()=>{'use strict';
  const $=id=>document.getElementById(id),TOKEN_KEY='nexusFacilityDemoToken';
+ let recoveryToken=new URLSearchParams(location.search).get('action')==='reset'?new URLSearchParams(location.search).get('token')||'':'';
+ if(recoveryToken)history.replaceState(null,'',location.pathname);
  let dashboard=null,selectedId='FC-DEMO-01',selectedLeg='outbound',automaticLeg=true,admin=false,busy=false,polling=false,lastRun='',knownMessages=new Set(),toastTimer;
  let mapsPromise=null,mapsAuthFailed=false,mapMode='all',mapExpanded=false,mapReturnFocus=null,mapInert=[];
  const mapController=NexusFacilityMap.create({loadMaps,element:$('routeMap'),onSelect:id=>selectPatient(id),isActive:()=>!!dashboard&&!$('dashboard').hidden,onStatus:status=>{$('routeMapStatus').textContent=status.message;$('routeAttribution').textContent=[status.attribution,...status.warnings].filter(Boolean).join(' · ');}});
@@ -34,10 +36,10 @@
  $('billingPrint').addEventListener('click',()=>window.print());
  const selected=()=>dashboard?.patients.find(patient=>patient.id===selectedId)||dashboard?.patients[0];
  const demoToken=()=>sessionStorage.getItem(TOKEN_KEY)||'';
- async function api(path,options={}){const token=demoToken()||sessionStorage.getItem('nexusAccessToken')||'';const response=await fetch(`/api/facility-demo/${path}`,{...options,headers:{...(token?{authorization:`Bearer ${token}`} :{}),'content-type':'application/json',...options.headers},cache:'no-store'});let data;try{data=await response.json();}catch{throw Error('The demo service could not be reached. Please retry.');}if(!response.ok){const error=Error(data.error||'Demo request failed.');error.status=response.status;throw error;}return data;}
+ async function api(path,options={}){const token=(admin?sessionStorage.getItem('nexusAccessToken'):demoToken())||sessionStorage.getItem('nexusAccessToken')||'';const response=await fetch(`/api/facility-demo/${path}`,{...options,headers:{...(token?{authorization:`Bearer ${token}`} :{}),'content-type':'application/json',...options.headers},cache:'no-store'});let data;try{data=await response.json();}catch{throw Error('The demo service could not be reached. Please retry.');}if(!response.ok){const error=Error(data.error||'Demo request failed.');error.status=response.status;throw error;}return data;}
  function toast(message,severity='info'){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').className=`toast ${severity}`;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,6500);}
- function showLogin(message=''){$('loginScreen').hidden=false;$('dashboard').hidden=true;$('loginNotice').textContent=message;mapController.clear();if(mapExpanded)setMapExpanded(false);}
- function showDashboard(data){const dayChanged=dashboard?.scenarioDate!==data.dashboard.scenarioDate,changed=JSON.stringify(dashboard?.patients.map(p=>[p.returnPickup,p.vehicleWaiting]))!==JSON.stringify(data.dashboard.patients.map(p=>[p.returnPickup,p.vehicleWaiting]));dashboard=data.dashboard;admin=!!data.admin;if(dayChanged){mapMode='all';$('billingDay').value=dashboard.scenarioDate;$('billingMonth').value=dashboard.scenarioDate.slice(0,7);invalidateRoute();}if(dayChanged||changed){billingRevision++;billingLoadedAt=0;}$('loginScreen').hidden=true;$('dashboard').hidden=false;render();loadBilling();}
+ function showLogin(message=''){setPasswordVisible(false);$('loginScreen').hidden=false;$('dashboard').hidden=true;$('loginNotice').textContent=message;mapController.clear();if(mapExpanded)setMapExpanded(false);}
+ function showDashboard(data){const dayChanged=dashboard?.scenarioDate!==data.dashboard.scenarioDate,changed=JSON.stringify(dashboard?.patients.map(p=>[p.returnPickup,p.vehicleWaiting]))!==JSON.stringify(data.dashboard.patients.map(p=>[p.returnPickup,p.vehicleWaiting]));dashboard=data.dashboard;admin=!!data.admin;$('logout').textContent=admin?'Back to apps':'Sign out';if(dayChanged){mapMode='all';$('billingDay').value=dashboard.scenarioDate;$('billingMonth').value=dashboard.scenarioDate.slice(0,7);invalidateRoute();}if(dayChanged||changed){billingRevision++;billingLoadedAt=0;}$('loginScreen').hidden=true;$('dashboard').hidden=false;render();loadBilling();}
  function legFor(patient){return ['return-approach','return','complete'].includes(patient.phase)?'return':'outbound';}
  function invalidateRoute(){mapController.clear();$('routeMapStatus').textContent='Loading road routes…';}
  function selectPatient(id){if(!dashboard?.patients.some(patient=>patient.id===id)){toast('That booking is no longer active. Select a current trip.');if(!mapExpanded)openWorkspace('boardSection');return;}mapMode='selected';selectedId=id;automaticLeg=true;selectedLeg=legFor(selected());invalidateRoute();render(false);if(mapExpanded)$('selectedRoute').focus();else openWorkspace('detailsSection');}
@@ -104,7 +106,26 @@
  $('vehicleWaiting').addEventListener('change',()=>{returnEditDirty=true;});
  $('returnScheduleForm').addEventListener('submit',async event=>{event.preventDefault();const saved=await action('returnSchedule',{patientId:selectedId,returnTime:$('returnPickupTime').value,vehicleWaiting:$('vehicleWaiting').checked});if(saved){$('returnScheduleNotice').textContent='Return pickup saved. Timeline, notifications and daily invoice updated.';toast('Return pickup saved and invoice recalculated.','success');}});
  $('downloadCredentials').addEventListener('click',()=>{const content='NEXUS — FUTURECARE ANNAPOLIS PRESENTATION DEMO\n\nURL: '+location.origin+'/facility-demo.html\nDemo manager email: '+$('issuedEmail').value+'\nDemo password: '+$('issuedPassword').value+'\n\nThis access is restricted to fictional demo data. No real patient records or outbound messages.\n';const url=URL.createObjectURL(new Blob([content],{type:'text/plain'}));const link=document.createElement('a');link.href=url;link.download='FutureCare-Annapolis-Demo-Login.txt';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
- $('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginButton').disabled=true;$('loginNotice').textContent='Signing in…';try{const data=await api('login',{method:'POST',body:JSON.stringify({email:$('loginEmail').value,password:$('loginPassword').value})});sessionStorage.setItem(TOKEN_KEY,data.token);$('loginPassword').value='';showDashboard(data);}catch(error){$('loginNotice').textContent=error.message;}finally{$('loginButton').disabled=false;}});
+ function setPasswordVisible(visible){$('loginPassword').type=visible?'text':'password';$('toggleLoginPassword').textContent=visible?'Hide password':'Show password';$('toggleLoginPassword').setAttribute('aria-pressed',String(visible));}
+ $('toggleLoginPassword').addEventListener('click',()=>setPasswordVisible($('loginPassword').type==='password'));
+
+ $('forgotDemoPassword').addEventListener('click',async()=>{
+  if(!$('loginEmail').reportValidity())return;
+  const button=$('forgotDemoPassword');button.disabled=true;$('loginNotice').textContent='Requesting a reset link…';
+  try{const response=await fetch('/api/auth/forgot-password',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:$('loginEmail').value.trim()})}),data=await response.json();if(!response.ok)throw Error(data.error||'Unable to request a reset link.');$('loginNotice').textContent=data.message;}
+  catch(error){$('loginNotice').textContent=error.message;}finally{button.disabled=false;}
+ });
+ function closeRecovery(message=''){recoveryToken='';$('demoResetPassword').value='';$('demoConfirmPassword').value='';$('demoResetForm').hidden=true;$('loginForm').hidden=false;showLogin(message);}
+ $('cancelDemoReset').addEventListener('click',()=>closeRecovery());
+ $('toggleResetPassword').addEventListener('click',()=>{const visible=$('demoResetPassword').type==='password';['demoResetPassword','demoConfirmPassword'].forEach(id=>$(id).type=visible?'text':'password');$('toggleResetPassword').textContent=visible?'Hide passwords':'Show passwords';$('toggleResetPassword').setAttribute('aria-pressed',String(visible));});
+ $('demoResetForm').addEventListener('submit',async event=>{
+  event.preventDefault();const button=$('saveDemoReset'),password=$('demoResetPassword').value;
+  if(password!==$('demoConfirmPassword').value){$('demoResetNotice').textContent='The passwords do not match.';return;}
+  button.disabled=true;$('demoResetNotice').textContent='Updating password…';
+  try{const response=await fetch('/api/auth/reset-password',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:recoveryToken,newPassword:password})}),data=await response.json();if(!response.ok)throw Error(data.error||'Unable to reset the password.');sessionStorage.removeItem(TOKEN_KEY);closeRecovery(data.message+' Use your new password below.');}
+  catch(error){$('demoResetNotice').textContent=error.message;}finally{button.disabled=false;}
+ });
+ $('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginButton').disabled=true;$('loginNotice').textContent='Signing in…';try{const data=await api('login',{method:'POST',body:JSON.stringify({email:$('loginEmail').value,password:$('loginPassword').value})});sessionStorage.setItem(TOKEN_KEY,data.token);setPasswordVisible(false);$('loginPassword').value='';showDashboard(data);}catch(error){$('loginNotice').textContent=error.message;}finally{$('loginButton').disabled=false;}});
  $('prepareDemo').addEventListener('click',async()=>{$('prepareDemo').disabled=true;try{const data=await api('setup',{method:'POST',body:'{}'});$('loginNotice').textContent=data.message;if(data.password){$('issuedEmail').value=data.username;$('issuedPassword').value=data.password;$('credentials').hidden=false;$('loginEmail').value=data.username;$('loginPassword').value=data.password;}}catch(error){$('loginNotice').textContent=error.message;}finally{$('prepareDemo').disabled=false;}});
  $('restart').addEventListener('click',()=>action('restart'));$('playPause').addEventListener('click',()=>action(dashboard?.paused?'play':'pause'));$('speed').addEventListener('change',()=>action('speed',{speed:Number($('speed').value)}));$('timeSlider').addEventListener('change',()=>action('seek',{minute:Number($('timeSlider').value)}));
  document.querySelectorAll('[data-minute]').forEach(button=>button.addEventListener('click',()=>action('seek',{minute:Number(button.dataset.minute)})));
@@ -115,7 +136,7 @@
  document.querySelectorAll('[data-scroll]').forEach(button=>button.addEventListener('click',()=>$(button.dataset.scroll).scrollIntoView({behavior:'smooth'})));
  $('sourcesButton').addEventListener('click',()=>$('sourcesDialog').showModal());$('closeSources').addEventListener('click',()=>$('sourcesDialog').close());
  $('fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{toast('Full-screen mode is unavailable in this browser.');}});
- $('logout').addEventListener('click',()=>{sessionStorage.removeItem(TOKEN_KEY);dashboard=null;admin=false;showLogin('Signed out of the demo.');});
+ $('logout').addEventListener('click',()=>{if(admin){location.href='/apps.html';return;}sessionStorage.removeItem(TOKEN_KEY);dashboard=null;admin=false;showLogin('Signed out of the demo.');});
  setInterval(async()=>{if(polling||busy||$('dashboard').hidden)return;const requestToken=demoToken();polling=true;try{const data=await api('state');if(requestToken===demoToken()&&dashboard)showDashboard(data);}catch(error){$('connection').textContent='Connection interrupted · retrying';if(error.status===401){sessionStorage.removeItem(TOKEN_KEY);showLogin(error.message);}}finally{polling=false;}},2000);
 
  function openWorkspace(id){
@@ -157,8 +178,21 @@
  openWorkspace('overview');
 
  (async()=>{
+  if(recoveryToken){$('loginForm').hidden=true;$('demoResetForm').hidden=false;$('demoResetPassword').focus();return;}
   const token=demoToken(),nexusToken=sessionStorage.getItem('nexusAccessToken');
-  if(nexusToken){try{const response=await fetch('/api/auth/me',{headers:{authorization:`Bearer ${nexusToken}`},cache:'no-store'}),data=await response.json();if(response.ok&&data.user?.role==='ADMIN'){$('prepareDemo').hidden=false;admin=true;}}catch{}}
+  if(nexusToken){try{
+   const headers={authorization:`Bearer ${nexusToken}`,'content-type':'application/json'};
+   let response=await fetch('/api/auth/me',{headers,cache:'no-store'}),data=await response.json();
+   if(response.ok&&(data.user?.role==='ADMIN'||data.user?.roles?.includes('ADMIN'))){
+    if(data.user.role!=='ADMIN'){
+     response=await fetch('/api/auth/switch-role',{method:'POST',headers,body:JSON.stringify({role:'ADMIN'})});data=await response.json();
+     if(!response.ok||data.user?.role!=='ADMIN')throw Error('Unable to open administrator experience.');
+    }
+    sessionStorage.setItem('nexusUser',JSON.stringify(data.user));admin=true;sessionStorage.removeItem(TOKEN_KEY);$('prepareDemo').hidden=false;
+    try{showDashboard(await api('state'));}catch(error){showLogin(error.message);}return;
+   }
+  }catch{}}
+
   if(token){try{showDashboard(await api('state'));}catch(error){sessionStorage.removeItem(TOKEN_KEY);showLogin(error.message);}}
  })();
 })();

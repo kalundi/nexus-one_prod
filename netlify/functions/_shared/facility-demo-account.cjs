@@ -37,4 +37,10 @@ async function issuePassword(query,id){
  return {password,email:EMAIL,loginUrl:'/facility-demo.html',demoOnly:true,message:'New demo manager password issued. Previous passwords and demo sessions are invalid. Save this password now; it is not retrievable later. No email was sent.'};
 }
 async function revokeDemoSessions(query){await query("UPDATE system_settings SET value=jsonb_set(value,'{secret}',to_jsonb($2::text)),updated_at=now() WHERE key=$1",[KEY,crypto.randomBytes(32).toString('hex')]);}
-module.exports={EMAIL,SCOPE,KEY,isDemoUser,allowed,signingSecret,newPassword,getAccount,provision,issuePassword,revokeDemoSessions,hashPassword,verifyPassword};
+async function claimRecovery(query,event){
+ const ip=String(event.headers?.['x-nf-client-connection-ip']||event.headers?.['x-forwarded-for']||'unknown').split(',')[0];
+ const key='demo:facility:recovery:'+crypto.createHash('sha256').update(ip).digest('hex'),bucket=Math.floor(Date.now()/1800000);
+ const result=await query(`INSERT INTO system_settings(key,value,updated_at) VALUES($1,jsonb_build_object('bucket',$2::bigint,'count',1),now()) ON CONFLICT(key) DO UPDATE SET value=jsonb_build_object('bucket',$2::bigint,'count',CASE WHEN system_settings.value->>'bucket'=$2::text THEN COALESCE((system_settings.value->>'count')::int,0)+1 ELSE 1 END),updated_at=now() RETURNING value`,[key,bucket]);
+ return Number(result.rows[0]?.value?.count)<=3;
+}
+module.exports={EMAIL,SCOPE,KEY,isDemoUser,allowed,signingSecret,newPassword,getAccount,provision,issuePassword,revokeDemoSessions,claimRecovery,hashPassword,verifyPassword};
