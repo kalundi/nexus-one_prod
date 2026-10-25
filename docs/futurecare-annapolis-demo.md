@@ -6,6 +6,8 @@ The sign-in screen and dashboard use the existing Nexus logo and platform navy, 
 
 The sign-in page fills the desktop with two equal-height, equal-width halves: Nexus messaging and branded transport imagery on the left; full-panel FutureCare exterior, reception and rehabilitation photography on the right, behind the manager login card. On narrow screens the two sections stack. All existing sign-in and demo controls retain their original behavior.
 
+The week uses **25 distinct fictional residents**, with a different set of five each day. The board is the daily outbound manifest, not the facility census. Each resident has a unique demo patient ID that is used consistently in selection, return edits, route tracking, alerts, notifications and invoice lines. The five destination/service slots remain the presentation template. Existing saved return schedules migrate to their corresponding daily slot; prior invoice versions remain archived when current resident labels are updated.
+
 This is a proposed Nexus Medical Transit facility solution, not a FutureCare production system or evidence of an existing contract. All five patients, appointments, drivers, vehicles, travel times, messages and operational events are fictional. Location addresses come from the organizations' public websites. No appointments are booked and no transport, billing, SMS or email is triggered.
 
 ## Demo access

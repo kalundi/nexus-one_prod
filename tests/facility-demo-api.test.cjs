@@ -28,11 +28,13 @@ test('demo login and shared manager controls work through isolated PostgreSQL wi
   await request('control','POST',{action:'date',date:'2026-10-27'},token);
   const nextDay=await request('state','GET',{},token);assert.equal(nextDay.body.dashboard.scenarioDate,'2026-10-27');assert.equal(nextDay.body.dashboard.paused,true);
   const beforeEdit=(await request('billing','GET',{},token)).body.invoices[0];
-  await request('control','POST',{action:'returnSchedule',date:'2026-10-27',patientId:'FC-DEMO-01',waitHours:3,vehicleWaiting:true},token);
+  assert.equal(nextDay.body.dashboard.patients[0].name,'Dorothy Bennett');assert.equal(nextDay.body.dashboard.patients[0].id,'FC-DEMO-06');
+  await request('control','POST',{action:'returnSchedule',date:'2026-10-27',patientId:'FC-DEMO-06',waitHours:3,vehicleWaiting:true},token);
   const afterEdit=(await request('billing','GET',{},token)).body.invoices[0];assert.ok(afterEdit.total>beforeEdit.total);assert.equal(afterEdit.revision,2);
   await assert.rejects(request('control','POST',{action:'returnSchedule',date:'2026-10-26',patientId:'FC-DEMO-01',waitHours:1,vehicleWaiting:true},token),/day changed/);
+  await assert.rejects(request('control','POST',{action:'returnSchedule',date:'2026-10-27',patientId:'FC-DEMO-01',waitHours:1,vehicleWaiting:true},token),/demo patient/);
   await assert.rejects(request('control','POST',{action:'date',date:'2026-10-31'},token),/October 26/);
-  const month=await request('billing','GET',{},token,{mode:'month',period:'2026-10'});assert.equal(month.body.invoices.length,5);assert.equal(month.body.invoices.flatMap(i=>i.rows).length,50);assert.equal(month.body.total,month.body.invoices.reduce((sum,i)=>sum+i.total,0));
+  const month=await request('billing','GET',{},token,{mode:'month',period:'2026-10'});assert.equal(month.body.invoices.length,5);assert.equal(month.body.invoices.flatMap(i=>i.rows).length,50);assert.equal(new Set(month.body.invoices.flatMap(i=>i.rows.map(r=>r.patientId))).size,25);assert.equal(month.body.total,month.body.invoices.reduce((sum,i)=>sum+i.total,0));
   await request('control','POST',{action:'date',date:'2026-10-26'},token);assert.equal((await request('billing','GET',{},token)).body.invoices[0].id,final.body.invoices[0].id);
   await request('control','POST',{action:'date',date:'2026-10-27'},token);assert.equal((await request('state','GET',{},secondLogin.body.token)).body.dashboard.patients[0].waitMinutes,180);
   const repeated=await request('setup','POST',{},'test-admin');assert.equal(repeated.statusCode,200);assert.equal(repeated.body.password,undefined);

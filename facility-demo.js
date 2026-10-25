@@ -14,7 +14,7 @@
   ['saveReturnSchedule','returnWaitHours','returnPickupTime','vehicleWaiting'].forEach(id=>$(id).disabled=busy);
   const firstReturn=document.querySelector('[data-jump="firstReturn"]'),returnDelay=document.querySelector('[data-jump="returnDelay"]');
   if(firstReturn)firstReturn.dataset.minute=String(Math.min(...dashboard.patients.map(p=>p.returnPickup)));
-  if(returnDelay)returnDelay.dataset.minute=String(dashboard.patients.find(p=>p.id==='FC-DEMO-04').returnPickup+7);
+  if(returnDelay)returnDelay.dataset.minute=String(dashboard.patients[3].returnPickup+7);
   const morningDelay=document.querySelector('[data-jump="morningDelay"]'),appointmentIssue=document.querySelector('[data-jump="appointmentIssue"]');
   if(morningDelay)morningDelay.dataset.minute=String(dashboard.patients[1].pickup+10);if(appointmentIssue)appointmentIssue.dataset.minute=String(dashboard.patients[2].pickup+5);
  }
@@ -42,7 +42,7 @@
  function selectPatient(id){selectedId=id;automaticLeg=true;selectedLeg=legFor(selected());invalidateRoute();render(false);$('detailsSection').scrollIntoView({behavior:'smooth',block:'start'});}
  function render(notify=true){
   if(!dashboard)return;
-  const patient=selected();if(!patient)return;renderReturnEditor(patient);
+  const patient=selected();if(!patient)return;if(selectedId!==patient.id){selectedId=patient.id;automaticLeg=true;}renderReturnEditor(patient);
   if(automaticLeg)selectedLeg=legFor(patient);
   const reset=lastRun!==dashboard.runId;
   if(reset){lastRun=dashboard.runId;knownMessages=new Set();}
