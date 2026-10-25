@@ -8,3 +8,9 @@ Retrieved October 25, 2026 for the user-requested proposed-collaboration present
 - `facility-6900.jpg`: rehabilitation gym. https://www.futurecare.com/wp-content/uploads/2025/12/FutureCareAnnapolis-6900HiRes-500x281.jpg
 
 Nexus logo: existing repository asset `/nexus-logo.png`. Palette follows `/platform.css`: navy `#082f49`, blue `#0369a1`, red `#b42335`.
+
+Full-panel sign-in page variants, linked in the official page metadata/srcsets:
+
+- `facility-exterior-full.jpg`: https://www.futurecare.com/wp-content/uploads/2025/12/FutureCareAnnapolis-7033HiRes-1.jpg
+- `facility-reception-large.jpg`: https://www.futurecare.com/wp-content/uploads/2025/12/FutureCareAnnapolis-6650HiRes-980x551.jpg
+- `facility-rehab-large.jpg`: https://www.futurecare.com/wp-content/uploads/2025/12/FutureCareAnnapolis-6900HiRes-980x551.jpg

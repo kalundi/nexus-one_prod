@@ -4,6 +4,8 @@ Presentation URL: https://nexusmt.com/facility-demo.html
 
 The sign-in screen and dashboard use the existing Nexus logo and platform navy, blue and red palette. The collaboration banner includes exterior, reception and rehabilitation photos from FutureCare's public Annapolis page, with a visible source link. This is labeled a proposed collaboration. Asset sources are recorded in `assets/futurecare-annapolis/README.md`.
 
+The sign-in page fills the desktop with two equal-height, equal-width halves: Nexus messaging and branded transport imagery on the left; full-panel FutureCare exterior, reception and rehabilitation photography on the right, behind the manager login card. On narrow screens the two sections stack. All existing sign-in and demo controls retain their original behavior.
+
 This is a proposed Nexus Medical Transit facility solution, not a FutureCare production system or evidence of an existing contract. All five patients, appointments, drivers, vehicles, travel times, messages and operational events are fictional. Location addresses come from the organizations' public websites. No appointments are booked and no transport, billing, SMS or email is triggered.
 
 ## Demo access
