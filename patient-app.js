@@ -6,6 +6,7 @@
  let currentUser=null,sharedRide=null,sharedPhone='',activeView='home',mapReference='',returnView='home',mapRevision=0,lastActivity=Date.now();
  let mapsPromise=null,map=null,renderer=null,driverMarker=null,routeSignature='',routeBounds=null,fitFrame=null;
  let approachRenderer=null,demoPaths={pickup:[],destination:[]},mapRendering=false;
+ let resolvedRouteAddresses=[],resolvedAddressKey='',endpointLabels=[];
  const savedTrips=N.trips;
  N.trips=()=>sharedRide?[sharedRide]:savedTrips();
  const phone=$('appShell').querySelector('.phone'),nav=phone.querySelector('.bottomNav');
@@ -17,6 +18,8 @@
  demoUpdates.innerHTML='<h3>Trip communications</h3><p>Behind the scenes · simulated notifications only. No SMS or email is sent.</p><div id="demoCommunicationLog" role="log" aria-label="Simulated trip communications" aria-live="polite" aria-relevant="additions"></div>';
  $('patientMapStatus').after(demoUpdates);
  const demoDriver=document.createElement('p');demoDriver.id='demoDriver';demoDriver.className='demoDriver';demoDriver.hidden=true;$('livecareDemoNotice').before(demoDriver);
+ // Keep the A/B address key beside the map, ahead of the communication log.
+ $('patientMap').before($('mapItinerary'));
  const bookingPage=document.createElement('section');
  bookingPage.id='bookingPage';bookingPage.className='viewportStack';bookingPage.hidden=true;
  bookingPage.innerHTML='<div class="patientScreenHead"><button type="button" class="button secondary compact" data-patient-back>‹ Back</button><h2>Book transportation</h2></div><iframe id="bookingFrame" title="Book your Nexus ride" allow="payment"></iframe>';
@@ -64,7 +67,7 @@
   const lat=Number(location.latitude),lng=Number(location.longitude);
   return Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180?{lat,lng}:null;
  }
- function resetRoute(){cancelAnimationFrame(fitFrame);renderer?.setDirections({routes:[]});approachRenderer?.setMap(null);approachRenderer=null;demoPaths={pickup:[],destination:[]};driverMarker?.setMap(null);driverMarker=null;routeSignature='';routeBounds=null;$('mapFitBtn').hidden=true;$('mapRouteSummary').textContent='';}
+ function resetRoute(){cancelAnimationFrame(fitFrame);renderer?.setDirections({routes:[]});approachRenderer?.setMap(null);approachRenderer=null;endpointLabels.forEach(label=>label.close());endpointLabels=[];resolvedRouteAddresses=[];demoPaths={pickup:[],destination:[]};driverMarker?.setMap(null);driverMarker=null;routeSignature='';routeBounds=null;$('mapFitBtn').hidden=true;$('mapRouteSummary').textContent='';}
  function pointOnDemoRoute(points,progress){
   if(!points.length)return null;
   if(points.length===1)return points[0];
@@ -94,7 +97,7 @@
   fitFrame=requestAnimationFrame(()=>{
    if(!map||!routeBounds||activeView!=='map')return;
    window.google.maps.event?.trigger(map,'resize');
-   map.fitBounds(routeBounds,{top:48,right:40,bottom:40,left:40});
+   map.fitBounds(routeBounds,{top:endpointLabels.length?140:48,right:40,bottom:endpointLabels.length?70:40,left:40});
   });
  }
  if(window.ResizeObserver)new ResizeObserver(entries=>{if(entries[0].contentRect.width&&entries[0].contentRect.height)fitFullRoute();}).observe($('patientMap'));
@@ -125,10 +128,12 @@
   return mapsPromise;
  }
  function rideDetails(trip,places){
+  const addressKey=JSON.stringify([trip.id||trip.reference,places.origin,places.destinations,places.roundTrip]);
+  const addresses=trip.livecareDemo&&addressKey===resolvedAddressKey?resolvedRouteAddresses:[];
   const itinerary=[['Pickup',places.pickup||'Pickup pending','mapPickup'],...places.stops.map((address,index)=>[places.stops.length>1?`Stop ${index+1}`:'Destination',address,index===places.stops.length-1?'mapDestination':`mapStop${index+1}`]),...(places.roundTrip?[['Return to pickup',places.pickup,'mapReturn']]:[])];
   if(!places.stops.length)itinerary.push(['Destination','Destination pending','mapDestination']);
   $('mapItinerary').replaceChildren();
-  itinerary.forEach(([label,address,id],index)=>{const card=document.createElement('div'),title=document.createElement('small'),text=document.createElement('p');card.className='patientMapAddress';title.textContent=`${String.fromCharCode(65+index)} · ${label}`;text.id=id;text.textContent=address;card.append(title,text);$('mapItinerary').appendChild(card);});
+  itinerary.forEach(([label,address,id],index)=>{const card=document.createElement('div'),title=document.createElement('small'),text=document.createElement('p');card.className='patientMapAddress';title.textContent=`${String.fromCharCode(65+index)} · ${label}`;text.id=id;text.textContent=addresses[index]||address;card.append(title,text);if(addresses[index]){const source=document.createElement('small');source.className='routeAddressSource';source.textContent='Route address · Google Maps';card.append(source);}if(trip.livecareDemo){const demo=document.createElement('small');demo.textContent='Demo location';card.append(demo);}$('mapItinerary').appendChild(card);});
   $('mapRideDetails').replaceChildren();
   const fields=[['Pickup',`${trip.date||''} ${trip.time||''}`],['Status',trip.statusLabel||trip.status||'Scheduled'],['Driver',trip.driver||trip.driverName||'Pending assignment'],['Vehicle',trip.vehicle||trip.vehicleUnit||'Pending assignment'],['Reference',trip.id||trip.reference]];
   if(places.roundTrip)fields.push(['Return pickup',[trip.returnTripDate,trip.returnTripTime||trip.returnPickupTime].filter(Boolean).join(' ')||'To be confirmed']);
@@ -160,6 +165,13 @@
     const result=await new maps.DirectionsService().route({origin,destination:roundTrip?origin:destinations[destinations.length-1],waypoints:(roundTrip?destinations:destinations.slice(0,-1)).map(address=>({location:address,stopover:true})),travelMode:'DRIVING'});
     if(revision!==mapRevision||activeView!=='map')return;
     const route=result.routes?.[0];if(!route)throw new Error('We could not find a driving route for these addresses.');
+    resolvedRouteAddresses=[route.legs?.[0]?.start_address,...(route.legs||[]).map(leg=>leg.end_address)];
+    resolvedAddressKey=signature;
+    rideDetails(trip,places);
+    if(trip.livecareDemo){
+     const endpoints=[{letter:'A',role:'Pickup',address:resolvedRouteAddresses[0],position:route.legs?.[0]?.start_location},{letter:'B',role:'Destination',address:resolvedRouteAddresses.at(-1),position:route.legs?.at(-1)?.end_location}];
+     endpoints.forEach(endpoint=>{if(!endpoint.address||!endpoint.position)return;const content=document.createElement('div'),title=document.createElement('strong'),address=document.createElement('p');content.className='demoMapEndpoint';title.textContent=`${endpoint.letter} · ${endpoint.role}`;address.textContent=endpoint.address;content.append(title,address);const label=new maps.InfoWindow({content,position:endpoint.position,disableAutoPan:true,maxWidth:210});label.open({map});endpointLabels.push(label);});
+    }
     if(trip.livecareDemo){
      demoPaths.destination=route.overview_path||[];
      const approach=await new maps.DirectionsService().route({origin:trip.demo.approachOrigin,destination:origin,travelMode:'DRIVING'});

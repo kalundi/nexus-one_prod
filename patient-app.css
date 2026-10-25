@@ -64,4 +64,6 @@ button.brandLockup{border:0;padding:0;background:none;cursor:pointer;text-align:
 .demoMessage strong{display:block;color:#15374c}.demoMessage time{display:block;font-size:11px;color:#5b6c7b;margin:3px 0}
 .demoMessage p{font-size:13px;line-height:1.5;margin:8px 0}.demoMessage .demoRecipients{font-size:11px;color:#496174}
 .demoMessage small{display:block;font-size:10px;color:#46626e;font-weight:700}.demoDelay{border-left:5px solid #c26709;background:#fff7e9}
+.demoMapEndpoint{color:#15374c;max-width:210px;font:12px/1.4 system-ui,sans-serif}.demoMapEndpoint strong{display:block;font-size:14px}.demoMapEndpoint p{margin:5px 0 2px}
+#mapItinerary .patientMapAddress p{font-size:14px;font-weight:650;line-height:1.5}#mapItinerary .routeAddressSource{font-size:10px;color:#5b7081;display:block;margin-top:5px}
 @media(max-width:380px){.topLogo{width:100px}.topBarInner{gap:8px;padding:10px}.topAction{padding:0 10px;font-size:11px}.heroActions{flex-direction:row}.historySplit{grid-template-columns:1fr}.patientScreenHead h2{font-size:16px}}
