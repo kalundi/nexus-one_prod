@@ -54,4 +54,14 @@ button.brandLockup{border:0;padding:0;background:none;cursor:pointer;text-align:
 #appShell[data-shared='true'] [data-footer-action='profile'],#appShell[data-shared='true'] [data-footer-action='history'],#appShell[data-shared='true'] [data-patient-book],#appShell[data-shared='true'] [data-patient-history]{display:none}
 #appShell[data-shared='true'] #homePage>.hero,#appShell[data-shared='true'] #homePage>.kpiGrid{display:none}
 .portalDialog{max-height:85dvh;overflow:auto}
+.demoDriver{padding:12px 16px;margin:6px 0;border-radius:12px;background:#102d47;color:#fff;font-weight:700}
+#livecareDemoNotice{padding:12px 16px;border-left:4px solid #087e8b;background:#e9f7f8;line-height:1.5}
+#livecareDemoTimeline{display:flex;flex-wrap:wrap;gap:6px 16px;padding:10px 14px;list-style:none;font-size:12px;color:#39516a}
+#livecareDemoTimeline[hidden],.demoDriver[hidden],.demoUpdates[hidden]{display:none}
+.demoUpdates{padding:16px;background:#f2f6fa;border:1px solid #d9e4ed;border-radius:14px;margin:14px 0}
+.demoUpdates h3{margin:0 0 4px}.demoUpdates>p{font-size:12px;color:#52687b;line-height:1.5}
+.demoMessage{padding:14px;margin-top:10px;border:1px solid #d8e5ec;border-radius:10px;background:white;text-align:left}
+.demoMessage strong{display:block;color:#15374c}.demoMessage time{display:block;font-size:11px;color:#5b6c7b;margin:3px 0}
+.demoMessage p{font-size:13px;line-height:1.5;margin:8px 0}.demoMessage .demoRecipients{font-size:11px;color:#496174}
+.demoMessage small{display:block;font-size:10px;color:#46626e;font-weight:700}.demoDelay{border-left:5px solid #c26709;background:#fff7e9}
 @media(max-width:380px){.topLogo{width:100px}.topBarInner{gap:8px;padding:10px}.topAction{padding:0 10px;font-size:11px}.heroActions{flex-direction:row}.historySplit{grid-template-columns:1fr}.patientScreenHead h2{font-size:16px}}
