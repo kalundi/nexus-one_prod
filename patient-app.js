@@ -129,7 +129,7 @@
  }
  function rideDetails(trip,places){
   const addressKey=JSON.stringify([trip.id||trip.reference,places.origin,places.destinations,places.roundTrip]);
-  const addresses=addressKey===resolvedAddressKey?resolvedRouteAddresses:[];
+  const addresses=trip.livecareDemo&&addressKey===resolvedAddressKey?resolvedRouteAddresses:[];
   const itinerary=[['Pickup',places.pickup||'Pickup pending','mapPickup'],...places.stops.map((address,index)=>[places.stops.length>1?`Stop ${index+1}`:'Destination',address,index===places.stops.length-1?'mapDestination':`mapStop${index+1}`]),...(places.roundTrip?[['Return to pickup',places.pickup,'mapReturn']]:[])];
   if(!places.stops.length)itinerary.push(['Destination','Destination pending','mapDestination']);
   $('mapItinerary').replaceChildren();
