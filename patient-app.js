@@ -5,6 +5,7 @@
  const sharedReference=new URLSearchParams(location.search).get('reference')||'';
  let currentUser=null,sharedRide=null,sharedPhone='',activeView='home',mapReference='',returnView='home',mapRevision=0,lastActivity=Date.now();
  let mapsPromise=null,map=null,renderer=null,driverMarker=null,routeSignature='',routeBounds=null,fitFrame=null;
+ let approachRenderer=null,demoPaths={pickup:[],destination:[]},mapRendering=false;
  const savedTrips=N.trips;
  N.trips=()=>sharedRide?[sharedRide]:savedTrips();
  const phone=$('appShell').querySelector('.phone'),nav=phone.querySelector('.bottomNav');
@@ -12,6 +13,10 @@
  mapPage.id='mapPage';mapPage.className='viewportStack';mapPage.hidden=true;
  mapPage.innerHTML='<div class="patientScreenHead"><button type="button" class="button secondary compact" data-patient-back>‹ Back</button><h2>Full trip route</h2><button type="button" class="button secondary compact" id="mapShareBtn">Share</button></div><div class="patientMapToolbar"><p id="mapRouteSummary"></p><button type="button" class="button secondary compact" id="mapFitBtn" hidden>Fit full route</button></div><p id="livecareDemoNotice" role="status" hidden></p><ol id="livecareDemoTimeline" hidden></ol><div id="patientMap" class="patientMap" role="region" aria-label="Your full trip route map"></div><p id="patientMapStatus" class="patientMapStatus" role="status"></p><button type="button" class="button secondary compact" id="mapRetryBtn" hidden>Retry map</button><div id="mapItinerary" class="patientMapAddresses"></div><dl id="mapRideDetails" class="detailList"></dl>';
  phone.insertBefore(mapPage,nav);
+ const demoUpdates=document.createElement('section');demoUpdates.id='demoUpdates';demoUpdates.className='demoUpdates';demoUpdates.hidden=true;
+ demoUpdates.innerHTML='<h3>Trip communications</h3><p>Behind the scenes · simulated notifications only. No SMS or email is sent.</p><div id="demoCommunicationLog" role="log" aria-label="Simulated trip communications" aria-live="polite" aria-relevant="additions"></div>';
+ $('patientMapStatus').after(demoUpdates);
+ const demoDriver=document.createElement('p');demoDriver.id='demoDriver';demoDriver.className='demoDriver';demoDriver.hidden=true;$('livecareDemoNotice').before(demoDriver);
  const bookingPage=document.createElement('section');
  bookingPage.id='bookingPage';bookingPage.className='viewportStack';bookingPage.hidden=true;
  bookingPage.innerHTML='<div class="patientScreenHead"><button type="button" class="button secondary compact" data-patient-back>‹ Back</button><h2>Book transportation</h2></div><iframe id="bookingFrame" title="Book your Nexus ride" allow="payment"></iframe>';
@@ -59,7 +64,30 @@
   const lat=Number(location.latitude),lng=Number(location.longitude);
   return Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180?{lat,lng}:null;
  }
- function resetRoute(){cancelAnimationFrame(fitFrame);renderer?.setDirections({routes:[]});driverMarker?.setMap(null);driverMarker=null;routeSignature='';routeBounds=null;$('mapFitBtn').hidden=true;$('mapRouteSummary').textContent='';}
+ function resetRoute(){cancelAnimationFrame(fitFrame);renderer?.setDirections({routes:[]});approachRenderer?.setMap(null);approachRenderer=null;demoPaths={pickup:[],destination:[]};driverMarker?.setMap(null);driverMarker=null;routeSignature='';routeBounds=null;$('mapFitBtn').hidden=true;$('mapRouteSummary').textContent='';}
+ function pointOnDemoRoute(points,progress){
+  if(!points.length)return null;
+  if(points.length===1)return points[0];
+  const lengths=points.slice(1).map((point,i)=>Math.hypot((point.lng()-points[i].lng())*Math.cos(point.lat()*Math.PI/180),point.lat()-points[i].lat()));
+  let remaining=lengths.reduce((sum,length)=>sum+length,0)*Math.max(0,Math.min(1,progress));
+  for(let i=0;i<lengths.length;i++){if(remaining<=lengths[i]){const f=lengths[i]?remaining/lengths[i]:0;return {lat:points[i].lat()+(points[i+1].lat()-points[i].lat())*f,lng:points[i].lng()+(points[i+1].lng()-points[i].lng())*f};}remaining-=lengths[i];}
+  return points.at(-1);
+ }
+ function renderDemoCommunications(trip){
+  $('demoUpdates').hidden=!trip.livecareDemo;$('demoDriver').hidden=!trip.livecareDemo;
+  if(!trip.livecareDemo){$('demoCommunicationLog').replaceChildren();return;}
+  $('demoDriver').textContent=`Your driver: ${trip.driverName} · ${trip.vehicleUnit}`;
+  const events=trip.demo.communications||[],log=$('demoCommunicationLog');
+  if(log.dataset.started!==trip.demo.startedAt){log.replaceChildren();log.dataset.started=trip.demo.startedAt;}
+  const existing=new Set([...log.children].map(item=>item.dataset.event));
+  events.forEach(event=>{if(existing.has(event.id))return;const card=document.createElement('article');card.className=`demoMessage${event.delay?' demoDelay':''}`;card.dataset.event=event.id;
+   const title=document.createElement('strong'),time=document.createElement('time'),text=document.createElement('p'),recipients=document.createElement('p'),delivery=document.createElement('small');
+   title.textContent=event.title;time.dateTime=event.timestamp;time.textContent=new Date(event.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+   text.textContent=event.text+(event.etaAt?` Updated demo ETA: ${new Date(event.etaAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'})}.`:'');
+   recipients.className='demoRecipients';recipients.textContent=`To: ${event.recipients.join(' · ')}`;delivery.textContent=`${event.channel} · ${event.deliveryStatus}`;
+   card.append(title,time,text,recipients,delivery);log.prepend(card);
+  });
+ }
  function clearMap(){mapRevision++;resetRoute();renderer?.setMap(null);renderer=null;map=null;$('patientMap').replaceChildren();}
  function fitFullRoute(){
   cancelAnimationFrame(fitFrame);
@@ -107,13 +135,15 @@
   fields.forEach(([label,value])=>{const wrap=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;wrap.append(dt,dd);$('mapRideDetails').appendChild(wrap);});
  }
  async function renderMap(trip,refit=false){
+  if(mapRendering)return;mapRendering=true;
   const revision=++mapRevision;
   const places=routeLocations(trip);
   rideDetails(trip,places);$('mapRetryBtn').hidden=true;
   $('patientMap').hidden=false;
   const driver=(!places.mock||trip.livecareDemo===true)&&trip.driverLocationVisible===true?coordinates(trip.driverLocation):null;
   $('livecareDemoNotice').hidden=!trip.livecareDemo;$('livecareDemoTimeline').hidden=!trip.livecareDemo;
-  $('livecareDemoNotice').textContent=trip.livecareDemo?`SIMULATED LIVECARE DEMO · ${trip.demo.message}${trip.demo.etaMinutes?` Simulated ETA: ${trip.demo.etaMinutes} min.`:''} No real vehicle GPS or transport. Movement is illustrative.`:'';
+  $('livecareDemoNotice').textContent=trip.livecareDemo?`SIMULATED LIVECARE DEMO · ${trip.demo.message}${trip.demo.etaSeconds?` Demo ETA: ${trip.demo.etaSeconds} seconds.`:''}${trip.demo.delayDetected?' Revised ETA includes a simulated 15-second delay.':''} Accelerated playback; no real vehicle GPS or transport.`:'';
+  renderDemoCommunications(trip);
   $('livecareDemoTimeline').replaceChildren();
   if(trip.livecareDemo)trip.demo.timeline.forEach(stage=>{const item=document.createElement('li');item.textContent=`${stage.reached?'✓':'○'} ${stage.label}`;$('livecareDemoTimeline').append(item);});
   // Remove an existing marker immediately when the server stops authorizing GPS.
@@ -130,19 +160,27 @@
     const result=await new maps.DirectionsService().route({origin,destination:roundTrip?origin:destinations[destinations.length-1],waypoints:(roundTrip?destinations:destinations.slice(0,-1)).map(address=>({location:address,stopover:true})),travelMode:'DRIVING'});
     if(revision!==mapRevision||activeView!=='map')return;
     const route=result.routes?.[0];if(!route)throw new Error('We could not find a driving route for these addresses.');
+    if(trip.livecareDemo){
+     demoPaths.destination=route.overview_path||[];
+     const approach=await new maps.DirectionsService().route({origin:trip.demo.approachOrigin,destination:origin,travelMode:'DRIVING'});
+     if(revision!==mapRevision||activeView!=='map')return;
+     demoPaths.pickup=approach.routes?.[0]?.overview_path||[];
+     approachRenderer=new maps.DirectionsRenderer({map,preserveViewport:true,suppressMarkers:true,polylineOptions:{strokeColor:'#c26709',strokeWeight:6,strokeOpacity:0.9}});approachRenderer.setDirections(approach);
+    }
     routeBounds=new maps.LatLngBounds();if(route.bounds)routeBounds.union(route.bounds);
     (route.overview_path||[]).forEach(point=>routeBounds.extend(point));
+    demoPaths.pickup.forEach(point=>routeBounds.extend(point));
     (route.legs||[]).forEach(leg=>{if(leg.start_location)routeBounds.extend(leg.start_location);if(leg.end_location)routeBounds.extend(leg.end_location);});
     renderer.setDirections(result);routeSignature=signature;$('mapFitBtn').hidden=false;
     const miles=(route.legs||[]).reduce((sum,leg)=>sum+Number(leg.distance?.value||0)/1609.344,0);
-    $('mapRouteSummary').textContent=`${roundTrip?'Round trip':'One way'}${destinations.length>1?` · ${destinations.length} stops`:''}${miles>0?` · ${miles.toFixed(1)} mi total`:''}`;
+    $('mapRouteSummary').textContent=trip.livecareDemo?'Orange: driver → pickup · Blue: pickup → destination':`${roundTrip?'Round trip':'One way'}${destinations.length>1?` · ${destinations.length} stops`:''}${miles>0?` · ${miles.toFixed(1)} mi total`:''}`;
     refit=true;
    }
-   if(driver){if(!driverMarker)driverMarker=new maps.Marker({map,title:trip.livecareDemo?'Simulated demo vehicle':'Your assigned driver',label:trip.livecareDemo?'D':'N'});driverMarker.setPosition(driver);}
+   if(driver){if(!driverMarker)driverMarker=new maps.Marker({map,title:trip.livecareDemo?`${trip.driverName} — simulated demo vehicle`:'Your assigned driver',label:trip.livecareDemo?'D':'N'});driverMarker.setPosition(trip.livecareDemo?pointOnDemoRoute(demoPaths[trip.demo.routePhase],trip.demo.routeProgress)||driver:driver);}
    if(driver&&routeBounds)routeBounds.extend(driver);
    if(refit)fitFullRoute();
-   $('patientMapStatus').textContent=trip.livecareDemo?(trip.demo.completed?'DEMO complete — simulated vehicle tracking has ended.':'DEMO — simulated vehicle position. Updates refresh every 15 seconds.'):places.mock?'MOCK TRIP — route preview between the listed locations. No live driver tracking.':driver?'Your booked route and assigned driver’s latest location. Updates refresh automatically.':'Your booked route. Live driver location appears when your trip is active and pickup is within one hour.';
-  }catch(error){if(revision!==mapRevision)return;if(!map)$('patientMap').hidden=true;$('patientMapStatus').textContent=error.message||'The route could not be displayed. Your ride details are shown below.';$('mapRetryBtn').hidden=false;}
+   $('patientMapStatus').textContent=trip.livecareDemo?(trip.demo.completed?'DEMO complete — simulated vehicle tracking has ended.':trip.demo.delayed?'DEMO — driver paused for simulated traffic. Destination and monitoring contacts have a revised ETA in the communication log.':'DEMO — D marks James Carter’s simulated vehicle, following the road route. Updates refresh every 3 seconds.'):places.mock?'MOCK TRIP — route preview between the listed locations. No live driver tracking.':driver?'Your booked route and assigned driver’s latest location. Updates refresh automatically.':'Your booked route. Live driver location appears when your trip is active and pickup is within one hour.';
+  }catch(error){if(revision!==mapRevision)return;if(!map)$('patientMap').hidden=true;$('patientMapStatus').textContent=error.message||'The route could not be displayed. Your ride details are shown below.';$('mapRetryBtn').hidden=false;}finally{mapRendering=false;}
  }
  function shareTrip(reference){
   if(!tripByReference(reference))return;
@@ -227,5 +265,6 @@
  setInterval(countdown,60000);
  ['click','keydown','touchstart','scroll'].forEach(type=>document.addEventListener(type,()=>{lastActivity=Date.now();},{passive:true}));
  setInterval(()=>{if(currentUser&&Date.now()-lastActivity>60*60*1000)sessionExpired();},60000);
- setInterval(()=>{if(sharedPhone)loadSharedRide().catch(()=>{sharedPhone='';clearMap();$('patientMapStatus').textContent='Ride access could not be refreshed. Reopen the shared link to verify access.';});},15000);
+ let lastSharedPoll=0,sharedPollPending=false;
+ setInterval(()=>{if(!sharedPhone||sharedPollPending||Date.now()-lastSharedPoll<(sharedRide?.livecareDemo?3000:15000))return;lastSharedPoll=Date.now();sharedPollPending=true;loadSharedRide().catch(()=>{sharedPhone='';clearMap();$('patientMapStatus').textContent='Ride access could not be refreshed. Reopen the shared link to verify access.';}).finally(()=>{sharedPollPending=false;});},3000);
 })();
