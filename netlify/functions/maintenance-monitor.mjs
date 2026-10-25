@@ -1,6 +1,9 @@
-import db from './_shared/db.cjs';
+import pg from 'pg';
 import maintenance from './_shared/maintenance.cjs';
-const monitor=maintenance.createMonitor({query:db.query});
+// Import the database package directly so Netlify's ESM dependency tracer includes it.
+const pool=new pg.Pool({connectionString:process.env.DATABASE_URL||process.env.NETLIFY_DB_URL,max:2,idleTimeoutMillis:30000,connectionTimeoutMillis:8000,ssl:{rejectUnauthorized:false}});
+pool.on('error',()=>console.error('[MAINTENANCE_MONITOR] Idle database connection failed'));
+const monitor=maintenance.createMonitor({query:(...args)=>pool.query(...args)});
 export function createScheduledHandler(monitor){return async function handler(request,context){
   // Netlify's schedule configuration prevents public URL invocation.
   if(context?.deploy?.context!=='production' || !context.deploy.published || process.env.NEXUS_TEST_MODE==='true')return new Response('Skipped outside published production');
