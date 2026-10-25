@@ -81,6 +81,16 @@ test('production user directory owns demo credentials; resets and activation rev
   await query("UPDATE users SET password_reset_token='regular-user-fixture-token',password_reset_expires=now()+interval '10 minutes',password_reset_used=false WHERE id=$1",[admin.id]);
   assert.equal((await request('auth/reset-password','POST',{token:'regular-user-fixture-token',newPassword:'regular-user-new-password'})).statusCode,200);
   assert.equal((await query('SELECT password_hash FROM users WHERE id=$1',[admin.id])).rows[0].password_hash,Account.hashPassword('regular-user-new-password'));
+  await assert.rejects(()=>Account.applyPasswordRotation(query,Account.hashPassword('rotation-fixture-password')),/active managed/);
+  await query('UPDATE users SET active=true WHERE id=$1',[id]);
+  const rotation=Account.hashPassword('rotation-fixture-password');
+  assert.equal(await Account.applyPasswordRotation(query,rotation),true);
+  const rotatedLogin=await request('facility-demo/login','POST',{email:Account.EMAIL,password:'rotation-fixture-password'});assert.equal(rotatedLogin.statusCode,200);
+  assert.equal((await Account.getAccount(query)).password_reset_token,null);
+  const later=await Account.issuePassword(query,id);
+  assert.equal(await Account.applyPasswordRotation(query,rotation),false,'redeploy must preserve later User Management password changes');
+  assert.equal(Account.verifyPassword(later.password,(await Account.getAccount(query)).password_hash),true);
+  assert.equal((await request('facility-demo/state','GET',{},rotatedLogin.body.token)).statusCode,401);
   const after=(await query('SELECT value FROM system_settings WHERE key=$1',[Account.KEY])).rows[0].value;assert.deepEqual(after.state,oldConfig.state);
  }finally{global.fetch=originalFetch;if(originalKey===undefined)delete process.env.SENDGRID_API_KEY;else process.env.SENDGRID_API_KEY=originalKey;if(originalFrom===undefined)delete process.env.SENDGRID_FROM_EMAIL;else process.env.SENDGRID_FROM_EMAIL=originalFrom;await db.close();}
 });
