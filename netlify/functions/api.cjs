@@ -36,6 +36,7 @@ const {bookingPaymentPolicy,requiresFullPaymentBeforeBoarding}=require('./_share
 const {getSecureDocument,listSecureDocuments}=require('./_shared/secure-document-registry.cjs');
 const {sendSms}=require('./_shared/sms-consent.cjs');
 const {canPatientSeeDriverLocation,distanceMiles}=require('./_shared/patient-driver-location.cjs');
+const LivecareDemo=require('./_shared/livecare-demo.cjs');
 const {syncBookingCalendar,cancelBookingCalendar}=require('./_shared/booking-calendar.cjs');
 const montgomeryOutreachPilot=require('../../data/montgomery-tier-a-outreach-pilot.json');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_APPROVAL:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
@@ -2101,6 +2102,23 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p.join('/')==='livecare/demo'&&method==='POST'){
+   const actor=await requireUser(bearer(event),['ADMIN','DISPATCHER']);
+   const client=await getPool().connect();
+   try{
+    await client.query('BEGIN');
+    const patients=(await client.query("SELECT id,email FROM users WHERE active=true AND role='PATIENT' AND lower(display_name)='fletcher kalundi' LIMIT 2")).rows;
+    const patient=patients.length===1?patients[0]:null;
+    const result=await client.query(`INSERT INTO bookings(reference,name,phone,email,patient_user_id,service,pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,trip_date,trip_time,status,notes,booking_source,payment_status,reminder_sent,requires_deposit,deposit_amount,balance_due,estimated_fare,trip_type,created_at,updated_at)
+     VALUES($1,'Fletcher Kalundi',$2,$3,$4,'ambulatory','Demo pickup — Gaithersburg, MD','Demo destination — Bethesda, MD',39.155,-77.24,39.04,-77.117,(now() AT TIME ZONE 'America/New_York')::date,(now() AT TIME ZONE 'America/New_York')::time,'MOCK',$5,'MOCK','MOCK',true,false,0,0,0,'ONE_WAY',now(),now())
+     ON CONFLICT(reference) DO UPDATE SET created_at=now(),updated_at=now(),trip_date=EXCLUDED.trip_date,trip_time=EXCLUDED.trip_time
+     WHERE bookings.booking_source='MOCK' AND bookings.notes=$5 RETURNING *`,[LivecareDemo.REFERENCE,LivecareDemo.PHONE,patient?.email||null,patient?.id||null,LivecareDemo.NOTE]);
+    if(!result.rows[0])throw Object.assign(new Error('Demo reference already belongs to a different trip.'),{statusCode:409});
+    await client.query("INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,'MOCK','LiveCare demo started',$2,$3)",[LivecareDemo.REFERENCE,LivecareDemo.NOTE,actor.email]);
+    await client.query('COMMIT');
+    return json(200,{booking:await mapPatientBooking(result.rows[0]),phone:LivecareDemo.PHONE,patientAccountLinked:Boolean(patient)});
+   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
+  }
   if(p[0]==='timing'&&p[1]==='facilities'&&method==='POST'){
    const body=parseBody(event),addresses=Array.isArray(body.addresses)?body.addresses:[];
    if(addresses.length>24||addresses.some(a=>typeof a!=='string'||a.length>500))return json(400,{error:'Provide up to 24 valid addresses.'});
@@ -5153,6 +5171,7 @@ function mapBooking(b){
 
 async function mapPatientBooking(value){
  const booking=value&&value.reference&&value.statusLabel?{...value}:mapBooking(value||{});
+ const demo=LivecareDemo.project(booking);if(demo)return demo;
  booking.driverLocationVisible=false;
  if(!canPatientSeeDriverLocation(booking))return booking;
  const position=await query(`SELECT latitude,longitude,heading,speed_mph,recorded_at FROM gps_positions
