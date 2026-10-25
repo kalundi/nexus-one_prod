@@ -45,3 +45,10 @@ Manual **Report 15-minute delay** and **Report an issue** controls apply to the 
 - [UM Baltimore Washington Medical Center](https://www.umms.org/bwmc): 301 Hospital Drive, Glen Burnie, MD 21061.
 
 Location references establish addresses, not appointment availability, eligibility, affiliation or a transport agreement. Road routes require a working Google Maps connection. Full route addresses remain visible if the map service is unavailable.
+# Daily billing demonstration
+
+Open **Daily invoicing** in the manager navigation. Select a day or month; October 26, 2026 contains the five fictional round trips (ten separately priced one-way legs). Other periods show an empty statement. Expand a trip's fare details or use Print / save PDF.
+
+The server uses configured Nexus platform pricing and the shared NexusFare engine. Base fares, loaded mileage, fuel, time premiums/minimums, waiting, positioning, short-notice and processing charges reconcile in cents to trip and period totals. Distances are illustrative demo inputs, not measured road miles. Vehicles leave between outbound and return pickups, so appointment duration is not charged as waiting; reported delays alone do not create charges.
+
+The estimate captures pricing on its first authenticated state/billing read. Once all five return handoffs complete, a server-side poll finalizes the daily invoice once and displays its simulated delivery to the demo manager inbox. The invoice and tariff snapshot survive replay/restart; replay does not create another bill. Delivery requires the active demo polling session; no scheduled production email service or external message is configured. This is a demonstration invoice, with no payment due. Production automation would require verified route/billable inputs and a configured recipient/delivery schedule.
