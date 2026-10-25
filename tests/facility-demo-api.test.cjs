@@ -37,6 +37,13 @@ test('demo login and shared manager controls work through isolated PostgreSQL wi
   const month=await request('billing','GET',{},token,{mode:'month',period:'2026-10'});assert.equal(month.body.invoices.length,5);assert.equal(month.body.invoices.flatMap(i=>i.rows).length,50);assert.equal(new Set(month.body.invoices.flatMap(i=>i.rows.map(r=>r.patientId))).size,25);assert.equal(month.body.total,month.body.invoices.reduce((sum,i)=>sum+i.total,0));
   await request('control','POST',{action:'date',date:'2026-10-26'},token);assert.equal((await request('billing','GET',{},token)).body.invoices[0].id,final.body.invoices[0].id);
   await request('control','POST',{action:'date',date:'2026-10-27'},token);assert.equal((await request('state','GET',{},secondLogin.body.token)).body.dashboard.patients[0].waitMinutes,180);
+  assert.equal((await request('control','POST',{action:'cancelBooking',patientId:'FC-DEMO-06'})).statusCode,401);
+  await request('control','POST',{action:'cancelBooking',patientId:'FC-DEMO-06'},token);
+  const book={action:'book',date:'2026-10-27',requestId:'api-booking-request-0001',name:'Alice Demo Foster',service:'Wheelchair',destinationIndex:0,pickupTime:'08:00',appointmentTime:'08:45',returnTime:'10:45',vehicleWaiting:true,appointment:'Demo follow-up',notify:['destination','caregiver']};
+  const booked=await request('control','POST',book,token);assert.equal(booked.body.dashboard.patients.length,5);assert.ok(booked.body.dashboard.patients.some(patient=>patient.name==='Alice Demo Foster'));
+  await request('control','POST',book,token);const shared=await request('state','GET',{},secondLogin.body.token);assert.equal(shared.body.dashboard.patients.filter(patient=>patient.name==='Alice Demo Foster').length,1);assert.equal(shared.body.dashboard.messages.filter(message=>message.title==='Demo booking confirmed').length,1);
+  const bookingInvoice=(await request('billing','GET',{},token)).body.invoices[0];assert.equal(bookingInvoice.rows.filter(row=>row.patient==='Alice Demo Foster').length,2);assert.equal(bookingInvoice.rows.some(row=>row.patientId==='FC-DEMO-06'),false);
+  const persisted=(await db.query('SELECT value FROM system_settings WHERE key=$1',[Demo.KEY])).rows[0].value;assert.equal(persisted.state.additionalBookings[0].name,'Alice Demo Foster');assert.ok(persisted.state.cancelledIds.includes('FC-DEMO-06'));
   const repeated=await request('setup','POST',{},'test-admin');assert.equal(repeated.statusCode,200);assert.equal(repeated.body.password,undefined);
   let rateLimited=false;for(let i=0;i<21;i++){const attempt=await request('login','POST',{email:Demo.USERNAME,password:'wrong'});if(attempt.statusCode===429){rateLimited=true;break;}}assert.equal(rateLimited,true);
  }finally{await db.close();}

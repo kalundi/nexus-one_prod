@@ -1,4 +1,5 @@
 const Billing=require('./facility-demo-billing.cjs');
+const Booking=require('./facility-demo-booking.cjs');
 const crypto=require('node:crypto');
 const SCOPE='futurecare-annapolis-demo',KEY='demo:facility:futurecare-annapolis',USERNAME='annapolis.demo@nexusmt.com';
 const FACILITY={name:'FutureCare Annapolis',address:'2700 Southaven Road, Annapolis, MD 21401',source:'https://www.futurecare.com/locations/annapolis/'};
@@ -34,16 +35,17 @@ function migrateState(state){
 function initialState(now=Date.now(),date=DATES[0]){return {date,rosterVersion:2,runId:crypto.randomUUID(),baseMinute:435,anchorAt:now,speed:120,paused:true,overrides:[],acknowledged:[],returnSchedules:{},scheduleChanges:[]};}
 function patientsFor(state){
  state=migrateState(state);const day=dayIndex(state);
- return PATIENTS.map((patient,index)=>{const identity=resident(day,index),appointmentAt=patient.appointmentAt+day*5,pickup=patient.pickup+day*5,waitMinutes=[60,120,180][(index+day)%3],saved=state.returnSchedules?.[identity.id];return {...patient,...identity,pickup,appointmentAt,returnPickup:saved?.returnPickup??appointmentAt+waitMinutes,waitMinutes:saved?.waitMinutes??waitMinutes,vehicleWaiting:saved?.vehicleWaiting??true};});
+ const seeds=PATIENTS.map((patient,index)=>{const identity=resident(day,index),appointmentAt=patient.appointmentAt+day*5,pickup=patient.pickup+day*5,waitMinutes=[60,120,180][(index+day)%3];return {...patient,...identity,slotIndex:index,destinationIndex:index,distanceMiles:[8,7.5,7.2,23,26][index],pickup,appointmentAt,returnPickup:appointmentAt+waitMinutes,waitMinutes,vehicleWaiting:true,...state.bookingEdits?.[identity.id]};});
+ return [...seeds,...(state.additionalBookings||[])].filter(patient=>!(state.cancelledIds||[]).includes(patient.id)).map(patient=>({...patient,...state.returnSchedules?.[patient.id]})).sort((a,b)=>a.pickup-b.pickup||a.id.localeCompare(b.id));
 }
 function endMinute(state){return Math.max(930,...patientsFor(state).map(patient=>patient.returnPickup+patient.travel+mergedEvents(state).filter(e=>e.patientId===patient.id&&e.leg==='return').reduce((sum,e)=>sum+Number(e.minutes||0),0)+5));}
 function minuteAt(state,now=Date.now()){return Math.max(435,Math.min(endMinute(state),Number(state.baseMinute)+(state.paused?0:(now-Number(state.anchorAt))/1000*Number(state.speed)/60)));}
-function timeLabel(minute){const rounded=Math.round(minute),hour=Math.floor(rounded/60);return `${hour%12||12}:${String(rounded%60).padStart(2,'0')} ${hour>=12?'PM':'AM'}`;}
+function timeLabel(minute){const rounded=Math.round(minute),hour=Math.floor(rounded/60)%24;return `${hour%12||12}:${String(rounded%60).padStart(2,'0')} ${hour>=12?'PM':'AM'}${rounded>=1440?' (next day)':''}`;}
 function recipients(){return ['Facility manager (demo inbox)','Facility receiving team (demo)','Destination contact (demo)','Patient / authorized caregiver (demo)','Nexus dispatch (demo)'];}
 function project(state,now=Date.now()){
  state=migrateState(state);
  const minute=minuteAt(state,now),messages=[],alerts=[];
- function notify(id,patient,at,title,text,severity='info',extra={}){if(at>minute)return;messages.push({id:`${state.runId}:${id}`,patientId:patient.id,patient:patient.name,at,time:timeLabel(at),title,text,severity,recipients:recipients(),delivery:'Displayed in demo manager inbox · SMS/email simulated, not sent',...extra});}
+ function notify(id,patient,at,title,text,severity='info',extra={}){if(at>minute)return;messages.push({id:`${state.runId}:${id}`,patientId:patient.id,patient:patient.name,at,time:timeLabel(at),title,text,severity,recipients:patient.recipients||recipients(),delivery:'Displayed in demo manager inbox · SMS/email simulated, not sent',...extra});}
  const patients=patientsFor(state).map(patient=>{
   const events=mergedEvents(state).filter(event=>event.patientId===patient.id&&event.at<=minute);
   const outboundDelay=events.filter(e=>e.leg==='outbound').reduce((sum,e)=>sum+Number(e.minutes||0),0);
@@ -79,15 +81,18 @@ function project(state,now=Date.now()){
   return {...patient,fictional:true,stage,phase,progress:Math.max(0,Math.min(1,progress)),eta,etaLabel:timeLabel(eta),arrivalEta:timeLabel(currentEta),outboundArrival,returnArrival,risk,alerts:active.map(e=>e.note),pickupLabel:timeLabel(patient.pickup),appointmentLabel:timeLabel(patient.appointmentAt),returnLabel:timeLabel(patient.returnPickup),returnArrivalLabel:timeLabel(returnArrival),outboundDelay,returnDelay};
  });
  for(const change of state.scheduleChanges||[]){const patient=patients.find(p=>p.id===change.patientId);if(patient)notify(change.id,patient,change.at,'Return pickup rescheduled',change.text,'info');}
- messages.sort((a,b)=>b.at-a.at||a.id.localeCompare(b.id));
+ for(const [sequence,event] of (state.bookingEvents||[]).entries())notify(event.id,{id:event.patientId,name:event.patient,recipients:event.recipients},event.at,event.title,event.text,'info',{createdAt:event.createdAt,sequence});
+ messages.sort((a,b)=>b.at-a.at||new Date(b.createdAt||0)-new Date(a.createdAt||0)||(b.sequence||0)-(a.sequence||0)||a.id.localeCompare(b.id));
  const date=state.date||DATES[0],label=new Intl.DateTimeFormat('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`));
- return {scope:SCOPE,facility:FACILITY,scenarioDate:date,availableDates:DATES,scenarioLabel:`${label} · Eastern Time`,fictional:true,minute,endMinute:endMinute(state),endLabel:timeLabel(endMinute(state)),time:timeLabel(minute),paused:state.paused||minute>=endMinute(state),speed:state.speed,runId:state.runId,patients,messages,alerts,severity:alerts.some(a=>a.severity==='issue')?'issue':alerts.length?'delay':'normal',metrics:{patients:patients.length,legs:patients.length*2,away:patients.filter(p=>['outbound','appointment','return-approach','return'].includes(p.phase)).length,returned:patients.filter(p=>p.phase==='complete').length,active:patients.filter(p=>['approach','outbound','return-approach','return'].includes(p.phase)).length,alerts:alerts.length,unread:alerts.filter(a=>!a.acknowledged).length}};
+ const cancelledBookings=patientsFor({...state,cancelledIds:[]}).filter(patient=>(state.cancelledIds||[]).includes(patient.id)).map(patient=>({id:patient.id,name:patient.name,service:patient.service,destination:patient.destination.name,pickup:timeLabel(patient.pickup)}));
+ return {scope:SCOPE,facility:FACILITY,scenarioDate:date,availableDates:DATES,scenarioLabel:`${label} · Eastern Time`,fictional:true,minute,endMinute:endMinute(state),endLabel:timeLabel(endMinute(state)),time:timeLabel(minute),paused:state.paused||minute>=endMinute(state),speed:state.speed,runId:state.runId,patients,cancelledBookings,bookingTargets:PATIENTS.map((patient,index)=>({index,...patient.destination,travel:patient.travel,distanceMiles:[8,7.5,7.2,23,26][index]})),lastBookingId:state.lastBookingId||null,messages,alerts,severity:alerts.some(a=>a.severity==='issue')?'issue':alerts.length?'delay':'normal',metrics:{patients:patients.length,legs:patients.length*2,away:patients.filter(p=>['outbound','appointment','return-approach','return'].includes(p.phase)).length,returned:patients.filter(p=>p.phase==='complete').length,active:patients.filter(p=>['approach','outbound','return-approach','return'].includes(p.phase)).length,alerts:alerts.length,unread:alerts.filter(a=>!a.acknowledged).length}};
 }
 function control(state,body,now=Date.now()){
  state=migrateState(state);
  const current=minuteAt(state,now),next={...state,baseMinute:current,anchorAt:now};
  if(body.date&&body.date!==(state.date||DATES[0]))throw Object.assign(Error('The selected demo day changed. Refresh before saving.'),{statusCode:409});
- if(body.action==='restart')return {...initialState(now,state.date||DATES[0]),returnSchedules:state.returnSchedules||{},scheduleChanges:[],paused:false};
+ if(Booking.ACTIONS.includes(body.action))return Booking.apply(state,body,{patients:patientsFor(state),allPatients:patientsFor({...state,cancelledIds:[]}),templates:PATIENTS,recipients:recipients(),current,now});
+ if(body.action==='restart')return {...state,...initialState(now,state.date||DATES[0]),returnSchedules:state.returnSchedules||{},bookingEdits:state.bookingEdits||{},additionalBookings:state.additionalBookings||[],cancelledIds:state.cancelledIds||[],bookingRequests:state.bookingRequests||{},bookingEvents:state.bookingEvents||[],scheduleChanges:[],paused:false};
  if(body.action==='returnSchedule'){
   const patient=patientsFor(state).find(p=>p.id===body.patientId);
   if(!patient)throw Object.assign(Error('Choose a demo patient.'),{statusCode:400});
@@ -125,7 +130,7 @@ function control(state,body,now=Date.now()){
 }
 function mergedEvents(state){
  state=migrateState(state);const overrides=new Map((state.overrides||[]).map(e=>[e.id,e])),day=dayIndex(state),offset=day*5,patients=patientsFor(state);
- return [...AUTO_EVENTS.filter(e=>!overrides.has(e.id)).map(event=>{const index=PATIENTS.findIndex(patient=>patient.id===event.patientId),patient=patients[index];return event.leg==='return'?{...event,patientId:patient.id,at:patient.returnPickup+5,resolvedAt:patient.returnPickup+55}:{...event,patientId:patient.id,at:event.at+offset,resolvedAt:event.resolvedAt+offset};}),...overrides.values()];
+ return [...AUTO_EVENTS.filter(e=>!overrides.has(e.id)).flatMap(event=>{const index=PATIENTS.findIndex(patient=>patient.id===event.patientId),patient=patients.find(patient=>patient.slotIndex===index);if(!patient)return [];return event.leg==='return'?{...event,patientId:patient.id,at:patient.returnPickup+5,resolvedAt:patient.returnPickup+55}:{...event,patientId:patient.id,at:patient.pickup+(event.at-PATIENTS[index].pickup),resolvedAt:patient.pickup+(event.resolvedAt-PATIENTS[index].pickup)};}),...overrides.values()];
 }
 function encodeToken(secret,now=Date.now()){const payload=Buffer.from(JSON.stringify({scope:SCOPE,expires:now+8*3600000,nonce:crypto.randomBytes(12).toString('hex')})).toString('base64url');return `${payload}.${crypto.createHmac('sha256',secret).update(payload).digest('base64url')}`;}
 function validToken(token,secret,now=Date.now()){try{const [payload,signature,...extra]=String(token).split('.');if(extra.length||!payload||!signature)return false;const expected=crypto.createHmac('sha256',secret).update(payload).digest();const supplied=Buffer.from(signature,'base64url');if(supplied.length!==expected.length||!crypto.timingSafeEqual(supplied,expected))return false;const data=JSON.parse(Buffer.from(payload,'base64url'));return data.scope===SCOPE&&Number(data.expires)>now;}catch{return false;}}
