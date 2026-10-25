@@ -9,7 +9,8 @@ test('fast LiveCare shows a named driver, road routes, delay alerts and completi
    Map:class{constructor(element){this.element=element;}fitBounds(){}},
    LatLngBounds:class{union(){}extend(){}},
    DirectionsRenderer:class{constructor(options){this.options=options;}setMap(){}setDirections(){}},
-   DirectionsService:class{async route(request){window.demoTest.requests.push(request);const a=request.origin,b=request.destination;return {routes:[{overview_path:[point(a.lat,a.lng),point(a.lat,b.lng),point(b.lat,b.lng)],legs:[{start_location:point(a.lat,a.lng),end_location:point(b.lat,b.lng),distance:{value:1000}}]}]};}},
+   InfoWindow:class{constructor(options){this.options=options;}open({map}){map.element.append(this.options.content);}close(){this.options.content.remove();}},
+   DirectionsService:class{async route(request){window.demoTest.requests.push(request);const a=request.origin,b=request.destination;return {routes:[{overview_path:[point(a.lat,a.lng),point(a.lat,b.lng),point(b.lat,b.lng)],legs:[{start_address:'123 Demo Pickup Road, Gaithersburg, MD',end_address:'456 Demo Destination Avenue, Bethesda, MD',start_location:point(a.lat,a.lng),end_location:point(b.lat,b.lng),distance:{value:1000}}]}]};}},
    Marker:class{setMap(){}setPosition(position){window.demoTest.positions.push({lat:typeof position.lat==='function'?position.lat():position.lat,lng:typeof position.lng==='function'?position.lng():position.lng});}},
    event:{trigger(){}}
   }};
@@ -29,6 +30,9 @@ test('fast LiveCare shows a named driver, road routes, delay alerts and completi
  await expect(page.locator('#demoCommunicationLog')).toContainText('Driver activated trip');
  await expect(page.locator('#demoCommunicationLog')).toContainText('Destination contact');
  await expect.poll(()=>page.evaluate(()=>window.demoTest.requests.length)).toBe(2);
+ await expect(page.locator('#mapPickup')).toHaveText('123 Demo Pickup Road, Gaithersburg, MD');
+ await expect(page.locator('#mapDestination')).toHaveText('456 Demo Destination Avenue, Bethesda, MD');
+ await expect(page.locator('.demoMapEndpoint')).toHaveCount(2);
  elapsed=56;
  await expect(page.locator('#demoCommunicationLog')).toContainText('Delay detected',{timeout:10000});
  await expect(page.locator('#patientMapStatus')).toContainText('driver paused');
