@@ -1,6 +1,7 @@
 const crypto=require('crypto');
 const {query}=require('./db.cjs');
 const {getFallbackSession}=require('./fallback-auth.cjs');
+const {isDemoUser}=require('./facility-demo-account.cjs');
 const digest=v=>crypto.createHash('sha256').update(v).digest('hex');
 const EXPERIENCE_ROLES=['ADMIN','DISPATCHER','DRIVER','FACILITY','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER','STAFF'];
 function resolveSessionRoles(user,roleRows=[]){
@@ -36,6 +37,7 @@ async function requireUser(token,roles=[]){
     }
   }
   if(!u) throw Object.assign(new Error('Session expired or invalid'),{statusCode:401});
+  if(isDemoUser(u))throw Object.assign(new Error('This account is limited to the Annapolis facility demo.'),{statusCode:403});
   if(u.session_id){
     const roleRows=await query("SELECT role,scope_id FROM user_role_requests WHERE user_id=$1 AND status='APPROVED'",[u.id]).catch(()=>({rows:[]}));
     u=resolveSessionRoles(u,roleRows.rows||[]);

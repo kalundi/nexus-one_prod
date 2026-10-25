@@ -1,6 +1,7 @@
 const Billing=require('./facility-demo-billing.cjs');
 const Booking=require('./facility-demo-booking.cjs');
 const crypto=require('node:crypto');
+const DemoAccount=require('./facility-demo-account.cjs');
 const SCOPE='futurecare-annapolis-demo',KEY='demo:facility:futurecare-annapolis',USERNAME='annapolis.demo@nexusmt.com';
 const FACILITY={name:'FutureCare Annapolis',address:'2700 Southaven Road, Annapolis, MD 21401',source:'https://www.futurecare.com/locations/annapolis/'};
 const PATIENTS=[
@@ -157,11 +158,10 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
   if(p[0]!=='facility-demo')return null;
   if(method==='POST'&&p[1]==='setup'){
    await requireUser(bearer(event),['ADMIN']);
-   const password=crypto.randomBytes(12).toString('base64url'),salt=crypto.randomBytes(16).toString('hex');
-   const config={scope:SCOPE,username:USERNAME,salt,passwordHash:passwordHash(password,salt),secret:crypto.randomBytes(32).toString('hex'),state:initialState()};
-   const result=await query('INSERT INTO system_settings(key,value,updated_at) VALUES($1,$2::jsonb,now()) ON CONFLICT(key) DO NOTHING RETURNING key',[KEY,JSON.stringify(config)]);
-   if(!result.rowCount)return json(200,{configured:true,username:USERNAME,message:'Demo access already exists. Use the credentials issued during initial setup.'});
-   return json(201,{configured:true,username:USERNAME,password,message:'Demo-only manager access created. This login cannot access real patient data or production operations.'});
+   const password=DemoAccount.newPassword(),client=await getPool().connect();let result;
+   try{await client.query('BEGIN');result=await DemoAccount.provision(client.query.bind(client),DemoAccount.hashPassword(password),{scope:SCOPE,username:USERNAME,secret:crypto.randomBytes(32).toString('hex'),state:initialState()});await client.query('COMMIT');}
+   catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+   return json(result.changed?201:200,{configured:true,username:USERNAME,...(result.changed?{password}:{}),managedIn:'User Management',message:result.changed?'Demo manager created in User Management. Save the issued password.':'Demo account is managed in Admin → User Management. Select Manage → Issue demo password to replace a lost password.'});
   }
   if(method==='POST'&&p[1]==='login'){
    const ip=String(event.headers?.['x-nf-client-connection-ip']||event.headers?.['x-forwarded-for']||'unknown').split(',')[0],bucket=Math.floor(Date.now()/900000);
@@ -171,14 +171,15 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
    const config=(await query('SELECT value FROM system_settings WHERE key=$1',[KEY])).rows[0]?.value;
    if(!config)return json(409,{error:'An administrator must prepare this presentation demo first.'});
    const body=parseBody(event);if(typeof body.password!=='string'||body.password.length>256)return json(401,{error:'Check your demo manager email and password.'});
-   const supplied=Buffer.from(passwordHash(body.password,config.salt),'hex'),expected=Buffer.from(config.passwordHash,'hex');
-   if(String(body.email||'').trim().toLowerCase()!==USERNAME||supplied.length!==expected.length||!crypto.timingSafeEqual(supplied,expected))return json(401,{error:'Check your demo manager email and password.'});
-   return json(200,{token:encodeToken(config.secret),user:{name:'FutureCare Annapolis Demo Manager',scope:SCOPE},dashboard:dashboardFor(config)});
+   const account=await DemoAccount.getAccount(query);
+   if(String(body.email||'').trim().toLowerCase()!==USERNAME||!DemoAccount.allowed(account)||config.managedUserId!==String(account.id)||!DemoAccount.verifyPassword(body.password,account.password_hash))return json(401,{error:'Check your demo manager email and password, or ask an administrator to manage this account in User Management.'});
+   if(account.must_change_password)return json(403,{error:'Ask an administrator to issue a demo password from User Management.'});
+   return json(200,{token:encodeToken(DemoAccount.signingSecret(config,account)),user:{id:String(account.id),userCode:account.user_code,email:account.email,name:account.display_name,role:'FACILITY',scope:SCOPE,demoOnly:true,loginUrl:'/facility-demo.html'},dashboard:dashboardFor(config)});
   }
   const config=(await query('SELECT value FROM system_settings WHERE key=$1',[KEY])).rows[0]?.value;
   let admin=false;try{admin=(await requireUser(bearer(event),['ADMIN'])).role==='ADMIN';}catch{}
   if(!config)return json(admin?409:401,{error:admin?'Prepare demo manager access first.':'Sign in to the facility demo.'});
-  if(!admin&&!validToken(bearer(event),config.secret))return json(401,{error:'Your demo session expired. Sign in again.'});
+  if(!admin){const account=await DemoAccount.getAccount(query);if(!DemoAccount.allowed(account)||config.managedUserId!==String(account.id)||!validToken(bearer(event),DemoAccount.signingSecret(config,account)))return json(401,{error:'Your demo session expired or this account was changed. Sign in again.'});}
   if(method==='GET'&&['state','billing'].includes(p[1])&&readPlatformSettings){
    const settings=await readPlatformSettings(),client=await getPool().connect();let invoices,snapshot;
    try{await client.query('BEGIN');const locked=(await client.query('SELECT value FROM system_settings WHERE key=$1 FOR UPDATE',[KEY])).rows[0].value;

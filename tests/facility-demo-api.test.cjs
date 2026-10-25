@@ -7,6 +7,10 @@ test('demo login and shared manager controls work through isolated PostgreSQL wi
  const db=new PGlite();
  try{
   await db.exec("CREATE TABLE system_settings(key text PRIMARY KEY,value jsonb NOT NULL DEFAULT '{}'::jsonb,updated_at timestamptz DEFAULT now())");
+  await db.exec(`CREATE TABLE organizations(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text,created_at timestamptz DEFAULT now());
+   INSERT INTO organizations(name) VALUES('Nexus Medical Transit');
+   CREATE TABLE users(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_code text DEFAULT 'DEMO01',email text UNIQUE,display_name text,role text,scope_id text,password_hash text,phone text,active boolean,organization_id uuid,identity_subject text,functions text[],must_change_password boolean,password_reset_expires timestamptz,updated_at timestamptz DEFAULT now());
+   CREATE TABLE sessions(user_id uuid,revoked_at timestamptz);`);
   const handler=Demo.createHandler({query:(...args)=>db.query(...args),getPool:()=>({connect:async()=>({query:(...args)=>db.query(...args),release(){}})}),requireUser:async(token,roles)=>{assert.deepEqual(roles,['ADMIN']);if(token!=='test-admin')throw Error('Forbidden');return {role:'ADMIN'};},bearer:event=>(event.headers.authorization||'').replace(/^Bearer /,''),json:(statusCode,body)=>({statusCode,body}),parseBody:event=>JSON.parse(event.body||'{}')});
   const request=(endpoint,method='GET',body={},token='',params={})=>handler({queryStringParameters:params,headers:{authorization:token?`Bearer ${token}`:'','x-nf-client-connection-ip':'127.0.0.1'},body:JSON.stringify(body)},['facility-demo',endpoint],method);
   const setup=await request('setup','POST',{},'test-admin');assert.equal(setup.statusCode,201);assert.ok(setup.body.password);

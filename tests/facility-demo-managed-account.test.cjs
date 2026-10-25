@@ -1,0 +1,47 @@
+const test=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto');
+const {PGlite}=require('@electric-sql/pglite');
+const Account=require('../netlify/functions/_shared/facility-demo-account.cjs');
+const Demo=require('../netlify/functions/_shared/facility-demo.cjs');
+test('production user directory owns demo credentials; resets and activation revoke demo access without touching fictional trips',async()=>{
+ const db=new PGlite(),query=db.query.bind(db),pool={connect:async()=>({query,release(){}})};
+ try{
+  await db.exec(`CREATE TABLE organizations(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text,created_at timestamptz DEFAULT now());
+   INSERT INTO organizations(name) VALUES('Nexus Medical Transit');
+   CREATE TABLE users(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_code text DEFAULT 'NX-DEMO',email text UNIQUE,display_name text,role text,scope_id text,password_hash text,phone text,active boolean DEFAULT true,organization_id uuid,identity_subject text,functions text[],must_change_password boolean DEFAULT false,password_reset_expires timestamptz,password_reset_token text,password_reset_used boolean,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
+   CREATE TABLE sessions(id uuid DEFAULT gen_random_uuid(),user_id uuid,token_digest text,expires_at timestamptz,revoked_at timestamptz,last_activity_at timestamptz,active_role text);
+   CREATE TABLE system_settings(key text PRIMARY KEY,value jsonb,updated_at timestamptz DEFAULT now(),updated_by uuid);
+   CREATE TABLE employees(user_id uuid,active boolean,display_name text,email text,phone text,updated_at timestamptz);
+   CREATE TABLE user_role_requests(user_id uuid,role text,status text,scope_id text,reviewed_at timestamptz);`);
+  const oldConfig={scope:Demo.SCOPE,username:Account.EMAIL,secret:'previous-secret',salt:'old-salt',passwordHash:'old-hash',state:Demo.initialState()};
+  await query('INSERT INTO system_settings(key,value) VALUES($1,$2)',[Account.KEY,JSON.stringify(oldConfig)]);
+  await query('BEGIN');const provisioned=await Account.provision(query,Account.hashPassword('initial-fixture-password'),{state:Demo.initialState()});await query('COMMIT');
+  assert.equal(provisioned.changed,true);const id=String(provisioned.user.id);
+  const config=(await query('SELECT value FROM system_settings WHERE key=$1',[Account.KEY])).rows[0].value;
+  assert.deepEqual(config.state,oldConfig.state);assert.equal(config.salt,undefined);assert.equal(config.passwordHash,undefined);assert.equal(config.managedUserId,id);
+  const repeated=await Account.provision(query,Account.hashPassword('different-password'),{});assert.equal(repeated.changed,false);assert.equal((await Account.getAccount(query)).password_hash,Account.hashPassword('initial-fixture-password'));
+  const dbModule=require('../netlify/functions/_shared/db.cjs');dbModule.query=query;dbModule.getPool=()=>pool;
+  const {handler}=require('../netlify/functions/api.cjs');
+  const request=async(path,method='GET',body={},token='')=>{const r=await handler({path:'/api/'+path,httpMethod:method,headers:{authorization:token?'Bearer '+token:'','x-nf-client-connection-ip':'managed-demo-fixture'},body:JSON.stringify(body),queryStringParameters:{}});return {...r,body:JSON.parse(r.body)};};
+  let login=await request('auth/login','POST',{email:Account.EMAIL,password:'initial-fixture-password'});assert.equal(login.statusCode,200);assert.equal(login.body.user.demoOnly,true);assert.equal(login.body.user.role,'FACILITY');
+  const firstToken=login.body.token;assert.equal((await query('SELECT * FROM sessions')).rows.length,0,'Demo login must not create a production session');
+  assert.equal((await request('facility-demo/state','GET',{},firstToken)).statusCode,200);
+  assert.equal((await request('admin/users','GET',{},firstToken)).statusCode,401);
+  assert.equal((await request('patient/dashboard','GET',{},firstToken)).statusCode,401);
+  const admin=(await query("INSERT INTO users(email,display_name,role,active) VALUES('fixture-admin@nexusmt.com','Fixture Admin','ADMIN',true) RETURNING *")).rows[0];
+  await query("INSERT INTO sessions(user_id,token_digest,expires_at) VALUES($1,$2,now()+interval '1 hour')",[admin.id,crypto.createHash('sha256').update('fixture-admin-token').digest('hex')]);
+  const list=await request('admin/users','GET',{},'fixture-admin-token');assert.equal(list.statusCode,200);const manager=list.body.users.find(u=>u.id===id);assert.equal(manager.demoOnly,true);assert.deepEqual(manager.roles,['FACILITY']);assert.equal(manager.password_hash,undefined);
+  const issued=await request(`admin/users/${id}/demo-password`,'POST',{},'fixture-admin-token');assert.equal(issued.statusCode,200);assert.ok(issued.body.password.length>=20);
+  assert.equal((await request('auth/login','POST',{email:Account.EMAIL,password:'initial-fixture-password'})).statusCode,401);
+  assert.equal((await request('facility-demo/state','GET',{},firstToken)).statusCode,401);
+  login=await request('facility-demo/login','POST',{email:Account.EMAIL,password:issued.body.password});assert.equal(login.statusCode,200);const nextToken=login.body.token;
+  assert.equal((await request(`admin/users/${id}`,'PATCH',{role:'ADMIN'},'fixture-admin-token')).statusCode,400);
+  assert.equal((await request(`admin/users/${id}`,'PATCH',{active:false},'fixture-admin-token')).statusCode,200);
+  assert.equal((await request('facility-demo/state','GET',{},nextToken)).statusCode,401);
+  assert.equal((await request('facility-demo/login','POST',{email:Account.EMAIL,password:issued.body.password})).statusCode,401);
+  assert.equal((await request(`admin/users/${id}`,'PATCH',{active:true},'fixture-admin-token')).statusCode,200);
+  assert.equal((await request('facility-demo/state','GET',{},nextToken)).statusCode,401,'Reactivation must not revive old demo tokens');
+  const productionToken='fabricated-production-session';await query("INSERT INTO sessions(user_id,token_digest,expires_at) VALUES($1,$2,now()+interval '1 hour')",[id,crypto.createHash('sha256').update(productionToken).digest('hex')]);
+  assert.equal((await request('facilities','GET',{},productionToken)).statusCode,403,'Even a pre-existing production session must remain demo-only');
+  const after=(await query('SELECT value FROM system_settings WHERE key=$1',[Account.KEY])).rows[0].value;assert.deepEqual(after.state,oldConfig.state);
+ }finally{await db.close();}
+});

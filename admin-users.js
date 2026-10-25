@@ -19,7 +19,7 @@
   const search=$('userSearch').value.trim().toLowerCase(),role=$('userRoleFilter').value,status=$('userStatusFilter').value;
   const filtered=users.filter(u=>(!role||u.role===role||u.roles?.includes(role))&&(!status||u.active===(status==='active'))&&(!search||[u.name,u.email,u.phone,u.userCode,...(u.functions||[]).map(f=>functions[f]||f)].join(' ').toLowerCase().includes(search)));
   $('userListSummary').textContent=`${filtered.length} of ${users.length} people · ${users.filter(u=>u.active).length} active`;
-  $('userTableBody').innerHTML=filtered.map(u=>`<tr><td><span class="userCode">${esc(u.userCode||'—')}</span></td><td><strong class="userLine" title="${esc(u.name||u.email)}">${esc(u.name||u.email)}</strong><span class="userLine" title="${esc(u.email)}"><small>${esc(u.email)}</small></span></td><td><span class="pill ${isDriver(u)?'green':'blue'}">${esc(ROLES[u.role]||u.role)}</span>${u.functions?.length?`<span class="userLine" title="${esc(u.functions.map(f=>functions[f]||f).join(', '))}"><small>${esc(u.functions.map(f=>functions[f]||f).join(', '))}</small></span>`:''}</td><td><span class="pill ${u.active?'green':'muted'}">${u.active?'Active':'Inactive'}</span></td><td><button class="button compact" type="button" data-manage-user="${esc(u.id)}">Manage</button></td></tr>`).join('')||'<tr><td colspan="5">No people match these filters.</td></tr>';
+  $('userTableBody').innerHTML=filtered.map(u=>`<tr><td><span class="userCode">${esc(u.userCode||'—')}</span></td><td><strong class="userLine" title="${esc(u.name||u.email)}">${esc(u.name||u.email)}</strong><span class="userLine" title="${esc(u.email)}"><small>${esc(u.email)}</small></span></td><td><span class="pill ${isDriver(u)?'green':'blue'}">${esc(u.demoOnly?'Facility demo only':ROLES[u.role]||u.role)}</span>${u.functions?.length?`<span class="userLine" title="${esc(u.functions.map(f=>functions[f]||f).join(', '))}"><small>${esc(u.functions.map(f=>functions[f]||f).join(', '))}</small></span>`:''}</td><td><span class="pill ${u.active?'green':'muted'}">${u.active?'Active':'Inactive'}</span></td><td><button class="button compact" type="button" data-manage-user="${esc(u.id)}">Manage</button></td></tr>`).join('')||'<tr><td colspan="5">No people match these filters.</td></tr>';
  }
  async function loadUsers(){
   try{
@@ -31,9 +31,10 @@
  function openUser(id){
   selectedUser=users.find(u=>u.id===id);if(!selectedUser)return;
   const u=selectedUser;$('userAccountTitle').textContent=u.name||'Manage account';$('userAccountIdentity').textContent=`${u.userCode||'ID pending'} · ${u.email}`;
-  $('editUserName').value=u.name||'';$('editUserPhone').value=u.phone||'';$('editUserRole').value=u.role;$('editUserScope').value=u.scopeId||'';
+  $('editUserName').value=u.name||'';$('editUserPhone').value=u.phone||'';$('editUserPhone').required=!u.demoOnly;$('editUserRole').value=u.role;$('editUserScope').value=u.scopeId||'';
+  $('editUserRole').disabled=!!u.demoOnly;$('editUserScope').readOnly=!!u.demoOnly;$('resendUserAccount').textContent=u.demoOnly?'Issue demo password':'Reissue credentials';
   $('editUserFunctions').innerHTML='<legend>Operational functions</legend>'+Object.entries(functions).map(([key,label])=>`<label class="functionChoice"><input type="checkbox" value="${key}" ${u.functions?.includes(key)?'checked':''}>${esc(label)}</label>`).join('');
-  $('userAccountAccess').textContent=`Experiences: ${(u.roles||[u.role]).map(r=>ROLES[r]||r).join(', ')}. Functions label responsibilities; role access controls permissions.`;
+  $('userAccountAccess').textContent=u.demoOnly?'Demo-only access: FutureCare Annapolis presentation. Credentials use the production user directory. No production trip, patient, billing, or dispatch access.':`Experiences: ${(u.roles||[u.role]).map(r=>ROLES[r]||r).join(', ')}. Functions label responsibilities; role access controls permissions.`;
   $('userAccountCreated').textContent=`Account created ${u.createdAt?new Date(u.createdAt).toLocaleDateString('en-US'):'—'}. Nexus ID stays the same across all experiences.`;
   $('toggleUserAccount').textContent=u.active&&u.employeeActive===false?'Activate workforce':u.active?'Deactivate account':'Activate account';$('toggleUserAccount').classList.toggle('danger',u.active&&u.employeeActive!==false);
   $('userAccountSchedule').hidden=!isDriver(u);message('userAccountMsg','');
@@ -45,6 +46,7 @@
  $('userAccountDialog').addEventListener('click',e=>{if(e.target===e.currentTarget){const box=e.currentTarget.getBoundingClientRect();if(e.clientX<box.left||e.clientX>box.right||e.clientY<box.top||e.clientY>box.bottom)e.currentTarget.close();}});
  async function updateAccount(payload){
   if(saveInProgress||!selectedUser)return;saveInProgress=true;
+  if(selectedUser.demoOnly&&payload.phone==='')delete payload.phone;
   const id=selectedUser.id;['saveUserAccount','toggleUserAccount'].forEach(key=>$(key).disabled=true);message('userAccountMsg','');
   try{
    await request(`/api/admin/users/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(payload)});
@@ -58,7 +60,9 @@
   $('scheduleDriverEmail').focus({preventScroll:true});
  });
  $('resendUserAccount').addEventListener('click',async()=>{
-  if(!selectedUser||!confirm(`Reissue temporary credentials and email ${selectedUser.email}?`))return;
+  if(!selectedUser)return;
+  if(selectedUser.demoOnly){const button=$('resendUserAccount');button.disabled=true;try{const issued=await request(`/api/admin/users/${encodeURIComponent(selectedUser.id)}/demo-password`,{method:'POST'});message('userAccountMsg',`New password for ${issued.email}: ${issued.password}. ${issued.message} Sign in at ${issued.loginUrl}`);}catch(e){message('userAccountMsg',e.message,true);}finally{button.disabled=false;}return;}
+  if(!confirm(`Reissue temporary credentials and email ${selectedUser.email}?`))return;
   const button=$('resendUserAccount');button.disabled=true;
   try{const data=await request(`/api/admin/users/${encodeURIComponent(selectedUser.id)}/resend-credentials`,{method:'POST'});message('userAccountMsg',data.emailDeliveryStatus==='sent'?'Temporary login emailed. It expires in two hours.':data.warning||'Temporary login reissued; email delivery was unavailable.',data.emailDeliveryStatus!=='sent');}
   catch(e){message('userAccountMsg',e.message,true);}finally{button.disabled=false;}
