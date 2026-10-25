@@ -177,9 +177,13 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
    return json(200,{token:encodeToken(DemoAccount.signingSecret(config,account)),user:{id:String(account.id),userCode:account.user_code,email:account.email,name:account.display_name,role:'FACILITY',scope:SCOPE,demoOnly:true,loginUrl:'/facility-demo.html'},dashboard:dashboardFor(config)});
   }
   const config=(await query('SELECT value FROM system_settings WHERE key=$1',[KEY])).rows[0]?.value;
-  let admin=false;try{admin=(await requireUser(bearer(event),['ADMIN'])).role==='ADMIN';}catch{}
+  let admin=false,presenter=false;
+  try{const user=await requireUser(bearer(event));admin=user.role==='ADMIN';
+   const email=String(user.email||'').trim().toLowerCase();
+   presenter=(email==='facility@nexusmt.com'&&user.role==='FACILITY')||(email==='dispatch@nexusmt.com'&&user.role==='DISPATCHER');
+  }catch{}
   if(!config)return json(admin?409:401,{error:admin?'Prepare demo manager access first.':'Sign in to the facility demo.'});
-  if(!admin){const account=await DemoAccount.getAccount(query);if(!DemoAccount.allowed(account)||config.managedUserId!==String(account.id)||!validToken(bearer(event),DemoAccount.signingSecret(config,account)))return json(401,{error:'Your demo session expired or this account was changed. Sign in again.'});}
+  if(!admin&&!presenter){const account=await DemoAccount.getAccount(query);if(!DemoAccount.allowed(account)||config.managedUserId!==String(account.id)||!validToken(bearer(event),DemoAccount.signingSecret(config,account)))return json(401,{error:'Your demo session expired or this account was changed. Sign in again.'});}
   if(method==='GET'&&['state','billing'].includes(p[1])&&readPlatformSettings){
    const settings=await readPlatformSettings(),client=await getPool().connect();let invoices,snapshot;
    try{await client.query('BEGIN');const locked=(await client.query('SELECT value FROM system_settings WHERE key=$1 FOR UPDATE',[KEY])).rows[0].value;
@@ -188,9 +192,9 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
     await client.query('COMMIT');
    }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
    if(p[1]==='billing'){const params=event.queryStringParameters||{};return json(200,Billing.view(invoices,params.period||snapshot.scenarioDate,params.mode||'day'));}
-   return json(200,{dashboard:snapshot,admin});
+   return json(200,{dashboard:snapshot,admin,presenter});
   }
-  if(method==='GET'&&p[1]==='state')return json(200,{dashboard:project(config.state),admin});
+  if(method==='GET'&&p[1]==='state')return json(200,{dashboard:project(config.state),admin,presenter});
   if(method==='POST'&&p[1]==='control'){
    const settings=readPlatformSettings?await readPlatformSettings():null,client=await getPool().connect();
    try{await client.query('BEGIN');const locked=(await client.query('SELECT value FROM system_settings WHERE key=$1 FOR UPDATE',[KEY])).rows[0]?.value;if(!locked)throw Error('Demo configuration missing.');
@@ -202,7 +206,7 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
      locked.state={...(locked.days[body.date]||initialState(Date.now(),body.date)),date:body.date,paused:true,anchorAt:Date.now()};
     }else locked.state=control(locked.state,body);
     if(settings)syncBilling(locked,settings);
-    await client.query('UPDATE system_settings SET value=$2::jsonb,updated_at=now() WHERE key=$1',[KEY,JSON.stringify(locked)]);await client.query('COMMIT');return json(200,{dashboard:dashboardFor(locked),admin});
+    await client.query('UPDATE system_settings SET value=$2::jsonb,updated_at=now() WHERE key=$1',[KEY,JSON.stringify(locked)]);await client.query('COMMIT');return json(200,{dashboard:dashboardFor(locked),admin,presenter});
    }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
   }
   return json(404,{error:'Demo action not found.'});

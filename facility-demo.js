@@ -2,7 +2,7 @@
  const $=id=>document.getElementById(id),TOKEN_KEY='nexusFacilityDemoToken';
  let recoveryToken=new URLSearchParams(location.search).get('action')==='reset'?new URLSearchParams(location.search).get('token')||'':'';
  if(recoveryToken)history.replaceState(null,'',location.pathname);
- let dashboard=null,selectedId='FC-DEMO-01',selectedLeg='outbound',automaticLeg=true,admin=false,busy=false,polling=false,lastRun='',knownMessages=new Set(),toastTimer;
+ let dashboard=null,selectedId='FC-DEMO-01',selectedLeg='outbound',automaticLeg=true,admin=false,platformAccess=false,busy=false,polling=false,lastRun='',knownMessages=new Set(),toastTimer;
  let mapsPromise=null,mapsAuthFailed=false,mapMode='all',mapExpanded=false,mapReturnFocus=null,mapInert=[];
  const mapController=NexusFacilityMap.create({loadMaps,element:$('routeMap'),onSelect:id=>selectPatient(id),isActive:()=>!!dashboard&&!$('dashboard').hidden,onStatus:status=>{$('routeMapStatus').textContent=status.message;$('routeAttribution').textContent=[status.attribution,...status.warnings].filter(Boolean).join(' · ');}});
  const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -36,10 +36,10 @@
  $('billingPrint').addEventListener('click',()=>window.print());
  const selected=()=>dashboard?.patients.find(patient=>patient.id===selectedId)||dashboard?.patients[0];
  const demoToken=()=>sessionStorage.getItem(TOKEN_KEY)||'';
- async function api(path,options={}){const token=(admin?sessionStorage.getItem('nexusAccessToken'):demoToken())||sessionStorage.getItem('nexusAccessToken')||'';const response=await fetch(`/api/facility-demo/${path}`,{...options,headers:{...(token?{authorization:`Bearer ${token}`} :{}),'content-type':'application/json',...options.headers},cache:'no-store'});let data;try{data=await response.json();}catch{throw Error('The demo service could not be reached. Please retry.');}if(!response.ok){const error=Error(data.error||'Demo request failed.');error.status=response.status;throw error;}return data;}
+ async function api(path,options={}){const token=(platformAccess?sessionStorage.getItem('nexusAccessToken'):demoToken())||sessionStorage.getItem('nexusAccessToken')||'';const response=await fetch(`/api/facility-demo/${path}`,{...options,headers:{...(token?{authorization:`Bearer ${token}`} :{}),'content-type':'application/json',...options.headers},cache:'no-store'});let data;try{data=await response.json();}catch{throw Error('The demo service could not be reached. Please retry.');}if(!response.ok){const error=Error(data.error||'Demo request failed.');error.status=response.status;throw error;}return data;}
  function toast(message,severity='info'){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').className=`toast ${severity}`;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,6500);}
  function showLogin(message=''){setPasswordVisible(false);$('loginScreen').hidden=false;$('dashboard').hidden=true;$('loginNotice').textContent=message;mapController.clear();if(mapExpanded)setMapExpanded(false);}
- function showDashboard(data){const dayChanged=dashboard?.scenarioDate!==data.dashboard.scenarioDate,changed=JSON.stringify(dashboard?.patients.map(p=>[p.returnPickup,p.vehicleWaiting]))!==JSON.stringify(data.dashboard.patients.map(p=>[p.returnPickup,p.vehicleWaiting]));dashboard=data.dashboard;admin=!!data.admin;$('logout').textContent=admin?'Back to apps':'Sign out';if(dayChanged){mapMode='all';$('billingDay').value=dashboard.scenarioDate;$('billingMonth').value=dashboard.scenarioDate.slice(0,7);invalidateRoute();}if(dayChanged||changed){billingRevision++;billingLoadedAt=0;}$('loginScreen').hidden=true;$('dashboard').hidden=false;render();loadBilling();}
+ function showDashboard(data){const dayChanged=dashboard?.scenarioDate!==data.dashboard.scenarioDate,changed=JSON.stringify(dashboard?.patients.map(p=>[p.returnPickup,p.vehicleWaiting]))!==JSON.stringify(data.dashboard.patients.map(p=>[p.returnPickup,p.vehicleWaiting]));dashboard=data.dashboard;admin=!!data.admin;platformAccess=admin||!!data.presenter;$('logout').textContent=platformAccess?'Back to portal':'Sign out';if(dayChanged){mapMode='all';$('billingDay').value=dashboard.scenarioDate;$('billingMonth').value=dashboard.scenarioDate.slice(0,7);invalidateRoute();}if(dayChanged||changed){billingRevision++;billingLoadedAt=0;}$('loginScreen').hidden=true;$('dashboard').hidden=false;render();loadBilling();}
  function legFor(patient){return ['return-approach','return','complete'].includes(patient.phase)?'return':'outbound';}
  function invalidateRoute(){mapController.clear();$('routeMapStatus').textContent='Loading road routes…';}
  function selectPatient(id){if(!dashboard?.patients.some(patient=>patient.id===id)){toast('That booking is no longer active. Select a current trip.');if(!mapExpanded)openWorkspace('boardSection');return;}mapMode='selected';selectedId=id;automaticLeg=true;selectedLeg=legFor(selected());invalidateRoute();render(false);if(mapExpanded)$('selectedRoute').focus();else openWorkspace('detailsSection');}
@@ -125,7 +125,18 @@
   try{const response=await fetch('/api/auth/reset-password',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:recoveryToken,newPassword:password})}),data=await response.json();if(!response.ok)throw Error(data.error||'Unable to reset the password.');sessionStorage.removeItem(TOKEN_KEY);closeRecovery(data.message+' Use your new password below.');}
   catch(error){$('demoResetNotice').textContent=error.message;}finally{button.disabled=false;}
  });
- $('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginButton').disabled=true;$('loginNotice').textContent='Signing in…';try{const data=await api('login',{method:'POST',body:JSON.stringify({email:$('loginEmail').value,password:$('loginPassword').value})});sessionStorage.setItem(TOKEN_KEY,data.token);setPasswordVisible(false);$('loginPassword').value='';showDashboard(data);}catch(error){$('loginNotice').textContent=error.message;}finally{$('loginButton').disabled=false;}});
+ $('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginButton').disabled=true;$('loginNotice').textContent='Signing in…';try{let data;
+   const email=$('loginEmail').value.trim().toLowerCase(),password=$('loginPassword').value;
+   if(email==='annapolis.demo@nexusmt.com'){
+    data=await api('login',{method:'POST',body:JSON.stringify({email,password})});sessionStorage.setItem(TOKEN_KEY,data.token);
+   }else{
+    const response=await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password})}),login=await response.json();
+    if(!response.ok||!login.token)throw Error(login.error||'Sign-in failed.');
+    if(login.user?.mustChangePassword)throw Error('Use Staff / administrator sign-in to complete your required password change first.');
+    const state=await fetch('/api/facility-demo/state',{headers:{authorization:`Bearer ${login.token}`},cache:'no-store'});data=await state.json();
+    if(!state.ok)throw Error('This account does not have facility demo access.');
+    sessionStorage.setItem('nexusAccessToken',login.token);sessionStorage.setItem('nexusUser',JSON.stringify(login.user));sessionStorage.removeItem(TOKEN_KEY);platformAccess=true;
+   }setPasswordVisible(false);$('loginPassword').value='';showDashboard(data);}catch(error){$('loginNotice').textContent=error.message;}finally{$('loginButton').disabled=false;}});
  $('prepareDemo').addEventListener('click',async()=>{$('prepareDemo').disabled=true;try{const data=await api('setup',{method:'POST',body:'{}'});$('loginNotice').textContent=data.message;if(data.password){$('issuedEmail').value=data.username;$('issuedPassword').value=data.password;$('credentials').hidden=false;$('loginEmail').value=data.username;$('loginPassword').value=data.password;}}catch(error){$('loginNotice').textContent=error.message;}finally{$('prepareDemo').disabled=false;}});
  $('restart').addEventListener('click',()=>action('restart'));$('playPause').addEventListener('click',()=>action(dashboard?.paused?'play':'pause'));$('speed').addEventListener('change',()=>action('speed',{speed:Number($('speed').value)}));$('timeSlider').addEventListener('change',()=>action('seek',{minute:Number($('timeSlider').value)}));
  document.querySelectorAll('[data-minute]').forEach(button=>button.addEventListener('click',()=>action('seek',{minute:Number(button.dataset.minute)})));
@@ -136,7 +147,7 @@
  document.querySelectorAll('[data-scroll]').forEach(button=>button.addEventListener('click',()=>$(button.dataset.scroll).scrollIntoView({behavior:'smooth'})));
  $('sourcesButton').addEventListener('click',()=>$('sourcesDialog').showModal());$('closeSources').addEventListener('click',()=>$('sourcesDialog').close());
  $('fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{toast('Full-screen mode is unavailable in this browser.');}});
- $('logout').addEventListener('click',()=>{if(admin){location.href='/apps.html';return;}sessionStorage.removeItem(TOKEN_KEY);dashboard=null;admin=false;showLogin('Signed out of the demo.');});
+ $('logout').addEventListener('click',()=>{if(platformAccess){const user=JSON.parse(sessionStorage.getItem('nexusUser')||'{}');location.href=admin?'/apps.html':user.role==='FACILITY'?'/facility.html':'/dispatch.html';return;}sessionStorage.removeItem(TOKEN_KEY);dashboard=null;admin=false;showLogin('Signed out of the demo.');});
  setInterval(async()=>{if(polling||busy||$('dashboard').hidden)return;const requestToken=demoToken();polling=true;try{const data=await api('state');if(requestToken===demoToken()&&dashboard)showDashboard(data);}catch(error){$('connection').textContent='Connection interrupted · retrying';if(error.status===401){sessionStorage.removeItem(TOKEN_KEY);showLogin(error.message);}}finally{polling=false;}},2000);
 
  function openWorkspace(id){
@@ -188,8 +199,15 @@
      response=await fetch('/api/auth/switch-role',{method:'POST',headers,body:JSON.stringify({role:'ADMIN'})});data=await response.json();
      if(!response.ok||data.user?.role!=='ADMIN')throw Error('Unable to open administrator experience.');
     }
-    sessionStorage.setItem('nexusUser',JSON.stringify(data.user));admin=true;sessionStorage.removeItem(TOKEN_KEY);$('prepareDemo').hidden=false;
+    sessionStorage.setItem('nexusUser',JSON.stringify(data.user));admin=true;platformAccess=true;sessionStorage.removeItem(TOKEN_KEY);$('prepareDemo').hidden=false;
     try{showDashboard(await api('state'));}catch(error){showLogin(error.message);}return;
+   }
+   if(response.ok&&data.user){
+    const email=String(data.user.email||'').toLowerCase();
+    if((email==='facility@nexusmt.com'&&data.user.role==='FACILITY')||(email==='dispatch@nexusmt.com'&&data.user.role==='DISPATCHER')){
+     platformAccess=true;sessionStorage.setItem('nexusUser',JSON.stringify(data.user));sessionStorage.removeItem(TOKEN_KEY);
+     try{showDashboard(await api('state'));}catch(error){platformAccess=false;showLogin(error.message);}return;
+    }
    }
   }catch{}}
 
