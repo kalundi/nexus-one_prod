@@ -15,16 +15,33 @@ const AUTO_EVENTS=[
  {id:'auto-return-delay',patientId:'FC-DEMO-04',at:860,type:'delay',leg:'return',minutes:15,resolvedAt:910,note:'Return-route traffic slowdown. Facility receiving team and monitoring contacts have a revised return ETA.'}
 ];
 const DATES=Array.from({length:5},(_,index)=>`2026-10-${26+index}`);
-function initialState(now=Date.now(),date=DATES[0]){return {date,runId:crypto.randomUUID(),baseMinute:435,anchorAt:now,speed:120,paused:true,overrides:[],acknowledged:[],returnSchedules:{},scheduleChanges:[]};}
+const WEEKLY_RESIDENTS=[
+ PATIENTS.map(patient=>patient.name),
+ ['Dorothy Bennett','Ronald Ellis','Patricia Coleman','Arthur Simmons','Gloria Mitchell'],
+ ['Clara Whitmore','Victor Hayes','Lillian Foster','George Bennett','Anita Lawson'],
+ ['Walter Sinclair','Beatrice Palmer','Leonard Price','Sylvia Dawson','Josephine Grant'],
+ ['Thomas Whitaker','Marian Russell','Edwin Chambers','Ruth Delaney','Calvin Monroe']
+];
+function dayIndex(state){return Math.max(0,DATES.indexOf(state.date||DATES[0]));}
+function resident(day,index){const name=WEEKLY_RESIDENTS[day][index];return {id:`FC-DEMO-${String(day*5+index+1).padStart(2,'0')}`,name,initials:name.split(' ').map(part=>part[0]).join('')};}
+function migrateState(state){
+ if(state.rosterVersion===2)return state;
+ const day=dayIndex(state),aliases=new Map(PATIENTS.map((patient,index)=>[patient.id,resident(day,index)]));
+ const remap=id=>aliases.get(id)?.id||id;
+ const changes=(state.scheduleChanges||[]).map(change=>{let text=change.text;PATIENTS.forEach((patient,index)=>{text=String(text||'').replaceAll(patient.name,resident(day,index).name);});return {...change,patientId:remap(change.patientId),text};});
+ return {...state,rosterVersion:2,returnSchedules:Object.fromEntries(Object.entries(state.returnSchedules||{}).map(([id,value])=>[remap(id),value])),overrides:(state.overrides||[]).map(event=>({...event,patientId:remap(event.patientId)})),scheduleChanges:changes};
+}
+function initialState(now=Date.now(),date=DATES[0]){return {date,rosterVersion:2,runId:crypto.randomUUID(),baseMinute:435,anchorAt:now,speed:120,paused:true,overrides:[],acknowledged:[],returnSchedules:{},scheduleChanges:[]};}
 function patientsFor(state){
- const day=Math.max(0,DATES.indexOf(state.date||DATES[0]));
- return PATIENTS.map((patient,index)=>{const appointmentAt=patient.appointmentAt+day*5,pickup=patient.pickup+day*5,waitMinutes=[60,120,180][(index+day)%3],saved=state.returnSchedules?.[patient.id];return {...patient,pickup,appointmentAt,returnPickup:saved?.returnPickup??appointmentAt+waitMinutes,waitMinutes:saved?.waitMinutes??waitMinutes,vehicleWaiting:saved?.vehicleWaiting??true};});
+ state=migrateState(state);const day=dayIndex(state);
+ return PATIENTS.map((patient,index)=>{const identity=resident(day,index),appointmentAt=patient.appointmentAt+day*5,pickup=patient.pickup+day*5,waitMinutes=[60,120,180][(index+day)%3],saved=state.returnSchedules?.[identity.id];return {...patient,...identity,pickup,appointmentAt,returnPickup:saved?.returnPickup??appointmentAt+waitMinutes,waitMinutes:saved?.waitMinutes??waitMinutes,vehicleWaiting:saved?.vehicleWaiting??true};});
 }
 function endMinute(state){return Math.max(930,...patientsFor(state).map(patient=>patient.returnPickup+patient.travel+mergedEvents(state).filter(e=>e.patientId===patient.id&&e.leg==='return').reduce((sum,e)=>sum+Number(e.minutes||0),0)+5));}
 function minuteAt(state,now=Date.now()){return Math.max(435,Math.min(endMinute(state),Number(state.baseMinute)+(state.paused?0:(now-Number(state.anchorAt))/1000*Number(state.speed)/60)));}
 function timeLabel(minute){const rounded=Math.round(minute),hour=Math.floor(rounded/60);return `${hour%12||12}:${String(rounded%60).padStart(2,'0')} ${hour>=12?'PM':'AM'}`;}
 function recipients(){return ['Facility manager (demo inbox)','Facility receiving team (demo)','Destination contact (demo)','Patient / authorized caregiver (demo)','Nexus dispatch (demo)'];}
 function project(state,now=Date.now()){
+ state=migrateState(state);
  const minute=minuteAt(state,now),messages=[],alerts=[];
  function notify(id,patient,at,title,text,severity='info',extra={}){if(at>minute)return;messages.push({id:`${state.runId}:${id}`,patientId:patient.id,patient:patient.name,at,time:timeLabel(at),title,text,severity,recipients:recipients(),delivery:'Displayed in demo manager inbox · SMS/email simulated, not sent',...extra});}
  const patients=patientsFor(state).map(patient=>{
@@ -67,6 +84,7 @@ function project(state,now=Date.now()){
  return {scope:SCOPE,facility:FACILITY,scenarioDate:date,availableDates:DATES,scenarioLabel:`${label} · Eastern Time`,fictional:true,minute,endMinute:endMinute(state),endLabel:timeLabel(endMinute(state)),time:timeLabel(minute),paused:state.paused||minute>=endMinute(state),speed:state.speed,runId:state.runId,patients,messages,alerts,severity:alerts.some(a=>a.severity==='issue')?'issue':alerts.length?'delay':'normal',metrics:{patients:patients.length,legs:patients.length*2,away:patients.filter(p=>['outbound','appointment','return-approach','return'].includes(p.phase)).length,returned:patients.filter(p=>p.phase==='complete').length,active:patients.filter(p=>['approach','outbound','return-approach','return'].includes(p.phase)).length,alerts:alerts.length,unread:alerts.filter(a=>!a.acknowledged).length}};
 }
 function control(state,body,now=Date.now()){
+ state=migrateState(state);
  const current=minuteAt(state,now),next={...state,baseMinute:current,anchorAt:now};
  if(body.date&&body.date!==(state.date||DATES[0]))throw Object.assign(Error('The selected demo day changed. Refresh before saving.'),{statusCode:409});
  if(body.action==='restart')return {...initialState(now,state.date||DATES[0]),returnSchedules:state.returnSchedules||{},scheduleChanges:[],paused:false};
@@ -105,7 +123,10 @@ function control(state,body,now=Date.now()){
  }else throw Object.assign(Error('Unsupported demo action.'),{statusCode:400});
  return next;
 }
-function mergedEvents(state){const overrides=new Map((state.overrides||[]).map(e=>[e.id,e])),offset=Math.max(0,DATES.indexOf(state.date||DATES[0]))*5;return [...AUTO_EVENTS.filter(e=>!overrides.has(e.id)).map(event=>event.leg==='return'?{...event,at:patientsFor(state).find(p=>p.id===event.patientId).returnPickup+5,resolvedAt:patientsFor(state).find(p=>p.id===event.patientId).returnPickup+55}:{...event,at:event.at+offset,resolvedAt:event.resolvedAt+offset}),...overrides.values()];}
+function mergedEvents(state){
+ state=migrateState(state);const overrides=new Map((state.overrides||[]).map(e=>[e.id,e])),day=dayIndex(state),offset=day*5,patients=patientsFor(state);
+ return [...AUTO_EVENTS.filter(e=>!overrides.has(e.id)).map(event=>{const index=PATIENTS.findIndex(patient=>patient.id===event.patientId),patient=patients[index];return event.leg==='return'?{...event,patientId:patient.id,at:patient.returnPickup+5,resolvedAt:patient.returnPickup+55}:{...event,patientId:patient.id,at:event.at+offset,resolvedAt:event.resolvedAt+offset};}),...overrides.values()];
+}
 function encodeToken(secret,now=Date.now()){const payload=Buffer.from(JSON.stringify({scope:SCOPE,expires:now+8*3600000,nonce:crypto.randomBytes(12).toString('hex')})).toString('base64url');return `${payload}.${crypto.createHmac('sha256',secret).update(payload).digest('base64url')}`;}
 function validToken(token,secret,now=Date.now()){try{const [payload,signature,...extra]=String(token).split('.');if(extra.length||!payload||!signature)return false;const expected=crypto.createHmac('sha256',secret).update(payload).digest();const supplied=Buffer.from(signature,'base64url');if(supplied.length!==expected.length||!crypto.timingSafeEqual(supplied,expected))return false;const data=JSON.parse(Buffer.from(payload,'base64url'));return data.scope===SCOPE&&Number(data.expires)>now;}catch{return false;}}
 function passwordHash(password,salt){return crypto.scryptSync(String(password),salt,32).toString('hex');}
@@ -113,9 +134,9 @@ function syncBilling(config,settings){
  config.days=config.days||{};config.invoices=config.invoices||{};
  if(config.billing&&!config.invoices[DATES[0]])config.invoices[DATES[0]]=config.billing;
  delete config.billing;
- const activeDate=config.state.date||DATES[0];config.state.date=activeDate;
+ const activeDate=config.state.date||DATES[0];config.state=migrateState({...config.state,date:activeDate});
  for(const date of DATES){
-  const state=date===activeDate?config.state:(config.days[date]||=initialState(Date.now(),date));
+  const state=date===activeDate?config.state:(config.days[date]=migrateState({...(config.days[date]||initialState(Date.now(),date)),date}));
   const patients=patientsFor(state),previous=config.invoices[date];
   const invoice=previous?.signature===Billing.signature(patients,date)?previous:Billing.create(patients,settings,date,previous);
   config.invoices[date]=Billing.finalize(invoice,project(state));
@@ -181,4 +202,4 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
   return json(404,{error:'Demo action not found.'});
  };
 }
-module.exports={SCOPE,KEY,USERNAME,FACILITY,PATIENTS,AUTO_EVENTS,DATES,patientsFor,initialState,minuteAt,timeLabel,project,control,mergedEvents,encodeToken,validToken,passwordHash,syncBilling,dashboardFor,createHandler};
+module.exports={SCOPE,KEY,USERNAME,FACILITY,PATIENTS,AUTO_EVENTS,DATES,WEEKLY_RESIDENTS,migrateState,patientsFor,initialState,minuteAt,timeLabel,project,control,mergedEvents,encodeToken,validToken,passwordHash,syncBilling,dashboardFor,createHandler};
