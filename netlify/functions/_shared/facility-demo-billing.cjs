@@ -3,29 +3,34 @@ const DATE='2026-10-26';
 const LABELS={base:'Service / base fare',mileage:'Loaded mileage',fuel:'Fuel surcharge',traffic:'Traffic overage',premium:'Time premiums / minimum fare',waiting:'Waiting',positioning:'Empty-mile positioning',notice:'Short-notice surcharge',fee:'Configured processing fee'};
 const cents=value=>Math.round((Number(value)+1e-9)*100);
 const clock=minute=>`${String(Math.floor(minute/60)).padStart(2,'0')}:${String(minute%60).padStart(2,'0')}`;
-function create(patients,settings){
+function signature(patients,date=DATE){return JSON.stringify({date,patients:patients.map(p=>[p.id,p.pickup,p.appointmentAt,p.returnPickup,p.waitMinutes||0,!!p.vehicleWaiting])});}
+function create(patients,settings,date=DATE,previous=null){
  const distances=[8,7.5,7.2,23,26];
  const rows=patients.flatMap((patient,index)=>['outbound','return'].map(leg=>{
   const service=patient.service.toLowerCase(),rate=settings.pricing?.[service];
   if(!rate)throw Error(`Current ${service} pricing is unavailable.`);
-  // Separate one-way transports: the vehicle does not wait through the appointment.
-  const fare=Fare.calculate({service,rate,rules:settings.fareRules||{},vehicleUnit:patient.unit,miles:distances[index],date:DATE,time:clock(leg==='outbound'?patient.pickup:patient.returnPickup),tripType:'ONE_WAY',waitMinutes:0,metrics:{durationMinutes:patient.travel,trafficDurationMinutes:patient.travel,deadheadSegments:[0,0]}});
+  // Appointment holding is charged exactly once, on the return leg, only when selected.
+  const waitMinutes=leg==='return'&&patient.vehicleWaiting?Number(patient.waitMinutes||0):0;
+  const fare=Fare.calculate({service,rate,rules:settings.fareRules||{},vehicleUnit:patient.unit,miles:distances[index],date,time:clock(leg==='outbound'?patient.pickup:patient.returnPickup),tripType:'ONE_WAY',waitMinutes,metrics:{durationMinutes:patient.travel,trafficDurationMinutes:patient.travel,deadheadSegments:[0,0]}});
   const total=cents(fare.total),base=cents(rate.base||0),mileage=cents(fare.mileageCharge),fuel=cents(fare.fuelCharge),traffic=cents(fare.trafficCharge),waiting=cents(fare.waitCharge),positioning=cents(fare.deadheadCharge),notice=cents(fare.shortNoticeCharge),fee=cents(fare.taxAmount);
   const premium=Math.max(0,cents(fare.passengerLegs[0].subtotal)-base-mileage-fuel-traffic);
   const reconciledFee=total-base-mileage-fuel-traffic-premium-waiting-positioning-notice;
-  return {id:`${patient.id}-${leg}`,patientId:patient.id,patient:patient.name,service:patient.service,leg,pickup:clock(leg==='outbound'?patient.pickup:patient.returnPickup),destination:patient.destination.name,miles:distances[index],categories:{base,mileage,fuel,traffic,premium,waiting,positioning,notice,fee:reconciledFee},total};
+  return {id:`${date}-${patient.id}-${leg}`,patientId:patient.id,patient:patient.name,service:patient.service,leg,pickup:clock(leg==='outbound'?patient.pickup:patient.returnPickup),destination:patient.destination.name,miles:distances[index],waitMinutes,freeWaitMinutes:fare.freeWaitMinutes,billableWaitMinutes:fare.billableWaitMinutes,waitPer15:fare.waitPer15,categories:{base,mileage,fuel,traffic,premium,waiting,positioning,notice,fee:reconciledFee},total};
  }));
- return {id:'DEMO-FC-20261026',date:DATE,currency:'USD',status:'draft',rows,total:rows.reduce((sum,row)=>sum+row.total,0),pricingCapturedAt:new Date().toISOString(),pricingSource:'Nexus configured platform rates / shared NexusFare calculator',distanceSource:'Illustrative one-way demo miles; not measured road mileage',assumptions:'Separate outbound and return bookings. No appointment waiting, empty-mile positioning, billable traffic overage or discounts. Driver-delay alerts alone do not add a charge.',delivery:null};
+ const revision=Number(previous?.revision||0)+1,history=[...(previous?.history||[])];
+ if(previous){const {history:oldHistory,...archived}=previous;history.push(archived);}
+ return {id:`DEMO-FC-${date.replaceAll('-','')}-R${revision}`,revision,history,signature:signature(patients,date),date,currency:'USD',status:'draft',rows,total:rows.reduce((sum,row)=>sum+row.total,0),pricingCapturedAt:new Date().toISOString(),pricingSource:'Nexus configured platform rates / shared NexusFare calculator',distanceSource:'Illustrative one-way demo miles; not measured road mileage',assumptions:'Appointment wait is measured from appointment time to return pickup. When the vehicle stays, waiting is charged once on the return leg using configured free minutes and 15-minute blocks. No empty-mile positioning, billable traffic overage or discounts. Driver-delay alerts alone do not add a charge.',delivery:null};
 }
 function finalize(invoice,dashboard){
- if(invoice.status==='issued'||dashboard.metrics.returned!==5)return invoice;
+ if(invoice.status==='issued'||dashboard.metrics.returned!==(dashboard.metrics.patients??5))return invoice;
  return {...invoice,status:'issued',delivery:{id:`${invoice.id}-delivery`,time:dashboard.time,at:dashboard.minute,recipient:'annapolis.demo@nexusmt.com',channel:'Simulated manager inbox delivery',sentAt:new Date().toISOString()}};
 }
 function view(invoice,period,mode='day'){
  const valid=mode==='month'?/^\d{4}-(0[1-9]|1[0-2])$/:/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
  if(!['day','month'].includes(mode)||!valid.test(period)||mode==='day'&&new Date(`${period}T12:00:00Z`).toISOString().slice(0,10)!==period)throw Object.assign(Error('Choose a valid billing day or month.'),{statusCode:400});
- const invoices=(mode==='month'?invoice.date.startsWith(period):invoice.date===period)?[invoice]:[];
+ const all=Array.isArray(invoice)?invoice:[invoice];
+ const invoices=all.filter(item=>mode==='month'?item.date.startsWith(period):item.date===period).sort((a,b)=>a.date.localeCompare(b.date));
  const categories=Object.keys(LABELS).map(key=>({key,label:LABELS[key],total:invoices.reduce((sum,item)=>sum+item.rows.reduce((n,row)=>n+row.categories[key],0),0)}));
- return {mode,period,invoices,categories,total:invoices.reduce((sum,item)=>sum+item.total,0),units:'All amounts are integer USD cents',availableDates:[DATE],automation:'Daily close: invoice automatically finalizes after all five return handoffs. Delivery is simulated in the manager inbox; no external email is sent.'};
+ return {mode,period,invoices,categories,total:invoices.reduce((sum,item)=>sum+item.total,0),units:'All amounts are integer USD cents',availableDates:all.map(item=>item.date),automation:'October 26–30: five patient round trips per day (25 round trips / 50 transport legs). Each daily invoice finalizes after its return handoffs. Schedule changes recalculate that day and preserve prior invoice revisions. Manager inbox delivery is simulated; no external email is sent.'};
 }
-module.exports={DATE,LABELS,create,finalize,view};
+module.exports={DATE,LABELS,signature,create,finalize,view};
