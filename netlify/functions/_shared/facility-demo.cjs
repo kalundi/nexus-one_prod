@@ -14,15 +14,20 @@ const AUTO_EVENTS=[
  {id:'auto-entrance-issue',patientId:'FC-DEMO-03',at:545,type:'issue',leg:'outbound',minutes:8,resolvedAt:560,note:'Receiving entrance changed. Dispatch is confirming the correct handoff location with the destination.'},
  {id:'auto-return-delay',patientId:'FC-DEMO-04',at:860,type:'delay',leg:'return',minutes:15,resolvedAt:910,note:'Return-route traffic slowdown. Facility receiving team and monitoring contacts have a revised return ETA.'}
 ];
-function initialState(now=Date.now()){return {runId:crypto.randomUUID(),baseMinute:435,anchorAt:now,speed:120,paused:true,overrides:[],acknowledged:[]};}
-function endMinute(state){return Math.max(930,...PATIENTS.map(patient=>patient.returnPickup+patient.travel+mergedEvents(state).filter(e=>e.patientId===patient.id&&e.leg==='return').reduce((sum,e)=>sum+Number(e.minutes||0),0)+5));}
+const DATES=Array.from({length:5},(_,index)=>`2026-10-${26+index}`);
+function initialState(now=Date.now(),date=DATES[0]){return {date,runId:crypto.randomUUID(),baseMinute:435,anchorAt:now,speed:120,paused:true,overrides:[],acknowledged:[],returnSchedules:{},scheduleChanges:[]};}
+function patientsFor(state){
+ const day=Math.max(0,DATES.indexOf(state.date||DATES[0]));
+ return PATIENTS.map((patient,index)=>{const appointmentAt=patient.appointmentAt+day*5,pickup=patient.pickup+day*5,waitMinutes=[60,120,180][(index+day)%3],saved=state.returnSchedules?.[patient.id];return {...patient,pickup,appointmentAt,returnPickup:saved?.returnPickup??appointmentAt+waitMinutes,waitMinutes:saved?.waitMinutes??waitMinutes,vehicleWaiting:saved?.vehicleWaiting??true};});
+}
+function endMinute(state){return Math.max(930,...patientsFor(state).map(patient=>patient.returnPickup+patient.travel+mergedEvents(state).filter(e=>e.patientId===patient.id&&e.leg==='return').reduce((sum,e)=>sum+Number(e.minutes||0),0)+5));}
 function minuteAt(state,now=Date.now()){return Math.max(435,Math.min(endMinute(state),Number(state.baseMinute)+(state.paused?0:(now-Number(state.anchorAt))/1000*Number(state.speed)/60)));}
 function timeLabel(minute){const rounded=Math.round(minute),hour=Math.floor(rounded/60);return `${hour%12||12}:${String(rounded%60).padStart(2,'0')} ${hour>=12?'PM':'AM'}`;}
 function recipients(){return ['Facility manager (demo inbox)','Facility receiving team (demo)','Destination contact (demo)','Patient / authorized caregiver (demo)','Nexus dispatch (demo)'];}
 function project(state,now=Date.now()){
  const minute=minuteAt(state,now),messages=[],alerts=[];
  function notify(id,patient,at,title,text,severity='info',extra={}){if(at>minute)return;messages.push({id:`${state.runId}:${id}`,patientId:patient.id,patient:patient.name,at,time:timeLabel(at),title,text,severity,recipients:recipients(),delivery:'Displayed in demo manager inbox · SMS/email simulated, not sent',...extra});}
- const patients=PATIENTS.map(patient=>{
+ const patients=patientsFor(state).map(patient=>{
   const events=mergedEvents(state).filter(event=>event.patientId===patient.id&&event.at<=minute);
   const outboundDelay=events.filter(e=>e.leg==='outbound').reduce((sum,e)=>sum+Number(e.minutes||0),0);
   const returnDelay=events.filter(e=>e.leg==='return').reduce((sum,e)=>sum+Number(e.minutes||0),0);
@@ -56,19 +61,35 @@ function project(state,now=Date.now()){
   notify(`${patient.id}-back`,patient,returnArrival,'Patient returned — handoff complete',`${patient.name} is back at ${FACILITY.name}. The facility receiving team has a simulated handoff-complete notification.`,'success');
   return {...patient,fictional:true,stage,phase,progress:Math.max(0,Math.min(1,progress)),eta,etaLabel:timeLabel(eta),arrivalEta:timeLabel(currentEta),outboundArrival,returnArrival,risk,alerts:active.map(e=>e.note),pickupLabel:timeLabel(patient.pickup),appointmentLabel:timeLabel(patient.appointmentAt),returnLabel:timeLabel(patient.returnPickup),returnArrivalLabel:timeLabel(returnArrival),outboundDelay,returnDelay};
  });
+ for(const change of state.scheduleChanges||[]){const patient=patients.find(p=>p.id===change.patientId);if(patient)notify(change.id,patient,change.at,'Return pickup rescheduled',change.text,'info');}
  messages.sort((a,b)=>b.at-a.at||a.id.localeCompare(b.id));
- return {scope:SCOPE,facility:FACILITY,scenarioDate:'2026-10-26',scenarioLabel:'Monday, October 26, 2026 · Eastern Time',fictional:true,minute,endMinute:endMinute(state),endLabel:timeLabel(endMinute(state)),time:timeLabel(minute),paused:state.paused||minute>=endMinute(state),speed:state.speed,runId:state.runId,patients,messages,alerts,severity:alerts.some(a=>a.severity==='issue')?'issue':alerts.length?'delay':'normal',metrics:{patients:5,legs:10,away:patients.filter(p=>['outbound','appointment','return-approach','return'].includes(p.phase)).length,returned:patients.filter(p=>p.phase==='complete').length,active:patients.filter(p=>['approach','outbound','return-approach','return'].includes(p.phase)).length,alerts:alerts.length,unread:alerts.filter(a=>!a.acknowledged).length}};
+ const date=state.date||DATES[0],label=new Intl.DateTimeFormat('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`));
+ return {scope:SCOPE,facility:FACILITY,scenarioDate:date,availableDates:DATES,scenarioLabel:`${label} · Eastern Time`,fictional:true,minute,endMinute:endMinute(state),endLabel:timeLabel(endMinute(state)),time:timeLabel(minute),paused:state.paused||minute>=endMinute(state),speed:state.speed,runId:state.runId,patients,messages,alerts,severity:alerts.some(a=>a.severity==='issue')?'issue':alerts.length?'delay':'normal',metrics:{patients:patients.length,legs:patients.length*2,away:patients.filter(p=>['outbound','appointment','return-approach','return'].includes(p.phase)).length,returned:patients.filter(p=>p.phase==='complete').length,active:patients.filter(p=>['approach','outbound','return-approach','return'].includes(p.phase)).length,alerts:alerts.length,unread:alerts.filter(a=>!a.acknowledged).length}};
 }
 function control(state,body,now=Date.now()){
  const current=minuteAt(state,now),next={...state,baseMinute:current,anchorAt:now};
- if(body.action==='restart')return {...initialState(now),paused:false};
+ if(body.date&&body.date!==(state.date||DATES[0]))throw Object.assign(Error('The selected demo day changed. Refresh before saving.'),{statusCode:409});
+ if(body.action==='restart')return {...initialState(now,state.date||DATES[0]),returnSchedules:state.returnSchedules||{},scheduleChanges:[],paused:false};
+ if(body.action==='returnSchedule'){
+  const patient=patientsFor(state).find(p=>p.id===body.patientId);
+  if(!patient)throw Object.assign(Error('Choose a demo patient.'),{statusCode:400});
+  let pickup;
+  if(body.waitHours!=null){if(![1,2,3].includes(Number(body.waitHours)))throw Object.assign(Error('Select a 1, 2 or 3 hour appointment wait.'),{statusCode:400});pickup=patient.appointmentAt+Number(body.waitHours)*60;}
+  else{if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(body.returnTime||'')))throw Object.assign(Error('Enter a valid return pickup time.'),{statusCode:400});const [h,m]=body.returnTime.split(':').map(Number);pickup=h*60+m;}
+  if(pickup<patient.appointmentAt+15||pickup>1380)throw Object.assign(Error('Return pickup must be at least 15 minutes after the appointment and no later than 11 PM.'),{statusCode:400});
+  if(typeof body.vehicleWaiting!=='boolean')throw Object.assign(Error('Choose whether the vehicle waits at the appointment.'),{statusCode:400});
+  const schedule={returnPickup:pickup,waitMinutes:pickup-patient.appointmentAt,vehicleWaiting:body.vehicleWaiting};
+  next.returnSchedules={...(state.returnSchedules||{}),[patient.id]:schedule};
+  next.scheduleChanges=[...(state.scheduleChanges||[]).slice(-49),{id:`schedule-${crypto.randomUUID()}`,patientId:patient.id,at:current,text:`${patient.name}: return pickup changed from ${timeLabel(patient.returnPickup)} to ${timeLabel(pickup)}. Appointment wait: ${schedule.waitMinutes} minutes. ${body.vehicleWaiting?'Vehicle remains on site; configured waiting charges apply once to the return leg.':'Vehicle leaves and returns; appointment time is not billable waiting.'} Daily invoice recalculated; facility manager and monitoring parties notified (simulated).`}];
+  return next;
+ }
  if(body.action==='play')next.paused=false;
  else if(body.action==='pause')next.paused=true;
  else if(body.action==='seek'){const value=Number(body.minute);if(!Number.isFinite(value)||value<435||value>endMinute(state))throw Object.assign(Error('Choose a time within the demo schedule.'),{statusCode:400});next.baseMinute=value;}
  else if(body.action==='speed'){const value=Number(body.speed);if(![30,60,120,240].includes(value))throw Object.assign(Error('Choose a supported playback speed.'),{statusCode:400});next.speed=value;}
  else if(body.action==='ack')next.acknowledged=[...new Set([...(state.acknowledged||[]),...project(state,now).alerts.map(a=>a.id)])];
  else if(['delay','issue','resolve'].includes(body.action)){
-  const patient=PATIENTS.find(p=>p.id===body.patientId);if(!patient)throw Object.assign(Error('Choose one of the five demo patients.'),{statusCode:400});
+  const patient=patientsFor(state).find(p=>p.id===body.patientId);if(!patient)throw Object.assign(Error('Choose one of the five demo patients.'),{statusCode:400});
   const overrides=[...(state.overrides||[])];
   if(body.action==='resolve'){
    const resolved=new Set();
@@ -84,10 +105,27 @@ function control(state,body,now=Date.now()){
  }else throw Object.assign(Error('Unsupported demo action.'),{statusCode:400});
  return next;
 }
-function mergedEvents(state){const overrides=new Map((state.overrides||[]).map(e=>[e.id,e]));return [...AUTO_EVENTS.filter(e=>!overrides.has(e.id)),...overrides.values()];}
+function mergedEvents(state){const overrides=new Map((state.overrides||[]).map(e=>[e.id,e])),offset=Math.max(0,DATES.indexOf(state.date||DATES[0]))*5;return [...AUTO_EVENTS.filter(e=>!overrides.has(e.id)).map(event=>event.leg==='return'?{...event,at:patientsFor(state).find(p=>p.id===event.patientId).returnPickup+5,resolvedAt:patientsFor(state).find(p=>p.id===event.patientId).returnPickup+55}:{...event,at:event.at+offset,resolvedAt:event.resolvedAt+offset}),...overrides.values()];}
 function encodeToken(secret,now=Date.now()){const payload=Buffer.from(JSON.stringify({scope:SCOPE,expires:now+8*3600000,nonce:crypto.randomBytes(12).toString('hex')})).toString('base64url');return `${payload}.${crypto.createHmac('sha256',secret).update(payload).digest('base64url')}`;}
 function validToken(token,secret,now=Date.now()){try{const [payload,signature,...extra]=String(token).split('.');if(extra.length||!payload||!signature)return false;const expected=crypto.createHmac('sha256',secret).update(payload).digest();const supplied=Buffer.from(signature,'base64url');if(supplied.length!==expected.length||!crypto.timingSafeEqual(supplied,expected))return false;const data=JSON.parse(Buffer.from(payload,'base64url'));return data.scope===SCOPE&&Number(data.expires)>now;}catch{return false;}}
 function passwordHash(password,salt){return crypto.scryptSync(String(password),salt,32).toString('hex');}
+function syncBilling(config,settings){
+ config.days=config.days||{};config.invoices=config.invoices||{};
+ if(config.billing&&!config.invoices[DATES[0]])config.invoices[DATES[0]]=config.billing;
+ delete config.billing;
+ const activeDate=config.state.date||DATES[0];config.state.date=activeDate;
+ for(const date of DATES){
+  const state=date===activeDate?config.state:(config.days[date]||=initialState(Date.now(),date));
+  const patients=patientsFor(state),previous=config.invoices[date];
+  const invoice=previous?.signature===Billing.signature(patients,date)?previous:Billing.create(patients,settings,date,previous);
+  config.invoices[date]=Billing.finalize(invoice,project(state));
+ }
+}
+function dashboardFor(config){
+ const snapshot=project(config.state),invoice=config.invoices?.[snapshot.scenarioDate];
+ if(invoice?.delivery)snapshot.messages.unshift({id:invoice.delivery.id,patientId:'billing',patient:'Facility billing',at:invoice.delivery.at,time:invoice.delivery.time,title:'Daily invoice delivered (demo)',text:`${invoice.date} · ${invoice.id}: ${invoice.rows.length} transport legs. Total $${(invoice.total/100).toFixed(2)}. Open Daily invoicing to review the itemized invoice.`,severity:'success',recipients:[invoice.delivery.recipient],delivery:'Simulated manager inbox delivery. No external email sent.'});
+ return snapshot;
+}
 function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlatformSettings}){
  return async function handle(event,p,method){
   if(p[0]!=='facility-demo')return null;
@@ -109,31 +147,38 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
    const body=parseBody(event);if(typeof body.password!=='string'||body.password.length>256)return json(401,{error:'Check your demo manager email and password.'});
    const supplied=Buffer.from(passwordHash(body.password,config.salt),'hex'),expected=Buffer.from(config.passwordHash,'hex');
    if(String(body.email||'').trim().toLowerCase()!==USERNAME||supplied.length!==expected.length||!crypto.timingSafeEqual(supplied,expected))return json(401,{error:'Check your demo manager email and password.'});
-   return json(200,{token:encodeToken(config.secret),user:{name:'FutureCare Annapolis Demo Manager',scope:SCOPE},dashboard:project(config.state)});
+   return json(200,{token:encodeToken(config.secret),user:{name:'FutureCare Annapolis Demo Manager',scope:SCOPE},dashboard:dashboardFor(config)});
   }
   const config=(await query('SELECT value FROM system_settings WHERE key=$1',[KEY])).rows[0]?.value;
   let admin=false;try{admin=(await requireUser(bearer(event),['ADMIN'])).role==='ADMIN';}catch{}
   if(!config)return json(admin?409:401,{error:admin?'Prepare demo manager access first.':'Sign in to the facility demo.'});
   if(!admin&&!validToken(bearer(event),config.secret))return json(401,{error:'Your demo session expired. Sign in again.'});
   if(method==='GET'&&['state','billing'].includes(p[1])&&readPlatformSettings){
-   const settings=await readPlatformSettings(),client=await getPool().connect();let invoice,snapshot;
+   const settings=await readPlatformSettings(),client=await getPool().connect();let invoices,snapshot;
    try{await client.query('BEGIN');const locked=(await client.query('SELECT value FROM system_settings WHERE key=$1 FOR UPDATE',[KEY])).rows[0].value;
-    snapshot=project(locked.state);invoice=Billing.finalize(locked.billing||Billing.create(PATIENTS,settings),snapshot);
-    if(JSON.stringify(invoice)!==JSON.stringify(locked.billing)){locked.billing=invoice;await client.query('UPDATE system_settings SET value=$2::jsonb,updated_at=now() WHERE key=$1',[KEY,JSON.stringify(locked)]);}
+    const before=JSON.stringify(locked);syncBilling(locked,settings);snapshot=dashboardFor(locked);invoices=Object.values(locked.invoices);
+    if(JSON.stringify(locked)!==before)await client.query('UPDATE system_settings SET value=$2::jsonb,updated_at=now() WHERE key=$1',[KEY,JSON.stringify(locked)]);
     await client.query('COMMIT');
    }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
-   if(p[1]==='billing'){const params=event.queryStringParameters||{};return json(200,Billing.view(invoice,params.period||Billing.DATE,params.mode||'day'));}
-   if(invoice.delivery){snapshot.messages.unshift({id:invoice.delivery.id,patientId:'billing',patient:'Facility billing',at:invoice.delivery.at,time:invoice.delivery.time,title:'Daily invoice delivered (demo)',text:`${invoice.id}: 10 transport legs. Total $${(invoice.total/100).toFixed(2)}. Open Daily invoicing to review the itemized invoice.`,severity:'success',recipients:[invoice.delivery.recipient],delivery:'Simulated manager inbox delivery. No external email sent.'});}
+   if(p[1]==='billing'){const params=event.queryStringParameters||{};return json(200,Billing.view(invoices,params.period||snapshot.scenarioDate,params.mode||'day'));}
    return json(200,{dashboard:snapshot,admin});
   }
   if(method==='GET'&&p[1]==='state')return json(200,{dashboard:project(config.state),admin});
   if(method==='POST'&&p[1]==='control'){
-   const client=await getPool().connect();
+   const settings=readPlatformSettings?await readPlatformSettings():null,client=await getPool().connect();
    try{await client.query('BEGIN');const locked=(await client.query('SELECT value FROM system_settings WHERE key=$1 FOR UPDATE',[KEY])).rows[0]?.value;if(!locked)throw Error('Demo configuration missing.');
-    locked.state=control(locked.state,parseBody(event));await client.query('UPDATE system_settings SET value=$2::jsonb,updated_at=now() WHERE key=$1',[KEY,JSON.stringify(locked)]);await client.query('COMMIT');return json(200,{dashboard:project(locked.state),admin});
+    const body=parseBody(event);
+    if(body.action==='date'){
+     if(!DATES.includes(body.date))throw Object.assign(Error('Select a demo date from October 26–30, 2026.'),{statusCode:400});
+     const activeDate=locked.state.date||DATES[0];locked.days=locked.days||{};
+     locked.days[activeDate]={...control(locked.state,{action:'pause'}),date:activeDate};
+     locked.state={...(locked.days[body.date]||initialState(Date.now(),body.date)),date:body.date,paused:true,anchorAt:Date.now()};
+    }else locked.state=control(locked.state,body);
+    if(settings)syncBilling(locked,settings);
+    await client.query('UPDATE system_settings SET value=$2::jsonb,updated_at=now() WHERE key=$1',[KEY,JSON.stringify(locked)]);await client.query('COMMIT');return json(200,{dashboard:dashboardFor(locked),admin});
    }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
   }
   return json(404,{error:'Demo action not found.'});
  };
 }
-module.exports={SCOPE,KEY,USERNAME,FACILITY,PATIENTS,AUTO_EVENTS,initialState,minuteAt,timeLabel,project,control,mergedEvents,encodeToken,validToken,passwordHash,createHandler};
+module.exports={SCOPE,KEY,USERNAME,FACILITY,PATIENTS,AUTO_EVENTS,DATES,patientsFor,initialState,minuteAt,timeLabel,project,control,mergedEvents,encodeToken,validToken,passwordHash,syncBilling,dashboardFor,createHandler};

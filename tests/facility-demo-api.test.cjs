@@ -2,13 +2,13 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {PGlite}=require('@electric-sql/pglite');
 const Demo=require('../netlify/functions/_shared/facility-demo.cjs');
 const factory=Demo.createHandler;
-Demo.createHandler=options=>factory({...options,readPlatformSettings:async()=>({pricing:{ambulatory:{base:40,perMile:3},wheelchair:{base:65,perMile:4},stretcher:{base:100,perMile:5}},fareRules:{shortNoticeSurchargePct:0}})});
+Demo.createHandler=options=>factory({...options,readPlatformSettings:async()=>({pricing:{ambulatory:{base:40,perMile:3,waitPer15:15},wheelchair:{base:65,perMile:4,waitPer15:20},stretcher:{base:100,perMile:5,waitPer15:30}},fareRules:{shortNoticeSurchargePct:0}})});
 test('demo login and shared manager controls work through isolated PostgreSQL without exposing secrets',async()=>{
  const db=new PGlite();
  try{
   await db.exec("CREATE TABLE system_settings(key text PRIMARY KEY,value jsonb NOT NULL DEFAULT '{}'::jsonb,updated_at timestamptz DEFAULT now())");
   const handler=Demo.createHandler({query:(...args)=>db.query(...args),getPool:()=>({connect:async()=>({query:(...args)=>db.query(...args),release(){}})}),requireUser:async(token,roles)=>{assert.deepEqual(roles,['ADMIN']);if(token!=='test-admin')throw Error('Forbidden');return {role:'ADMIN'};},bearer:event=>(event.headers.authorization||'').replace(/^Bearer /,''),json:(statusCode,body)=>({statusCode,body}),parseBody:event=>JSON.parse(event.body||'{}')});
-  const request=(endpoint,method='GET',body={},token='')=>handler({headers:{authorization:token?`Bearer ${token}`:'','x-nf-client-connection-ip':'127.0.0.1'},body:JSON.stringify(body)},['facility-demo',endpoint],method);
+  const request=(endpoint,method='GET',body={},token='',params={})=>handler({queryStringParameters:params,headers:{authorization:token?`Bearer ${token}`:'','x-nf-client-connection-ip':'127.0.0.1'},body:JSON.stringify(body)},['facility-demo',endpoint],method);
   const setup=await request('setup','POST',{},'test-admin');assert.equal(setup.statusCode,201);assert.ok(setup.body.password);
   const stored=(await db.query('SELECT value FROM system_settings WHERE key=$1',[Demo.KEY])).rows[0].value;assert.equal(JSON.stringify(stored).includes(setup.body.password),false);
   assert.equal((await request('login','POST',{email:Demo.USERNAME,password:'incorrect'})).statusCode,401);
@@ -25,6 +25,16 @@ test('demo login and shared manager controls work through isolated PostgreSQL wi
   const closed=await request('state','GET',{},token);assert.equal(closed.body.dashboard.messages.filter(m=>m.patientId==='billing').length,1);
   const final=await request('billing','GET',{},token);assert.equal(final.body.invoices[0].status,'issued');
   await request('control','POST',{action:'restart'},token);assert.deepEqual((await request('billing','GET',{},token)).body.invoices[0],final.body.invoices[0]);
+  await request('control','POST',{action:'date',date:'2026-10-27'},token);
+  const nextDay=await request('state','GET',{},token);assert.equal(nextDay.body.dashboard.scenarioDate,'2026-10-27');assert.equal(nextDay.body.dashboard.paused,true);
+  const beforeEdit=(await request('billing','GET',{},token)).body.invoices[0];
+  await request('control','POST',{action:'returnSchedule',date:'2026-10-27',patientId:'FC-DEMO-01',waitHours:3,vehicleWaiting:true},token);
+  const afterEdit=(await request('billing','GET',{},token)).body.invoices[0];assert.ok(afterEdit.total>beforeEdit.total);assert.equal(afterEdit.revision,2);
+  await assert.rejects(request('control','POST',{action:'returnSchedule',date:'2026-10-26',patientId:'FC-DEMO-01',waitHours:1,vehicleWaiting:true},token),/day changed/);
+  await assert.rejects(request('control','POST',{action:'date',date:'2026-10-31'},token),/October 26/);
+  const month=await request('billing','GET',{},token,{mode:'month',period:'2026-10'});assert.equal(month.body.invoices.length,5);assert.equal(month.body.invoices.flatMap(i=>i.rows).length,50);assert.equal(month.body.total,month.body.invoices.reduce((sum,i)=>sum+i.total,0));
+  await request('control','POST',{action:'date',date:'2026-10-26'},token);assert.equal((await request('billing','GET',{},token)).body.invoices[0].id,final.body.invoices[0].id);
+  await request('control','POST',{action:'date',date:'2026-10-27'},token);assert.equal((await request('state','GET',{},secondLogin.body.token)).body.dashboard.patients[0].waitMinutes,180);
   const repeated=await request('setup','POST',{},'test-admin');assert.equal(repeated.statusCode,200);assert.equal(repeated.body.password,undefined);
   let rateLimited=false;for(let i=0;i<21;i++){const attempt=await request('login','POST',{email:Demo.USERNAME,password:'wrong'});if(attempt.statusCode===429){rateLimited=true;break;}}assert.equal(rateLimited,true);
  }finally{await db.close();}
