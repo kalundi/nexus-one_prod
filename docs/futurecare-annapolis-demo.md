@@ -8,6 +8,12 @@ The sign-in page fills the desktop with two equal-height, equal-width halves: Ne
 
 The week uses **25 distinct fictional residents**, with a different set of five each day. The board is the daily outbound manifest, not the facility census. Each resident has a unique demo patient ID that is used consistently in selection, return edits, route tracking, alerts, notifications and invoice lines. The five destination/service slots remain the presentation template. Existing saved return schedules migrate to their corresponding daily slot; prior invoice versions remain archived when current resident labels are updated.
 
+## Route overview and expanded map
+
+The map starts in **All scheduled routes**, displaying ten dotted road routes for the selected day (five outbound and five return legs). Each patient has a color and destination number. F marks the facility; D1–D5 mark moving simulated vehicles. Overlapping road segments can share the same visible space. Click a route, destination marker, driver or patient legend button to show only that patient. Selecting a patient from the trip board also focuses the map. Outbound and Return controls select the single-patient leg. **All scheduled routes** restores the overview.
+
+**Expand map** fills the page while retaining the overview, patient selection and route-leg controls. **Close full-page map** or Escape restores the normal layout. The expanded view traps keyboard focus and makes background sections inert. Polling updates driver positions without resetting the map viewport. Routes are cached by address pair across days, requests are limited to two at a time, and stale responses cannot replace a newer selection. **Refresh routes** retries missing directions; available routes remain visible when one request fails. Google road-route copyright and warnings are displayed below the map. Google Maps must permit the current domain; the existing production key rejects localhost, so live local UI checks cover controls/fallbacks while route rendering and concurrency are covered with a Maps API test double.
+
 This is a proposed Nexus Medical Transit facility solution, not a FutureCare production system or evidence of an existing contract. All five patients, appointments, drivers, vehicles, travel times, messages and operational events are fictional. Location addresses come from the organizations' public websites. No appointments are booked and no transport, billing, SMS or email is triggered.
 
 ## Demo access
