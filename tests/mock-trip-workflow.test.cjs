@@ -13,10 +13,11 @@ test('seeded mocks are identified separately from real and legacy demo trips',()
  assert.equal(context.classifyTrip({bookingSource:'DEMO'}),'DEMO');
 });
 test('server only permits Admin and Dispatch to create mock trips',()=>{
- const start=api.indexOf("  const actorRole=String(bookingActor?.role||'CUSTOMER').toUpperCase();",api.indexOf("if(p[0]==='bookings'&&method==='POST'",api.indexOf("if(p[0]==='bookings'&&method==='POST'")+1));
- const code=api.slice(start,api.indexOf('  const caretakerSubject=',start));
+ const start=api.indexOf("  const isMockTrip=clean(b.tripMode).toUpperCase()==='MOCK';");
+ assert.ok(start>=0,'mock authorization block exists');
+ const code=api.slice(start,api.indexOf('\n',api.indexOf("if(isMockTrip&&!['ADMIN','DISPATCHER']",start)));
  for(const role of ['ADMIN','DISPATCHER','PATIENT','FACILITY','BILLING','CUSTOMER']){
-  const context=vm.createContext({bookingActor:{role},b:{tripMode:'MOCK'},clean,json:(status,body)=>({status,body})});
+  const context=vm.createContext({actorRole:role,bookingActor:{role},b:{tripMode:'MOCK'},clean,json:(status,body)=>({status,body})});
   const result=vm.runInContext(`(()=>{${code};return {status:200};})()`,context);
   assert.equal(result.status,['ADMIN','DISPATCHER'].includes(role)?200:403);
  }

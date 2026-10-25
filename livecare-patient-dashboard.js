@@ -5,9 +5,10 @@
   $('patientDriverLocation')?.remove();const location=t?.driverLocation;
   if(t?.driverLocationVisible!==true||!Number.isFinite(Number(location?.latitude))||!Number.isFinite(Number(location?.longitude)))return;
   const card=document.createElement('article');card.id='patientDriverLocation';card.className='patientStat';
-  const label=document.createElement('small');label.textContent='Driver location';
+  const label=document.createElement('small');label.textContent=t.livecareDemo?'DEMO — simulated vehicle':'Driver location';
   const distance=document.createElement('strong');distance.textContent=Number.isFinite(Number(location.distanceToPickupMiles))?`${Number(location.distanceToPickupMiles).toFixed(1)} miles away`:'Location available';
   const link=document.createElement('a');link.href=`https://www.google.com/maps?q=${encodeURIComponent(`${location.latitude},${location.longitude}`)}`;link.target='_blank';link.rel='noopener noreferrer';link.textContent='View driver on map';link.setAttribute('aria-label','View your assigned driver location on a map');
+  if(t.livecareDemo){distance.textContent=t.demo.etaMinutes?`Simulated ETA: ${t.demo.etaMinutes} min`:t.demo.message;link.href=`/patient.html?reference=${encodeURIComponent(t.reference)}`;link.textContent='Open full LiveCare demo';link.setAttribute('aria-label','Open simulated LiveCare trip map');}
   card.append(label,distance,link);document.querySelector('.patientPulseGrid')?.append(card);
  }
  async function load(){const token=sessionStorage.getItem('nexusAccessToken');if(token){try{const response=await fetch('/api/patient/dashboard',{headers:{authorization:`Bearer ${token}`},cache:'no-store'});if(response.ok){const data=await response.json(),active=data.nextRide||data.recentRides?.[0];if(data.user?.displayName)$('patientPulseTitle').textContent=`Welcome back, ${String(data.user.displayName).split(/\s+/)[0]}`;if(active){render(active);renderDriverLocation(active);installRepeatRide(active)}return}}catch{}}try{const saved=JSON.parse(sessionStorage.getItem('nexusPatientRide')||'null');if(saved?.reference&&saved?.phone){const response=await fetch(`/api/bookings/${encodeURIComponent(saved.reference)}?phone=${encodeURIComponent(saved.phone)}`,{cache:'no-store'});if(response.ok){const booking=(await response.json()).booking;render(booking);renderDriverLocation(booking)}}}catch{}}

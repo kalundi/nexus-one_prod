@@ -10,7 +10,7 @@
  const phone=$('appShell').querySelector('.phone'),nav=phone.querySelector('.bottomNav');
  const mapPage=document.createElement('section');
  mapPage.id='mapPage';mapPage.className='viewportStack';mapPage.hidden=true;
- mapPage.innerHTML='<div class="patientScreenHead"><button type="button" class="button secondary compact" data-patient-back>‹ Back</button><h2>Full trip route</h2><button type="button" class="button secondary compact" id="mapShareBtn">Share</button></div><div class="patientMapToolbar"><p id="mapRouteSummary"></p><button type="button" class="button secondary compact" id="mapFitBtn" hidden>Fit full route</button></div><div id="patientMap" class="patientMap" role="region" aria-label="Your full trip route map"></div><p id="patientMapStatus" class="patientMapStatus" role="status"></p><button type="button" class="button secondary compact" id="mapRetryBtn" hidden>Retry map</button><div id="mapItinerary" class="patientMapAddresses"></div><dl id="mapRideDetails" class="detailList"></dl>';
+ mapPage.innerHTML='<div class="patientScreenHead"><button type="button" class="button secondary compact" data-patient-back>‹ Back</button><h2>Full trip route</h2><button type="button" class="button secondary compact" id="mapShareBtn">Share</button></div><div class="patientMapToolbar"><p id="mapRouteSummary"></p><button type="button" class="button secondary compact" id="mapFitBtn" hidden>Fit full route</button></div><p id="livecareDemoNotice" role="status" hidden></p><ol id="livecareDemoTimeline" hidden></ol><div id="patientMap" class="patientMap" role="region" aria-label="Your full trip route map"></div><p id="patientMapStatus" class="patientMapStatus" role="status"></p><button type="button" class="button secondary compact" id="mapRetryBtn" hidden>Retry map</button><div id="mapItinerary" class="patientMapAddresses"></div><dl id="mapRideDetails" class="detailList"></dl>';
  phone.insertBefore(mapPage,nav);
  const bookingPage=document.createElement('section');
  bookingPage.id='bookingPage';bookingPage.className='viewportStack';bookingPage.hidden=true;
@@ -78,7 +78,7 @@
   // Sample bookings use city names prefixed with a MOCK TRIP label. Keep the
   // label in the itinerary, and send only the actual location to Directions.
   const address=value=>mock?value.replace(/^MOCK TRIP\s+(?:pickup|destination|stop(?:\s+\d+)?)\s*[—–:-]\s*/i,'').trim():value;
-  return {pickup,stops,roundTrip,mock,origin:address(pickup),destinations:stops.map(address)};
+  return {pickup,stops,roundTrip,mock,origin:trip.livecareDemo?{lat:trip.pickupLat,lng:trip.pickupLng}:address(pickup),destinations:trip.livecareDemo?[{lat:trip.destinationLat,lng:trip.destinationLng}]:stops.map(address)};
  }
  async function loadMaps(){
   if(window.google?.maps?.Map)return window.google.maps;
@@ -111,7 +111,11 @@
   const places=routeLocations(trip);
   rideDetails(trip,places);$('mapRetryBtn').hidden=true;
   $('patientMap').hidden=false;
-  const driver=!places.mock&&trip.driverLocationVisible===true?coordinates(trip.driverLocation):null;
+  const driver=(!places.mock||trip.livecareDemo===true)&&trip.driverLocationVisible===true?coordinates(trip.driverLocation):null;
+  $('livecareDemoNotice').hidden=!trip.livecareDemo;$('livecareDemoTimeline').hidden=!trip.livecareDemo;
+  $('livecareDemoNotice').textContent=trip.livecareDemo?`SIMULATED LIVECARE DEMO · ${trip.demo.message}${trip.demo.etaMinutes?` Simulated ETA: ${trip.demo.etaMinutes} min.`:''} No real vehicle GPS or transport. Movement is illustrative.`:'';
+  $('livecareDemoTimeline').replaceChildren();
+  if(trip.livecareDemo)trip.demo.timeline.forEach(stage=>{const item=document.createElement('li');item.textContent=`${stage.reached?'✓':'○'} ${stage.label}`;$('livecareDemoTimeline').append(item);});
   // Remove an existing marker immediately when the server stops authorizing GPS.
   if(!driver&&driverMarker){driverMarker.setMap(null);driverMarker=null;}
   $('patientMapStatus').textContent=driver?'Loading your route and assigned driver…':'Loading your route…';
@@ -134,9 +138,10 @@
     $('mapRouteSummary').textContent=`${roundTrip?'Round trip':'One way'}${destinations.length>1?` · ${destinations.length} stops`:''}${miles>0?` · ${miles.toFixed(1)} mi total`:''}`;
     refit=true;
    }
-   if(driver){if(!driverMarker)driverMarker=new maps.Marker({map,title:'Your assigned driver',label:'N'});driverMarker.setPosition(driver);}
+   if(driver){if(!driverMarker)driverMarker=new maps.Marker({map,title:trip.livecareDemo?'Simulated demo vehicle':'Your assigned driver',label:trip.livecareDemo?'D':'N'});driverMarker.setPosition(driver);}
+   if(driver&&routeBounds)routeBounds.extend(driver);
    if(refit)fitFullRoute();
-   $('patientMapStatus').textContent=places.mock?'MOCK TRIP — route preview between the listed locations. No live driver tracking.':driver?'Your booked route and assigned driver’s latest location. Updates refresh automatically.':'Your booked route. Live driver location appears when your trip is active and pickup is within one hour.';
+   $('patientMapStatus').textContent=trip.livecareDemo?(trip.demo.completed?'DEMO complete — simulated vehicle tracking has ended.':'DEMO — simulated vehicle position. Updates refresh every 15 seconds.'):places.mock?'MOCK TRIP — route preview between the listed locations. No live driver tracking.':driver?'Your booked route and assigned driver’s latest location. Updates refresh automatically.':'Your booked route. Live driver location appears when your trip is active and pickup is within one hour.';
   }catch(error){if(revision!==mapRevision)return;if(!map)$('patientMap').hidden=true;$('patientMapStatus').textContent=error.message||'The route could not be displayed. Your ride details are shown below.';$('mapRetryBtn').hidden=false;}
  }
  function shareTrip(reference){
