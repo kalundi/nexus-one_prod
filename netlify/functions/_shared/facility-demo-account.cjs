@@ -43,4 +43,20 @@ async function claimRecovery(query,event){
  const result=await query(`INSERT INTO system_settings(key,value,updated_at) VALUES($1,jsonb_build_object('bucket',$2::bigint,'count',1),now()) ON CONFLICT(key) DO UPDATE SET value=jsonb_build_object('bucket',$2::bigint,'count',CASE WHEN system_settings.value->>'bucket'=$2::text THEN COALESCE((system_settings.value->>'count')::int,0)+1 ELSE 1 END),updated_at=now() RETURNING value`,[key,bucket]);
  return Number(result.rows[0]?.value?.count)<=3;
 }
-module.exports={EMAIL,SCOPE,KEY,isDemoUser,allowed,signingSecret,newPassword,getAccount,provision,issuePassword,revokeDemoSessions,claimRecovery,hashPassword,verifyPassword};
+// Production deployment only; caller owns the transaction. Repeated deployments
+// must never overwrite a subsequent password change from User Management.
+async function applyPasswordRotation(query,hash){
+ if(!hash)return false;
+ if(!/^[a-f0-9]{64}$/.test(hash))throw Error('Invalid demo password rotation hash.');
+ const config=(await query('SELECT value FROM system_settings WHERE key=$1 FOR UPDATE',[KEY])).rows[0]?.value;
+ const fingerprint=crypto.createHash('sha256').update(hash).digest('hex');
+ if(config?.managedPasswordRotation===fingerprint)return false;
+ const user=await getAccount(query,true);
+ if(!allowed(user)||config?.managedUserId!==String(user.id))throw Error('An active managed demo account is required for password rotation.');
+ await query('UPDATE users SET password_hash=$2,must_change_password=false,password_reset_expires=NULL,password_reset_token=NULL,password_reset_used=true,updated_at=now() WHERE id=$1',[user.id,hash]);
+ await query('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',[user.id]);
+ config.managedPasswordRotation=fingerprint;
+ await query('UPDATE system_settings SET value=$2::jsonb,updated_at=now() WHERE key=$1',[KEY,JSON.stringify(config)]);
+ return true;
+}
+module.exports={EMAIL,SCOPE,KEY,isDemoUser,allowed,signingSecret,newPassword,getAccount,provision,issuePassword,revokeDemoSessions,claimRecovery,applyPasswordRotation,hashPassword,verifyPassword};
