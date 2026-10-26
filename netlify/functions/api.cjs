@@ -1,3 +1,4 @@
+const Teams=require('./_shared/teams.cjs');
 const Email=require('./_shared/email.cjs');
 const crypto=require('crypto');
 const NexusFare=require('../../nexus-fare.js');
@@ -20,7 +21,7 @@ const Maintenance=require('./_shared/maintenance.cjs');
 const handleMaintenance=Maintenance.createHandler({monitor:Maintenance.createMonitor({query}),requireUser,bearer,json,parseBody});
 const {createUserManager,operatingClock}=require('./_shared/user-manager.cjs');
 const handleUserManager=createUserManager({query,getPool,requireUser,audit});
-const handleCommunicationTest=require('./_shared/communication-test.cjs').createHandler({requireUser,bearer,parseBody,json,sendEmail,audit});
+const handleCommunicationTest=require('./_shared/communication-test.cjs').createHandler({requireUser,bearer,parseBody,json,sendEmail,sendTeamsAlert,audit});
 const MockAssignments=require('./_shared/mock-trip-assignments.cjs');
 const handleMockAssignments=MockAssignments.createHandler({getPool,requireUser,audit,json,parseBody,bearer});
 const handleMockPractice=require('./_shared/mock-driver-practice.cjs').createHandler({getPool,requireUser,audit,json,parseBody,bearer});
@@ -1303,40 +1304,7 @@ async function notifyAssignedDriver(booking,options={}){
  ]);
  return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
 }
-async function sendTeamsAlert(text,title='Nexus Medical Transit'){
- // Teams Incoming Webhook — set TEAMS_WEBHOOK_URL in Netlify env vars
- // To add: Teams → Admin_NMT channel → ... → Connectors → Incoming Webhook → copy URL
- const webhookUrl=process.env.TEAMS_WEBHOOK_URL;
- if(!webhookUrl)return {status:'skipped'};
- const normalizedWebhook=String(webhookUrl||'').trim();
- const looksLikePlaceholder=/^https:\/\/(?:outlook|.*\.office)\.office\.com\/webhook\/?$/i.test(normalizedWebhook);
- if(looksLikePlaceholder)return {status:'failed',error:'Invalid Teams webhook URL: placeholder endpoint configured'};
- const isPowerAutomateWebhook=/environment\.api\.powerplatform\.com|\/powerautomate\/automations\/direct\//i.test(webhookUrl);
- const body=isPowerAutomateWebhook
-  ?{
-    type:'message',
-    attachments:[{
-     contentType:'application/vnd.microsoft.card.adaptive',
-     content:{
-      '$schema':'http://adaptivecards.io/schemas/adaptive-card.json',
-      type:'AdaptiveCard',
-      version:'1.4',
-      body:[
-       {type:'TextBlock',size:'Medium',weight:'Bolder',text:String(title||'Nexus Medical Transit')},
-       {type:'TextBlock',text:String(text||''),wrap:true}
-      ]
-     }
-    }]
-   }
-  :{
-    '@type':'MessageCard','@context':'https://schema.org/extensions',
-    themeColor:'#082f49',summary:title,title,text
-   };
- try{
-  const r=await fetch(normalizedWebhook,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-  return r.ok?{status:'sent'}:{status:'failed',code:r.status};
- }catch(e){return {status:'failed',error:e.message};}
-}
+async function sendTeamsAlert(text,title){return Teams.sendTeamsAlert(text,title);}
 function buildBookingTeamsMessage(booking,label='New Trip Booked'){
  const b=booking||{};
  const reference=clean(b.reference||b.bookingReference||'—');
@@ -2200,7 +2168,7 @@ async function handler(event){
     return json(200,{valid:true,total:1995,savings:Math.max(0,Number(b.currentFare||0)-1995),description:'Negotiated stretcher ride total'});
    }
    if(route==='integrations/config'&&method==='GET')return json(200,{build:'test',testMode:true,googleMapsEnabled:false,googleMapsBrowserKey:'',stripeEnabled:true,stripePublishableKey:'',squareEnabled:false});
-   if(route==='integrations/health'&&method==='GET')return json(200,{testMode:true,googleMaps:'simulated',twilio:'disabled',emailProvider:'Postmark',postmark:'disabled',stripe:'simulated',square:'disabled',gps:'simulated',checkedAt:new Date().toISOString()});
+   if(route==='integrations/health'&&method==='GET')return json(200,{testMode:true,googleMaps:'simulated',twilio:'disabled',emailProvider:'Postmark',postmark:'disabled',teams:'disabled',stripe:'simulated',square:'disabled',gps:'simulated',checkedAt:new Date().toISOString()});
   if(route==='flights/lookup'&&method==='POST'){
    const b=parseBody(event),airportStop=clean(b.airportStop).toUpperCase();
    if(!['PICKUP','DESTINATION'].includes(airportStop))return json(400,{error:'Choose whether the airport is the pickup or destination.'});
@@ -2732,7 +2700,7 @@ async function handler(event){
    });
   }
   if(p.join('/')==='integrations/config'&&method==='GET')return json(200,{build:'042',googleMapsEnabled:envEnabled('GOOGLE_MAPS_BROWSER_KEY'),googleMapsBrowserKey:process.env.GOOGLE_MAPS_BROWSER_KEY||'',stripeEnabled:envEnabled('STRIPE_SECRET_KEY') || envEnabled('STRIPE_PUBLISHABLE_KEY'),stripePublishableKey:process.env.STRIPE_PUBLISHABLE_KEY||'',squareEnabled:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')});
-  if(p.join('/')==='integrations/health'&&method==='GET')return json(200,{googleMaps:envEnabled('GOOGLE_MAPS_BROWSER_KEY')?'configured':'not-configured',twilio:envEnabled('TWILIO_ACCOUNT_SID')&&envEnabled('TWILIO_AUTH_TOKEN')&&envEnabled('TWILIO_PHONE_NUMBER')?'configured':'not-configured',emailProvider:'Postmark',postmark:Email.isConfigured()?'configured':'not-configured',stripe:envEnabled('STRIPE_SECRET_KEY')||envEnabled('STRIPE_PUBLISHABLE_KEY')?'configured':'not-configured',square:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')?'configured':'not-configured',gps:'enabled',checkedAt:new Date().toISOString()});
+  if(p.join('/')==='integrations/health'&&method==='GET')return json(200,{googleMaps:envEnabled('GOOGLE_MAPS_BROWSER_KEY')?'configured':'not-configured',twilio:envEnabled('TWILIO_ACCOUNT_SID')&&envEnabled('TWILIO_AUTH_TOKEN')&&envEnabled('TWILIO_PHONE_NUMBER')?'configured':'not-configured',emailProvider:'Postmark',postmark:Email.isConfigured()?'configured':'not-configured',teams:Teams.isConfigured()?'configured':'not-configured',teamsProvider:Teams.provider(),stripe:envEnabled('STRIPE_SECRET_KEY')||envEnabled('STRIPE_PUBLISHABLE_KEY')?'configured':'not-configured',square:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')?'configured':'not-configured',gps:'enabled',checkedAt:new Date().toISOString()});
   if(p[0]==='admin'&&p[1]==='social'&&p[2]==='preview'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
    const channels=parseChannels(event.queryStringParameters?.channels||process.env.SOCIAL_AUTOMATION_CHANNELS||'');

@@ -13,3 +13,16 @@ test('test reports provider authentication failure without exposing credentials'
  const {handler}=fixture(async()=>{throw Object.assign(Error('private provider details'),{providerStatus:401});});const result=await handler({token:'admin',body:{recipient:'fletcher@nexusmt.com'}},['admin','integrations','test-email'],'POST');
  assert.equal(result.statusCode,502);assert.equal(result.body.providerStatus,401);assert.match(result.body.error,/POSTMARK_SERVER_TOKEN/);assert.doesNotMatch(JSON.stringify(result.body),/private provider details/);
 });
+
+test('Teams test is administrator-only and sends a fixed message without patient data',async()=>{
+ const calls=[],audits=[];const handler=createHandler({requireUser:async(token,roles)=>{assert.deepEqual(roles,['ADMIN']);if(token!=='admin')throw Error('Forbidden');return {id:'admin'};},bearer:e=>e.token,json:(statusCode,body)=>({statusCode,body}),sendTeamsAlert:async(...args)=>{calls.push(args);return {status:'sent',provider:'Power Automate',code:202};},audit:async(...args)=>audits.push(args)});
+ await assert.rejects(handler({token:'driver'},['admin','integrations','test-teams'],'POST'),/Forbidden/);assert.equal(calls.length,0);
+ const result=await handler({token:'admin',body:{text:'Do not relay this content'}},['admin','integrations','test-teams'],'POST');assert.equal(result.statusCode,202);assert.equal(result.body.accepted,true);assert.equal(result.body.deliveryConfirmed,false);assert.equal(calls.length,1);assert.match(calls[0][0],/No patient information/);assert.doesNotMatch(calls[0][0],/Do not relay/);assert.equal(audits.length,1);
+});
+
+test('Teams test reports a rejected or missing webhook without claiming delivery',async()=>{
+ for(const delivery of [{status:'skipped',error:'Not configured'},{status:'failed',code:401,error:'Webhook authorization rejected'}]){
+  const handler=createHandler({requireUser:async()=>({id:'admin'}),bearer:()=>'',json:(statusCode,body)=>({statusCode,body}),sendTeamsAlert:async()=>delivery,audit:async()=>{}});
+  const result=await handler({},['admin','integrations','test-teams'],'POST');assert.equal(result.body.accepted,false);assert.equal(result.body.deliveryConfirmed,false);assert.ok(result.statusCode>=500);
+ }
+});

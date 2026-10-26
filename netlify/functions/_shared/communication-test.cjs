@@ -1,6 +1,15 @@
 const crypto=require('node:crypto');
-function createHandler({requireUser,bearer,parseBody,json,sendEmail,audit}){
+function createHandler({requireUser,bearer,parseBody,json,sendEmail,sendTeamsAlert,audit}){
  return async(event,p,method)=>{
+  if(p.join('/')==='admin/integrations/test-teams'){
+   if(method!=='POST')return json(405,{error:'Use POST to request a Teams test.'});
+   const user=await requireUser(bearer(event),['ADMIN']),id=crypto.randomUUID();
+   // A fixed test protects against turning this administrator check into a message relay.
+   const result=await sendTeamsAlert(`Nexus system connection test. No patient information or trip changes. Test reference: ${id}`,'Nexus Teams connection test');
+   const accepted=result?.status==='sent';
+   try{await audit('COMMUNICATION_TEST',id,accepted?'TEAMS_ACCEPTED':'TEAMS_FAILED',{by:user.id,providerStatus:result?.code||null});}catch{console.warn('[TEAMS_TEST_AUDIT] Could not record test result');}
+   return json(accepted?202:result?.status==='skipped'?503:502,{accepted,testId:id,provider:result?.provider||'Teams',providerStatus:result?.code||null,deliveryConfirmed:false,...(accepted?{message:'The webhook accepted the test. Confirm the Teams posting action in the flow run history and the destination chat or channel.'}:{error:result?.error||'Teams could not accept the test.'})});
+  }
   if(p.join('/')!=='admin/integrations/test-email')return null;
   if(method!=='POST')return json(405,{error:'Use POST to request an email test.'});
   const user=await requireUser(bearer(event),['ADMIN']),body=parseBody(event);
