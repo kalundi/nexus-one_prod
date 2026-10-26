@@ -5150,6 +5150,7 @@ function mapBooking(b){
   routeFareInputs:b.route_fare_inputs||b.routeFareInputs||null,
   appointmentDate:b.appointment_date||b.appointmentDate||null,
   timingPlan:b.timing_plan||b.timingPlan||null,
+  mockWorkflow:b.timing_plan?.mockDriverWorkflow||b.timingPlan?.mockDriverWorkflow||b.mockWorkflow||null,
   patientReadyAt:b.timing_plan?.patientReadyAt||b.patientReadyAt||null,
   duplicateOf:b.duplicate_of||b.duplicateOf||null,
   estimatedDuration:b.estimated_duration,
