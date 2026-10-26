@@ -1,3 +1,4 @@
+const Teams=require('./_shared/teams.cjs');
 const {sendEmail}=require('./_shared/email.cjs');
 // Netlify scheduled function: sends a recurring Cost Analyzer summary to admins and Teams.
 // Schedule is configured in netlify.toml.
@@ -29,38 +30,7 @@ async function listAdminEmails() {
 }
 
 
-async function sendTeamsAlert(text, title = 'Nexus Medical Transit') {
- const webhookUrl = process.env.TEAMS_WEBHOOK_URL;
- if (!webhookUrl) return {status: 'skipped'};
- const isPowerAutomateWebhook = /environment\.api\.powerplatform\.com|\/powerautomate\/automations\/direct\//i.test(webhookUrl);
- const body = isPowerAutomateWebhook
-  ? {
-   type: 'message',
-   attachments: [{
-    contentType: 'application/vnd.microsoft.card.adaptive',
-    content: {
-     '$schema': 'http://adaptivecards.io/schemas/adaptive-card.json',
-     type: 'AdaptiveCard',
-     version: '1.4',
-     body: [
-      {type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: String(title || 'Nexus Medical Transit')},
-      {type: 'TextBlock', text: String(text || ''), wrap: true}
-     ]
-    }
-   }]
-  }
-  : {
-   '@type': 'MessageCard', '@context': 'https://schema.org/extensions',
-   themeColor: '#082f49', summary: title, title, text
-  };
- try {
-  const r = await fetch(webhookUrl, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)});
-  return r.ok ? {status: 'sent'} : {status: 'failed', code: r.status};
- } catch (error) {
-  return {status: 'failed', error: error.message};
- }
-}
-
+async function sendTeamsAlert(text,title){return Teams.sendTeamsAlert(text,title);}
 function resolveCostBand(service) {
  const normalized = clean(service).toLowerCase();
  if (/ambulance|bls|als/.test(normalized)) return 'ambulance';

@@ -1,3 +1,4 @@
+const Teams=require('./_shared/teams.cjs');
 const {sendEmail}=require('./_shared/email.cjs');
 // Netlify scheduled function: runs every 15 minutes to send ride reminders
 // Schedule is configured in netlify.toml
@@ -9,19 +10,7 @@ const envEnabled = name => Boolean(process.env[name]);
 const siteBase = () => String(process.env.SITE_URL || process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://nexusmt.com').replace(/\/$/, '');
 
 
-async function sendTeamsAlert(text, title = 'Nexus Medical Transit') {
-  const webhookUrl = process.env.TEAMS_WEBHOOK_URL;
-  if (!webhookUrl) return {status: 'skipped'};
-  const body = {
-    '@type': 'MessageCard', '@context': 'https://schema.org/extensions',
-    themeColor: '#082f49', summary: title, title, text
-  };
-  try {
-    const r = await fetch(webhookUrl, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)});
-    return r.ok ? {status: 'sent'} : {status: 'failed', code: r.status};
-  } catch (e) { return {status: 'failed', error: e.message}; }
-}
-
+async function sendTeamsAlert(text,title){return Teams.sendTeamsAlert(text,title);}
 exports.handler = async () => {
   try {
     const result = await query(`

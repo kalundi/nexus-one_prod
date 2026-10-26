@@ -1,3 +1,4 @@
+const Teams=require('./_shared/teams.cjs');
 const Email=require('./_shared/email.cjs');
 const {Client}=require('pg');
 const crypto=require('crypto');
@@ -407,41 +408,7 @@ function resolveCostBand(service){
 }
 
 async function sendEmail(to,subject,html,attachments=[]){return Email.sendEmail(buildEmailRecipients(to),subject,html,{attachments});}
-async function sendTeamsAlert(text,title='Nexus Medical Transit'){
- const webhookUrl=process.env.TEAMS_WEBHOOK_URL;
- if(!webhookUrl)return {status:'skipped'};
- const normalizedWebhook=String(webhookUrl||'').trim();
- const looksLikePlaceholder=/^https:\/\/(?:outlook|.*\.office)\.office\.com\/webhook\/?$/i.test(normalizedWebhook);
- if(looksLikePlaceholder)return {status:'failed',error:'Invalid Teams webhook URL: placeholder endpoint configured'};
- const isPowerAutomateWebhook=/environment\.api\.powerplatform\.com|\/powerautomate\/automations\/direct\//i.test(webhookUrl);
- const body=isPowerAutomateWebhook
-  ?{
-    type:'message',
-    attachments:[{
-     contentType:'application/vnd.microsoft.card.adaptive',
-     content:{
-      '$schema':'http://adaptivecards.io/schemas/adaptive-card.json',
-      type:'AdaptiveCard',
-      version:'1.4',
-      body:[
-       {type:'TextBlock',size:'Medium',weight:'Bolder',text:String(title||'Nexus Medical Transit')},
-       {type:'TextBlock',text:String(text||''),wrap:true}
-      ]
-     }
-    }]
-   }
-  :{
-    '@type':'MessageCard','@context':'https://schema.org/extensions',
-    themeColor:'#082f49',summary:title,title,text
-   };
- try{
-  const response=await fetch(normalizedWebhook,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-  return response.ok?{status:'sent'}:{status:'failed',code:response.status};
- }catch(error){
-  return {status:'failed',error:error.message};
- }
-}
-
+async function sendTeamsAlert(text,title){return Teams.sendTeamsAlert(text,title);}
 function parsePotentialAttachmentInfo(payload){
  const attachments=[];
  if(Array.isArray(payload.attachments)){
