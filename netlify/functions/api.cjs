@@ -19,6 +19,7 @@ const Maintenance=require('./_shared/maintenance.cjs');
 const handleMaintenance=Maintenance.createHandler({monitor:Maintenance.createMonitor({query}),requireUser,bearer,json,parseBody});
 const {createUserManager,operatingClock}=require('./_shared/user-manager.cjs');
 const handleUserManager=createUserManager({query,getPool,requireUser,audit});
+const handleCommunicationTest=require('./_shared/communication-test.cjs').createHandler({requireUser,bearer,parseBody,json,sendEmail,audit});
 const MockAssignments=require('./_shared/mock-trip-assignments.cjs');
 const handleMockAssignments=MockAssignments.createHandler({getPool,requireUser,audit,json,parseBody,bearer});
 const handleMockPractice=require('./_shared/mock-driver-practice.cjs').createHandler({getPool,requireUser,audit,json,parseBody,bearer});
@@ -2155,6 +2156,8 @@ async function handler(event){
   if(mockPracticeResponse)return mockPracticeResponse;
   const mockAssignmentResponse=await handleMockAssignments(event,p,method);
   if(mockAssignmentResponse)return mockAssignmentResponse;
+  const communicationTestResponse=await handleCommunicationTest(event,p,method);
+  if(communicationTestResponse)return communicationTestResponse;
   const userManagerResponse=await handleUserManager(event,p,method);
   if(userManagerResponse)return userManagerResponse;
   if(p[0]==='training')return await handleTraining(event,p,method);
