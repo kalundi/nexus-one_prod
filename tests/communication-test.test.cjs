@@ -11,5 +11,5 @@ test('test rejects multiple recipients and reports missing configuration without
 });
 test('test reports provider authentication failure without exposing credentials',async()=>{
  const {handler}=fixture(async()=>{throw Object.assign(Error('private provider details'),{providerStatus:401});});const result=await handler({token:'admin',body:{recipient:'fletcher@nexusmt.com'}},['admin','integrations','test-email'],'POST');
- assert.equal(result.statusCode,502);assert.equal(result.body.providerStatus,401);assert.match(result.body.error,/SENDGRID_API_KEY/);assert.doesNotMatch(JSON.stringify(result.body),/private provider details/);
+ assert.equal(result.statusCode,502);assert.equal(result.body.providerStatus,401);assert.match(result.body.error,/POSTMARK_SERVER_TOKEN/);assert.doesNotMatch(JSON.stringify(result.body),/private provider details/);
 });

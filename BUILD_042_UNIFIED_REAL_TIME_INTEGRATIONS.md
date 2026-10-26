@@ -7,7 +7,7 @@ Build 042 upgrades the deployed Build 041 package with one shared Book a Ride be
 - Nexus facility search with Google Places fallback/upgrade.
 - Google Maps browser configuration endpoint.
 - PostgreSQL booking creation and trip tracking endpoint.
-- Twilio SMS and SendGrid email confirmations.
+- Twilio SMS and Postmark email confirmations.
 - Stripe PaymentIntent creation endpoint.
 - Authenticated GPS position ingestion and live vehicle updates.
 - Integration health reporting and graceful unconfigured states.
@@ -18,8 +18,8 @@ Build 042 upgrades the deployed Build 041 package with one shared Book a Ride be
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_PHONE_NUMBER`
-- `SENDGRID_API_KEY`
-- `SENDGRID_FROM_EMAIL`
+- `POSTMARK_SERVER_TOKEN`
+- `EMAIL_FROM`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_PUBLISHABLE_KEY`
 - `STRIPE_WEBHOOK_SECRET` (reserved for webhook deployment hardening)

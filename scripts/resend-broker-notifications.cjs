@@ -63,7 +63,7 @@ async function main() {
       reference: ref,
       toEmail,
       env: {
-        sendgridConfigured: Boolean(process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM_EMAIL),
+        postmarkConfigured: require('../netlify/functions/_shared/email.cjs').isConfigured(),
         teamsConfigured: Boolean(process.env.TEAMS_WEBHOOK_URL),
       },
       emailResult,

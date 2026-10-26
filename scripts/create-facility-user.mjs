@@ -1,3 +1,4 @@
+import Email from '../netlify/functions/_shared/email.cjs';
 import crypto from 'node:crypto';
 import pg from 'pg';
 
@@ -143,27 +144,11 @@ try {
   const inviteUrl = String(process.env.SITE_URL || process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://nexusmt.com').replace(/\/$/, '') + `/set-password.html?token=${inviteToken}`;
   const inviteHtml = `<h1>Set your Nexus password</h1><p>Your facility account for <strong>${facilityName}</strong> is ready.</p><p>Click this secure link to create your permanent password:</p><p><a href="${inviteUrl}">${inviteUrl}</a></p><p>This link expires in 7 days.</p>`;
 
-  if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM_EMAIL) {
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        personalizations: [{to: [{email}]}],
-        from: {email: process.env.SENDGRID_FROM_EMAIL, name: 'Nexus Medical Transit'},
-        subject: 'Set your Nexus password',
-        content: [{type: 'text/html', value: inviteHtml}]
-      })
-    });
-    if (!response.ok) {
-      const details = await response.text().catch(() => '');
-      throw new Error(`SendGrid request failed (${response.status}) ${details}`.trim());
-    }
+  const delivery=await Email.sendEmail(email,'Set your Nexus password',inviteHtml);
+  if(delivery.status==='sent'){
     console.log('[FACILITY] Password setup email sent.');
-  } else {
-    console.log('[FACILITY] SENDGRID_API_KEY or SENDGRID_FROM_EMAIL is not configured; email was not sent.');
+  }else{
+    console.log('[FACILITY] POSTMARK_SERVER_TOKEN or EMAIL_FROM is not configured; email was not sent.');
     console.log(`[FACILITY] Invite link: ${inviteUrl}`);
   }
 } catch (error) {

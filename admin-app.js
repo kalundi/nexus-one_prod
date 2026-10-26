@@ -1529,7 +1529,7 @@ async function loadOutreachCampaign(){
  document.getElementById('outreachStatus').textContent=data.campaign.status;
  document.getElementById('outreachRecipientCount').textContent=String(data.recipients.length);
  document.getElementById('outreachEligibleCount').textContent=String(data.eligibleCount);
- document.getElementById('outreachDeliveryStatus').textContent=data.delivery.sendGrid;
+ document.getElementById('outreachDeliveryStatus').textContent=data.delivery.postmark;
  document.getElementById('outreachSubject').value=data.campaign.subject;
  document.getElementById('outreachSender').value=`${data.campaign.fromName} <${data.campaign.fromEmail}>`;
  document.getElementById('outreachPreview').innerHTML=data.previewHtml;

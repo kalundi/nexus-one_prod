@@ -3,7 +3,7 @@ function normalizeEmail(value){
 }
 
 function buildDailyOutreachBatch(recipients, alreadySentEmails = [], limit = 25){
- const sent = new Set((Array.isArray(alreadySentEmails) ? alreadySentEmails : []).map(normalizeEmail).filter(Boolean));
+ const sent = new Set((Array.isArray(alreadySentEmails) ? alreadySentEmails : []).map(value=>normalizeEmail(typeof value==='string'?value:value?.email)).filter(Boolean));
  return (Array.isArray(recipients) ? recipients : [])
   .filter((recipient)=>{
    if(recipient?.optOut===true)return false;

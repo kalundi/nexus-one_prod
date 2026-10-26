@@ -1,3 +1,4 @@
+const Email=require('./_shared/email.cjs');
 const crypto=require('crypto');
 const NexusFare=require('../../nexus-fare.js');
 const NexusRoute=require('../../nexus-route.js');
@@ -1162,12 +1163,7 @@ async function writePlatformSettings(payload,userId){
  return merged;
 }
 
-async function sendEmail(to,subject,html){
- const recipients=Array.isArray(to)?to:buildEmailRecipients(to);
- if(!envEnabled('SENDGRID_API_KEY')||!envEnabled('SENDGRID_FROM_EMAIL')||recipients.length===0)return {status:'skipped'};
- const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:recipients.map(email=>({email}))}],from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Medical Transit'},subject,content:[{type:'text/html',value:html}]})});
- if(!r.ok)throw Object.assign(new Error(`SendGrid request failed (${r.status})`),{providerStatus:r.status});return {status:'sent'};
-}
+async function sendEmail(to,subject,html){return Email.sendEmail(to,subject,html);}
 function promotionHash(value){return crypto.createHash('sha256').update(clean(value).toUpperCase()).digest('hex');}
 const PERCENT_PROMOTION_HASHES=`57b75610b8912ac7c24735aa88a6c4b12aedad762c349b29dca7f94c98e5159b:5 7310639b835683b845846b68300a9aefa7af1d744d79d18626d484039adfdb88:5 2754458494e645aac2a2378bd4a0b9bd9a13f74a4b486c73c2f66672343e4285:5 e86dd8770fa39fb76234391576bc56b2f7edce322c8543554aad8c536cc9dc9d:5 7b73e2c2f8037b198417ac930a4a7c4ce7bfec6ea84a60a76747e201abea645c:5 10cc5128938bfcbca21c688a0a5385fa320a693a1737e3ca79303d00d9fd31ce:5 2b4f32cdd96390aa209834605abe9512e65a9377891a95b36c2f10d03b0def5d:5 3ded4e85d4e5987c5f557d485746b19652971bb9320e57559e7e92f6e9246685:5 9e9f4a7c686cb4653a7aefb62ec367b2a394780551d8a65bcda520d8f947fc68:5 f07ddfba2b62947197202060556d3a73af5677a5dd7e354657ba7d87a131a3d3:5
 0501cc012f61297398aa3250c6a968b9657ad42101cbe63d6dd0e6228a2dc5f8:10 f9534c0480cfb7c1d4d1d56aa6706e7ceb3b4845fc481dce1ae420c045702bf3:10 3f4a96a25cb22956b5bdb22f69eb99f64b52753f8a703f441eb6ef11f1c63a5d:10 d0bd665441f77522f3c18ce7977c5ca33307dd6405771566a49ee6a99f01e5b3:10 a905808d9f71fb57afa6150371d09ea3e8a88401b7b3d4c458494cf859173a5f:10 5947e1af28cbe4922b81b95acd537341ab7f86d4935ebb9e494ddd7cef13a8ab:10 d3c25999e3b1bd693731bc759850fa33a1839fb77ffb26bdcfea89fd95f58630:10 8ab63227df015275d195dee657d3693c1f2121fea62bf54a065052fedac0010d:10 4eb2688c8676695dd3e5dc6488313eb2b3169022269fd23fd754f42fb5d6555d:10 a51a0b55328211c3a3fd308a7722ccfbb9453d5c6560447fee4edea1b6007687:10
@@ -1218,12 +1214,7 @@ function outreachHtml(contactName,facilityName,followUp=false){
  const social=socialLinks.map(item=>`<a href="${item.url}" aria-label="Nexus Medical Transit on ${item.label}" style="display:inline-block;width:30px;height:30px;margin:0 5px;border-radius:50%;background:${item.color};color:#ffffff;text-align:center;text-decoration:none;font:bold 16px/30px Arial,sans-serif">${item.icon}</a>`).join('');
  return `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;color:#153247;line-height:1.55">${paragraphs}<p>${signature}</p><hr style="border:0;border-top:1px solid #d7e2e9;margin:24px 0"><div style="margin:0 0 14px" aria-label="Follow Nexus Medical Transit">${social}</div><p style="font-size:12px;color:#52677a">${footer}</p></div>`;
 }
-async function sendOutreachTestEmail(){
- if(!envEnabled('SENDGRID_API_KEY'))return {status:'skipped',reason:'SENDGRID_API_KEY is not configured'};
- const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:[{email:OUTREACH_CAMPAIGN.testRecipient}]}],from:{email:OUTREACH_CAMPAIGN.fromEmail,name:OUTREACH_CAMPAIGN.fromName},reply_to:{email:OUTREACH_CAMPAIGN.replyTo,name:OUTREACH_CAMPAIGN.fromName},subject:`TEST — ${OUTREACH_CAMPAIGN.subject}`,content:[{type:'text/html',value:outreachHtml('Test Recipient','Test Facility')}]})});
- if(!r.ok)throw Object.assign(new Error(`SendGrid rejected the test message (${r.status})`),{statusCode:502});
- return {status:'sent'};
-}
+async function sendOutreachTestEmail(){return Email.sendEmail(OUTREACH_CAMPAIGN.testRecipient,`TEST — ${OUTREACH_CAMPAIGN.subject}`,outreachHtml('Test Recipient','Test Facility'),{broadcast:true,fromEmail:OUTREACH_CAMPAIGN.fromEmail,fromName:OUTREACH_CAMPAIGN.fromName,replyTo:OUTREACH_CAMPAIGN.replyTo});}
 let outreachSchemaPromise=null;
 function ensureOutreachSchema(){
  if(outreachSchemaPromise)return outreachSchemaPromise;
@@ -1237,12 +1228,9 @@ function ensureOutreachSchema(){
  })().catch(error=>{outreachSchemaPromise=null;throw error});
  return outreachSchemaPromise;
 }
-async function sendOutreachRecipient(recipient){
- const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:[{email:recipient.email}]}],from:{email:OUTREACH_CAMPAIGN.fromEmail,name:OUTREACH_CAMPAIGN.fromName},reply_to:{email:OUTREACH_CAMPAIGN.replyTo,name:OUTREACH_CAMPAIGN.fromName},subject:OUTREACH_CAMPAIGN.subject,content:[{type:'text/html',value:outreachHtml(recipient.contactName,recipient.facility,false)}]})});
- return {ok:r.ok,status:r.status,error:r.ok?'':clean(await r.text()).slice(0,500)};
-}
+async function sendOutreachRecipient(recipient){const result=await Email.sendEmail(recipient.email,OUTREACH_CAMPAIGN.subject,outreachHtml(recipient.contactName,recipient.facility,false),{broadcast:true,fromEmail:OUTREACH_CAMPAIGN.fromEmail,fromName:OUTREACH_CAMPAIGN.fromName,replyTo:OUTREACH_CAMPAIGN.replyTo});return {ok:result.status==='sent',status:result.providerStatus||503,error:result.status==='sent'?'':'Postmark Broadcast email is not configured'};}
 async function releaseOutreachPilot(me){
- if(!envEnabled('SENDGRID_API_KEY'))throw Object.assign(new Error('SENDGRID_API_KEY is not configured'),{statusCode:503});
+ if(!Email.isConfigured({broadcast:true}))throw Object.assign(new Error('Configure POSTMARK_SERVER_TOKEN, EMAIL_FROM and POSTMARK_BROADCAST_MESSAGE_STREAM'),{statusCode:503});
  await ensureOutreachSchema();
  const recipients=montgomeryOutreachPilot.recipients.slice(0,25),results=[];
  for(const recipient of recipients){
@@ -2189,7 +2177,7 @@ async function handler(event){
    const delivered=await query(`SELECT email,status,provider_status,sent_at,error_message FROM outreach_deliveries WHERE campaign_id=$1 AND stage='INITIAL'`,[OUTREACH_CAMPAIGN.id]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
    const deliveryByEmail=new Map(delivered.rows.map(row=>[clean(row.email).toLowerCase(),row]));
    const recipients=montgomeryOutreachPilot.recipients.map((recipient,index)=>{const delivery=deliveryByEmail.get(clean(recipient.email).toLowerCase());return {...recipient,sequence:index+1,status:delivery?.status||'READY',providerStatus:delivery?.provider_status||null,sentAt:delivery?.sent_at||null,error:delivery?.error_message||null}});
-   return json(200,{campaign:OUTREACH_CAMPAIGN,selection:montgomeryOutreachPilot.selection,eligibleCount:montgomeryOutreachPilot.eligibleCount,recipients,previewHtml:outreachHtml(recipients[0]?.contactName,recipients[0]?.facility),followUpPreviewHtml:outreachHtml(recipients[0]?.contactName,recipients[0]?.facility,true),delivery:{sendGrid:envEnabled('SENDGRID_API_KEY')?'configured':'not-configured',sender:OUTREACH_CAMPAIGN.fromEmail}});
+   return json(200,{campaign:OUTREACH_CAMPAIGN,selection:montgomeryOutreachPilot.selection,eligibleCount:montgomeryOutreachPilot.eligibleCount,recipients,previewHtml:outreachHtml(recipients[0]?.contactName,recipients[0]?.facility),followUpPreviewHtml:outreachHtml(recipients[0]?.contactName,recipients[0]?.facility,true),delivery:{emailProvider:'Postmark',postmark:Email.isConfigured({broadcast:true})?'configured':'not-configured',sender:OUTREACH_CAMPAIGN.fromEmail}});
   }
   if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&p[3]==='test'&&method==='POST'){
    const me=await requireUser(bearer(event),['ADMIN']);
@@ -2212,7 +2200,7 @@ async function handler(event){
     return json(200,{valid:true,total:1995,savings:Math.max(0,Number(b.currentFare||0)-1995),description:'Negotiated stretcher ride total'});
    }
    if(route==='integrations/config'&&method==='GET')return json(200,{build:'test',testMode:true,googleMapsEnabled:false,googleMapsBrowserKey:'',stripeEnabled:true,stripePublishableKey:'',squareEnabled:false});
-   if(route==='integrations/health'&&method==='GET')return json(200,{testMode:true,googleMaps:'simulated',twilio:'disabled',sendGrid:'disabled',stripe:'simulated',square:'disabled',gps:'simulated',checkedAt:new Date().toISOString()});
+   if(route==='integrations/health'&&method==='GET')return json(200,{testMode:true,googleMaps:'simulated',twilio:'disabled',emailProvider:'Postmark',postmark:'disabled',stripe:'simulated',square:'disabled',gps:'simulated',checkedAt:new Date().toISOString()});
   if(route==='flights/lookup'&&method==='POST'){
    const b=parseBody(event),airportStop=clean(b.airportStop).toUpperCase();
    if(!['PICKUP','DESTINATION'].includes(airportStop))return json(400,{error:'Choose whether the airport is the pickup or destination.'});
@@ -2744,7 +2732,7 @@ async function handler(event){
    });
   }
   if(p.join('/')==='integrations/config'&&method==='GET')return json(200,{build:'042',googleMapsEnabled:envEnabled('GOOGLE_MAPS_BROWSER_KEY'),googleMapsBrowserKey:process.env.GOOGLE_MAPS_BROWSER_KEY||'',stripeEnabled:envEnabled('STRIPE_SECRET_KEY') || envEnabled('STRIPE_PUBLISHABLE_KEY'),stripePublishableKey:process.env.STRIPE_PUBLISHABLE_KEY||'',squareEnabled:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')});
-  if(p.join('/')==='integrations/health'&&method==='GET')return json(200,{googleMaps:envEnabled('GOOGLE_MAPS_BROWSER_KEY')?'configured':'not-configured',twilio:envEnabled('TWILIO_ACCOUNT_SID')&&envEnabled('TWILIO_AUTH_TOKEN')&&envEnabled('TWILIO_PHONE_NUMBER')?'configured':'not-configured',sendGrid:envEnabled('SENDGRID_API_KEY')&&envEnabled('SENDGRID_FROM_EMAIL')?'configured':'not-configured',stripe:envEnabled('STRIPE_SECRET_KEY')||envEnabled('STRIPE_PUBLISHABLE_KEY')?'configured':'not-configured',square:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')?'configured':'not-configured',gps:'enabled',checkedAt:new Date().toISOString()});
+  if(p.join('/')==='integrations/health'&&method==='GET')return json(200,{googleMaps:envEnabled('GOOGLE_MAPS_BROWSER_KEY')?'configured':'not-configured',twilio:envEnabled('TWILIO_ACCOUNT_SID')&&envEnabled('TWILIO_AUTH_TOKEN')&&envEnabled('TWILIO_PHONE_NUMBER')?'configured':'not-configured',emailProvider:'Postmark',postmark:Email.isConfigured()?'configured':'not-configured',stripe:envEnabled('STRIPE_SECRET_KEY')||envEnabled('STRIPE_PUBLISHABLE_KEY')?'configured':'not-configured',square:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')?'configured':'not-configured',gps:'enabled',checkedAt:new Date().toISOString()});
   if(p[0]==='admin'&&p[1]==='social'&&p[2]==='preview'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
    const channels=parseChannels(event.queryStringParameters?.channels||process.env.SOCIAL_AUTOMATION_CHANNELS||'');
@@ -3511,7 +3499,7 @@ async function handler(event){
    const b=parseBody(event),email=clean(b.email).toLowerCase();
    if(!email)return json(400,{error:'Email is required'});
    if(email===DemoAccount.EMAIL&&!await DemoAccount.claimRecovery(query,event))return json(429,{error:'Too many reset requests. Try again in 30 minutes or ask an administrator to issue a demo password.'});
-   const emailServiceReady=envEnabled('SENDGRID_API_KEY')&&envEnabled('SENDGRID_FROM_EMAIL');
+   const emailServiceReady=Email.isConfigured();
    if(!emailServiceReady){
     return json(200,{message:'Password reset email service is temporarily unavailable. Call (888) 639-5766 for immediate access reset.'});
    }

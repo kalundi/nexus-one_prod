@@ -17,12 +17,12 @@ test('an accepted applicant response is escaped, recorded and audited',async()=>
  assert.deepEqual(f.sends[0][0],['jordan@example.com']);assert.match(f.sends[0][2],/Jordan &lt;Lee&gt;/);assert.match(f.sends[0][2],/Please bring &lt;documents&gt;/);
  assert.deepEqual(f.writes[0],[id,'Hello\nPlease bring <documents>.',actor.id]);assert.equal(f.audits[0][2],'APPLICANT_RESPONSE_SENT');
 });
-test('invalid SendGrid credentials produce a clear error and no sent record',async()=>{
+test('invalid Postmark credentials produce a clear error and no sent record',async()=>{
  const f=setup({sendError:Object.assign(new Error('SENSITIVE_MARKER'),{providerStatus:401})}),result=await f.call();
  assert.equal(result.status,503);assert.equal(result.sent,false);assert.equal(result.code,'EMAIL_CONNECTION_UNAUTHORIZED');assert.match(result.error,/no longer authorized/);assert.doesNotMatch(JSON.stringify(result),/SENSITIVE_MARKER/);assert.equal(f.writes.length,0);assert.equal(f.audits.length,0);
 });
 test('sender rejection, rate limits and provider outages do not mark responses as sent',async()=>{
- for(const status of [403,429,500]){const f=setup({sendError:new Error(`SendGrid request failed (${status})`)}),result=await f.call();assert.equal(result.status,503);assert.equal(result.sent,false);assert.equal(f.writes.length,0);}
+ for(const status of [403,429,500]){const f=setup({sendError:new Error(`Postmark request failed (${status})`)}),result=await f.call();assert.equal(result.status,503);assert.equal(result.sent,false);assert.equal(f.writes.length,0);}
 });
 test('a network failure reports uncertain delivery without automatically retrying',async()=>{
  const f=setup({sendError:new TypeError('fetch failed')}),result=await f.call();assert.equal(result.sent,null);assert.equal(result.code,'EMAIL_SEND_UNCONFIRMED');assert.match(result.error,/Check the email account before retrying/);assert.equal(f.sends.length,1);assert.equal(f.writes.length,0);

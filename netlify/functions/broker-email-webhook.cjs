@@ -1,3 +1,4 @@
+const Email=require('./_shared/email.cjs');
 const {Client}=require('pg');
 const crypto=require('crypto');
 const {buildEmailRecipients}=require('./_shared/notification-routing.cjs');
@@ -405,32 +406,7 @@ function resolveCostBand(service){
  return 'ambulatory';
 }
 
-async function sendEmail(to,subject,html,attachments=[]){
- const recipients=buildEmailRecipients(to);
- if(!process.env.SENDGRID_API_KEY||!process.env.SENDGRID_FROM_EMAIL||recipients.length===0)return {status:'skipped'};
- const payload={
-  personalizations:[{to:recipients.map((email)=>({email}))}],
-  from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Medical Transit'},
-  subject,
-  content:[{type:'text/html',value:html}]
- };
- if(Array.isArray(attachments)&&attachments.length){
-  payload.attachments=attachments.map((attachment)=>({
-   content:String(attachment.content||''),
-   filename:clean(attachment.filename||'attachment.txt',120),
-   type:clean(attachment.type||'application/octet-stream',120),
-   disposition:'attachment'
-  })).filter((attachment)=>attachment.content&&attachment.filename);
- }
- const response=await fetch('https://api.sendgrid.com/v3/mail/send',{
-  method:'POST',
-  headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},
-  body:JSON.stringify(payload)
- });
- if(!response.ok)throw new Error(`SendGrid request failed (${response.status})`);
- return {status:'sent'};
-}
-
+async function sendEmail(to,subject,html,attachments=[]){return Email.sendEmail(buildEmailRecipients(to),subject,html,{attachments});}
 async function sendTeamsAlert(text,title='Nexus Medical Transit'){
  const webhookUrl=process.env.TEAMS_WEBHOOK_URL;
  if(!webhookUrl)return {status:'skipped'};

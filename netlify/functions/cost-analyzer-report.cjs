@@ -1,3 +1,4 @@
+const {sendEmail}=require('./_shared/email.cjs');
 // Netlify scheduled function: sends a recurring Cost Analyzer summary to admins and Teams.
 // Schedule is configured in netlify.toml.
 
@@ -27,22 +28,6 @@ async function listAdminEmails() {
  return Array.from(emails);
 }
 
-async function sendEmail(to, subject, html) {
- const recipients = buildEmailRecipients(to);
- if (!envEnabled('SENDGRID_API_KEY') || !envEnabled('SENDGRID_FROM_EMAIL') || recipients.length === 0) return {status: 'skipped'};
- const r = await fetch('https://api.sendgrid.com/v3/mail/send', {
-  method: 'POST',
-  headers: {authorization: `Bearer ${process.env.SENDGRID_API_KEY}`, 'content-type': 'application/json'},
-  body: JSON.stringify({
-   personalizations: [{to: recipients.map((email) => ({email}))}],
-   from: {email: process.env.SENDGRID_FROM_EMAIL, name: 'Nexus Medical Transit'},
-   subject,
-   content: [{type: 'text/html', value: html}]
-  })
- });
- if (!r.ok) throw new Error(`SendGrid request failed (${r.status})`);
- return {status: 'sent'};
-}
 
 async function sendTeamsAlert(text, title = 'Nexus Medical Transit') {
  const webhookUrl = process.env.TEAMS_WEBHOOK_URL;
