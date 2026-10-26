@@ -14,6 +14,8 @@ In Netlify's **Production / Functions** environment, configure:
 
 Verify the sender/domain and configure the DNS authentication records shown by Postmark. Outreach uses `fletcher@nexusmt.com` as its sender and reply address, so that sender must also be verified. Broadcast messages include Postmark's unsubscribe link and preserve existing campaign approvals, suppression checks and delivery claims.
 
+Postmark account approval is separate from token and sender setup. A new account in **Test mode** can send to recipients on the sender's domain while blocking external recipients (Postmark error `412`). Complete **Request approval** in Postmark to enable external applicant/customer messages. A successful internal test does not establish that the account is approved for external delivery. The applicant screen distinguishes pending approval, suppressed recipients and invalid stream settings, and preserves the draft after rejection.
+
 Redeploy after environment changes. The public `/api/integrations/health` reports `emailProvider: "Postmark"` and `postmark: "configured"` when the required variables exist; this is configuration readiness, not a successful connection test.
 
 An authenticated administrator can POST `/api/admin/integrations/test-email` with `{"recipient":"the-authorized-recipient@example.com"}`. Success returns HTTP 202, `accepted: true`, provider `Postmark` and a `messageId`. This means Postmark accepted the email; confirm actual delivery in Postmark Activity or the recipient's inbox. Failure reports HTTP/provider error codes without exposing credentials.

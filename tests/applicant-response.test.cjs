@@ -27,6 +27,20 @@ test('sender rejection, rate limits and provider outages do not mark responses a
 test('a network failure reports uncertain delivery without automatically retrying',async()=>{
  const f=setup({sendError:new TypeError('fetch failed')}),result=await f.call();assert.equal(result.sent,null);assert.equal(result.code,'EMAIL_SEND_UNCONFIRMED');assert.match(result.error,/Check the email account before retrying/);assert.equal(f.sends.length,1);assert.equal(f.writes.length,0);
 });
+
+test('Postmark approval restrictions explain why an internal test works while external applicants are blocked',async()=>{
+ for(const providerCode of [412,413]){
+  const f=setup({sendError:Object.assign(Error('SENSITIVE_PROVIDER_RESPONSE'),{providerStatus:422,providerCode})}),result=await f.call();
+  assert.equal(result.status,503);assert.equal(result.sent,false);assert.equal(result.providerCode,providerCode);assert.match(result.error,/approv/i);assert.doesNotMatch(JSON.stringify(result),/SENSITIVE_PROVIDER_RESPONSE/);assert.equal(f.sends.length,1);assert.equal(f.writes.length,0);assert.equal(f.audits.length,0);
+  if(providerCode===412){assert.equal(result.code,'EMAIL_ACCOUNT_PENDING_APPROVAL');assert.match(result.error,/Request approval/);assert.match(result.error,/external applicants/);}
+ }
+});
+
+test('recipient and stream rejections report the corrective action without storing a sent response',async()=>{
+ for(const [providerCode,code] of [[406,'EMAIL_RECIPIENT_INACTIVE'],[300,'EMAIL_MESSAGE_INVALID'],[1235,'EMAIL_STREAM_NOT_FOUND'],[1236,'EMAIL_STREAM_CANNOT_SEND']]){
+  const f=setup({sendError:Object.assign(Error('private response'),{providerStatus:422,providerCode})}),result=await f.call();assert.equal(result.code,code);assert.equal(result.sent,false);assert.equal(f.writes.length,0);assert.doesNotMatch(JSON.stringify(result),/private response/);
+ }
+});
 test('an unconfigured mail connection produces an actionable error',async()=>{
  const f=setup({sendResult:{status:'skipped'}}),result=await f.call();assert.equal(result.sent,false);assert.equal(result.code,'EMAIL_NOT_CONFIGURED');assert.equal(f.writes.length,0);
 });
