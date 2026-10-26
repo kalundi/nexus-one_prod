@@ -4,9 +4,9 @@ const Account=require('../netlify/functions/_shared/facility-demo-account.cjs');
 const Demo=require('../netlify/functions/_shared/facility-demo.cjs');
 test('production user directory owns demo credentials; resets and activation revoke demo access without touching fictional trips',async()=>{
  const db=new PGlite(),query=db.query.bind(db),pool={connect:async()=>({query,release(){}})};
- const originalFetch=global.fetch,originalKey=process.env.SENDGRID_API_KEY,originalFrom=process.env.SENDGRID_FROM_EMAIL,mail=[];
- process.env.SENDGRID_API_KEY='fixture-key';process.env.SENDGRID_FROM_EMAIL='fixture@nexusmt.com';
- global.fetch=async(url,options)=>{assert.equal(url,'https://api.sendgrid.com/v3/mail/send');mail.push(JSON.parse(options.body));return new Response(null,{status:202});};
+ const originalFetch=global.fetch,originalKey=process.env.POSTMARK_SERVER_TOKEN,originalFrom=process.env.EMAIL_FROM,mail=[];
+ process.env.POSTMARK_SERVER_TOKEN='fixture-key';process.env.EMAIL_FROM='fixture@nexusmt.com';
+ global.fetch=async(url,options)=>{assert.equal(url,'https://api.postmarkapp.com/email');mail.push(JSON.parse(options.body));return Response.json({ErrorCode:0,MessageID:'reset-test-message'});};
  try{
   await db.exec(`CREATE TABLE organizations(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text,created_at timestamptz DEFAULT now());
    INSERT INTO organizations(name) VALUES('Nexus Medical Transit');
@@ -63,7 +63,7 @@ test('production user directory owns demo credentials; resets and activation rev
   assert.equal((await request('facilities','GET',{},productionToken)).statusCode,403,'Even a pre-existing production session must remain demo-only');
   const beforeReset=await request('facility-demo/login','POST',{email:Account.EMAIL,password:issued.body.password});assert.equal(beforeReset.statusCode,200);
   assert.equal((await request('auth/forgot-password','POST',{email:Account.EMAIL})).statusCode,200);
-  assert.match(mail[0].content[0].value,/facility-demo\.html\?action=reset&amp;token=|facility-demo\.html\?action=reset&token=/);
+  assert.match(mail[0].HtmlBody,/facility-demo\.html\?action=reset&amp;token=|facility-demo\.html\?action=reset&token=/);
   let reset=(await Account.getAccount(query)).password_reset_token;assert.ok(reset);
   await query("UPDATE users SET password_reset_expires=now()-interval '1 minute' WHERE id=$1",[id]);
   assert.equal((await request('auth/reset-password','POST',{token:reset,newPassword:'new-fixture-password'})).statusCode,400);
@@ -92,5 +92,5 @@ test('production user directory owns demo credentials; resets and activation rev
   assert.equal(Account.verifyPassword(later.password,(await Account.getAccount(query)).password_hash),true);
   assert.equal((await request('facility-demo/state','GET',{},rotatedLogin.body.token)).statusCode,401);
   const after=(await query('SELECT value FROM system_settings WHERE key=$1',[Account.KEY])).rows[0].value;assert.deepEqual(after.state,oldConfig.state);
- }finally{global.fetch=originalFetch;if(originalKey===undefined)delete process.env.SENDGRID_API_KEY;else process.env.SENDGRID_API_KEY=originalKey;if(originalFrom===undefined)delete process.env.SENDGRID_FROM_EMAIL;else process.env.SENDGRID_FROM_EMAIL=originalFrom;await db.close();}
+ }finally{global.fetch=originalFetch;if(originalKey===undefined)delete process.env.POSTMARK_SERVER_TOKEN;else process.env.POSTMARK_SERVER_TOKEN=originalKey;if(originalFrom===undefined)delete process.env.EMAIL_FROM;else process.env.EMAIL_FROM=originalFrom;await db.close();}
 });

@@ -1,10 +1,6 @@
+const Email=require('./email.cjs');
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function sendTrainingEmail(to,subject,html){
- if(!process.env.SENDGRID_API_KEY||!process.env.SENDGRID_FROM_EMAIL)return {status:'skipped'};
- const response=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',signal:AbortSignal.timeout(15000),headers:{authorization:`Bearer ${process.env.SENDGRID_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:to.map(email=>({email}))}],from:{email:process.env.SENDGRID_FROM_EMAIL,name:'Nexus Academy'},subject,content:[{type:'text/html',value:html}]})});
- if(!response.ok)throw Error(`Training email failed (${response.status})`);
- return {status:'sent'};
-}
+async function sendTrainingEmail(to,subject,html){return Email.sendEmail(to,subject,html,{fromName:'Nexus Academy'});}
 async function notifyTrainingAdmins({query,sendEmail=sendTrainingEmail,assignmentId=null}){
  const admins=await query("SELECT DISTINCT email FROM users WHERE active=true AND email IS NOT NULL AND (role='ADMIN' OR EXISTS(SELECT 1 FROM user_role_requests r WHERE r.user_id=users.id AND r.role='ADMIN' AND r.status='APPROVED'))");
  const recipients=admins.rows.map(r=>r.email).filter(Boolean);if(!recipients.length)return;

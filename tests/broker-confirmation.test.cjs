@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-process.env.SENDGRID_API_KEY = 'test-key';
-process.env.SENDGRID_FROM_EMAIL = 'dispatch@nexusmt.com';
+process.env.POSTMARK_SERVER_TOKEN = 'test-key';
+process.env.EMAIL_FROM = 'dispatch@nexusmt.com';
 
 const api = require('../netlify/functions/api.cjs');
 
@@ -13,7 +13,7 @@ test('sendBrokerRequestConfirmation sends an email to the submitting address', a
     return {
       ok: true,
       status: 202,
-      json: async () => ({})
+      json: async () => ({ErrorCode:0,MessageID:'fixture-message'})
     };
   };
 
@@ -34,8 +34,8 @@ test('sendBrokerRequestConfirmation sends an email to the submitting address', a
   assert.equal(result.email.status, 'sent');
   assert.equal(calls.length, 1);
   const payload = JSON.parse(calls[0].options.body);
-  assert.equal(payload.personalizations[0].to[0].email, 'broker@example.com');
-  assert.match(payload.subject, /received/i);
+  assert.equal(payload.To, 'broker@example.com');
+  assert.match(payload.Subject, /received/i);
 });
 
 test('sendBrokerRequestDispatchNotifications sends the dispatch and customer confirmations', async () => {
@@ -45,7 +45,7 @@ test('sendBrokerRequestDispatchNotifications sends the dispatch and customer con
     return {
       ok: true,
       status: 202,
-      json: async () => ({})
+      json: async () => ({ErrorCode:0,MessageID:'fixture-message'})
     };
   };
 
@@ -68,6 +68,6 @@ test('sendBrokerRequestDispatchNotifications sends the dispatch and customer con
   assert.equal(result.dispatch.email.status, 'sent');
   assert.equal(calls.length, 2);
   const payloads = calls.map((call) => JSON.parse(call.options.body));
-  assert.ok(payloads.some((payload) => payload.personalizations[0].to[0].email === 'broker@example.com'));
-  assert.ok(payloads.some((payload) => payload.personalizations[0].to[0].email === 'dispatch@nexusmt.com'));
+  assert.ok(payloads.some((payload) => payload.To === 'broker@example.com'));
+  assert.ok(payloads.some((payload) => payload.To === 'dispatch@nexusmt.com'));
 });

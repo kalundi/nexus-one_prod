@@ -36,4 +36,7 @@ test('daily outreach only sends unsent recipients and respects the 25-recipient 
  ];
  const batch=buildDailyOutreachBatch(recipients,[{email:'B@example.com'}],25);
  assert.deepEqual(batch.map(r=>r.prospectId),['p1','p3','p4','p5']);
+ assert.deepEqual(buildDailyOutreachBatch(recipients,['B@example.com'],25),batch);
+ const many=Array.from({length:40},(_,i)=>({email:`recipient${i}@example.com`}));
+ assert.equal(buildDailyOutreachBatch(many,[],25).length,25);
 });

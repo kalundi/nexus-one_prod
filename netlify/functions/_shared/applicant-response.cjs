@@ -2,9 +2,9 @@ const {json}=require('./http.cjs');
 const clean=value=>String(value??'').trim();
 const escape=value=>clean(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 function sendFailure(error){
- const status=Number(error?.providerStatus)||Number(String(error?.message||'').match(/SendGrid request failed \((\d{3})\)/)?.[1]);
- if(status===401)return {code:'EMAIL_CONNECTION_UNAUTHORIZED',error:'Email was not sent. The SendGrid connection is no longer authorized. An administrator must update the email connection before you retry.',sent:false};
- if(status===403)return {code:'EMAIL_CONNECTION_FORBIDDEN',error:'Email was not sent. SendGrid is blocking this sender or its sending permission. An administrator must check the email connection before you retry.',sent:false};
+ const status=Number(error?.providerStatus)||Number(String(error?.message||'').match(/Postmark request failed \((\d{3})/)?.[1]);
+ if(status===401)return {code:'EMAIL_CONNECTION_UNAUTHORIZED',error:'Email was not sent. The Postmark connection is no longer authorized. An administrator must update the email connection before you retry.',sent:false};
+ if(status===403)return {code:'EMAIL_CONNECTION_FORBIDDEN',error:'Email was not sent. Postmark is blocking this sender or its sending permission. An administrator must check the email connection before you retry.',sent:false};
  if(status===429)return {code:'EMAIL_RATE_LIMITED',error:'Email was not sent. The email service is limiting requests. Please wait before retrying.',sent:false};
  if(status>=400)return {code:'EMAIL_REJECTED',error:'Email was not sent. The email service rejected the request. An administrator must check the email connection before you retry.',sent:false};
  return {code:'EMAIL_SEND_UNCONFIRMED',error:'Sending could not be confirmed. Check the email account before retrying to avoid sending the same message twice.',sent:null};
