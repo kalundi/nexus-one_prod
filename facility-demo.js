@@ -5,6 +5,8 @@
  let dashboard=null,selectedId='FC-DEMO-01',selectedLeg='outbound',automaticLeg=true,admin=false,platformAccess=false,busy=false,polling=false,lastRun='',knownMessages=new Set(),toastTimer;
  let mapsPromise=null,mapsAuthFailed=false,mapMode='all',mapExpanded=false,mapReturnFocus=null,mapInert=[];
  const mapController=NexusFacilityMap.create({loadMaps,element:$('routeMap'),onSelect:id=>selectPatient(id),isActive:()=>!!dashboard&&!$('dashboard').hidden,onStatus:status=>{$('routeMapStatus').textContent=status.message;$('routeAttribution').textContent=[status.attribution,...status.warnings].filter(Boolean).join(' · ');}});
+ const presentationGuide=NexusFacilityGuide.create({showTarget:id=>{if(id==='routePanel'&&selected())selectPatient(selected().id);else openWorkspace(id);},isExpanded:()=>mapExpanded});
+ const presentationMusic=NexusDemoMusic.create({button:$('demoMusicToggle'),volume:$('demoMusicVolume'),status:$('demoMusicStatus')});
  const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
  let billingBusy=false,billingLoadedAt=0,billingRevision=0;
  let returnEditKey='',returnEditDirty=false,workspace='overview',lastActionError='';
@@ -38,12 +40,13 @@
  const demoToken=()=>sessionStorage.getItem(TOKEN_KEY)||'';
  async function api(path,options={}){const token=(platformAccess?sessionStorage.getItem('nexusAccessToken'):demoToken())||sessionStorage.getItem('nexusAccessToken')||'';const response=await fetch(`/api/facility-demo/${path}`,{...options,headers:{...(token?{authorization:`Bearer ${token}`} :{}),'content-type':'application/json',...options.headers},cache:'no-store'});let data;try{data=await response.json();}catch{throw Error('The demo service could not be reached. Please retry.');}if(!response.ok){const error=Error(data.error||'Demo request failed.');error.status=response.status;throw error;}return data;}
  function toast(message,severity='info'){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').className=`toast ${severity}`;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,6500);}
- function showLogin(message=''){setPasswordVisible(false);$('loginScreen').hidden=false;$('dashboard').hidden=true;$('loginNotice').textContent=message;mapController.clear();if(mapExpanded)setMapExpanded(false);}
+ function showLogin(message=''){presentationGuide.stop();presentationMusic.stop();setPasswordVisible(false);$('loginScreen').hidden=false;$('dashboard').hidden=true;$('loginNotice').textContent=message;mapController.clear();if(mapExpanded)setMapExpanded(false);}
  function showDashboard(data){const dayChanged=dashboard?.scenarioDate!==data.dashboard.scenarioDate,changed=JSON.stringify(dashboard?.patients.map(p=>[p.returnPickup,p.vehicleWaiting]))!==JSON.stringify(data.dashboard.patients.map(p=>[p.returnPickup,p.vehicleWaiting]));dashboard=data.dashboard;admin=!!data.admin;platformAccess=admin||!!data.presenter;$('logout').textContent='Log out';if(dayChanged){mapMode='all';$('billingDay').value=dashboard.scenarioDate;$('billingMonth').value=dashboard.scenarioDate.slice(0,7);invalidateRoute();}if(dayChanged||changed){billingRevision++;billingLoadedAt=0;}$('loginScreen').hidden=true;$('dashboard').hidden=false;render();loadBilling();}
  function legFor(patient){return ['return-approach','return','complete'].includes(patient.phase)?'return':'outbound';}
  function invalidateRoute(){mapController.clear();$('routeMapStatus').textContent='Loading road routes…';}
  function selectPatient(id){if(!dashboard?.patients.some(patient=>patient.id===id)){toast('That booking is no longer active. Select a current trip.');if(!mapExpanded)openWorkspace('boardSection');return;}mapMode='selected';selectedId=id;automaticLeg=true;selectedLeg=legFor(selected());invalidateRoute();render(false);if(mapExpanded)$('selectedRoute').focus();else openWorkspace('detailsSection');}
  function renderCommon(){
+  presentationGuide.update(dashboard,selected());
   document.body.dataset.severity=dashboard.severity;
   $('clock').textContent=dashboard.time;$('scenarioDate').textContent=dashboard.scenarioLabel;$('playPause').textContent=dashboard.paused?'Play':'Pause';$('speed').value=String(dashboard.speed);
   $('timeSlider').max=String(dashboard.endMinute||930);$('endClockLabel').textContent=dashboard.endLabel||'3:30 PM';if(document.activeElement!==$('timeSlider'))$('timeSlider').value=String(Math.round(dashboard.minute));
