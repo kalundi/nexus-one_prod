@@ -21,6 +21,7 @@ const {createUserManager,operatingClock}=require('./_shared/user-manager.cjs');
 const handleUserManager=createUserManager({query,getPool,requireUser,audit});
 const MockAssignments=require('./_shared/mock-trip-assignments.cjs');
 const handleMockAssignments=MockAssignments.createHandler({getPool,requireUser,audit,json,parseBody,bearer});
+const handleMockPractice=require('./_shared/mock-driver-practice.cjs').createHandler({getPool,requireUser,audit,json,parseBody,bearer});
 const {createApplicantResponseHandler}=require('./_shared/applicant-response.cjs');
 const handleApplicantResponse=createApplicantResponseHandler({query,sendEmail,audit});
 const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestStatus}=require('./_shared/broker-auto-book.cjs');
@@ -2150,6 +2151,8 @@ async function handler(event){
     return json(200,{message:'Facility timing saved.'});
    }
   }
+  const mockPracticeResponse=await handleMockPractice(event,p,method);
+  if(mockPracticeResponse)return mockPracticeResponse;
   const mockAssignmentResponse=await handleMockAssignments(event,p,method);
   if(mockAssignmentResponse)return mockAssignmentResponse;
   const userManagerResponse=await handleUserManager(event,p,method);

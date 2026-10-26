@@ -1,6 +1,7 @@
 const {json,parseBody,bearer}=require('./http.cjs');
 const {normalizeE164}=require('./phone.cjs');
 const DemoAccount=require('./facility-demo-account.cjs');
+const MockDriverPractice=require('./mock-driver-practice.cjs');
 const ROLES=['ADMIN','DISPATCHER','DRIVER','FACILITY','STAFF','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER'];
 const FUNCTIONS={ADMINISTRATION:'Administration',DISPATCH:'Dispatch',DRIVING:'Driving',PATIENT_CARE:'Patient care',FACILITY_COORDINATION:'Facility coordination',BILLING:'Billing',QUALITY_REVIEW:'Quality review',OPERATIONS:'Operations',CARE_SUPPORT:'Care support'};
 const clean=v=>String(v??'').trim();
@@ -143,7 +144,12 @@ function createUserManager({query,getPool,requireUser,audit}){
     AND es.weekday_iso=$2 AND es.start_time<=$3::time AND es.end_time>$3::time AND es.effective_start_date<=$4::date
     AND (es.effective_end_date IS NULL OR es.effective_end_date>=$4::date) ORDER BY es.start_time LIMIT 1`,[me.id,clock.weekday,clock.time,clock.date]);
    const shift=coverage.rows[0];
-   return json(200,{userCode:me.user_code,available:!!shift?.employee_active,date:clock.date,time:clock.time,timezone:'America/New_York',shift:shift?{startTime:String(shift.start_time).slice(0,5),endTime:String(shift.end_time).slice(0,5)}:null});
+   let mockPracticeAvailable=false;
+   if(MockDriverPractice.canPractice(me)){
+    const assignedMock=await query(`SELECT EXISTS(SELECT 1 FROM bookings WHERE driver_user_id=$1 AND (upper(booking_source)='MOCK' OR upper(status)='MOCK')) AS available`,[me.id]);
+    mockPracticeAvailable=assignedMock.rows[0]?.available===true;
+   }
+   return json(200,{userCode:me.user_code,available:!!shift?.employee_active,mockPracticeAvailable,...(mockPracticeAvailable?{mockPracticeLabel:'Mock troubleshooting available anytime'}:{}),date:clock.date,time:clock.time,timezone:'America/New_York',shift:shift?{startTime:String(shift.start_time).slice(0,5),endTime:String(shift.end_time).slice(0,5)}:null});
   }
   if(p[0]!=='admin')return null;
   if(p[1]==='users'&&p.length===4&&p[3]==='demo-password'&&method==='POST'){

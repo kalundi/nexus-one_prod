@@ -54,7 +54,7 @@
     return ADDRESS_COORDS[key]||null;
   }
 
-  let shift = { onDuty:false, onBreak:false, vehicleUnit:'', startedAt:null, breakMs:0, breakStart:null, completedTrips:0, inspectionDone:false, inspectedVehicleUnit:'', lastTripVehicleUnit:'', ...loadJ(SHIFT_KEY) };
+  let shift = { onDuty:false, onBreak:false, mockPractice:false, vehicleUnit:'', startedAt:null, breakMs:0, breakStart:null, completedTrips:0, inspectionDone:false, inspectedVehicleUnit:'', lastTripVehicleUnit:'', ...loadJ(SHIFT_KEY) };
   if(shift.vehicleUnit)shift.vehicleUnit=String(shift.vehicleUnit).toUpperCase();
   if(shift.inspectedVehicleUnit)shift.inspectedVehicleUnit=String(shift.inspectedVehicleUnit).toUpperCase();
   if(shift.lastTripVehicleUnit)shift.lastTripVehicleUnit=String(shift.lastTripVehicleUnit).toUpperCase();
@@ -75,6 +75,8 @@
       const data=await response.json();
       if(typeof data.available!=='boolean')throw new Error('Unable to verify scheduled availability.');
       scheduledAvailability=data;scheduleChecked=true;
+      if(shift.mockPractice&&!data.mockPracticeAvailable){shift.onDuty=false;shift.mockPractice=false;if(String(shift.vehicleUnit||'').startsWith('MOCK-'))shift.vehicleUnit='';saveShift();stopGPS();}
+      if(shift.onDuty&&!data.available&&data.mockPracticeAvailable&&!shift.mockPractice){shift.mockPractice=true;shift.vehicleUnit='MOCK-N5289';routeAuto.enabled=false;stopGPS();saveShift();}
     }catch(error){scheduledAvailability=null;scheduleChecked=true;}
     finally{scheduleRefreshing=false;renderDash();}
   }
@@ -123,6 +125,15 @@
     return String(trip?.bookingSource||trip?.booking_source||'').trim().toUpperCase()==='MOCK'
       || normalizeBookingStatus(trip?.status)==='MOCK'
       || /^MOCK-/i.test(String(trip?.ref||trip?.reference||''));
+  }
+  function canPracticeMocks(){return scheduledAvailability?.mockPracticeAvailable===true;}
+  function mockWorkflowStatus(trip){return normalizeBookingStatus(trip?.mockWorkflow?.status||'MOCK');}
+  function nextMockWorkflowStep(trip){
+    const status=mockWorkflowStatus(trip);
+    if(status==='MOCK')return {status:'ACCEPTED',label:'Accept mock trip'};
+    if(status==='ACCEPTED')return WORKFLOW[0];
+    const index=WF_STATUS.indexOf(status);
+    return index>=0?WORKFLOW[index+1]||null:null;
   }
   function tripNeedsAcceptance(trip) { return !isMockTrip(trip)&&['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION'].includes(normalizeBookingStatus(trip?.status)); }
   function isTerminalStatus(status) { return ['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(normalizeBookingStatus(status)); }
@@ -387,6 +398,7 @@
     } catch{clearSess();showLoginView();return false;}
   }
   function clearSess(){
+    if(shift.mockPractice){shift.onDuty=false;shift.mockPractice=false;if(String(shift.vehicleUnit||'').startsWith('MOCK-'))shift.vehicleUnit='';saveShift();stopGPS();}
     sessionStorage.removeItem('nexusAccessToken');
     sessionStorage.removeItem('nexusUser');
     localStorage.removeItem('nexusAccessToken');
@@ -505,6 +517,7 @@
 
   // ── Shift ─────────────────────────────────────────────────────
   $('#btnStartShift')?.addEventListener('click',()=>{
+    if(!scheduledAvailability?.available&&canPracticeMocks()){beginShift();return;}
     if(!shift.inspectionDone){showView('inspectionView');return;}
     beginShift();
   });
@@ -516,6 +529,7 @@
   });
   $('#shiftBadge')?.addEventListener('click',()=>{
     if(!shift.onDuty){
+      if(!scheduledAvailability?.available&&canPracticeMocks()){beginShift();return;}
       if(!shift.inspectionDone){showView('inspectionView');return;}
       beginShift();
       return;
@@ -534,12 +548,17 @@
     renderDash();
   });
   function beginShift(){
+    if(!scheduledAvailability?.available&&canPracticeMocks()){
+      shift.mockPractice=true;shift.vehicleUnit='MOCK-N5289';shift.onDuty=true;shift.startedAt=Date.now();shift.breakMs=0;shift.breakStart=null;shift.onBreak=false;
+      routeAuto.enabled=false;stopGPS();saveShift();renderDash();
+      dashNotice('Testing duty started. Open Manifest → Mock assignments to practice the driver workflow.','ok');return;
+    }
     if(!scheduledAvailability?.available){dashNotice('Your account has no active shift right now. Contact dispatch to adjust your schedule.','info');refreshScheduledAvailability();return;}
     const unit=shift.vehicleUnit||prompt('Enter your assigned vehicle unit (e.g. SE-254-01):');
     if(!unit?.trim())return;
     shift.vehicleUnit=unit.trim().toUpperCase();
     if(!shift.inspectedVehicleUnit&&shift.inspectionDone)shift.inspectedVehicleUnit=shift.vehicleUnit;
-    shift.onDuty=true;shift.startedAt=Date.now();shift.breakMs=0;shift.breakStart=null;shift.onBreak=false;
+    shift.mockPractice=false;shift.onDuty=true;shift.startedAt=Date.now();shift.breakMs=0;shift.breakStart=null;shift.onBreak=false;
     saveShift();startGPS();renderDash();
     dashNotice('Shift started. Check your manifest for today\'s trips.','ok');
   }
@@ -560,7 +579,7 @@
   $('#btnConfirmEndShift')?.addEventListener('click',()=>{
     const odo=Number($('#endOdo')?.value)||null;
     if(odo){miles.odoEnd=odo;saveMiles();}
-    shift={onDuty:false,onBreak:false,vehicleUnit:shift.vehicleUnit,startedAt:null,breakMs:0,breakStart:null,completedTrips:0,inspectionDone:false,inspectedVehicleUnit:'',lastTripVehicleUnit:''};
+    shift={onDuty:false,onBreak:false,mockPractice:false,vehicleUnit:shift.mockPractice?'':shift.vehicleUnit,startedAt:null,breakMs:0,breakStart:null,completedTrips:0,inspectionDone:false,inspectedVehicleUnit:'',lastTripVehicleUnit:''};
     saveShift();stopGPS();showView('dashView');renderDash();
     dashNotice('Shift complete. Drive safe!','ok');
   });
@@ -1046,6 +1065,7 @@
       String(trip?.ref||''),
       String(trip?.status||''),
       String(trip?.bookingSource||''),
+      String(trip?.mockWorkflow?.status||''),String(trip?.mockWorkflow?.updatedAt||''),
       String(trip?.date||''),
       String(trip?.time||''),
       String(trip?.pickup||''),
@@ -1136,6 +1156,7 @@
           destinationLng:Number.isFinite(destLngFromApi)?destLngFromApi:(destFallback?.lng??null),
           ref,
           bookingSource:b.bookingSource||b.booking_source||'',
+          mockWorkflow:b.timingPlan?.mockDriverWorkflow||b.mockWorkflow||null,
           timingPlan:b.timingPlan||null,timingPrediction:b.timingPrediction||null,patientReadyAt:b.patientReadyAt||previous.patientReadyAt||null,locationInstructions:b.locationInstructions||[],
           date:normalizeTripDate(b.date||b.trip_date||''),
           time:(b.time||b.trip_time||'').slice(0,5),
@@ -1217,7 +1238,9 @@
   }
 
   async function acceptTrip(ref){
-    const t=trips.find(x=>x.ref===ref);if(!t||isMockTrip(t))return;
+    const t=trips.find(x=>x.ref===ref);if(!t)return;
+    if(isMockTrip(t)){if(canPracticeMocks()&&shift.onDuty)await updateMockWorkflow(t,'ACCEPTED');return;}
+    if(shift.mockPractice){dashNotice('Testing duty applies to mock trips only. A scheduled shift is required for live work.','info');return;}
     try{
       const r=await fetch(`/api/bookings/${encodeURIComponent(ref)}/accept`,{method:'POST',headers:ah(),cache:'no-store'});
       const j=await r.json().catch(()=>({}));
@@ -1255,7 +1278,7 @@
     const el=$('#manifestList');if(!el)return;
     if(!list.length){el.innerHTML='<div class="empty"><p>No assigned trips in this period.</p></div>';return;}
     const sc={SCHEDULED:'gray',REQUESTED:'gray',SUBMITTED:'gray',PENDING_DISPATCH_CONFIRMATION:'gray',ASSIGNED:'blue',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',ARRIVED_PICKUP:'amber',DEPARTED:'amber',ARRIVED_DESTINATION:'amber',DELIVERED:'green',COMPLETED:'green',MISSED:'red',NO_SHOW:'red',CANCELLED:'red'};
-    const canAccept=t=>tripNeedsAcceptance(t)&&!t.accepted;
+    const canAccept=t=>isMockTrip(t)?canPracticeMocks()&&shift.onDuty&&mockWorkflowStatus(t)==='MOCK':!shift.mockPractice&&tripNeedsAcceptance(t)&&!t.accepted;
     const isCompleted=t=>['COMPLETED','NO_SHOW','MISSED','CANCELLED'].includes(t.status);
     const mocks=list.filter(isMockTrip);
     const upcoming=list.filter(t=>!isMockTrip(t)&&!isCompleted(t));
@@ -1265,9 +1288,9 @@
         <div class="tripTime"><strong>${t.time||'—'}</strong><small>${fmtDate(t.date)}</small></div>
         <div class="tripInfo"><strong>${t.patient}</strong><span>${t.pickup}</span><span>to ${t.destination}</span></div>
         <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
-          <span class="badge ${isMockTrip(t)?'gray':sc[t.status]||'gray'}">${isMockTrip(t)?'MOCK':t.status.replace(/_/g,' ')}</span>
+          <span class="badge ${isMockTrip(t)?'gray':sc[t.status]||'gray'}">${isMockTrip(t)?'MOCK · '+mockWorkflowStatus(t).replace(/_/g,' '):t.status.replace(/_/g,' ')}</span>
           <span style="font:800 11px/1 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${t.distMi!=null?`${t.distMi} mi`:'Miles n/a'}</span>
-          ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">Accept</button>`:'<span style="font-size:11px;color:var(--muted)">'+(isMockTrip(t)?'Review only':t.accepted?'Accepted':(isCompleted(t)?'Closed':'In progress'))+'</span>'}
+          ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">${isMockTrip(t)?'Accept mock':'Accept'}</button>`:'<span style="font-size:11px;color:var(--muted)">'+(isMockTrip(t)?(canPracticeMocks()?'Driver practice':'Review only'):t.accepted?'Accepted':(isCompleted(t)?'Closed':'In progress'))+'</span>'}
         </div>
       </div>`;
 
@@ -1286,7 +1309,7 @@
       </div>
     </div>`+
     (completed.length?completed.map(row).join(''):'<div class="empty"><p>No completed trips yet in this period.</p></div>')+
-    (mocks.length?`<div class="card" style="margin:12px 0 8px;padding:12px 14px;background:#f8fafc;border-style:dashed"><strong>Mock assignments • review only</strong><div style="font-size:12px;color:var(--muted);margin-top:3px">${mocks.length} assigned test trips, including dates outside this period. Open any trip to review its route and details.</div></div>`+mocks.map(row).join(''):'');
+    (mocks.length?`<div class="card" style="margin:12px 0 8px;padding:12px 14px;background:#f8fafc;border-style:dashed"><strong>Mock assignments • ${canPracticeMocks()?'driver practice':'review only'}</strong><div style="font-size:12px;color:var(--muted);margin-top:3px">${mocks.length} assigned test trips, including dates outside this period. ${canPracticeMocks()?'Start duty, then open a trip to practice each driver step. Progress is saved separately from live trips.':'Open any trip to review its route and details.'}</div></div>`+mocks.map(row).join(''):'');
     $$('.tripCard',el).forEach(c=>{
       const open=()=>openTrip(c.dataset.ref);
       c.addEventListener('click',open);
@@ -1711,7 +1734,7 @@
     renderDriverTiming(t);
     const sc={COMPLETED:'green',DELIVERED:'green',CANCELLED:'red',MISSED:'red',NO_SHOW:'red',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',DEPARTED:'amber'};
     const mock=isMockTrip(t);
-    $('#tripStatusBadge').textContent=mock?'MOCK':t.status.replace(/_/g,' ');
+    $('#tripStatusBadge').textContent=mock?'MOCK · '+mockWorkflowStatus(t).replace(/_/g,' '):t.status.replace(/_/g,' ');
     $('#tripStatusBadge').className=`badge ${mock?'gray':sc[t.status]||'blue'}`;
     $('#tripComments').value=t.comments||'';
     ['#btnLogLeg','#btnSaveComments'].forEach(selector=>{const card=$(selector)?.closest('.card');if(card)card.hidden=mock;});
@@ -1720,7 +1743,7 @@
     const paymentText=$('#tripPaymentStatus');
     const selfPay=t.payerType==='SELF_PAY';
     const paid=t.paymentStatus==='PAID_IN_FULL';
-    if(paymentPanel)paymentPanel.hidden=mock||!selfPay||paid;
+    if(paymentPanel)paymentPanel.hidden=mock||shift.mockPractice||!selfPay||paid;
     if(paymentText&&selfPay&&!paid)paymentText.textContent=`Self-pay balance must be confirmed before boarding${t.balanceDue>0?`: $${t.balanceDue.toFixed(2)}`:''}.`;
     renderTripWorkflow(t);
     renderStepHints(t);
@@ -1741,9 +1764,21 @@
   function renderTripWorkflow(t){
     const mock=isMockTrip(t);
     ['#btnAdvanceTrip','#btnMarkNoShow'].forEach(selector=>{const button=$(selector);if(button)button.hidden=mock;});
+    const resetMock=$('#btnResetMockTrip');if(resetMock)resetMock.hidden=!mock||!canPracticeMocks();
     if(mock){
-      const workflow=$('#tripWorkflow');if(workflow)workflow.textContent='';
-      const notice=$('#tripStartNotice');if(notice){notice.hidden=false;notice.textContent='Mock assignment • review only. No live transport, status changes, mileage or payments are requested.';}
+      const workflow=$('#tripWorkflow'),notice=$('#tripStartNotice'),button=$('#btnAdvanceTrip');
+      if(workflow)workflow.textContent='';
+      if(notice){notice.hidden=false;notice.textContent='Mock assignment • review only. No live transport, status changes, mileage or payments are requested.';}
+      if(canPracticeMocks()){
+        const status=mockWorkflowStatus(t),index=WF_STATUS.indexOf(status),next=nextMockWorkflowStep(t);
+        if(workflow)workflow.innerHTML=[{label:'Mock trip accepted',status:'ACCEPTED'},...WORKFLOW].map((step,i)=>{
+          const done=status==='ACCEPTED'?i===0:index>=0&&i<=index+1;
+          return `<div style="padding:10px 16px;border-bottom:1px solid var(--line);color:${done?'var(--ok)':'var(--muted)'}">${done?'✓':'○'} ${step.label}</div>`;
+        }).join('');
+        if(notice)notice.textContent=shift.onDuty?'Driver practice: '+status.replace(/_/g,' ')+'. Progress is saved for this mock only. No external messages, charges, mileage or vehicle tracking.':'Start duty to practice this mock trip. An active live shift is not required for testing duty.';
+        if(button){button.hidden=false;button.disabled=!shift.onDuty||shift.onBreak||!next;button.textContent=next?'SIMULATE: '+next.label.toUpperCase():'MOCK COMPLETE';}
+        if(resetMock)resetMock.disabled=!shift.onDuty||status==='MOCK';
+      }
       const hints=$('#tripStepHints');if(hints)hints.hidden=true;
       const help=$('#tripAiHelp');if(help)help.hidden=true;
       return;
@@ -1792,19 +1827,41 @@
     else{
       btn.textContent=next?.status==='EN_ROUTE'?'START TRIP':(next?.label||'Advance').toUpperCase();
       const blockedByVehicle=next?.status==='EN_ROUTE'&&vehiclePolicy?!vehiclePolicy.allowed:false;
-      btn.disabled=!shift.onDuty||!next||blockedByVehicle||(next?.status==='EN_ROUTE'&&!scheduledAvailability?.available);
+      btn.disabled=shift.mockPractice||!shift.onDuty||!next||blockedByVehicle||(next?.status==='EN_ROUTE'&&!scheduledAvailability?.available);
     }
     const noShowBtn=$('#btnMarkNoShow');
     if(noShowBtn){
-      noShowBtn.disabled=done;
+      noShowBtn.disabled=shift.mockPractice||done;
       noShowBtn.textContent=done?'No Show Marked':'Mark No Show';
     }
     if(stepHintsOpen)renderStepHints(t);
     if(aiHelpOpen)renderAiHelp(t);
   }
 
+  async function updateMockWorkflow(trip,status){
+    if(!isMockTrip(trip)||!canPracticeMocks()||!shift.onDuty||shift.onBreak)return;
+    const button=$('#btnAdvanceTrip');if(button)button.disabled=true;
+    try{
+      const response=await fetch(`/api/driver/mock-trips/${encodeURIComponent(trip.ref)}/workflow`,{method:'POST',headers:ah(),body:JSON.stringify({status,expectedStatus:mockWorkflowStatus(trip)})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw Error(data.error||'Unable to update mock trip.');
+      if(!data.mockOnly||!data.workflow)throw Error('Invalid mock workflow response.');
+      trip.mockWorkflow=data.workflow;
+      renderTripDetailPanel(trip);renderManifest();renderDash();
+      dashNotice(status==='RESET'?'Mock trip reset. Ready for another test.':'Mock progress saved: '+mockWorkflowStatus(trip).replace(/_/g,' ')+'.','ok');
+    }catch(error){
+      renderTripWorkflow(trip);
+      const notice=$('#tripStartNotice');if(notice){notice.hidden=false;notice.textContent=error.message;}
+      await loadTrips({reason:'mock-conflict',silent:true});
+    }
+  }
+  $('#btnResetMockTrip')?.addEventListener('click',()=>{
+    const trip=trips.find(item=>item.ref===activeRef);if(trip)updateMockWorkflow(trip,'RESET');
+  });
+
   async function markTripNoShow(){
     const t=trips.find(x=>x.ref===activeRef);if(!t||isMockTrip(t))return;
+    if(shift.mockPractice)return;
     if(['COMPLETED','CANCELLED','NO_SHOW','MISSED'].includes(t.status))return;
     const reason=prompt('Enter no-show details (optional):','')?.trim()||'';
     const btn=$('#btnMarkNoShow');
@@ -1825,6 +1882,7 @@
 
   $('#btnConfirmFullPayment')?.addEventListener('click',async()=>{
     const t=trips.find(x=>x.ref===activeRef);if(!t||isMockTrip(t))return;
+    if(shift.mockPractice)return;
     const btn=$('#btnConfirmFullPayment');btn.disabled=true;btn.textContent='Confirming…';
     try{
       const r=await fetch(`/api/bookings/${encodeURIComponent(t.ref)}/payment/confirm-full`,{method:'POST',headers:ah(),body:'{}'});
@@ -1861,7 +1919,9 @@
   });
 
   $('#btnAdvanceTrip')?.addEventListener('click',async()=>{
-    const t=trips.find(x=>x.ref===activeRef);if(!t||isMockTrip(t))return;
+    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    if(isMockTrip(t)){const next=nextMockWorkflowStep(t);if(next)await updateMockWorkflow(t,next.status);return;}
+    if(shift.mockPractice)return;
     const next=nextWorkflowStep(t.status,t);if(!next)return;
     if(next.status==='EN_ROUTE'){
       const vehiclePolicy=inspectionPolicyForTripStart(t);
@@ -2060,7 +2120,7 @@
     const u=usr(),name=u.displayName||u.display_name||u.email?.split('@')[0]||'Driver';
     if($('#driverNexusId'))$('#driverNexusId').textContent=u.userCode?`Nexus ID ${u.userCode}`:'';
     const scheduleStatus=$('#driverScheduleStatus');
-    if(scheduleStatus){scheduleStatus.textContent=!scheduleChecked?'Checking scheduled availability…':scheduledAvailability?.available?`Scheduled ${scheduledAvailability.shift?.startTime||''}–${scheduledAvailability.shift?.endTime||''} Eastern Time`:scheduledAvailability?'No active shift right now. Contact dispatch to adjust your schedule.':'Unable to verify your schedule. Refresh to try again.';}
+    if(scheduleStatus){scheduleStatus.textContent=!scheduleChecked?'Checking scheduled availability…':scheduledAvailability?.available?`Scheduled ${scheduledAvailability.shift?.startTime||''}–${scheduledAvailability.shift?.endTime||''} Eastern Time`:canPracticeMocks()?'Administrator driver testing is available at any time for your assigned mock trips.':scheduledAvailability?'No active shift right now. Contact dispatch to adjust your schedule.':'Unable to verify your schedule. Refresh to try again.';}
     if($('#dashDriverName'))$('#dashDriverName').textContent=`Good ${tod()}, ${name}`;
     if($('#dashVehicle')){$('#dashVehicle').textContent=shift.vehicleUnit||'No vehicle';$('#dashVehicle').className='badge '+(shift.vehicleUnit?'blue':'gray');}
     if($('#statHours'))$('#statHours').textContent=fmtH(elapsed());
@@ -2068,7 +2128,7 @@
     if($('#statMiles'))$('#statMiles').textContent=totalMiles().toFixed(1);
     const badge=$('#shiftBadge');
     if(badge){
-      badge.textContent=shift.onBreak?'On Break':shift.onDuty?'On Duty':'Off Duty';
+      badge.textContent=shift.onBreak?'On Break':shift.onDuty?(shift.mockPractice?'Testing duty':'On Duty'):'Off Duty';
       badge.className='topBadge '+(shift.onBreak?'break':shift.onDuty?'on':'off');
       badge.title=shift.onDuty?(shift.onBreak?'Click to end break':'Click to start break'):'Click to start shift';
       badge.setAttribute('aria-label',badge.title);
@@ -2079,9 +2139,9 @@
     const bb=$('#btnBreak');if(bb)bb.textContent=shift.onBreak?'End Break':'Take Break';
     const startBtn=$('#btnStartShift');
     if(startBtn){
-      startBtn.disabled=!scheduledAvailability?.available;
+      startBtn.disabled=!scheduledAvailability?.available&&!canPracticeMocks();
       const pendingToday=trips.filter(t=>t.date===new Date().toISOString().slice(0,10) && tripNeedsAcceptance(t));
-      startBtn.textContent=pendingToday.length?'Continue to Shift':'Start Shift';
+      startBtn.textContent=!scheduledAvailability?.available&&canPracticeMocks()?'Start Testing Duty':pendingToday.length?'Continue to Shift':'Start Shift';
     }
     const logBtn=$('#btnLogOff');
     if(logBtn)logBtn.hidden=shift.onDuty;
@@ -2138,9 +2198,10 @@
 
   // ── GPS ───────────────────────────────────────────────────────
   function startGPS(){
+    if(shift.mockPractice)return;
     if(!navigator.geolocation||gpsId!=null)return;
     gpsId=navigator.geolocation.watchPosition(async pos=>{
-      if(!shift.onDuty)return;
+      if(!shift.onDuty||shift.mockPractice)return;
       if(routeAuto.enabled){
         maybeAdvanceRouteByPosition(pos).catch(()=>{});
       }
