@@ -119,7 +119,12 @@
   function tod() { const h=new Date().getHours(); return h<12?'morning':h<17?'afternoon':'evening'; }
   function totalMiles() { return miles.legs.reduce((s,l)=>s+(Number(l.miles)||0),0); }
   function normalizeBookingStatus(status) { return String(status || 'SCHEDULED').trim().toUpperCase().replaceAll('-', '_'); }
-  function tripNeedsAcceptance(trip) { return ['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION'].includes(normalizeBookingStatus(trip?.status)); }
+  function isMockTrip(trip) {
+    return String(trip?.bookingSource||trip?.booking_source||'').trim().toUpperCase()==='MOCK'
+      || normalizeBookingStatus(trip?.status)==='MOCK'
+      || /^MOCK-/i.test(String(trip?.ref||trip?.reference||''));
+  }
+  function tripNeedsAcceptance(trip) { return !isMockTrip(trip)&&['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION'].includes(normalizeBookingStatus(trip?.status)); }
   function isTerminalStatus(status) { return ['COMPLETED','DELIVERED','CANCELLED','NO_SHOW','MISSED'].includes(normalizeBookingStatus(status)); }
   function tripStartWindowHours(trip){ return Number(trip?.distanceMiles ?? trip?.distMi ?? 0) >= 30 ? 2 : 1; }
   function normalizeTripDate(value){
@@ -234,7 +239,7 @@
     const closed=new Array(keys.length).fill(0);
     const onTimeClosed=new Array(keys.length).fill(0);
 
-    trips.forEach((t)=>{
+    trips.filter(t=>!isMockTrip(t)).forEach((t)=>{
       const k=tripDateKey(t);
       const i=idxByKey.get(k);
       if(i==null) return;
@@ -1040,6 +1045,7 @@
     return [
       String(trip?.ref||''),
       String(trip?.status||''),
+      String(trip?.bookingSource||''),
       String(trip?.date||''),
       String(trip?.time||''),
       String(trip?.pickup||''),
@@ -1129,6 +1135,7 @@
           destinationLat:Number.isFinite(destFromApi)?destFromApi:(destFallback?.lat??null),
           destinationLng:Number.isFinite(destLngFromApi)?destLngFromApi:(destFallback?.lng??null),
           ref,
+          bookingSource:b.bookingSource||b.booking_source||'',
           timingPlan:b.timingPlan||null,timingPrediction:b.timingPrediction||null,patientReadyAt:b.patientReadyAt||previous.patientReadyAt||null,locationInstructions:b.locationInstructions||[],
           date:normalizeTripDate(b.date||b.trip_date||''),
           time:(b.time||b.trip_time||'').slice(0,5),
@@ -1210,7 +1217,7 @@
   }
 
   async function acceptTrip(ref){
-    const t=trips.find(x=>x.ref===ref);if(!t)return;
+    const t=trips.find(x=>x.ref===ref);if(!t||isMockTrip(t))return;
     try{
       const r=await fetch(`/api/bookings/${encodeURIComponent(ref)}/accept`,{method:'POST',headers:ah(),cache:'no-store'});
       const j=await r.json().catch(()=>({}));
@@ -1224,7 +1231,7 @@
 
   function updateBadge(){
     const today=new Date().toISOString().slice(0,10);
-    const n=trips.filter(t=>t.date===today&&!isTerminalStatus(t.status)).length;
+    const n=trips.filter(t=>!isMockTrip(t)&&t.date===today&&!isTerminalStatus(t.status)).length;
     const b=$('#manifestBadge');if(b){b.hidden=n===0;b.textContent=n;}
   }
 
@@ -1234,6 +1241,7 @@
     const startOfToday=new Date(now.getFullYear(),now.getMonth(),now.getDate());
     const dayEnd=new Date(startOfToday.getTime()+manifestDays*86400000);
     const list=trips.filter(t=>{
+      if(isMockTrip(t))return true;
       if(!t.date)return false;
       const tripDt=new Date(`${t.date}T${(t.time||'00:00').slice(0,5)}:00`);
       if(Number.isNaN(tripDt.getTime()))return false;
@@ -1247,18 +1255,19 @@
     const el=$('#manifestList');if(!el)return;
     if(!list.length){el.innerHTML='<div class="empty"><p>No assigned trips in this period.</p></div>';return;}
     const sc={SCHEDULED:'gray',REQUESTED:'gray',SUBMITTED:'gray',PENDING_DISPATCH_CONFIRMATION:'gray',ASSIGNED:'blue',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',ARRIVED_PICKUP:'amber',DEPARTED:'amber',ARRIVED_DESTINATION:'amber',DELIVERED:'green',COMPLETED:'green',MISSED:'red',NO_SHOW:'red',CANCELLED:'red'};
-    const canAccept=t=>['ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION'].includes(t.status)&&!t.accepted;
+    const canAccept=t=>tripNeedsAcceptance(t)&&!t.accepted;
     const isCompleted=t=>['COMPLETED','NO_SHOW','MISSED','CANCELLED'].includes(t.status);
-    const upcoming=list.filter(t=>!isCompleted(t));
-    const completed=list.filter(isCompleted);
+    const mocks=list.filter(isMockTrip);
+    const upcoming=list.filter(t=>!isMockTrip(t)&&!isCompleted(t));
+    const completed=list.filter(t=>!isMockTrip(t)&&isCompleted(t));
 
     const row=(t)=>`<div class="tripCard${t.ref===activeRef?' active-trip':''}" data-ref="${t.ref}" role="button" tabindex="0">
         <div class="tripTime"><strong>${t.time||'—'}</strong><small>${fmtDate(t.date)}</small></div>
         <div class="tripInfo"><strong>${t.patient}</strong><span>${t.pickup}</span><span>to ${t.destination}</span></div>
         <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
-          <span class="badge ${sc[t.status]||'gray'}">${t.status.replace(/_/g,' ')}</span>
+          <span class="badge ${isMockTrip(t)?'gray':sc[t.status]||'gray'}">${isMockTrip(t)?'MOCK':t.status.replace(/_/g,' ')}</span>
           <span style="font:800 11px/1 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${t.distMi!=null?`${t.distMi} mi`:'Miles n/a'}</span>
-          ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">Accept</button>`:'<span style="font-size:11px;color:var(--muted)">'+(t.accepted?'Accepted':(isCompleted(t)?'Closed':'In progress'))+'</span>'}
+          ${canAccept(t)?`<button class="btn ghost sm" data-accept-ref="${t.ref}" type="button">Accept</button>`:'<span style="font-size:11px;color:var(--muted)">'+(isMockTrip(t)?'Review only':t.accepted?'Accepted':(isCompleted(t)?'Closed':'In progress'))+'</span>'}
         </div>
       </div>`;
 
@@ -1276,7 +1285,8 @@
         <div style="font-size:12px;color:var(--muted);margin-top:3px">Trips move here after completion, no-show, cancellation, or missed status.</div>
       </div>
     </div>`+
-    (completed.length?completed.map(row).join(''):'<div class="empty"><p>No completed trips yet in this period.</p></div>');
+    (completed.length?completed.map(row).join(''):'<div class="empty"><p>No completed trips yet in this period.</p></div>')+
+    (mocks.length?`<div class="card" style="margin:12px 0 8px;padding:12px 14px;background:#f8fafc;border-style:dashed"><strong>Mock assignments • review only</strong><div style="font-size:12px;color:var(--muted);margin-top:3px">${mocks.length} assigned test trips, including dates outside this period. Open any trip to review its route and details.</div></div>`+mocks.map(row).join(''):'');
     $$('.tripCard',el).forEach(c=>{
       const open=()=>openTrip(c.dataset.ref);
       c.addEventListener('click',open);
@@ -1315,6 +1325,7 @@
   let stepHintsOpen=false;
   function wfIdx(s){return WF_STATUS.indexOf(normalizeBookingStatus(s));}
   function nextWorkflowStep(status,trip){
+    if(isMockTrip(trip))return null;
     if(normalizeBookingStatus(status)==='ARRIVED_PICKUP'&&!trip?.patientReadyAt)return {label:'Patient Ready',status:'PATIENT_READY',hint:'Confirm the patient is ready before loading and securement.'};
     if(normalizeBookingStatus(status)==='ARRIVED_PICKUP'&&trip?.patientReadyAt)return WORKFLOW[WF_STATUS.indexOf('PATIENT_READY')+1];
     const i=wfIdx(status);
@@ -1326,6 +1337,7 @@
     const box=$('#tripStepHints');
     const body=$('#tripStepHintsBody');
     if(!box||!body||!t)return;
+    if(isMockTrip(t)){box.hidden=true;return;}
     const idx=t.status==='ARRIVED_PICKUP'&&t.patientReadyAt?WF_STATUS.indexOf('PATIENT_READY'):wfIdx(t.status);
     body.innerHTML=WORKFLOW.map((w,i)=>{
       const tone=i<idx?'var(--ok)':i===idx?'var(--ink)':'var(--muted)';
@@ -1346,6 +1358,7 @@
   }
 
   function buildAiHintLines(trip){
+    if(isMockTrip(trip))return ['Mock assignment • review only.','This test trip has no live transport, driver workflow or payment action.',`Route: ${trip.pickup} to ${trip.destination}.`];
     const driverName=usr().display_name||usr().email||'Driver';
     const lines=[];
     lines.push(`Driver on file: ${driverName}.`);
@@ -1362,7 +1375,7 @@
     } else {
       lines.push('Open a trip to get step-by-step guidance.');
     }
-    const recs=(window.NexusAI?.recommendations?.(trips)||[]).slice(0,2);
+    const recs=(window.NexusAI?.recommendations?.(trips.filter(t=>!isMockTrip(t)))||[]).slice(0,2);
     if(recs.length){
       lines.push('System suggestions:');
       recs.forEach((rec)=>lines.push(`${rec.priority}: ${rec.title} — ${rec.detail}`));
@@ -1374,6 +1387,7 @@
     const panel=$('#tripAiHelp');
     const body=$('#tripAiHelpBody');
     if(!panel||!body)return;
+    if(isMockTrip(trip)){panel.hidden=true;return;}
     if(!aiHelpOpen){
       panel.hidden=true;
       return;
@@ -1419,8 +1433,8 @@
   }
 
   function activeTripForRoute(){
-    return trips.find(t=>t.ref===activeRef&&!['COMPLETED','DELIVERED','CANCELLED'].includes(t.status))
-      || trips.find(t=>!['COMPLETED','DELIVERED','CANCELLED','SCHEDULED'].includes(t.status));
+    return trips.find(t=>!isMockTrip(t)&&t.ref===activeRef&&!['COMPLETED','DELIVERED','CANCELLED'].includes(t.status))
+      || trips.find(t=>!isMockTrip(t)&&!['COMPLETED','DELIVERED','CANCELLED','SCHEDULED'].includes(t.status));
   }
 
   function resetRouteAuto(tripRef=null){
@@ -1505,7 +1519,7 @@
   }
 
   async function updateTripStatusAuto(trip,nextStatus,note=''){
-    if(!trip||routeAuto.updating)return false;
+    if(!trip||isMockTrip(trip)||routeAuto.updating)return false;
     const current=normalizeBookingStatus(trip.status);
     const next=normalizeBookingStatus(nextStatus);
     if(!next||current===next)return true;
@@ -1534,7 +1548,7 @@
   async function maybeAdvanceRouteByPosition(pos){
     if(!routeAuto.enabled)return;
     const trip=trips.find(t=>t.ref===routeAuto.tripRef);
-    if(!trip)return;
+    if(!trip||isMockTrip(trip))return;
     const curr={lat:Number(pos?.coords?.latitude),lng:Number(pos?.coords?.longitude)};
     if(!Number.isFinite(curr.lat)||!Number.isFinite(curr.lng))return;
     if(routeAuto.lastPos){
@@ -1696,14 +1710,17 @@
     $('#tripDateBadge').textContent=`${fmtDate(t.date)} ${t.time}`;
     renderDriverTiming(t);
     const sc={COMPLETED:'green',DELIVERED:'green',CANCELLED:'red',MISSED:'red',NO_SHOW:'red',EN_ROUTE:'amber',PATIENT_ON_BOARD:'amber',DEPARTED:'amber'};
-    $('#tripStatusBadge').textContent=t.status.replace(/_/g,' ');
-    $('#tripStatusBadge').className=`badge ${sc[t.status]||'blue'}`;
+    const mock=isMockTrip(t);
+    $('#tripStatusBadge').textContent=mock?'MOCK':t.status.replace(/_/g,' ');
+    $('#tripStatusBadge').className=`badge ${mock?'gray':sc[t.status]||'blue'}`;
     $('#tripComments').value=t.comments||'';
+    ['#btnLogLeg','#btnSaveComments'].forEach(selector=>{const card=$(selector)?.closest('.card');if(card)card.hidden=mock;});
+    ['#btnTripStepHelp','#btnTripAiHelp'].forEach(selector=>{const button=$(selector);if(button)button.hidden=mock;});
     const paymentPanel=$('#tripPaymentPanel');
     const paymentText=$('#tripPaymentStatus');
     const selfPay=t.payerType==='SELF_PAY';
     const paid=t.paymentStatus==='PAID_IN_FULL';
-    if(paymentPanel)paymentPanel.hidden=!selfPay||paid;
+    if(paymentPanel)paymentPanel.hidden=mock||!selfPay||paid;
     if(paymentText&&selfPay&&!paid)paymentText.textContent=`Self-pay balance must be confirmed before boarding${t.balanceDue>0?`: $${t.balanceDue.toFixed(2)}`:''}.`;
     renderTripWorkflow(t);
     renderStepHints(t);
@@ -1722,6 +1739,15 @@
   }
 
   function renderTripWorkflow(t){
+    const mock=isMockTrip(t);
+    ['#btnAdvanceTrip','#btnMarkNoShow'].forEach(selector=>{const button=$(selector);if(button)button.hidden=mock;});
+    if(mock){
+      const workflow=$('#tripWorkflow');if(workflow)workflow.textContent='';
+      const notice=$('#tripStartNotice');if(notice){notice.hidden=false;notice.textContent='Mock assignment • review only. No live transport, status changes, mileage or payments are requested.';}
+      const hints=$('#tripStepHints');if(hints)hints.hidden=true;
+      const help=$('#tripAiHelp');if(help)help.hidden=true;
+      return;
+    }
     const done=['COMPLETED','CANCELLED','NO_SHOW','MISSED'].includes(t.status);
     const idx=t.status==='ARRIVED_PICKUP'&&t.patientReadyAt?WF_STATUS.indexOf('PATIENT_READY'):wfIdx(t.status);
     const next=nextWorkflowStep(t.status,t);
@@ -1778,7 +1804,7 @@
   }
 
   async function markTripNoShow(){
-    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    const t=trips.find(x=>x.ref===activeRef);if(!t||isMockTrip(t))return;
     if(['COMPLETED','CANCELLED','NO_SHOW','MISSED'].includes(t.status))return;
     const reason=prompt('Enter no-show details (optional):','')?.trim()||'';
     const btn=$('#btnMarkNoShow');
@@ -1798,7 +1824,7 @@
   $('#btnMarkNoShow')?.addEventListener('click',markTripNoShow);
 
   $('#btnConfirmFullPayment')?.addEventListener('click',async()=>{
-    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    const t=trips.find(x=>x.ref===activeRef);if(!t||isMockTrip(t))return;
     const btn=$('#btnConfirmFullPayment');btn.disabled=true;btn.textContent='Confirming…';
     try{
       const r=await fetch(`/api/bookings/${encodeURIComponent(t.ref)}/payment/confirm-full`,{method:'POST',headers:ah(),body:'{}'});
@@ -1835,7 +1861,7 @@
   });
 
   $('#btnAdvanceTrip')?.addEventListener('click',async()=>{
-    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    const t=trips.find(x=>x.ref===activeRef);if(!t||isMockTrip(t))return;
     const next=nextWorkflowStep(t.status,t);if(!next)return;
     if(next.status==='EN_ROUTE'){
       const vehiclePolicy=inspectionPolicyForTripStart(t);
@@ -1892,12 +1918,12 @@
   });
 
   $('#btnSaveComments')?.addEventListener('click',()=>{
-    const t=trips.find(x=>x.ref===activeRef);if(!t)return;
+    const t=trips.find(x=>x.ref===activeRef);if(!t||isMockTrip(t))return;
     t.comments=$('#tripComments').value.trim();
     const btn=$('#btnSaveComments');btn.textContent='Saved';setTimeout(()=>{btn.textContent='Save Notes';},2000);
   });
 
-  $('#btnGoActiveTrip')?.addEventListener('click',()=>{if(activeRef)openTrip(activeRef);});
+  $('#btnGoActiveTrip')?.addEventListener('click',()=>{const trip=activeTripForRoute();if(trip)openTrip(trip.ref);});
   $('#btnNavActiveTrip')?.addEventListener('click',()=>{
     const t=activeTripForRoute();
     if(!t){dashNotice('No active trip route to navigate right now.','warn');return;}
@@ -1980,6 +2006,7 @@
   $('#legOdoEnd')?.addEventListener('input',calcLeg);
 
   $('#btnLogLeg')?.addEventListener('click',()=>{
+    if(isMockTrip(trips.find(x=>x.ref===activeRef)))return;
     const s=Number($('#legOdoStart').value),e=Number($('#legOdoEnd').value);
     if(!s||!e||e<=s){alert('Enter valid start and end odometer readings.');return;}
     const t=trips.find(x=>x.ref===activeRef),type=$('#legType').value;
@@ -2068,8 +2095,7 @@
       }
     }
     // Active trip
-    const active=trips.find(t=>t.ref===activeRef&&!['COMPLETED','DELIVERED','CANCELLED'].includes(t.status))
-                ||trips.find(t=>!['COMPLETED','DELIVERED','CANCELLED','SCHEDULED'].includes(t.status));
+    const active=activeTripForRoute();
     const atc=$('#activeTripCard');
     if(active&&atc){
       atc.hidden=false;
@@ -2119,7 +2145,8 @@
         maybeAdvanceRouteByPosition(pos).catch(()=>{});
       }
       if(!shift.vehicleUnit)return;
-      try{await fetch('/api/gps/positions',{method:'POST',headers:ah(),body:JSON.stringify({vehicleUnit:shift.vehicleUnit,latitude:pos.coords.latitude,longitude:pos.coords.longitude,heading:pos.coords.heading||null,speedMph:pos.coords.speed?pos.coords.speed*2.237:null,accuracyM:pos.coords.accuracy||null,bookingReference:routeAuto.tripRef||activeRef||null})});}catch{}
+      const bookingReference=[routeAuto.tripRef,activeRef].find(ref=>ref&&!isMockTrip(trips.find(t=>t.ref===ref)))||null;
+      try{await fetch('/api/gps/positions',{method:'POST',headers:ah(),body:JSON.stringify({vehicleUnit:shift.vehicleUnit,latitude:pos.coords.latitude,longitude:pos.coords.longitude,heading:pos.coords.heading||null,speedMph:pos.coords.speed?pos.coords.speed*2.237:null,accuracyM:pos.coords.accuracy||null,bookingReference})});}catch{}
     },null,{enableHighAccuracy:true,maximumAge:20000,timeout:25000});
   }
   function stopGPS(){if(gpsId!=null){navigator.geolocation.clearWatch(gpsId);gpsId=null;}}

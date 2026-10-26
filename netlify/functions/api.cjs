@@ -19,6 +19,8 @@ const Maintenance=require('./_shared/maintenance.cjs');
 const handleMaintenance=Maintenance.createHandler({monitor:Maintenance.createMonitor({query}),requireUser,bearer,json,parseBody});
 const {createUserManager,operatingClock}=require('./_shared/user-manager.cjs');
 const handleUserManager=createUserManager({query,getPool,requireUser,audit});
+const MockAssignments=require('./_shared/mock-trip-assignments.cjs');
+const handleMockAssignments=MockAssignments.createHandler({getPool,requireUser,audit,json,parseBody,bearer});
 const {createApplicantResponseHandler}=require('./_shared/applicant-response.cjs');
 const handleApplicantResponse=createApplicantResponseHandler({query,sendEmail,audit});
 const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestStatus}=require('./_shared/broker-auto-book.cjs');
@@ -2148,6 +2150,8 @@ async function handler(event){
     return json(200,{message:'Facility timing saved.'});
    }
   }
+  const mockAssignmentResponse=await handleMockAssignments(event,p,method);
+  if(mockAssignmentResponse)return mockAssignmentResponse;
   const userManagerResponse=await handleUserManager(event,p,method);
   if(userManagerResponse)return userManagerResponse;
   if(p[0]==='training')return await handleTraining(event,p,method);
@@ -3125,6 +3129,7 @@ async function handler(event){
    const ref=decodeURIComponent(p[1]);
    const booking=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
    if(!booking.rows[0])return json(404,{error:'Booking not found'});
+   if(MockAssignments.isMock(booking.rows[0]))return json(409,{error:'Mock assignments are for review only.'});
    if(!isDriverAssignableStatus(booking.rows[0].status))return json(409,{error:'This booking is not currently available for acceptance'});
   const nextStatus=normalizeDriverAcceptanceStatus(booking.rows[0].status);
    const updated=await query(`UPDATE bookings SET status=$2, driver_name=COALESCE($3,driver_name), driver_scope_id=COALESCE($4,driver_scope_id), updated_at=now() WHERE reference=$1 RETURNING *`,[ref,nextStatus,clean(u.display_name||u.email||'Driver')||null,clean(u.scope_id||u.scopeId||null)||null]);
@@ -3841,6 +3846,7 @@ async function handler(event){
    if(before.rows[0]?.duplicate_of)return json(409,{error:'This booking is a duplicate of '+before.rows[0].duplicate_of+'. Open that trip to make changes.'});
    if(!before.rows[0])return json(404,{error:'Booking not found'});
    const editingMock=String(before.rows[0].booking_source||'').toUpperCase()==='MOCK'||String(before.rows[0].status||'').toUpperCase()==='MOCK';
+   if(editingMock&&u.role==='DRIVER')return json(409,{error:'Mock assignments are for review only; no live trip actions are available.'});
    if(editingMock&&u.role!=='DRIVER'){b.bookingSource='MOCK';b.status='MOCK';}
 
    // DRIVER role: only allowed to update trip status.
@@ -4729,7 +4735,7 @@ async function handler(event){
      FROM marked`,
     [driverName,scopeId,u.id]
    );
-  const sql=`SELECT * FROM bookings WHERE (driver_user_id=$3::uuid OR (driver_user_id IS NULL AND ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)))) AND status IN ('ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION','EN_ROUTE','ARRIVED_PICKUP','PATIENT_ON_BOARD','DEPARTED','ARRIVED_DESTINATION','DELIVERED','COMPLETED','NO_SHOW','MISSED','CANCELLED') ORDER BY trip_date,trip_time,created_at`;
+  const sql=`SELECT * FROM bookings WHERE (driver_user_id=$3::uuid OR (driver_user_id IS NULL AND ((driver_name IS NOT NULL AND lower(trim(driver_name))=lower(trim($1))) OR (driver_scope_id IS NOT NULL AND driver_scope_id=$2)))) AND upper(status) IN ('MOCK','ASSIGNED','SCHEDULED','REQUESTED','SUBMITTED','PENDING_DISPATCH_CONFIRMATION','EN_ROUTE','ARRIVED_PICKUP','PATIENT_ON_BOARD','DEPARTED','ARRIVED_DESTINATION','DELIVERED','COMPLETED','NO_SHOW','MISSED','CANCELLED') ORDER BY trip_date,trip_time,created_at`;
    const r=await query(sql,[driverName,scopeId,u.id]);
    return json(200,{assignments:await TripTiming.loadInstructions(await mapBookingsWithIntakeAudit(r.rows),query)});
   }
@@ -4823,6 +4829,7 @@ async function handler(event){
     const driverScopeInput=u.role==='DRIVER'?(clean(u.scope_id||u.scopeId||null)||null):null;
     const currentBooking=await query('SELECT * FROM bookings WHERE reference=$1',[ref]);
     if(!currentBooking.rows[0])return json(404,{error:'Booking not found'});
+    if(u.role==='DRIVER'&&MockAssignments.isMock(currentBooking.rows[0]))return json(409,{error:'Mock assignments are for review only.'});
     const assignedDriver=currentBooking.rows[0].driver_user_id?clean(currentBooking.rows[0].driver_user_id)===clean(u.id):currentBooking.rows[0].driver_scope_id?clean(currentBooking.rows[0].driver_scope_id)===clean(u.scope_id):clean(currentBooking.rows[0].driver_name)===clean(u.display_name||u.email);
     if(u.role==='DRIVER'&&!assignedDriver)return json(403,{error:'This trip is not assigned to you.'});
     if(statusInput==='PATIENT_READY'){
