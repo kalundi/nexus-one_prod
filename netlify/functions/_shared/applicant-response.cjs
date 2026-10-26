@@ -3,6 +3,16 @@ const clean=value=>String(value??'').trim();
 const escape=value=>clean(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 function sendFailure(error){
  const status=Number(error?.providerStatus)||Number(String(error?.message||'').match(/Postmark request failed \((\d{3})/)?.[1]);
+ const providerCode=Number(error?.providerCode)||null;
+ const known={
+  412:{code:'EMAIL_ACCOUNT_PENDING_APPROVAL',error:'Email was not sent. Postmark is still in test mode while your account awaits approval. It only permits recipients on your sending domain. Complete Request approval in Postmark before emailing external applicants.'},
+  413:{code:'EMAIL_ACCOUNT_NOT_APPROVED',error:'Email was not sent. Postmark has not approved this account to send email. Check the account approval status in Postmark before retrying.'},
+  406:{code:'EMAIL_RECIPIENT_INACTIVE',error:'Email was not sent. Postmark has suppressed this recipient after a bounce, complaint or unsubscribe. Check the applicant address and Postmark Activity before retrying.'},
+  300:{code:'EMAIL_MESSAGE_INVALID',error:'Email was not sent. Postmark could not validate the message. Check the applicant email address, subject and message before retrying.'},
+  1235:{code:'EMAIL_STREAM_NOT_FOUND',error:'Email was not sent. The configured Postmark Message Stream does not exist on this server. An administrator must correct the email stream setting.'},
+  1236:{code:'EMAIL_STREAM_CANNOT_SEND',error:'Email was not sent. The configured Postmark Message Stream cannot send email. An administrator must select a transactional sending stream.'}
+ }[providerCode];
+ if(known)return {...known,sent:false,provider:'Postmark',providerStatus:status||null,providerCode};
  if(status===401)return {code:'EMAIL_CONNECTION_UNAUTHORIZED',error:'Email was not sent. The Postmark connection is no longer authorized. An administrator must update the email connection before you retry.',sent:false};
  if(status===403)return {code:'EMAIL_CONNECTION_FORBIDDEN',error:'Email was not sent. Postmark is blocking this sender or its sending permission. An administrator must check the email connection before you retry.',sent:false};
  if(status===429)return {code:'EMAIL_RATE_LIMITED',error:'Email was not sent. The email service is limiting requests. Please wait before retrying.',sent:false};
@@ -19,7 +29,7 @@ function createApplicantResponseHandler({query,sendEmail,audit}){
   if(!applicant)return json(404,{error:'Application not found.',sent:false});
   let result;
   try{result=await sendEmail([applicant.email],subject,`<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><p>Hello ${escape(applicant.first_name)},</p>${message.split(/\n+/).map(line=>`<p>${escape(line)}</p>`).join('')}<p>Nexus Medical Transit<br>(888) 639-5766</p></div>`);}
-  catch(error){return json(503,sendFailure(error));}
+  catch(error){console.warn('[APPLICANT_EMAIL_REJECTED]',JSON.stringify({provider:'Postmark',providerStatus:Number(error?.providerStatus)||null,providerCode:Number(error?.providerCode)||null}));return json(503,sendFailure(error));}
   if(result?.status!=='sent')return json(503,{code:'EMAIL_NOT_CONFIGURED',error:'Email was not sent. The applicant email connection is not configured. An administrator must connect the email service before you retry.',sent:false});
   try{await query('UPDATE career_applications SET applicant_response=$2,responded_at=now(),reviewed_by=$3,updated_at=now() WHERE id=$1',[id,message,me.id]);}
   catch(error){
