@@ -75,7 +75,7 @@ async function sendSms(to,body){
  if(!process.env.TWILIO_ACCOUNT_SID||!process.env.TWILIO_AUTH_TOKEN||!process.env.TWILIO_PHONE_NUMBER)return {status:'skipped'};
  const form=new URLSearchParams({To:normalized,From:process.env.TWILIO_PHONE_NUMBER,Body:String(body||'')});
  const auth=Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
- const response=await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`,{method:'POST',headers:{authorization:`Basic ${auth}`,'content-type':'application/x-www-form-urlencoded'},body:form});
+ const response=await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`,{method:'POST',signal:AbortSignal.timeout(15000),headers:{authorization:`Basic ${auth}`,'content-type':'application/x-www-form-urlencoded'},body:form});
  const data=await response.json().catch(()=>({}));
  if(!response.ok){
   if(Number(data.code)===21610)await recordSmsPreference(normalized,'OPTED_OUT',{source:'TWILIO_21610',providerMessageId:data.sid||null,keyword:'STOP'}).catch(()=>{});
@@ -84,4 +84,13 @@ async function sendSms(to,body){
  return {status:'sent',id:data.sid};
 }
 
-module.exports={STOP_KEYWORDS,START_KEYWORDS,HELP_KEYWORDS,normalizePhone,classifySmsKeyword,twilioSignature,verifyTwilioSignature,ensureSmsConsentTable,recordSmsPreference,isSmsOptedOut,sendSms};
+async function getSmsStatus(id){
+ if(!/^SM[a-f0-9]{32}$/i.test(id))throw Error('Invalid SMS message reference');
+ if(!process.env.TWILIO_ACCOUNT_SID||!process.env.TWILIO_AUTH_TOKEN)throw Error('SMS is not configured');
+ const auth=Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+ const response=await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages/${id}.json`,{signal:AbortSignal.timeout(15000),headers:{authorization:`Basic ${auth}`}});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw Object.assign(Error('Twilio status lookup failed'),{code:data.code,statusCode:response.status});
+ return {messageId:id,status:data.status||'unknown',deliveryConfirmed:data.status==='delivered'||data.status==='read',errorCode:Number(data.error_code)||null};
+}
+module.exports={STOP_KEYWORDS,START_KEYWORDS,HELP_KEYWORDS,normalizePhone,classifySmsKeyword,twilioSignature,verifyTwilioSignature,ensureSmsConsentTable,recordSmsPreference,isSmsOptedOut,sendSms,getSmsStatus};
