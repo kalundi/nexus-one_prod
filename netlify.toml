@@ -75,9 +75,10 @@
 [functions.keymark-outreach]
   schedule = "*/5 * * * *"
 
-# Daily release of remaining Montgomery Tier A outreach recipients while keeping manual pilot controls intact.
+# Check each minute during the possible UTC hours; enforce Eastern time, pause state,
+# daily quotas, reply/opt-out checks and unique delivery claims.
 [functions.outreach-campaign-daily]
-  schedule = "0 9 * * 1-5"
+  schedule = "* 13-15 * * 2-4"
 
 # Poll active Epic, Oracle Health, MEDITECH, or other FHIR R4 connections.
 [functions.keymark-fhir-sync]

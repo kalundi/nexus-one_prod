@@ -14,6 +14,7 @@ def cell_column(reference):
 def main():
     source = Path(sys.argv[1])
     destination = Path(sys.argv[2])
+    limit = None if len(sys.argv) > 3 and sys.argv[3] == "all" else 25
     with zipfile.ZipFile(source) as archive:
         shared = []
         if "xl/sharedStrings.xml" in archive.namelist():
@@ -59,7 +60,7 @@ def main():
             "sourceStatus": row.get("Q"), "optOut": False,
         })
     eligible.sort(key=lambda item: (-item["score"], item["facility"].lower(), item["email"]))
-    payload = {"source": source.name, "selection": {"tier": "A", "county": "Montgomery", "status": "Not Contacted", "optOut": "No", "limit": 25}, "eligibleCount": len(eligible), "recipients": eligible[:25]}
+    payload = {"source": source.name, "selection": {"tier": "A", "county": "Montgomery", "status": "Not Contacted", "optOut": "No", "limit": limit or len(eligible)}, "eligibleCount": len(eligible), "recipients": eligible[:limit]}
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(json.dumps({"eligible": len(eligible), "selected": len(payload["recipients"]), "output": str(destination)}))

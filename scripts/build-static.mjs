@@ -3,7 +3,7 @@ const root=process.cwd(),dist=path.resolve(root,process.env.NEXUS_BUILD_DIR||'di
 const relative=path.relative(root,dist);
 if(!relative||relative.startsWith('..')||path.isAbsolute(relative))throw Error('Build destination must be a child of the workspace');
 await rm(dist,{recursive:true,force:true});await mkdir(dist,{recursive:true});
-const excluded=new Set(['output','tests','test-results','.netlify','dist-production','.release-coupon','dist','dist-preview','node_modules','netlify','database','scripts','docs','.git','__deploy_temp',path.basename(dist)]);
+const excluded=new Set(['output','tests','test-results','.netlify','dist-production','.release-coupon','dist','dist-preview','node_modules','netlify','database','data','scripts','docs','.git','__deploy_temp',path.basename(dist)]);
 for(const item of await readdir(root,{withFileTypes:true})){
  if(item.name.startsWith('.')||excluded.has(item.name)||item.name==='package.json'||item.name==='package-lock.json')continue;
  if(item.name==='test-payment.html'&&process.env.NEXUS_TEST_MODE!=='true')continue;

@@ -10,7 +10,7 @@ const userRole=()=>{
 const canEditSettings=()=>userRole()==='ADMIN';
 let currentSettings=null;
 let fuelFleetUnits=[];
-const ADMIN_DASHBOARD_SECTIONS=['userSection','pricingSection','manageTripSection','adminTripsSection','settingsSection','costAnalyzerSection','socialSection','applicantsSection','auditSection'];
+const ADMIN_DASHBOARD_SECTIONS=['userSection','pricingSection','manageTripSection','adminTripsSection','settingsSection','costAnalyzerSection','socialSection','outreachSection','applicantsSection','auditSection'];
 const ADMIN_DASHBOARD_LABELS={
   userSection:'User management',
   pricingSection:'Nexus Pricing Manager',
@@ -19,6 +19,7 @@ const ADMIN_DASHBOARD_LABELS={
   settingsSection:'Organization settings',
   costAnalyzerSection:'Cost analyzer',
   socialSection:'Social automation',
+  outreachSection:'Outreach campaigns',
   applicantsSection:'Career applicants',
   auditSection:'Audit log'
 };
@@ -1523,10 +1524,16 @@ async function downloadApplicantResume(){if(!selectedCareerApplication)return;co
 
 async function loadOutreachCampaign(){
  const rows=document.getElementById('outreachRecipientRows');if(!rows)return;
- rows.innerHTML='<tr><td colspan="7">Loading campaign draft…</td></tr>';
+ rows.innerHTML='<tr><td colspan="7">Loading outreach campaign…</td></tr>';
  const response=await fetch('/api/admin/outreach-campaigns/pilot',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'}),data=await response.json().catch(()=>({}));
- if(!response.ok){rows.innerHTML=`<tr><td colspan="7">${escapeHtml(data.error||'Unable to load campaign draft')}</td></tr>`;return}
+ if(!response.ok){rows.innerHTML=`<tr><td colspan="7">${escapeHtml(data.error||'Unable to load outreach campaign')}</td></tr>`;return}
  document.getElementById('outreachStatus').textContent=data.campaign.status;
+ const automation=data.automation||{},toggle=document.getElementById('toggleOutreachAutomation');
+ toggle.dataset.enabled=String(!!automation.enabled);toggle.disabled=false;toggle.textContent=automation.enabled?'Pause automatic outreach':'Resume automatic outreach';
+ setDashboardSignal('outreachSection',data.campaign.status==='BLOCKED'?'alert':automation.enabled?'normal':'warn',data.campaign.status);updateDashboardAnomalySummary();
+ const date=value=>value?new Date(value).toLocaleString('en-US',{timeZone:data.campaign.timezone,timeZoneName:'short'}):'Not yet';
+ document.getElementById('outreachAutomationSummary').textContent=`Initial emails sent: ${automation.initialSent||0}. Follow-ups sent: ${automation.followUpsSent||0}. Replied: ${automation.replied||0}. Suppressed: ${automation.suppressed||0}. Last run: ${date(automation.lastRunAt)}. Replies checked: ${date(automation.replyCheckedAt)}. ${automation.enabled?'Next scheduled check: '+date(automation.nextCheckAt)+'.':'Automation is paused.'}`;
+ const error=document.getElementById('outreachAutomationError');error.hidden=!automation.error;error.textContent=automation.error||'';
  document.getElementById('outreachRecipientCount').textContent=String(data.recipients.length);
  document.getElementById('outreachEligibleCount').textContent=String(data.eligibleCount);
  document.getElementById('outreachDeliveryStatus').textContent=data.delivery.postmark;
@@ -1534,7 +1541,7 @@ async function loadOutreachCampaign(){
  document.getElementById('outreachSender').value=`${data.campaign.fromName} <${data.campaign.fromEmail}>`;
  document.getElementById('outreachPreview').innerHTML=data.previewHtml;
  document.getElementById('outreachFollowUpPreview').innerHTML=data.followUpPreviewHtml;
- rows.innerHTML=data.recipients.map(item=>`<tr><td>${item.sequence}</td><td><strong>${escapeHtml(item.facility)}</strong><br><small>${escapeHtml(item.providerType)}</small></td><td>${escapeHtml(item.contactName)}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(item.phone||'—')}</td><td>${item.score}</td><td><span class="pill muted">${escapeHtml(item.status)}</span></td></tr>`).join('');
+ rows.innerHTML=data.recipients.map(item=>`<tr><td>${item.sequence}</td><td><strong>${escapeHtml(item.facility)}</strong><br><small>${escapeHtml(item.providerType)}</small></td><td>${escapeHtml(item.contactName)}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(item.phone||'—')}</td><td>${item.score}</td><td><span class="pill muted">${escapeHtml(item.status)}</span><br><small>Follow-up: ${escapeHtml(item.followUpStatus||'PENDING')}${item.followUpDue?' · due '+escapeHtml(item.followUpDue):''}</small>${item.error?'<br><small>'+escapeHtml(item.error)+'</small>':''}</td></tr>`).join('');
 }
 async function sendOutreachTest(){
  const button=document.getElementById('sendOutreachTest'),message=document.getElementById('outreachMsg');
@@ -1542,17 +1549,21 @@ async function sendOutreachTest(){
  button.disabled=true;message.hidden=false;message.className='msgBox';message.textContent='Sending test email…';
  try{const response=await fetch('/api/admin/outreach-campaigns/pilot/test',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:'{}'}),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Unable to send test email');showMsg(message,'Test email sent to kalundi@gmail.com.','ok');showToast('Outreach test email sent.')}catch(error){showMsg(message,error.message,'err');showToast(error.message,'err')}finally{button.disabled=false}
 }
-async function releaseOutreachPilot(){
- const confirmation=prompt('This will email up to 25 prospects immediately. Type SEND FIRST 25 to confirm:','');
- if(confirmation!=='SEND FIRST 25'){if(confirmation!==null)showToast('Confirmation did not match. Nothing was sent.','err');return}
- const button=document.getElementById('releaseOutreachPilot'),message=document.getElementById('outreachMsg');button.disabled=true;message.hidden=false;message.className='msgBox';message.textContent='Rechecking suppression records and sending the pilot…';
- try{const response=await fetch('/api/admin/outreach-campaigns/pilot/send',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({confirmation})}),data=await response.json().catch(()=>({}));if(!response.ok&&response.status!==207)throw new Error(data.error||'Unable to release campaign');showMsg(message,`Pilot processed: ${data.sent} sent, ${data.failed} failed, ${data.suppressed} suppressed, ${data.alreadyRecorded} already recorded.`,'ok');showToast('Campaign release completed.');await loadOutreachCampaign()}catch(error){showMsg(message,error.message,'err');showToast(error.message,'err')}finally{button.disabled=false}
+async function updateOutreachAutomation(action){
+ const button=document.getElementById(action==='check'?'checkOutreachConnections':'toggleOutreachAutomation'),message=document.getElementById('outreachMsg');button.disabled=true;
+ try{
+  const response=await fetch('/api/admin/outreach-campaigns/pilot/'+action,{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify(action==='automation'?{enabled:button.dataset.enabled!=='true'}:{})}),data=await response.json();
+  if(!response.ok||data.ok===false)throw Error(data.error||'Unable to update outreach automation');
+  showMsg(message,action==='check'?'Email, suppression and reply connections checked.':data.automation.enabled?'Automatic outreach enabled. Sends use the scheduled window.':'Automatic outreach paused.','ok');
+ }catch(error){showMsg(message,error.message,'err');}finally{button.disabled=false;await loadOutreachCampaign();}
 }
 
 document.getElementById('refreshAdminTrips')?.addEventListener('click',()=>{loadAdminTrips().catch((err)=>console.error(err));});
 document.getElementById('refreshOutreach')?.addEventListener('click',()=>loadOutreachCampaign().catch(error=>showToast(error.message,'err')));
 document.getElementById('sendOutreachTest')?.addEventListener('click',()=>sendOutreachTest());
-document.getElementById('releaseOutreachPilot')?.addEventListener('click',()=>releaseOutreachPilot());
+document.getElementById('toggleOutreachAutomation')?.addEventListener('click',()=>updateOutreachAutomation('automation'));
+document.getElementById('checkOutreachConnections')?.addEventListener('click',()=>updateOutreachAutomation('check'));
+setInterval(()=>{if(!document.hidden&&userRole()==='ADMIN'&&document.getElementById('outreachSection')?.offsetParent)loadOutreachCampaign().catch(()=>{});},60000);
 document.getElementById('refreshApplicants')?.addEventListener('click',()=>loadCareerApplications().catch(error=>showToast(error.message,'err')));
 document.getElementById('applicantStatusFilter')?.addEventListener('change',renderApplicantList);
 document.getElementById('applicantList')?.addEventListener('click',event=>{const button=event.target.closest('[data-applicant-id]');if(button){const application=careerApplications.find(item=>item.id===button.dataset.applicantId);if(application)renderApplicantDetail(application)}});
