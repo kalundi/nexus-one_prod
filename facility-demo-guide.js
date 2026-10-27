@@ -3,19 +3,20 @@
  const labels=['Scheduled','Driver to pickup','To appointment','At appointment','Return pickup','To FutureCare','Received'];
  function cueFor(dashboard,patient){
   if(!dashboard?.patients?.length)return {key:'empty',step:0,title:'Build the day’s transport plan',text:'Book or restore a demo trip to begin the journey.',workspace:'boardSection',selector:'#capacityNotice',pointer:'Trip schedule'};
-  if(dashboard.patients.every(p=>p.phase==='complete'))return {key:'billing',step:6,title:'Everyone is back · daily invoice ready',text:'Return handoffs are complete. Review itemized transport charges and the simulated invoice delivery.',workspace:'billingSection',selector:'#billingContent',pointer:'Daily invoice'};
+  if(dashboard.patients.every(p=>p.phase==='complete'))return {key:'billing',step:6,title:'All handoffs complete · daily invoice ready',text:'Scheduled transport handoffs are complete. Review itemized transport charges and the simulated invoice delivery.',workspace:'billingSection',selector:'#billingContent',pointer:'Daily invoice'};
   patient=patient||dashboard.patients[0];
   const step=Math.max(0,phases.indexOf(patient.phase)),alert=dashboard.alerts?.find(a=>a.patientId===patient.id&&!a.acknowledged);
   if(alert)return {key:patient.id+':'+alert.id,step,title:patient.name+' · '+alert.title,text:'See the revised ETA and the update shared with the facility, destination and authorized monitoring contacts. All alerts are simulated.',workspace:'inboxSection',selector:'#messages',pointer:'Trip communications'};
   const messages=[
    ['Pickup is scheduled',`Facility pickup ${patient.pickupLabel}. The trip board confirms the patient, destination and return pickup.`,'boardSection','#patientRows','Scheduled pickup'],
-   ['Driver is heading to pickup',`${patient.driver} is approaching FutureCare. Watch the vehicle and confirm the pickup address.`,'routePanel','#routeLiveStatus','Driver to pickup'],
+   ['Driver is heading to pickup',`${patient.driver} is approaching ${patient.origin?.name||'FutureCare'}. Watch the vehicle and confirm the pickup address.`,'routePanel','#routeLiveStatus','Driver to pickup'],
    ['On the way to the appointment',`${patient.driver} is taking the patient to ${patient.destination.name}. Next update / ETA: ${patient.etaLabel}.`,'routePanel','#routeLiveStatus','Outbound vehicle'],
    ['Patient is at the appointment',`Return pickup is ${patient.returnLabel}. The facility and monitoring contacts can follow trip updates in Communications.`,'inboxSection','#messages','Appointment updates'],
    ['Return pickup is approaching',`${patient.driver} is heading to the appointment location for the ${patient.returnLabel} return pickup.`,'routePanel','#routeLiveStatus','Return pickup vehicle'],
    ['On the way back to FutureCare',`The patient is returning to the facility. Next update / ETA: ${patient.etaLabel}.`,'routePanel','#routeLiveStatus','Return vehicle'],
    ['Patient received at FutureCare','The return handoff is complete. Other scheduled patients continue on the trip board.','boardSection','#patientRows','Completed handoff']
   ][step];
+  if(patient.tripType==='ONE_WAY'&&patient.phase==='complete'){messages[0]='Destination handoff complete';messages[1]='The one-way trip is complete. Review the single transport leg in facility billing.';}
   return {key:patient.id+':'+patient.phase,step,title:patient.name+' · '+messages[0],text:messages[1],workspace:messages[2],selector:messages[3],pointer:messages[4]};
  }
  function create({showTarget,isExpanded}){

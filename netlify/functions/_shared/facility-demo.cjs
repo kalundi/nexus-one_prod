@@ -39,7 +39,7 @@ function patientsFor(state){
  const seeds=PATIENTS.map((patient,index)=>{const identity=resident(day,index),appointmentAt=patient.appointmentAt+day*5,pickup=patient.pickup+day*5,waitMinutes=[60,120,180][(index+day)%3];return {...patient,...identity,slotIndex:index,destinationIndex:index,distanceMiles:[8,7.5,7.2,23,26][index],pickup,appointmentAt,returnPickup:appointmentAt+waitMinutes,waitMinutes,vehicleWaiting:true,...state.bookingEdits?.[identity.id]};});
  return [...seeds,...(state.additionalBookings||[])].filter(patient=>!(state.cancelledIds||[]).includes(patient.id)).map(patient=>({...patient,...state.returnSchedules?.[patient.id]})).sort((a,b)=>a.pickup-b.pickup||a.id.localeCompare(b.id));
 }
-function endMinute(state){return Math.max(930,...patientsFor(state).map(patient=>patient.returnPickup+patient.travel+mergedEvents(state).filter(e=>e.patientId===patient.id&&e.leg==='return').reduce((sum,e)=>sum+Number(e.minutes||0),0)+5));}
+function endMinute(state){return Math.max(930,...patientsFor(state).map(patient=>(patient.tripType==='ONE_WAY'?patient.pickup+Number(patient.stopWaitMinutes||0):patient.returnPickup)+patient.travel+mergedEvents(state).filter(e=>e.patientId===patient.id&&e.leg===(patient.tripType==='ONE_WAY'?'outbound':'return')).reduce((sum,e)=>sum+Number(e.minutes||0),0)+5));}
 function minuteAt(state,now=Date.now()){return Math.max(435,Math.min(endMinute(state),Number(state.baseMinute)+(state.paused?0:(now-Number(state.anchorAt))/1000*Number(state.speed)/60)));}
 function timeLabel(minute){const rounded=Math.round(minute),hour=Math.floor(rounded/60)%24;return `${hour%12||12}:${String(rounded%60).padStart(2,'0')} ${hour>=12?'PM':'AM'}${rounded>=1440?' (next day)':''}`;}
 function recipients(){return ['Facility manager (demo inbox)','Facility receiving team (demo)','Destination contact (demo)','Patient / authorized caregiver (demo)','Nexus dispatch (demo)'];}
@@ -51,52 +51,55 @@ function project(state,now=Date.now()){
   const events=mergedEvents(state).filter(event=>event.patientId===patient.id&&event.at<=minute);
   const outboundDelay=events.filter(e=>e.leg==='outbound').reduce((sum,e)=>sum+Number(e.minutes||0),0);
   const returnDelay=events.filter(e=>e.leg==='return').reduce((sum,e)=>sum+Number(e.minutes||0),0);
-  const outboundArrival=patient.pickup+patient.travel+outboundDelay,returnArrival=patient.returnPickup+patient.travel+returnDelay;
+  const outboundArrival=patient.pickup+patient.travel+Number(patient.stopWaitMinutes||0)+outboundDelay,returnArrival=patient.tripType==='ONE_WAY'?null:patient.returnPickup+patient.travel+returnDelay;
   let stage='Scheduled',phase='scheduled',progress=0,eta=patient.pickup;
   if(minute>=patient.pickup-15&&minute<patient.pickup){stage='Driver to facility';phase='approach';progress=(minute-(patient.pickup-15))/15;}
-  else if(minute>=patient.pickup&&minute<outboundArrival){const pausedMinutes=events.filter(e=>e.leg==='outbound').reduce((sum,e)=>sum+Math.max(0,Math.min(Number(e.minutes||0),minute-Math.max(patient.pickup,e.at))),0);stage='Traveling to appointment';phase='outbound';progress=(minute-patient.pickup-pausedMinutes)/patient.travel;eta=outboundArrival;}
+  else if(minute>=patient.pickup&&minute<outboundArrival){const pausedMinutes=events.filter(e=>e.leg==='outbound').reduce((sum,e)=>sum+Math.max(0,Math.min(Number(e.minutes||0),minute-Math.max(patient.pickup,e.at))),0);stage='Traveling to appointment';phase='outbound';progress=(minute-patient.pickup-pausedMinutes)/(patient.travel+Number(patient.stopWaitMinutes||0));eta=outboundArrival;}
+  else if(patient.tripType==='ONE_WAY'&&minute>=outboundArrival){stage='Destination handoff complete';phase='complete';progress=1;eta=outboundArrival;}
   else if(minute>=outboundArrival&&minute<patient.returnPickup-15){stage=minute>=patient.appointmentAt+45?'Awaiting scheduled return':minute>=patient.appointmentAt?'At appointment':'Arrived · awaiting appointment';phase='appointment';progress=1;eta=patient.returnPickup;}
   else if(minute>=patient.returnPickup-15&&minute<patient.returnPickup){stage='Return vehicle approaching';phase='return-approach';progress=(minute-(patient.returnPickup-15))/15;eta=patient.returnPickup;}
   else if(minute>=patient.returnPickup&&minute<returnArrival){const pausedMinutes=events.filter(e=>e.leg==='return').reduce((sum,e)=>sum+Math.max(0,Math.min(Number(e.minutes||0),minute-Math.max(patient.returnPickup,e.at))),0);stage='Returning to facility';phase='return';progress=(minute-patient.returnPickup-pausedMinutes)/patient.travel;eta=returnArrival;}
-  else if(minute>=returnArrival){stage='Back at FutureCare';phase='complete';progress=1;eta=returnArrival;}
+  else if(minute>=returnArrival){stage=patient.origin&&patient.origin.address!==FACILITY.address?'Return handoff complete':'Back at FutureCare';phase='complete';progress=1;eta=returnArrival;}
   const active=events.filter(e=>e.resolvedAt==null||e.resolvedAt>minute);
   const risk=active.some(e=>e.type==='issue')?'issue':active.length?'delay':'normal';
-  const currentEta=phase==='return'||phase==='return-approach'||phase==='complete'?returnArrival:outboundArrival;
+  const currentEta=patient.tripType!=='ONE_WAY'&&['return','return-approach','complete'].includes(phase)?returnArrival:outboundArrival;
   for(const event of events){
    const eventDelay=events.filter(e=>e.leg===event.leg&&e.at<=event.at).reduce((sum,e)=>sum+Number(e.minutes||0),0);
-   const eventEta=(event.leg==='return'?patient.returnPickup:patient.pickup)+patient.travel+eventDelay;
+   const eventEta=(event.leg==='return'?patient.returnPickup:patient.pickup+Number(patient.stopWaitMinutes||0))+patient.travel+eventDelay;
    const messageId=`${state.runId}:${event.id}`;
    const acknowledged=(state.acknowledged||[]).includes(messageId);
    notify(event.id,patient,event.at,event.type==='issue'?'Reported issue — review required':'Delay detected — ETA revised',`${event.note}${event.minutes?` Revised ${event.leg==='return'?'facility return':'destination arrival'} ETA: ${timeLabel(eventEta)}.`:''}`,event.type==='issue'?'issue':'delay',{eta:timeLabel(eventEta),acknowledged});
    if(event.resolvedAt!=null&&event.resolvedAt<=minute)notify(`${event.id}-resolved`,patient,event.resolvedAt,event.type==='issue'?'Reported issue resolved':'Delay cleared',`Dispatch has confirmed the next step. Current arrival estimate: ${timeLabel(eventEta)}.`,'success');
    if(active.includes(event))alerts.push({id:messageId,patientId:patient.id,patient:patient.name,severity:event.type==='issue'?'issue':'delay',title:event.type==='issue'?'Receiving handoff needs review':'Transport delayed',note:event.note,eta:timeLabel(eventEta),acknowledged});
   }
-  notify(`${patient.id}-activation`,patient,patient.pickup-15,'Driver activated outbound trip',`${patient.driver} is on the way to ${FACILITY.name}. Pickup: ${timeLabel(patient.pickup)}.`);
-  const departureEta=patient.pickup+patient.travel+events.filter(e=>e.leg==='outbound'&&e.at<=patient.pickup).reduce((sum,e)=>sum+Number(e.minutes||0),0);
-  notify(`${patient.id}-departed`,patient,patient.pickup,'Patient departed facility',`${patient.name} is on board with ${patient.driver}, traveling to ${patient.destination.name}. Arrival ETA: ${timeLabel(departureEta)}.`);
-  notify(`${patient.id}-appointment`,patient,outboundArrival,'Arrived for appointment',`${patient.name} has arrived at ${patient.destination.name}. Return pickup remains scheduled for ${timeLabel(patient.returnPickup)}.`,'success');
+  notify(`${patient.id}-activation`,patient,patient.pickup-15,'Driver activated outbound trip',`${patient.driver} is on the way to ${patient.origin?.name||FACILITY.name}. Pickup: ${timeLabel(patient.pickup)}.`);
+  const departureEta=patient.pickup+patient.travel+Number(patient.stopWaitMinutes||0)+events.filter(e=>e.leg==='outbound'&&e.at<=patient.pickup).reduce((sum,e)=>sum+Number(e.minutes||0),0);
+  notify(`${patient.id}-departed`,patient,patient.pickup,patient.origin&&patient.origin.address!==FACILITY.address?'Patient pickup complete':'Patient departed facility',`${patient.name} is on board with ${patient.driver}, traveling to ${patient.destination.name}. Arrival ETA: ${timeLabel(departureEta)}.`);
+  notify(`${patient.id}-appointment`,patient,outboundArrival,'Arrived for appointment',`${patient.name} has arrived at ${patient.destination.name}. ${patient.tripType==='ONE_WAY'?'Destination handoff complete; no return leg is booked.':`Return pickup remains scheduled for ${timeLabel(patient.returnPickup)}.`}`,'success');
+  if(patient.tripType!=='ONE_WAY'){
   notify(`${patient.id}-return-activation`,patient,patient.returnPickup-15,'Return pickup approaching',`${patient.driver} is heading to the appointment location. Scheduled return pickup: ${timeLabel(patient.returnPickup)}.`);
   const returnDepartureEta=patient.returnPickup+patient.travel+events.filter(e=>e.leg==='return'&&e.at<=patient.returnPickup).reduce((sum,e)=>sum+Number(e.minutes||0),0);
-  notify(`${patient.id}-return`,patient,patient.returnPickup,'Return trip started',`${patient.name} is returning to FutureCare Annapolis. Facility arrival ETA: ${timeLabel(returnDepartureEta)}.`);
-  notify(`${patient.id}-back`,patient,returnArrival,'Patient returned — handoff complete',`${patient.name} is back at ${FACILITY.name}. The facility receiving team has a simulated handoff-complete notification.`,'success');
-  return {...patient,fictional:true,stage,phase,progress:Math.max(0,Math.min(1,progress)),eta,etaLabel:timeLabel(eta),arrivalEta:timeLabel(currentEta),outboundArrival,returnArrival,risk,alerts:active.map(e=>e.note),pickupLabel:timeLabel(patient.pickup),appointmentLabel:timeLabel(patient.appointmentAt),returnLabel:timeLabel(patient.returnPickup),returnArrivalLabel:timeLabel(returnArrival),outboundDelay,returnDelay};
+  notify(`${patient.id}-return`,patient,patient.returnPickup,'Return trip started',`${patient.name} is returning to ${patient.origin?.name||FACILITY.name}. Facility arrival ETA: ${timeLabel(returnDepartureEta)}.`);
+  notify(`${patient.id}-back`,patient,returnArrival,'Patient returned — handoff complete',`${patient.name} is back at ${patient.origin?.name||FACILITY.name}. The facility receiving team has a simulated handoff-complete notification.`,'success');
+  }
+  return {...patient,fictional:true,stage,phase,progress:Math.max(0,Math.min(1,progress)),eta,etaLabel:timeLabel(eta),arrivalEta:timeLabel(currentEta),outboundArrival,returnArrival,risk,alerts:active.map(e=>e.note),pickupLabel:timeLabel(patient.pickup),appointmentLabel:timeLabel(patient.appointmentAt),returnLabel:patient.tripType==='ONE_WAY'?'One-way':timeLabel(patient.returnPickup),returnArrivalLabel:returnArrival===null?'Not booked':timeLabel(returnArrival),outboundDelay,returnDelay};
  });
  for(const change of state.scheduleChanges||[]){const patient=patients.find(p=>p.id===change.patientId);if(patient)notify(change.id,patient,change.at,'Return pickup rescheduled',change.text,'info');}
  for(const [sequence,event] of (state.bookingEvents||[]).entries())notify(event.id,{id:event.patientId,name:event.patient,recipients:event.recipients},event.at,event.title,event.text,'info',{createdAt:event.createdAt,sequence});
  messages.sort((a,b)=>b.at-a.at||new Date(b.createdAt||0)-new Date(a.createdAt||0)||(b.sequence||0)-(a.sequence||0)||a.id.localeCompare(b.id));
  const date=state.date||DATES[0],label=new Intl.DateTimeFormat('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`));
  const cancelledBookings=patientsFor({...state,cancelledIds:[]}).filter(patient=>(state.cancelledIds||[]).includes(patient.id)).map(patient=>({id:patient.id,name:patient.name,service:patient.service,destination:patient.destination.name,pickup:timeLabel(patient.pickup)}));
- return {scope:SCOPE,facility:FACILITY,scenarioDate:date,availableDates:DATES,scenarioLabel:`${label} · Eastern Time`,fictional:true,minute,endMinute:endMinute(state),endLabel:timeLabel(endMinute(state)),time:timeLabel(minute),paused:state.paused||minute>=endMinute(state),speed:state.speed,runId:state.runId,patients,cancelledBookings,bookingTargets:PATIENTS.map((patient,index)=>({index,...patient.destination,travel:patient.travel,distanceMiles:[8,7.5,7.2,23,26][index]})),lastBookingId:state.lastBookingId||null,messages,alerts,severity:alerts.some(a=>a.severity==='issue')?'issue':alerts.length?'delay':'normal',metrics:{patients:patients.length,legs:patients.length*2,away:patients.filter(p=>['outbound','appointment','return-approach','return'].includes(p.phase)).length,returned:patients.filter(p=>p.phase==='complete').length,active:patients.filter(p=>['approach','outbound','return-approach','return'].includes(p.phase)).length,alerts:alerts.length,unread:alerts.filter(a=>!a.acknowledged).length}};
+ return {scope:SCOPE,facility:FACILITY,scenarioDate:date,availableDates:DATES,scenarioLabel:`${label} · Eastern Time`,fictional:true,minute,endMinute:endMinute(state),endLabel:timeLabel(endMinute(state)),time:timeLabel(minute),paused:state.paused||minute>=endMinute(state),speed:state.speed,runId:state.runId,patients,cancelledBookings,bookingTargets:PATIENTS.map((patient,index)=>({index,...patient.destination,travel:patient.travel,distanceMiles:[8,7.5,7.2,23,26][index]})),lastBookingId:state.lastBookingId||null,messages,alerts,severity:alerts.some(a=>a.severity==='issue')?'issue':alerts.length?'delay':'normal',metrics:{patients:patients.length,legs:patients.reduce((sum,p)=>sum+(p.tripType==='ONE_WAY'?1:2),0),away:patients.filter(p=>['outbound','appointment','return-approach','return'].includes(p.phase)).length,returned:patients.filter(p=>p.phase==='complete').length,active:patients.filter(p=>['approach','outbound','return-approach','return'].includes(p.phase)).length,alerts:alerts.length,unread:alerts.filter(a=>!a.acknowledged).length}};
 }
-function control(state,body,now=Date.now()){
+function control(state,body,now=Date.now(),settings){
  state=migrateState(state);
  const current=minuteAt(state,now),next={...state,baseMinute:current,anchorAt:now};
  if(body.date&&body.date!==(state.date||DATES[0]))throw Object.assign(Error('The selected demo day changed. Refresh before saving.'),{statusCode:409});
- if(Booking.ACTIONS.includes(body.action))return Booking.apply(state,body,{patients:patientsFor(state),allPatients:patientsFor({...state,cancelledIds:[]}),templates:PATIENTS,recipients:recipients(),current,now});
+ if(Booking.ACTIONS.includes(body.action))return Booking.apply(state,body,{patients:patientsFor(state),allPatients:patientsFor({...state,cancelledIds:[]}),templates:PATIENTS,recipients:recipients(),current,now,facility:FACILITY,settings});
  if(body.action==='restart')return {...state,...initialState(now,state.date||DATES[0]),returnSchedules:state.returnSchedules||{},bookingEdits:state.bookingEdits||{},additionalBookings:state.additionalBookings||[],cancelledIds:state.cancelledIds||[],bookingRequests:state.bookingRequests||{},bookingEvents:state.bookingEvents||[],scheduleChanges:[],paused:false};
  if(body.action==='returnSchedule'){
   const patient=patientsFor(state).find(p=>p.id===body.patientId);
-  if(!patient)throw Object.assign(Error('Choose a demo patient.'),{statusCode:400});
+  if(!patient||patient.tripType==='ONE_WAY')throw Object.assign(Error('Choose a demo patient with a return leg.'),{statusCode:400});
   let pickup;
   if(body.waitHours!=null){if(![1,2,3].includes(Number(body.waitHours)))throw Object.assign(Error('Select a 1, 2 or 3 hour appointment wait.'),{statusCode:400});pickup=patient.appointmentAt+Number(body.waitHours)*60;}
   else{if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(body.returnTime||'')))throw Object.assign(Error('Enter a valid return pickup time.'),{statusCode:400});const [h,m]=body.returnTime.split(':').map(Number);pickup=h*60+m;}
@@ -123,7 +126,7 @@ function control(state,body,now=Date.now()){
    if(overrides.filter(e=>e.at<=current&&(e.resolvedAt==null||e.resolvedAt>current)).length>=10)throw Object.assign(Error('Resolve an existing demo alert before adding another.'),{statusCode:409});
    const snapshot=project(state,now).patients.find(p=>p.id===patient.id);
    if(snapshot.phase==='complete')throw Object.assign(Error('This patient has returned. Restart or rewind the demo to show a trip change.'),{statusCode:409});
-   const leg=current>=patient.returnPickup-15?'return':'outbound';
+   const leg=patient.tripType!=='ONE_WAY'&&current>=patient.returnPickup-15?'return':'outbound';
    overrides.push({id:`manual-${crypto.randomUUID()}`,patientId:patient.id,at:current,type:body.action,leg,minutes:body.action==='delay'?15:0,resolvedAt:body.action==='delay'?current+15:null,note:body.action==='delay'?'Presenter scenario: driver reported a 15-minute transport delay. Facility manager and all monitoring parties have an updated ETA.':'Presenter scenario: transport coordination issue reported. Dispatch review and facility-manager acknowledgment requested.'});next.overrides=overrides;
   }
  }else throw Object.assign(Error('Unsupported demo action.'),{statusCode:400});
@@ -131,7 +134,7 @@ function control(state,body,now=Date.now()){
 }
 function mergedEvents(state){
  state=migrateState(state);const overrides=new Map((state.overrides||[]).map(e=>[e.id,e])),day=dayIndex(state),offset=day*5,patients=patientsFor(state);
- return [...AUTO_EVENTS.filter(e=>!overrides.has(e.id)).flatMap(event=>{const index=PATIENTS.findIndex(patient=>patient.id===event.patientId),patient=patients.find(patient=>patient.slotIndex===index);if(!patient)return [];return event.leg==='return'?{...event,patientId:patient.id,at:patient.returnPickup+5,resolvedAt:patient.returnPickup+55}:{...event,patientId:patient.id,at:patient.pickup+(event.at-PATIENTS[index].pickup),resolvedAt:patient.pickup+(event.resolvedAt-PATIENTS[index].pickup)};}),...overrides.values()];
+ return [...AUTO_EVENTS.filter(e=>!overrides.has(e.id)).flatMap(event=>{const index=PATIENTS.findIndex(patient=>patient.id===event.patientId),patient=patients.find(patient=>patient.slotIndex===index);if(!patient||(patient.tripType==='ONE_WAY'&&event.leg==='return'))return [];return event.leg==='return'?{...event,patientId:patient.id,at:patient.returnPickup+5,resolvedAt:patient.returnPickup+55}:{...event,patientId:patient.id,at:patient.pickup+(event.at-PATIENTS[index].pickup),resolvedAt:patient.pickup+(event.resolvedAt-PATIENTS[index].pickup)};}),...[...overrides.values()].filter(event=>patients.some(patient=>patient.id===event.patientId&&(patient.tripType!=='ONE_WAY'||event.leg!=='return')))];
 }
 function encodeToken(secret,now=Date.now()){const payload=Buffer.from(JSON.stringify({scope:SCOPE,expires:now+8*3600000,nonce:crypto.randomBytes(12).toString('hex')})).toString('base64url');return `${payload}.${crypto.createHmac('sha256',secret).update(payload).digest('base64url')}`;}
 function validToken(token,secret,now=Date.now()){try{const [payload,signature,...extra]=String(token).split('.');if(extra.length||!payload||!signature)return false;const expected=crypto.createHmac('sha256',secret).update(payload).digest();const supplied=Buffer.from(signature,'base64url');if(supplied.length!==expected.length||!crypto.timingSafeEqual(supplied,expected))return false;const data=JSON.parse(Buffer.from(payload,'base64url'));return data.scope===SCOPE&&Number(data.expires)>now;}catch{return false;}}
@@ -152,6 +155,16 @@ function dashboardFor(config){
  const snapshot=project(config.state),invoice=config.invoices?.[snapshot.scenarioDate];
  if(invoice?.delivery)snapshot.messages.unshift({id:invoice.delivery.id,patientId:'billing',patient:'Facility billing',at:invoice.delivery.at,time:invoice.delivery.time,title:'Daily invoice delivered (demo)',text:`${invoice.date} · ${invoice.id}: ${invoice.rows.length} transport legs. Total $${(invoice.total/100).toFixed(2)}. Open Daily invoicing to review the itemized invoice.`,severity:'success',recipients:[invoice.delivery.recipient],delivery:'Simulated manager inbox delivery. No external email sent.'});
  return snapshot;
+}
+function bookingContext(config,settings){return {bookingServices:Booking.catalog(settings),bookingFuelProfiles:Object.entries(require('../../../nexus-fare.js').fuelProfiles).filter(([key])=>!['ambulance','bus'].includes(key)).map(([key,value])=>({key,label:value.label})),bookingDays:DATES.map(date=>({date,count:patientsFor(date===config.state.date?config.state:config.days?.[date]||initialState(Date.now(),date)).length}))};}
+function applyBookingDays(config,body,settings,now=Date.now()){
+ const repeatDates=body.repeatDates??[];
+ if(!Array.isArray(repeatDates)||repeatDates.length>4||new Set(repeatDates).size!==repeatDates.length||repeatDates.some(date=>!DATES.includes(date)||date<=(config.state.date||DATES[0])))throw Object.assign(Error('Choose distinct future repeat dates within October 26–30.'),{statusCode:400});
+ if(repeatDates.length&&body.action!=='book')throw Object.assign(Error('Repeat dates apply to new bookings only. Edit each saved occurrence individually.'),{statusCode:400});
+ // Build all occurrences before updating the locked configuration: a full day cannot cause a partial series.
+ const state=control(config.state,body,now,settings),days={...(config.days||{})};
+ for(const date of repeatDates){try{days[date]=control(days[date]||initialState(now,date),{...body,date},now,settings);}catch(error){error.message=date+': '+error.message;throw error;}}
+ config.state=state;config.days=days;return config;
 }
 function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlatformSettings}){
  return async function handle(event,p,method){
@@ -187,7 +200,7 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
   if(method==='GET'&&['state','billing'].includes(p[1])&&readPlatformSettings){
    const settings=await readPlatformSettings(),client=await getPool().connect();let invoices,snapshot;
    try{await client.query('BEGIN');const locked=(await client.query('SELECT value FROM system_settings WHERE key=$1 FOR UPDATE',[KEY])).rows[0].value;
-    const before=JSON.stringify(locked);syncBilling(locked,settings);snapshot=dashboardFor(locked);invoices=Object.values(locked.invoices);
+    const before=JSON.stringify(locked);syncBilling(locked,settings);snapshot={...dashboardFor(locked),...bookingContext(locked,settings)};invoices=Object.values(locked.invoices);
     if(JSON.stringify(locked)!==before)await client.query('UPDATE system_settings SET value=$2::jsonb,updated_at=now() WHERE key=$1',[KEY,JSON.stringify(locked)]);
     await client.query('COMMIT');
    }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
@@ -195,6 +208,14 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
    return json(200,{dashboard:snapshot,admin,presenter});
   }
   if(method==='GET'&&p[1]==='state')return json(200,{dashboard:project(config.state),admin,presenter});
+  if(method==='POST'&&p[1]==='quote'){
+   if(!readPlatformSettings)return json(409,{error:'Configured pricing is unavailable.'});
+   const settings=await readPlatformSettings(),body=parseBody(event),patients=patientsFor(config.state),editing=body.patientId?patients.find(p=>p.id===body.patientId):null;
+   if(body.date!==config.state.date)return json(409,{error:'The selected demo day changed. Reopen the booking form.'});
+   const preview=Booking.apply(config.state,{...body,action:editing?'editBooking':'book'},{patients:editing?[editing]:[],templates:PATIENTS,recipients:recipients(),current:minuteAt(config.state),facility:FACILITY,settings});
+   const patient=patientsFor(preview).find(p=>p.id===preview.lastBookingId),invoice=Billing.create([patient],settings,body.date);
+   return json(200,{invoice,labels:Billing.LABELS,simulated:true});
+  }
   if(method==='POST'&&p[1]==='control'){
    const settings=readPlatformSettings?await readPlatformSettings():null,client=await getPool().connect();
    try{await client.query('BEGIN');const locked=(await client.query('SELECT value FROM system_settings WHERE key=$1 FOR UPDATE',[KEY])).rows[0]?.value;if(!locked)throw Error('Demo configuration missing.');
@@ -204,12 +225,12 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
      const activeDate=locked.state.date||DATES[0];locked.days=locked.days||{};
      locked.days[activeDate]={...control(locked.state,{action:'pause'}),date:activeDate};
      locked.state={...(locked.days[body.date]||initialState(Date.now(),body.date)),date:body.date,paused:true,anchorAt:Date.now()};
-    }else locked.state=control(locked.state,body);
+    }else if(Booking.ACTIONS.includes(body.action))applyBookingDays(locked,body,settings);else locked.state=control(locked.state,body);
     if(settings)syncBilling(locked,settings);
-    await client.query('UPDATE system_settings SET value=$2::jsonb,updated_at=now() WHERE key=$1',[KEY,JSON.stringify(locked)]);await client.query('COMMIT');return json(200,{dashboard:dashboardFor(locked),admin,presenter});
+    await client.query('UPDATE system_settings SET value=$2::jsonb,updated_at=now() WHERE key=$1',[KEY,JSON.stringify(locked)]);await client.query('COMMIT');return json(200,{dashboard:{...dashboardFor(locked),...bookingContext(locked,settings)},admin,presenter});
    }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}finally{client.release();}
   }
   return json(404,{error:'Demo action not found.'});
  };
 }
-module.exports={SCOPE,KEY,USERNAME,FACILITY,PATIENTS,AUTO_EVENTS,DATES,WEEKLY_RESIDENTS,migrateState,patientsFor,initialState,minuteAt,timeLabel,project,control,mergedEvents,encodeToken,validToken,passwordHash,syncBilling,dashboardFor,createHandler};
+module.exports={SCOPE,KEY,USERNAME,FACILITY,PATIENTS,AUTO_EVENTS,DATES,WEEKLY_RESIDENTS,migrateState,patientsFor,initialState,minuteAt,timeLabel,project,control,mergedEvents,encodeToken,validToken,passwordHash,syncBilling,dashboardFor,applyBookingDays,bookingContext,createHandler};
