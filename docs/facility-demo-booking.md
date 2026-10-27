@@ -1,0 +1,17 @@
+# Facility demonstration booking
+
+The facility manager books presentation trips from `facility-demo.html`. Trips are stored in the isolated `demo:facility:futurecare-annapolis` configuration in `system_settings`. They never enter real dispatch, payment, email or SMS workflows.
+
+The booking form offers the main booking application's ten transport services: Ambulatory, Wheelchair, Broda, Stretcher, Bariatric, BLS, ALS 1, ALS 2, IFT Routine and IFT High-Acuity. Services without configured platform pricing remain visible but cannot be booked. Ambulatory trips offer the shared engine's supported vehicle fuel preferences.
+
+Managers can book one-way, round-trip or recurring itineraries within October 26–30, 2026. Each day permits five active patient bookings. Repeat dates are saved together under the existing configuration row lock; if any date is full, no occurrence is saved. Retries use the form's request identifier to avoid duplicates. Edit and cancel individual saved occurrences from that day's trip board.
+
+Schedules support appointment deadlines (15-minute arrival buffer), pickup times and required handoff deadlines. Returns occur on the same service day. Routes support the five presentation destinations, other pickup/destination addresses, room/suite details and three intermediate stops. Outbound maps use ordered stops; returns run directly to the pickup location. Custom-route mileage and driving time are explicitly illustrative manager inputs, not measured route quotes. The map uses road directions independently of those billing inputs.
+
+Patient, caregiver and destination contacts, assistance notes and optional airport/flight coordination notes are saved and displayed with trip details. Flight lookup/tracking is not simulated. Booking changes and transport events appear in the manager's simulated communications inbox.
+
+The authenticated `POST /api/facility-demo/quote` endpoint returns an itemized estimate using the same shared NexusFare calculator and configured rates as invoicing. It does not save or reserve a booking. Quotes become stale when form values change. Save recalculates the affected daily invoices and preserves invoice revisions.
+
+**Vehicle stays during appointment — apply configured waiting charges** controls appointment holding on the return leg. Waiting uses the configured free minutes and 15-minute billing blocks, exactly once. Unchecking it removes appointment holding; separately entered intermediate-stop waiting remains on the outbound leg. One-way trips have no appointment holding or return charge. Facility invoices exclude card-processing fees; no checkout or payment details are collected. Driver-delay alerts alone do not add charges.
+
+Verification: `node --test tests/facility-demo*.cjs` covers managed-account isolation, database persistence, quote access, fare reconciliation, repeat-series atomicity, maps, presentation controls and desktop/mobile booking workflows. Browser tests use isolated in-memory PostgreSQL and block external requests.

@@ -20,6 +20,11 @@ test('demo login and shared manager controls work through isolated PostgreSQL wi
   const login=await request('login','POST',{email:Demo.USERNAME,password:setup.body.password});assert.equal(login.statusCode,200);const token=login.body.token;
   assert.equal((await request('state')).statusCode,401);
   const initial=await request('state','GET',{},token);assert.equal(initial.body.dashboard.patients.length,5);assert.equal(initial.body.passwordHash,undefined);assert.equal(initial.body.secret,undefined);
+  const beforeQuote=(await db.query('SELECT value FROM system_settings WHERE key=$1',[Demo.KEY])).rows[0].value;
+  const quoteBody={date:Demo.DATES[0],patientId:'FC-DEMO-01',requestId:'quote-request-000001',name:'Fictional Quote Resident',service:'Wheelchair',destinationIndex:0,pickupTime:'08:00',appointmentTime:'09:00',returnTime:'11:00',vehicleWaiting:true,appointment:'Demo appointment',notify:['caregiver']};
+  const quoted=await request('quote','POST',quoteBody,token);assert.equal(quoted.statusCode,200);assert.equal(quoted.body.invoice.rows.length,2);assert.ok(quoted.body.invoice.rows[1].categories.waiting>0);assert.equal(quoted.body.simulated,true);
+  assert.deepEqual((await db.query('SELECT value FROM system_settings WHERE key=$1',[Demo.KEY])).rows[0].value,beforeQuote);
+  assert.equal((await request('quote','POST',quoteBody)).statusCode,401);assert.equal(initial.body.dashboard.bookingServices.length,10);assert.equal(initial.body.dashboard.bookingDays.length,5);
   await request('control','POST',{action:'seek',minute:505},token);const changed=await request('state','GET',{},token);assert.equal(changed.body.dashboard.severity,'delay');
   await request('control','POST',{action:'ack'},token);assert.equal((await request('state','GET',{},token)).body.dashboard.metrics.unread,0);
   await assert.rejects(request('control','POST',{action:'seek',minute:-1},token));assert.equal((await request('state','GET',{},token)).body.dashboard.minute,505);

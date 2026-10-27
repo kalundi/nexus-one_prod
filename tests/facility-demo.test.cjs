@@ -42,5 +42,6 @@ test('demo state is protected and setup requires Admin before any write',async()
  const handler=D.createHandler({query:async sql=>{if(!sql.startsWith('SELECT'))writes++;return {rows:[{value:config}]};},requireUser:async()=>{throw Error('Forbidden');},bearer:event=>event.headers?.authorization?.slice(7)||'',json:(statusCode,body)=>({statusCode,body}),parseBody:()=>({}),getPool:()=>{throw Error('Unexpected transaction');}});
  const result=await handler({headers:{}},['facility-demo','state'],'GET');assert.equal(result.statusCode,401);assert.equal(JSON.stringify(result.body).includes('Evelyn'),false);
  await assert.rejects(handler({headers:{}},['facility-demo','setup'],'POST'),/Forbidden/);assert.equal(writes,0);
- const valid=await handler({headers:{authorization:`Bearer ${D.encodeToken('test-secret')}`}},['facility-demo','state'],'GET');assert.equal(valid.statusCode,200);assert.equal(valid.body.dashboard.patients.length,5);assert.equal(valid.body.secret,undefined);
+ // Legacy standalone tokens cannot bypass the managed account check. Managed login and admin access are covered by the PostgreSQL API suite.
+ const legacy=await handler({headers:{authorization:`Bearer ${D.encodeToken('test-secret')}`}},['facility-demo','state'],'GET');assert.equal(legacy.statusCode,401);assert.equal(legacy.body.dashboard,undefined);assert.equal(legacy.body.secret,undefined);
 });

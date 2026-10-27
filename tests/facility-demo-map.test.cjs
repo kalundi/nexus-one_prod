@@ -45,3 +45,9 @@ test('logout cancels pending drawing and clears every overlay',async()=>{
 test('driver interpolation clamps to route endpoints',()=>{
  const points=[point(39,-76),point(40,-75)];assert.deepEqual(MapView.pathPoint(points,-1),{lat:39,lng:-76});assert.deepEqual(MapView.pathPoint(points,2),{lat:40,lng:-75});assert.equal(MapView.pathPoint([],0),null);
 });
+test('one-way custom pickups route through ordered stops and completed trips stay on the outbound map',async()=>{
+ const f=fixture(),data=scene();data.mode='selected';data.leg='outbound';Object.assign(data.patients[0],{tripType:'ONE_WAY',phase:'complete',origin:{name:'Custom pickup',address:'Custom origin'},stops:[{name:'Lab',address:'Lab stop'},{name:'Pharmacy',address:'Pharmacy stop'}]});
+ await f.view.show(data);assert.equal(f.calls.length,1);assert.equal(f.calls[0].origin,'Custom origin');assert.deepEqual(f.calls[0].waypoints.map(stop=>stop.location),['Lab stop','Pharmacy stop']);assert.equal(f.calls[0].optimizeWaypoints,false);assert.equal(MapView.legFor(data.patients[0]),'outbound');assert.equal(f.visibleLines().length,1);
+ data.patients[0].stops.reverse();await f.view.show(data);assert.equal(f.calls.length,2);assert.deepEqual(f.calls[1].waypoints.map(stop=>stop.location),['Pharmacy stop','Lab stop']);
+ data.mode='all';await f.view.show(data);assert.equal(f.visibleLines().length,9);assert.ok(f.visibleMarkers().some(marker=>marker.options.label==='A1'));
+});
