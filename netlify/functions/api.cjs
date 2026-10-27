@@ -1258,10 +1258,10 @@ async function ensurePasswordResetColumns(){
  await query('CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(password_reset_token) WHERE password_reset_token IS NOT NULL').catch(()=>{});
 }
 async function resolveDriverContacts({driverName='',driverScopeId='',driverEmail='',driverPhone='',driverUserId=''}){
- if(clean(driverEmail)||clean(driverPhone))return {driverEmail:clean(driverEmail),driverPhone:clean(driverPhone)};
+ if(clean(driverEmail)&&clean(driverPhone))return {driverEmail:clean(driverEmail),driverPhone:clean(driverPhone)};
  const name=clean(driverName);
  const scopeId=clean(driverScopeId);
- if(!name&&!scopeId&&!driverUserId)return {driverEmail:'',driverPhone:''};
+ if(!name&&!scopeId&&!driverUserId&&!clean(driverEmail))return {driverEmail:clean(driverEmail),driverPhone:clean(driverPhone)};
  const result=await query(
   `SELECT email, phone
    FROM users
@@ -1296,7 +1296,7 @@ async function notifyAssignedDriver(booking,options={}){
  const resolved=await resolveDriverContacts({driverName,driverScopeId,driverEmail,driverPhone,driverUserId:booking?.driver_user_id||booking?.driverUserId});
  driverEmail=resolved.driverEmail;
  driverPhone=resolved.driverPhone;
- if(!driverName||(!driverEmail&&!driverPhone))return {sms:{status:'skipped'},email:{status:'skipped'}};
+ if(!driverEmail&&!driverPhone)return {sms:{status:'skipped'},email:{status:'skipped'}};
  const smsBody=`Nexus Medical Transit: You have been assigned to trip ${reference}${tripDate?` on ${tripDate}`:''}${tripTime?` at ${tripTime}`:''}. Pickup: ${pickup || 'See dispatch'}. Pickup/appointment time: ${pickupTime || 'See dispatch'}. Check-in time: ${checkInTime || 'See dispatch'}. Destination: ${destination || 'See dispatch'}. Vehicle: ${vehicleUnit || 'TBD'}.${driverConfirmedRateText}`;
  const html=`<h2 style="color:#082f49">Trip assigned — ${reference}</h2><p><strong>Driver:</strong> ${driverName}</p><p><strong>Date:</strong> ${tripDate || '—'}</p><p><strong>Time:</strong> ${tripTime || '—'}</p><p><strong>Pickup:</strong> ${pickup || '—'}</p><p><strong>Pickup/appointment time:</strong> ${pickupTime || '—'}</p><p><strong>Check-in time:</strong> ${checkInTime || '—'}</p><p><strong>Destination:</strong> ${destination || '—'}</p><p><strong>Vehicle:</strong> ${vehicleUnit || 'TBD'}</p>${driverConfirmedRateText?`<p><strong>Driver confirmed rate:</strong> $${driverConfirmedRate.toFixed(2)}</p>`:''}<p>Please confirm your availability with dispatch.</p>`;
  const results=await Promise.allSettled([
@@ -3019,8 +3019,8 @@ async function handler(event){
   const mappedBooking=mapBooking(r.rows[0]);
   const booking={...mappedBooking,appointmentTime,appointmentTimes,pickupTime:pickupTimeEstimate||mappedBooking.time,requestedByRole,requestedByUser:clean(b.requestedByUser||bookingActor?.email||'')};
   const calendarSync=await syncCalendarLifecycle(booking);
-   // Auto-assign driver + vehicle (fire-and-forget, does not block response)
-   if(!paymentPolicy.requiresDeposit&&!paymentPolicy.requiresApproval)autoAssign(r.rows[0]).catch(()=>{});
+   // Complete assignment and its notifications before the function returns.
+   if(!paymentPolicy.requiresDeposit&&!paymentPolicy.requiresApproval)await autoAssign(r.rows[0]);
    let notifications;
    const isFacilityInvoice=bookingSource==='FACILITY';
    const isDriverReferral=bookingSource==='DRIVER_REFERRAL';
@@ -3218,7 +3218,7 @@ async function handler(event){
       const calendarSync=await syncCalendarLifecycle(paidBooking);
       if(clean(bk.status).toUpperCase()==='PENDING_PAYMENT'){
        const confirmedRow={...paidBooking,status:'SUBMITTED'};
-       autoAssign(confirmedRow).catch(()=>{});
+       await autoAssign(confirmedRow);
       }
       await audit('BOOKING',bookingReference,'PAYMENT_RECEIVED',{mode:paymentMode,sessionId:session.id,amount:session.amount_total});
       await sendPaymentTripConfirmation(paidBooking,{paymentMode,amountPaid:Number(session.amount_total||0)/100,balanceDue:Number(paidBooking.balance_due||0)});
@@ -5256,3 +5256,5 @@ exports.sendBrokerRequestConfirmation=sendBrokerRequestConfirmation;
 exports.sendBrokerRequestDispatchNotifications=sendBrokerRequestDispatchNotifications;
 exports.buildBookingTeamsMessage=buildBookingTeamsMessage;
 exports.sendBookingTeamsAlert=sendBookingTeamsAlert;
+exports.notifyAssignedDriver=notifyAssignedDriver;
+exports.notifyBooking=notifyBooking;
