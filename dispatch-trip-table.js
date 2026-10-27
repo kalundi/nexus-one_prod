@@ -35,7 +35,7 @@
   };
   function referenceCell(reference,kind,checked){
     const ref=escape(reference);
-    return `<label class="tripReference"><input class="dispatch-bulk-select" data-ref="${ref}" type="checkbox" ${checked&&kind!=='MOCK'?'checked':''} ${kind==='MOCK'?'disabled':''} aria-label="Select ${ref} for bulk updates"><span class="tripReferenceText"><span class="tripTruncate" title="${ref}">${ref}</span><span class="tripSourceBadge ${kind==='REAL'?'real':'mock'}">${kind==='MOCK'?'MOCK TRIP':kind}</span></span></label>`;
+    return `<label class="tripReference"><input class="dispatch-bulk-select" data-ref="${ref}" type="checkbox" ${checked&&!['MOCK','DEMO'].includes(kind)?'checked':''} ${['MOCK','DEMO'].includes(kind)?'disabled':''} aria-label="Select ${ref} for bulk updates"><span class="tripReferenceText"><span class="tripTruncate" title="${ref}">${ref}</span><span class="tripSourceBadge ${kind==='REAL'?'real':'mock'}">${kind==='MOCK'?'MOCK TRIP':kind==='DEMO'?'DEMO TRIP':kind}</span></span></label>`;
   }
   function detailsMarkup(trip,ref,risk,estimate,brokerQuoted){
     const appointment=trip.submittedAppointmentTime||trip.appointmentTime;

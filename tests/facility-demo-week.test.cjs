@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const D=require('../netlify/functions/_shared/facility-demo.cjs'),B=require('../netlify/functions/_shared/facility-demo-billing.cjs'),Fare=require('../nexus-fare.js');
 const settings={pricing:{ambulatory:{base:40,perMile:3,waitPer15:15},wheelchair:{base:65,perMile:4,waitPer15:20},stretcher:{base:100,perMile:5,waitPer15:30}},fareRules:{cardProcessingFeePct:3,shortNoticeSurchargePct:0,waitingPolicyVersion:2,freeWaitMinutes:15}};
-test('five service dates contain at most five round trips and waits rotate over the week',()=>{
+test('five service dates start with five sample round trips and waits rotate over the week',()=>{
  assert.deepEqual(D.DATES,['2026-10-26','2026-10-27','2026-10-28','2026-10-29','2026-10-30']);
  const config={state:D.initialState(1000)};D.syncBilling(config,settings);
  const month=B.view(Object.values(config.invoices),'2026-10','month');assert.equal(month.invoices.length,5);assert.equal(month.invoices.flatMap(i=>i.rows).length,50);
