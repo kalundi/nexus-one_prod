@@ -1187,69 +1187,10 @@ async function ensureBookingPromotionsSchema(){
  await query(`INSERT INTO booking_promotions(code_hash,display_code,description,service,trip_date,fixed_total,percent_off) VALUES ${rows.join(',')} ON CONFLICT(code_hash) DO NOTHING`,params);
 }
 
-const OUTREACH_CAMPAIGN={
- id:'montgomery-tier-a-pilot-2026',status:'APPROVED',sendEnabled:true,
- name:'Montgomery County Tier A pilot',subject:'Medical transportation support for your patients',
- fromName:'Fletcher Kalundi',fromEmail:'fletcher@nexusmt.com',replyTo:'fletcher@nexusmt.com',
- testRecipient:'kalundi@gmail.com',timezone:'America/New_York',sendWindow:'Tuesday-Thursday, 9:30-10:30 AM',
- followUpBusinessDays:5,
- message:`Hello [Contact Name],\n\nI’m reaching out on behalf of Nexus Medical Transit, a licensed medical transportation provider serving Montgomery County and the DMV area.\n\nWe provide reliable wheelchair, stretcher and non-emergency medical transportation for healthcare facilities and their patients, including scheduled appointments, discharges and recurring treatments.\n\nI would appreciate the opportunity to introduce Nexus and learn how your facility currently handles transportation requests.\n\nWould you be available for a brief call next week?`,
- followUpMessage:`Hello [Contact Name],\n\nI wanted to follow up on my note about medical transportation support from Nexus Medical Transit. We help healthcare facilities coordinate reliable wheelchair, stretcher and non-emergency transportation for appointments, discharges and recurring treatments.\n\nIf transportation support is relevant for [Facility Name], I would be glad to arrange a brief introductory call.\n\nThank you for your time.`,
- signature:`Fletcher Kalundi\nChief Accessibility Officer\nNexus Medical Transit, LLC\n888-639-5766\nfletcher@nexusmt.com\nwww.nexusmt.com\nWMATC Certificate No. 4152`,
- complianceFooter:`Advertisement · Nexus Medical Transit, LLC · 22505 Gateway Center Dr, Clarksburg, MD 20871\nTo stop receiving marketing emails, reply “unsubscribe.”`
-};
-const escapeEmailHtml=value=>clean(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-function outreachHtml(contactName,facilityName,followUp=false){
- const template=followUp?OUTREACH_CAMPAIGN.followUpMessage:OUTREACH_CAMPAIGN.message;
- const body=template.replaceAll('[Contact Name]',clean(contactName)||'there').replaceAll('[Facility Name]',clean(facilityName)||'your facility');
- const paragraphs=body.split(/\n{2,}/).map(line=>`<p>${escapeEmailHtml(line)}</p>`).join('');
- const signature=OUTREACH_CAMPAIGN.signature.split('\n').map(escapeEmailHtml).join('<br>');
- const footer=OUTREACH_CAMPAIGN.complianceFooter.split('\n').map(escapeEmailHtml).join('<br>');
- const socialLinks=[
-  {label:'Facebook',icon:'f',url:'https://www.facebook.com/profile.php?id=61581462908206',color:'#1877f2'},
-  {label:'Instagram',icon:'◎',url:'https://www.instagram.com/nexus_m_t/',color:'#c13584'},
-  {label:'YouTube',icon:'▶',url:'https://www.youtube.com/@nexus_m_t',color:'#ff0000'},
-  {label:'TikTok',icon:'♪',url:'https://www.tiktok.com/@nexus_m_t',color:'#111111'},
-  {label:'X',icon:'X',url:'https://x.com/nexus_m_t',color:'#111111'},
-  {label:'Bluesky',icon:'☁',url:'https://bsky.app/profile/nexusmt.bsky.social',color:'#1185fe'}
- ];
- const social=socialLinks.map(item=>`<a href="${item.url}" aria-label="Nexus Medical Transit on ${item.label}" style="display:inline-block;width:30px;height:30px;margin:0 5px;border-radius:50%;background:${item.color};color:#ffffff;text-align:center;text-decoration:none;font:bold 16px/30px Arial,sans-serif">${item.icon}</a>`).join('');
- return `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;color:#153247;line-height:1.55">${paragraphs}<p>${signature}</p><hr style="border:0;border-top:1px solid #d7e2e9;margin:24px 0"><div style="margin:0 0 14px" aria-label="Follow Nexus Medical Transit">${social}</div><p style="font-size:12px;color:#52677a">${footer}</p></div>`;
-}
+const {OUTREACH_CAMPAIGN,outreachHtml}=require('./_shared/outreach-content.cjs');
+const Outreach=require('./_shared/outreach-automation.cjs');
+const outreachAutomation=Outreach.createAutomation({query});
 async function sendOutreachTestEmail(){return Email.sendEmail(OUTREACH_CAMPAIGN.testRecipient,`TEST — ${OUTREACH_CAMPAIGN.subject}`,outreachHtml('Test Recipient','Test Facility'),{broadcast:true,fromEmail:OUTREACH_CAMPAIGN.fromEmail,fromName:OUTREACH_CAMPAIGN.fromName,replyTo:OUTREACH_CAMPAIGN.replyTo});}
-let outreachSchemaPromise=null;
-function ensureOutreachSchema(){
- if(outreachSchemaPromise)return outreachSchemaPromise;
- outreachSchemaPromise=(async()=>{
-  await query(`CREATE TABLE IF NOT EXISTS outreach_suppressions (email text PRIMARY KEY,reason text,created_at timestamptz NOT NULL DEFAULT now(),created_by uuid REFERENCES users(id) ON DELETE SET NULL)`);
-  await query(`CREATE TABLE IF NOT EXISTS outreach_deliveries (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),campaign_id text NOT NULL,prospect_id text NOT NULL,email text NOT NULL,facility text,contact_name text,stage text NOT NULL DEFAULT 'INITIAL',status text NOT NULL,provider_status integer,error_message text,sent_at timestamptz,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(campaign_id,email,stage))`);
-  await query('CREATE INDEX IF NOT EXISTS idx_outreach_deliveries_campaign ON outreach_deliveries(campaign_id,created_at DESC)');
-  await query('ALTER TABLE outreach_suppressions ENABLE ROW LEVEL SECURITY');
-  await query('ALTER TABLE outreach_deliveries ENABLE ROW LEVEL SECURITY');
-  await query('REVOKE ALL ON TABLE outreach_suppressions,outreach_deliveries FROM anon,authenticated').catch(()=>{});
- })().catch(error=>{outreachSchemaPromise=null;throw error});
- return outreachSchemaPromise;
-}
-async function sendOutreachRecipient(recipient){const result=await Email.sendEmail(recipient.email,OUTREACH_CAMPAIGN.subject,outreachHtml(recipient.contactName,recipient.facility,false),{broadcast:true,fromEmail:OUTREACH_CAMPAIGN.fromEmail,fromName:OUTREACH_CAMPAIGN.fromName,replyTo:OUTREACH_CAMPAIGN.replyTo});return {ok:result.status==='sent',status:result.providerStatus||503,error:result.status==='sent'?'':'Postmark Broadcast email is not configured'};}
-async function releaseOutreachPilot(me){
- if(!Email.isConfigured({broadcast:true}))throw Object.assign(new Error('Configure POSTMARK_SERVER_TOKEN, EMAIL_FROM and POSTMARK_BROADCAST_MESSAGE_STREAM'),{statusCode:503});
- await ensureOutreachSchema();
- const recipients=montgomeryOutreachPilot.recipients.slice(0,25),results=[];
- for(const recipient of recipients){
-  const email=clean(recipient.email).toLowerCase();
-  const suppressed=await query('SELECT 1 FROM outreach_suppressions WHERE lower(email)=lower($1) LIMIT 1',[email]);
-  if(suppressed.rows[0]){results.push({email,status:'SUPPRESSED'});continue}
-  const claimed=await query(`INSERT INTO outreach_deliveries(campaign_id,prospect_id,email,facility,contact_name,stage,status) VALUES($1,$2,$3,$4,$5,'INITIAL','SENDING') ON CONFLICT(campaign_id,email,stage) DO NOTHING RETURNING id`,[OUTREACH_CAMPAIGN.id,recipient.prospectId,email,recipient.facility,recipient.contactName]);
-  if(!claimed.rows[0]){results.push({email,status:'ALREADY_RECORDED'});continue}
-  try{
-   const delivery=await sendOutreachRecipient(recipient),status=delivery.ok?'SENT':'FAILED';
-   await query(`UPDATE outreach_deliveries SET status=$2,provider_status=$3,error_message=$4,sent_at=CASE WHEN $2='SENT' THEN now() ELSE NULL END WHERE id=$1`,[claimed.rows[0].id,status,delivery.status,delivery.error||null]);
-   results.push({email,status,providerStatus:delivery.status});
-  }catch(error){await query(`UPDATE outreach_deliveries SET status='FAILED',error_message=$2 WHERE id=$1`,[claimed.rows[0].id,clean(error.message).slice(0,500)]);results.push({email,status:'FAILED'});}
- }
- await audit('OUTREACH_CAMPAIGN',OUTREACH_CAMPAIGN.id,'PILOT_RELEASED',{by:me.email,sent:results.filter(x=>x.status==='SENT').length,failed:results.filter(x=>x.status==='FAILED').length,suppressed:results.filter(x=>x.status==='SUPPRESSED').length});
- return results;
-}
 async function ensurePasswordResetColumns(){
  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token text').catch(()=>{});
@@ -2143,25 +2084,24 @@ async function handler(event){
    }
    return await require('./_shared/caretaker.cjs').handleCaretaker(event,p);
   }
-  if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&method==='GET'){
-   await requireUser(bearer(event),['ADMIN']);
-   const delivered=await query(`SELECT email,status,provider_status,sent_at,error_message FROM outreach_deliveries WHERE campaign_id=$1 AND stage='INITIAL'`,[OUTREACH_CAMPAIGN.id]).catch(error=>error?.code==='42P01'?{rows:[]}:Promise.reject(error));
-   const deliveryByEmail=new Map(delivered.rows.map(row=>[clean(row.email).toLowerCase(),row]));
-   const recipients=montgomeryOutreachPilot.recipients.map((recipient,index)=>{const delivery=deliveryByEmail.get(clean(recipient.email).toLowerCase());return {...recipient,sequence:index+1,status:delivery?.status||'READY',providerStatus:delivery?.provider_status||null,sentAt:delivery?.sent_at||null,error:delivery?.error_message||null}});
-   return json(200,{campaign:OUTREACH_CAMPAIGN,selection:montgomeryOutreachPilot.selection,eligibleCount:montgomeryOutreachPilot.eligibleCount,recipients,previewHtml:outreachHtml(recipients[0]?.contactName,recipients[0]?.facility),followUpPreviewHtml:outreachHtml(recipients[0]?.contactName,recipients[0]?.facility,true),delivery:{emailProvider:'Postmark',postmark:Email.isConfigured({broadcast:true})?'configured':'not-configured',sender:OUTREACH_CAMPAIGN.fromEmail}});
-  }
-  if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&p[3]==='test'&&method==='POST'){
+  if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'){
    const me=await requireUser(bearer(event),['ADMIN']);
-   const result=await sendOutreachTestEmail();
-   await audit('OUTREACH_CAMPAIGN',OUTREACH_CAMPAIGN.id,'TEST_EMAIL_REQUESTED',{by:me.email,to:OUTREACH_CAMPAIGN.testRecipient,status:result.status});
-   if(result.status!=='sent')return json(503,{error:result.reason||'Test email was not sent',delivery:result});
-   return json(200,{sent:true,to:OUTREACH_CAMPAIGN.testRecipient,delivery:result});
-  }
-  if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'&&p[3]==='send'&&method==='POST'){
-   const me=await requireUser(bearer(event),['ADMIN']),body=parseBody(event);
-   if(clean(body.confirmation)!=='SEND FIRST 25')return json(400,{error:'Type SEND FIRST 25 exactly to confirm this release.'});
-   const results=await releaseOutreachPilot(me),sent=results.filter(x=>x.status==='SENT').length,failed=results.filter(x=>x.status==='FAILED').length;
-   return json(failed?207:200,{released:true,sent,failed,suppressed:results.filter(x=>x.status==='SUPPRESSED').length,alreadyRecorded:results.filter(x=>x.status==='ALREADY_RECORDED').length,results});
+   const outreach=outreachAutomation;
+   if(method==='GET'&&p.length===3)return json(200,await outreach.dashboard());
+   if(method==='POST'&&p[3]==='automation'){
+    const body=parseBody(event);if(typeof body.enabled!=='boolean')return json(400,{error:'Choose whether automatic outreach is enabled.'});
+    await outreach.setEnabled(body.enabled);
+    await audit('OUTREACH_CAMPAIGN',OUTREACH_CAMPAIGN.id,body.enabled?'AUTOMATION_ENABLED':'AUTOMATION_PAUSED',{by:me.email,recipients:montgomeryOutreachPilot.recipients.length});
+    return json(200,await outreach.dashboard());
+   }
+   if(method==='POST'&&p[3]==='check')return json(200,await outreach.checkConnections());
+   if(method==='POST'&&p[3]==='test'){
+    const result=await sendOutreachTestEmail();
+    await audit('OUTREACH_CAMPAIGN',OUTREACH_CAMPAIGN.id,'TEST_EMAIL_REQUESTED',{by:me.email,to:OUTREACH_CAMPAIGN.testRecipient,status:result.status});
+    return json(result.status==='sent'?200:503,{sent:result.status==='sent',to:OUTREACH_CAMPAIGN.testRecipient,delivery:result,error:result.status==='sent'?undefined:'Postmark Broadcast is not configured'});
+   }
+   if(method==='POST'&&p[3]==='send')return json(409,{error:'Automatic outreach manages the send window and daily limit. Use Resume automatic outreach to continue.'});
+   return json(404,{error:'Not found'});
   }
   if(isTestMode()){
    const route=p.join('/');
