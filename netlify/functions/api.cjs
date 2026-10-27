@@ -42,7 +42,8 @@ const {mapFhirAppointment,parseHl7,verifyIntegrationRequest,payloadDigest}=requi
 const {testConnection:testKeymarkFhirConnection}=require('./_shared/keymark-fhir-client.cjs');
 const {bookingPaymentPolicy,requiresFullPaymentBeforeBoarding}=require('./_shared/payment-policy.cjs');
 const {getSecureDocument,listSecureDocuments}=require('./_shared/secure-document-registry.cjs');
-const {sendSms}=require('./_shared/sms-consent.cjs');
+const {sendSms,getSmsStatus}=require('./_shared/sms-consent.cjs');
+const handleSmsTest=require('./_shared/sms-test.cjs').createHandler({requireUser,bearer,parseBody,json,sendSms,getSmsStatus,audit});
 const {canPatientSeeDriverLocation,distanceMiles}=require('./_shared/patient-driver-location.cjs');
 const LivecareDemo=require('./_shared/livecare-demo.cjs');
 const handleFacilityDemo=require('./_shared/facility-demo.cjs').createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlatformSettings});
@@ -2112,6 +2113,8 @@ async function handler(event){
   if(mockPracticeResponse)return mockPracticeResponse;
   const mockAssignmentResponse=await handleMockAssignments(event,p,method);
   if(mockAssignmentResponse)return mockAssignmentResponse;
+  const smsTestResponse=await handleSmsTest(event,p,method);
+  if(smsTestResponse)return smsTestResponse;
   const communicationTestResponse=await handleCommunicationTest(event,p,method);
   if(communicationTestResponse)return communicationTestResponse;
   const userManagerResponse=await handleUserManager(event,p,method);
