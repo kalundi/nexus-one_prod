@@ -116,7 +116,7 @@ function control(state,body,now=Date.now(),settings){
  else if(body.action==='speed'){const value=Number(body.speed);if(![30,60,120,240].includes(value))throw Object.assign(Error('Choose a supported playback speed.'),{statusCode:400});next.speed=value;}
  else if(body.action==='ack')next.acknowledged=[...new Set([...(state.acknowledged||[]),...project(state,now).alerts.map(a=>a.id)])];
  else if(['delay','issue','resolve'].includes(body.action)){
-  const patient=patientsFor(state).find(p=>p.id===body.patientId);if(!patient)throw Object.assign(Error('Choose one of the five demo patients.'),{statusCode:400});
+  const patient=patientsFor(state).find(p=>p.id===body.patientId);if(!patient)throw Object.assign(Error('Choose a scheduled demo patient.'),{statusCode:400});
   const overrides=[...(state.overrides||[])];
   if(body.action==='resolve'){
    const resolved=new Set();
@@ -197,6 +197,7 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
   }catch{}
   if(!config)return json(admin?409:401,{error:admin?'Prepare demo manager access first.':'Sign in to the facility demo.'});
   if(!admin&&!presenter){const account=await DemoAccount.getAccount(query);if(!DemoAccount.allowed(account)||config.managedUserId!==String(account.id)||!validToken(bearer(event),DemoAccount.signingSecret(config,account)))return json(401,{error:'Your demo session expired or this account was changed. Sign in again.'});}
+  if(p[1]==='editor')return require('./facility-demo-editor.cjs').handle(event,p,method,{config,json,query,getPool,parseBody,readPlatformSettings,KEY,DATES,FACILITY,PATIENTS,patientsFor,project,initialState,control,syncBilling});
   if(method==='GET'&&['state','billing'].includes(p[1])&&readPlatformSettings){
    const settings=await readPlatformSettings(),client=await getPool().connect();let invoices,snapshot;
    try{await client.query('BEGIN');const locked=(await client.query('SELECT value FROM system_settings WHERE key=$1 FOR UPDATE',[KEY])).rows[0].value;

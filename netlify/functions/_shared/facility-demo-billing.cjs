@@ -32,6 +32,6 @@ function view(invoice,period,mode='day'){
  const all=Array.isArray(invoice)?invoice:[invoice];
  const invoices=all.filter(item=>mode==='month'?item.date.startsWith(period):item.date===period).sort((a,b)=>a.date.localeCompare(b.date));
  const categories=Object.keys(LABELS).map(key=>({key,label:LABELS[key],total:invoices.reduce((sum,item)=>sum+item.rows.reduce((n,row)=>n+row.categories[key],0),0)}));
- return {mode,period,invoices,categories,total:invoices.reduce((sum,item)=>sum+item.total,0),units:'All amounts are integer USD cents',availableDates:all.map(item=>item.date),automation:'October 26–30: up to five patient bookings per day, with one-way or round-trip transport legs. Each daily invoice finalizes after its return handoffs. Schedule changes recalculate that day and preserve prior invoice revisions. Manager inbox delivery is simulated; no external email is sent.'};
+ return {mode,period,invoices,categories,total:invoices.reduce((sum,item)=>sum+item.total,0),units:'All amounts are integer USD cents',availableDates:all.map(item=>item.date),automation:'October 26–30: no daily booking limit, with one-way or round-trip transport legs. Each daily invoice finalizes after all scheduled transport handoffs. Schedule changes recalculate that day and preserve prior invoice revisions. Manager inbox delivery is simulated; no external email is sent.'};
 }
 module.exports={DATE,LABELS,signature,create,finalize,view};

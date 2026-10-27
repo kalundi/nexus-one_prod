@@ -51,3 +51,8 @@ test('one-way custom pickups route through ordered stops and completed trips sta
  data.patients[0].stops.reverse();await f.view.show(data);assert.equal(f.calls.length,2);assert.deepEqual(f.calls[1].waypoints.map(stop=>stop.location),['Pharmacy stop','Lab stop']);
  data.mode='all';await f.view.show(data);assert.equal(f.visibleLines().length,9);assert.ok(f.visibleMarkers().some(marker=>marker.options.label==='A1'));
 });
+test('the overview and selected map support more than five patients with valid repeated route colors',async()=>{
+ const f=fixture(),data=scene();data.patients=Array.from({length:17},(_,index)=>({...data.patients[index%5],id:'MANY-'+index,name:'Demo Resident '+index,destination:{name:'Clinic '+index,address:'Clinic address '+index}}));
+ await f.view.show(data);assert.equal(f.visibleLines().length,34);assert.ok(f.visibleLines().every(line=>MapView.COLORS.includes(line.options.strokeColor)));assert.match(f.statuses.at(-1).message,/34 of 34/);assert.doesNotMatch(f.statuses.at(-1).message,/1–5/);
+ await f.view.show({...data,mode:'selected',selectedId:'MANY-16'});assert.equal(f.visibleLines().length,1);assert.deepEqual(f.visibleMarkers().map(marker=>marker.options.label).sort(),['A','B']);
+});

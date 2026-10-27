@@ -31,11 +31,10 @@ test('pickup and handoff schedules validate travel and stops; fuel preferences u
 test('a late one-way delay extends the presentation clock through the final destination handoff',()=>{
  let state=booked({tripType:'ONE_WAY',origin:{name:'Demo pickup',address:'10 Demo Street'},distanceMiles:80,travelMinutes:120,pickupTime:'18:30',appointmentTime:'21:00'});state={...state,baseMinute:1200,paused:true};state=D.control(state,{action:'delay',patientId:'FC-DEMO-01'},1000);assert.equal(D.project(state,1000).endMinute,1250);assert.equal(D.project({...state,baseMinute:1250},1000).patients.find(p=>p.id==='FC-DEMO-01').phase,'complete');
 });
-test('recurring bookings save all days atomically, enforce each day capacity and retry without duplicate occurrences',()=>{
- const open=date=>{let state=D.initialState(1000,date);return D.control(state,{action:'cancelBooking',patientId:D.patientsFor(state)[0].id},1000);};
- const config={state:open(D.DATES[0]),days:{[D.DATES[1]]:open(D.DATES[1])}},body=form({action:'book',patientId:'',repeatDates:[D.DATES[1]]});
- const before=JSON.stringify(config);assert.throws(()=>D.applyBookingDays(config,{...body,repeatDates:[D.DATES[1],D.DATES[2]]},settings,1000),/2026-10-28.*five/);assert.equal(JSON.stringify(config),before);
- D.applyBookingDays(config,body,settings,1000);for(const state of [config.state,config.days[D.DATES[1]]]){assert.equal(D.patientsFor(state).length,5);assert.equal(state.additionalBookings.length,1);}
+test('recurring bookings extend every seeded day beyond five and retry without duplicate occurrences',()=>{
+ const config={state:D.initialState(1000),days:{}},body=form({action:'book',patientId:'',repeatDates:D.DATES.slice(1)});
+ const before=JSON.stringify(config);assert.throws(()=>D.applyBookingDays(config,{...body,repeatDates:[D.DATES[1],'2026-11-01']},settings,1000),/repeat dates/);assert.equal(JSON.stringify(config),before);
+ D.applyBookingDays(config,body,settings,1000);for(const state of [config.state,...Object.values(config.days)]){assert.equal(D.patientsFor(state).length,6);assert.equal(state.additionalBookings.length,1);}
  const firstId=config.state.lastBookingId;D.applyBookingDays(config,body,settings,1000);assert.equal(config.state.additionalBookings.length,1);assert.equal(config.state.lastBookingId,firstId);D.syncBilling(config,settings);assert.equal(config.invoices[D.DATES[1]].rows.filter(row=>row.patient==='Fictional Demo Resident').length,2);
  for(const repeatDates of [[D.DATES[0]],['2026-11-01'],[D.DATES[1],D.DATES[1]]])assert.throws(()=>D.applyBookingDays(config,{...body,repeatDates},settings,1000));
 });

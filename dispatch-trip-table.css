@@ -103,3 +103,8 @@
   #tripTableWrap .tripAddress{grid-column:1/-1}
   #tripTableWrap .tripDetailsActions .tripTableButton.danger{margin-left:0}
 }
+
+.demoTripEditor{margin-top:16px}.demoTripEditor p{font-size:13px;line-height:1.6}.demoTripEditor [hidden]{display:none!important}.demoTripEditor label{font-size:13px;font-weight:600}.demoTripEditor .editorActions{flex-wrap:wrap}.demoTripEditor .demoEditorWaiting{display:flex;gap:10px;align-items:center;margin:16px 0}.demoTripEditor .demoEditorWaiting input{width:auto}.demoTripEditor #demoEditorMessage{padding:12px;background:#edf5fa;border-radius:8px;margin:12px 0;font-size:13px}
+
+.demoTripEditor{scroll-margin-top:110px}
+body #dispatchDemoTripEditorPanel[hidden]{display:none!important}
