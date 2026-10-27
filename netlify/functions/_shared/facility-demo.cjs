@@ -39,7 +39,7 @@ function patientsFor(state){
  const seeds=PATIENTS.map((patient,index)=>{const identity=resident(day,index),appointmentAt=patient.appointmentAt+day*5,pickup=patient.pickup+day*5,waitMinutes=[60,120,180][(index+day)%3];return {...patient,...identity,slotIndex:index,destinationIndex:index,distanceMiles:[8,7.5,7.2,23,26][index],pickup,appointmentAt,returnPickup:appointmentAt+waitMinutes,waitMinutes,vehicleWaiting:true,...state.bookingEdits?.[identity.id]};});
  return [...seeds,...(state.additionalBookings||[])].filter(patient=>!(state.cancelledIds||[]).includes(patient.id)).map(patient=>({...patient,...state.returnSchedules?.[patient.id]})).sort((a,b)=>a.pickup-b.pickup||a.id.localeCompare(b.id));
 }
-function endMinute(state){return Math.max(930,...patientsFor(state).map(patient=>(patient.tripType==='ONE_WAY'?patient.pickup+Number(patient.stopWaitMinutes||0):patient.returnPickup)+patient.travel+mergedEvents(state).filter(e=>e.patientId===patient.id&&e.leg===(patient.tripType==='ONE_WAY'?'outbound':'return')).reduce((sum,e)=>sum+Number(e.minutes||0),0)+5));}
+function endMinute(state){return Math.max(930,...patientsFor(state).map(patient=>(patient.tripType==='ONE_WAY'?patient.pickup+Number(patient.stopWaitMinutes||0):patient.returnPickup)+Number(patient.scheduledTravelMinutes??patient.travel)+mergedEvents(state).filter(e=>e.patientId===patient.id&&e.leg===(patient.tripType==='ONE_WAY'?'outbound':'return')).reduce((sum,e)=>sum+Number(e.minutes||0),0)+5));}
 function minuteAt(state,now=Date.now()){return Math.max(435,Math.min(endMinute(state),Number(state.baseMinute)+(state.paused?0:(now-Number(state.anchorAt))/1000*Number(state.speed)/60)));}
 function timeLabel(minute){const rounded=Math.round(minute),hour=Math.floor(rounded/60)%24;return `${hour%12||12}:${String(rounded%60).padStart(2,'0')} ${hour>=12?'PM':'AM'}${rounded>=1440?' (next day)':''}`;}
 function recipients(){return ['Facility manager (demo inbox)','Facility receiving team (demo)','Destination contact (demo)','Patient / authorized caregiver (demo)','Nexus dispatch (demo)'];}
@@ -51,21 +51,21 @@ function project(state,now=Date.now()){
   const events=mergedEvents(state).filter(event=>event.patientId===patient.id&&event.at<=minute);
   const outboundDelay=events.filter(e=>e.leg==='outbound').reduce((sum,e)=>sum+Number(e.minutes||0),0);
   const returnDelay=events.filter(e=>e.leg==='return').reduce((sum,e)=>sum+Number(e.minutes||0),0);
-  const outboundArrival=patient.pickup+patient.travel+Number(patient.stopWaitMinutes||0)+outboundDelay,returnArrival=patient.tripType==='ONE_WAY'?null:patient.returnPickup+patient.travel+returnDelay;
+  const outboundArrival=patient.pickup+Number(patient.scheduledTravelMinutes??patient.travel)+Number(patient.stopWaitMinutes||0)+outboundDelay,returnArrival=patient.tripType==='ONE_WAY'?null:patient.returnPickup+Number(patient.scheduledTravelMinutes??patient.travel)+returnDelay;
   let stage='Scheduled',phase='scheduled',progress=0,eta=patient.pickup;
   if(minute>=patient.pickup-15&&minute<patient.pickup){stage='Driver to facility';phase='approach';progress=(minute-(patient.pickup-15))/15;}
-  else if(minute>=patient.pickup&&minute<outboundArrival){const pausedMinutes=events.filter(e=>e.leg==='outbound').reduce((sum,e)=>sum+Math.max(0,Math.min(Number(e.minutes||0),minute-Math.max(patient.pickup,e.at))),0);stage='Traveling to appointment';phase='outbound';progress=(minute-patient.pickup-pausedMinutes)/(patient.travel+Number(patient.stopWaitMinutes||0));eta=outboundArrival;}
+  else if(minute>=patient.pickup&&minute<outboundArrival){const pausedMinutes=events.filter(e=>e.leg==='outbound').reduce((sum,e)=>sum+Math.max(0,Math.min(Number(e.minutes||0),minute-Math.max(patient.pickup,e.at))),0);stage='Traveling to appointment';phase='outbound';progress=(minute-patient.pickup-pausedMinutes)/(Number(patient.scheduledTravelMinutes??patient.travel)+Number(patient.stopWaitMinutes||0));eta=outboundArrival;}
   else if(patient.tripType==='ONE_WAY'&&minute>=outboundArrival){stage='Destination handoff complete';phase='complete';progress=1;eta=outboundArrival;}
   else if(minute>=outboundArrival&&minute<patient.returnPickup-15){stage=minute>=patient.appointmentAt+45?'Awaiting scheduled return':minute>=patient.appointmentAt?'At appointment':'Arrived · awaiting appointment';phase='appointment';progress=1;eta=patient.returnPickup;}
   else if(minute>=patient.returnPickup-15&&minute<patient.returnPickup){stage='Return vehicle approaching';phase='return-approach';progress=(minute-(patient.returnPickup-15))/15;eta=patient.returnPickup;}
-  else if(minute>=patient.returnPickup&&minute<returnArrival){const pausedMinutes=events.filter(e=>e.leg==='return').reduce((sum,e)=>sum+Math.max(0,Math.min(Number(e.minutes||0),minute-Math.max(patient.returnPickup,e.at))),0);stage='Returning to facility';phase='return';progress=(minute-patient.returnPickup-pausedMinutes)/patient.travel;eta=returnArrival;}
+  else if(minute>=patient.returnPickup&&minute<returnArrival){const pausedMinutes=events.filter(e=>e.leg==='return').reduce((sum,e)=>sum+Math.max(0,Math.min(Number(e.minutes||0),minute-Math.max(patient.returnPickup,e.at))),0);stage='Returning to facility';phase='return';progress=(minute-patient.returnPickup-pausedMinutes)/Number(patient.scheduledTravelMinutes??patient.travel);eta=returnArrival;}
   else if(minute>=returnArrival){stage=patient.origin&&patient.origin.address!==FACILITY.address?'Return handoff complete':'Back at FutureCare';phase='complete';progress=1;eta=returnArrival;}
   const active=events.filter(e=>e.resolvedAt==null||e.resolvedAt>minute);
   const risk=active.some(e=>e.type==='issue')?'issue':active.length?'delay':'normal';
   const currentEta=patient.tripType!=='ONE_WAY'&&['return','return-approach','complete'].includes(phase)?returnArrival:outboundArrival;
   for(const event of events){
    const eventDelay=events.filter(e=>e.leg===event.leg&&e.at<=event.at).reduce((sum,e)=>sum+Number(e.minutes||0),0);
-   const eventEta=(event.leg==='return'?patient.returnPickup:patient.pickup+Number(patient.stopWaitMinutes||0))+patient.travel+eventDelay;
+   const eventEta=(event.leg==='return'?patient.returnPickup:patient.pickup+Number(patient.stopWaitMinutes||0))+Number(patient.scheduledTravelMinutes??patient.travel)+eventDelay;
    const messageId=`${state.runId}:${event.id}`;
    const acknowledged=(state.acknowledged||[]).includes(messageId);
    notify(event.id,patient,event.at,event.type==='issue'?'Reported issue — review required':'Delay detected — ETA revised',`${event.note}${event.minutes?` Revised ${event.leg==='return'?'facility return':'destination arrival'} ETA: ${timeLabel(eventEta)}.`:''}`,event.type==='issue'?'issue':'delay',{eta:timeLabel(eventEta),acknowledged});
@@ -73,12 +73,12 @@ function project(state,now=Date.now()){
    if(active.includes(event))alerts.push({id:messageId,patientId:patient.id,patient:patient.name,severity:event.type==='issue'?'issue':'delay',title:event.type==='issue'?'Receiving handoff needs review':'Transport delayed',note:event.note,eta:timeLabel(eventEta),acknowledged});
   }
   notify(`${patient.id}-activation`,patient,patient.pickup-15,'Driver activated outbound trip',`${patient.driver} is on the way to ${patient.origin?.name||FACILITY.name}. Pickup: ${timeLabel(patient.pickup)}.`);
-  const departureEta=patient.pickup+patient.travel+Number(patient.stopWaitMinutes||0)+events.filter(e=>e.leg==='outbound'&&e.at<=patient.pickup).reduce((sum,e)=>sum+Number(e.minutes||0),0);
+  const departureEta=patient.pickup+Number(patient.scheduledTravelMinutes??patient.travel)+Number(patient.stopWaitMinutes||0)+events.filter(e=>e.leg==='outbound'&&e.at<=patient.pickup).reduce((sum,e)=>sum+Number(e.minutes||0),0);
   notify(`${patient.id}-departed`,patient,patient.pickup,patient.origin&&patient.origin.address!==FACILITY.address?'Patient pickup complete':'Patient departed facility',`${patient.name} is on board with ${patient.driver}, traveling to ${patient.destination.name}. Arrival ETA: ${timeLabel(departureEta)}.`);
   notify(`${patient.id}-appointment`,patient,outboundArrival,'Arrived for appointment',`${patient.name} has arrived at ${patient.destination.name}. ${patient.tripType==='ONE_WAY'?'Destination handoff complete; no return leg is booked.':`Return pickup remains scheduled for ${timeLabel(patient.returnPickup)}.`}`,'success');
   if(patient.tripType!=='ONE_WAY'){
   notify(`${patient.id}-return-activation`,patient,patient.returnPickup-15,'Return pickup approaching',`${patient.driver} is heading to the appointment location. Scheduled return pickup: ${timeLabel(patient.returnPickup)}.`);
-  const returnDepartureEta=patient.returnPickup+patient.travel+events.filter(e=>e.leg==='return'&&e.at<=patient.returnPickup).reduce((sum,e)=>sum+Number(e.minutes||0),0);
+  const returnDepartureEta=patient.returnPickup+Number(patient.scheduledTravelMinutes??patient.travel)+events.filter(e=>e.leg==='return'&&e.at<=patient.returnPickup).reduce((sum,e)=>sum+Number(e.minutes||0),0);
   notify(`${patient.id}-return`,patient,patient.returnPickup,'Return trip started',`${patient.name} is returning to ${patient.origin?.name||FACILITY.name}. Facility arrival ETA: ${timeLabel(returnDepartureEta)}.`);
   notify(`${patient.id}-back`,patient,returnArrival,'Patient returned — handoff complete',`${patient.name} is back at ${patient.origin?.name||FACILITY.name}. The facility receiving team has a simulated handoff-complete notification.`,'success');
   }
@@ -156,7 +156,7 @@ function dashboardFor(config){
  if(invoice?.delivery)snapshot.messages.unshift({id:invoice.delivery.id,patientId:'billing',patient:'Facility billing',at:invoice.delivery.at,time:invoice.delivery.time,title:'Daily invoice delivered (demo)',text:`${invoice.date} · ${invoice.id}: ${invoice.rows.length} transport legs. Total $${(invoice.total/100).toFixed(2)}. Open Daily invoicing to review the itemized invoice.`,severity:'success',recipients:[invoice.delivery.recipient],delivery:'Simulated manager inbox delivery. No external email sent.'});
  return snapshot;
 }
-function bookingContext(config,settings){return {bookingServices:Booking.catalog(settings),bookingFuelProfiles:Object.entries(require('../../../nexus-fare.js').fuelProfiles).filter(([key])=>!['ambulance','bus'].includes(key)).map(([key,value])=>({key,label:value.label})),bookingDays:DATES.map(date=>({date,count:patientsFor(date===config.state.date?config.state:config.days?.[date]||initialState(Date.now(),date)).length}))};}
+function bookingContext(config,settings){return {bookingFareRules:settings?.fareRules||{},bookingServices:Booking.catalog(settings),bookingFuelProfiles:Object.entries(require('../../../nexus-fare.js').fuelProfiles).filter(([key])=>!['ambulance','bus'].includes(key)).map(([key,value])=>({key,label:value.label})),bookingDays:DATES.map(date=>({date,count:patientsFor(date===config.state.date?config.state:config.days?.[date]||initialState(Date.now(),date)).length}))};}
 function applyBookingDays(config,body,settings,now=Date.now()){
  const repeatDates=body.repeatDates??[];
  if(!Array.isArray(repeatDates)||repeatDates.length>4||new Set(repeatDates).size!==repeatDates.length||repeatDates.some(date=>!DATES.includes(date)||date<=(config.state.date||DATES[0])))throw Object.assign(Error('Choose distinct future repeat dates within October 26–30.'),{statusCode:400});

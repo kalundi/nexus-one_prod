@@ -1,3 +1,4 @@
+const Schedule=require('../../../facility-demo-schedule.js');
 const crypto=require('node:crypto');
 const Fare=require('../../../nexus-fare.js');
 const ACTIONS=['book','editBooking','cancelBooking','restoreBooking'];
@@ -52,10 +53,14 @@ function apply(state,body,{patients,allPatients,templates,recipients,current,now
  if(!Number.isInteger(travel))fail('Driving time must use whole minutes.');
  const distanceMiles=customRoute?number(body.distanceMiles,'illustrative one-way miles',0.1,300):[8,7.5,7.2,23,26][destinationIndex];
  const stopWaitMinutes=stops.reduce((sum,stop)=>sum+stop.waitMinutes,0);
- const pickup=minutes(body.pickupTime,'pickup time'),appointmentAt=scheduleBasis==='PICKUP'?pickup+travel+stopWaitMinutes:minutes(body.appointmentTime,scheduleBasis==='HANDOFF'?'required handoff time':'appointment time');
- const buffer=scheduleBasis==='APPOINTMENT'?15:0;
- if(pickup<435||pickup>1140)fail('Demo pickup must be between 7:15 AM and 7 PM.');
- if(appointmentAt<pickup+travel+stopWaitMinutes+buffer||appointmentAt>1380)fail(`Allow ${travel} minutes of sample travel, ${stopWaitMinutes} minutes at intermediate stops and a ${buffer}-minute arrival buffer before the appointment / handoff (no later than 11 PM).`);
+ // Only the chosen time is authoritative. Recompute the other time for quotes,
+ // saved bookings and recurring occurrences using the same shared browser code.
+ minutes(scheduleBasis==='PICKUP'?body.pickupTime:body.appointmentTime,scheduleBasis==='PICKUP'?'pickup time':scheduleBasis==='HANDOFF'?'required handoff time':'appointment time');
+ const timing=Schedule.resolve({date:body.date||state.date||'2026-10-26',service:serviceKey,scheduleBasis,pickupTime:body.pickupTime,appointmentTime:body.appointmentTime,origin,destination,distanceMiles,travelMinutes:travel,stopWaitMinutes},settings?.fareRules||{});
+ if(!timing)fail('Complete the selected time and route estimate.');
+ const {pickup,appointmentAt}=timing;
+ if(pickup<435||pickup>1140)fail('Choose a time that allows demo pickup between 7:15 AM and 7 PM.');
+ if(appointmentAt>1380)fail('Choose a time that allows arrival no later than 11 PM.');
  const returnPickup=tripType==='ONE_WAY'?null:minutes(body.returnTime,'return pickup time');
  if(returnPickup!==null&&(returnPickup<appointmentAt+15||returnPickup>1380))fail('Return pickup must be at least 15 minutes after the appointment and no later than 11 PM.');
  if(typeof body.vehicleWaiting!=='boolean')fail('Choose whether the vehicle stays during the appointment.');
@@ -64,12 +69,12 @@ function apply(state,body,{patients,allPatients,templates,recipients,current,now
  const fuelProfile=text(body.fuelProfile,'a vehicle fuel profile',40,true);if(fuelProfile&&(serviceKey!=='ambulatory'||!Fare.fuelProfiles[fuelProfile]||['ambulance','bus'].includes(fuelProfile)))fail('Choose a supported Ambulatory vehicle preference.');
  const flight={number:text(body.flight?.number,'flight number',20,true),airportStop:body.flight?.airportStop||'pickup',terminal:text(body.flight?.terminal,'airport terminal',80,true)};
  if(!['pickup','destination'].includes(flight.airportStop))fail('Choose a pickup or destination airport.');
- const patient={id:previous?.id||`FC-BOOK-${crypto.randomUUID()}`,slotIndex,name,initials:name.split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase(),service,serviceKey,tripType,scheduleBasis,origin,destination,stops,stopWaitMinutes,distanceMiles,destinationIndex,customRoute:!!customRoute,fuelProfile,flight,patientContact:contact(body.patientContact,'patient'),caregiverContact:contact(body.caregiverContact,'caregiver'),destinationContact:contact(body.destinationContact,'destination contact'),notes:text(body.notes,'transport / assistance notes',2000,true),appointment:text(body.appointment,'an appointment description',120),driver:previous?.driver||vehicle.driver,unit:previous?.unit||`DEMO-${String(slotIndex+1).padStart(2,'0')}`,pickup,appointmentAt,travel,returnPickup,waitMinutes:returnPickup===null?0:returnPickup-appointmentAt,vehicleWaiting:tripType!=='ONE_WAY'&&body.vehicleWaiting,recipients:watchers,bookingRef:previous?.bookingRef||`DEMO-${state.date||'2026-10-26'}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,updatedAt:new Date(now).toISOString()};
+ const patient={id:previous?.id||`FC-BOOK-${crypto.randomUUID()}`,slotIndex,name,initials:name.split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase(),service,serviceKey,tripType,scheduleBasis,origin,destination,stops,stopWaitMinutes,distanceMiles,destinationIndex,customRoute:!!customRoute,fuelProfile,flight,patientContact:contact(body.patientContact,'patient'),caregiverContact:contact(body.caregiverContact,'caregiver'),destinationContact:contact(body.destinationContact,'destination contact'),notes:text(body.notes,'transport / assistance notes',2000,true),appointment:text(body.appointment,'an appointment description',120),driver:previous?.driver||vehicle.driver,unit:previous?.unit||`DEMO-${String(slotIndex+1).padStart(2,'0')}`,pickup,appointmentAt,travel,scheduledTravelMinutes:timing.drivingMinutes,returnPickup,waitMinutes:returnPickup===null?0:returnPickup-appointmentAt,vehicleWaiting:tripType!=='ONE_WAY'&&body.vehicleWaiting,recipients:watchers,bookingRef:previous?.bookingRef||`DEMO-${state.date||'2026-10-26'}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,updatedAt:new Date(now).toISOString()};
  savePatient(next,state,previous,patient);
  next.returnSchedules={...(state.returnSchedules||{})};delete next.returnSchedules[patient.id];
  next.bookingRequests={...(state.bookingRequests||{}),[requestId]:{id:patient.id,hash}};next.lastBookingId=patient.id;
  const route=[origin,...stops,destination].map(stop=>`${stop.name} (${stop.address})`).join(' → ');
- notify({...patient,recipients:[...new Set([...(previous?.recipients||[]),...watchers])]},previous?'Demo booking updated':'Demo booking confirmed',`${patient.name}: ${service} ${tripType==='ONE_WAY'?'one-way':'round trip'} ${previous?'updated':'booked'}: ${route}. Pickup ${body.pickupTime}; ${scheduleBasis.toLowerCase()} target ${Math.floor(appointmentAt/60)}:${String(appointmentAt%60).padStart(2,'0')}${returnPickup===null?'':`; return pickup ${body.returnTime}`} Eastern Time. ${patient.vehicleWaiting?'Vehicle waiting charges apply under configured fare rules.':'Appointment holding is not charged.'} ${stopWaitMinutes?`${stopWaitMinutes} intermediate-stop waiting minutes apply under configured fare rules. `:''}Route and facility invoice updated. All delivery is simulated.`);
+ notify({...patient,recipients:[...new Set([...(previous?.recipients||[]),...watchers])]},previous?'Demo booking updated':'Demo booking confirmed',`${patient.name}: ${service} ${tripType==='ONE_WAY'?'one-way':'round trip'} ${previous?'updated':'booked'}: ${route}. Pickup ${timing.pickupTime}; ${scheduleBasis.toLowerCase()} target ${Math.floor(appointmentAt/60)}:${String(appointmentAt%60).padStart(2,'0')}${returnPickup===null?'':`; return pickup ${body.returnTime}`} Eastern Time. ${patient.vehicleWaiting?'Vehicle waiting charges apply under configured fare rules.':'Appointment holding is not charged.'} ${stopWaitMinutes?`${stopWaitMinutes} intermediate-stop waiting minutes apply under configured fare rules. `:''}Route and facility invoice updated. All delivery is simulated.`);
  return next;
 }
 module.exports={ACTIONS,SERVICES,catalog,apply};

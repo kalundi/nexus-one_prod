@@ -12,14 +12,14 @@ test('manager cancels and replaces one round trip with a persisted, idempotent b
 });
 test('booking edits update route/fare inputs and invalidate return overrides without changing other patients',()=>{
  let state=D.initialState(1000);state=D.control(state,{action:'returnSchedule',patientId:'FC-DEMO-01',waitHours:3,vehicleWaiting:true},1000);const previousFare=B.create(D.patientsFor(state),settings).total;
- state=D.control(state,form({action:'editBooking',patientId:'FC-DEMO-01',service:'Stretcher',destinationIndex:4,pickupTime:'08:00',appointmentTime:'09:15',returnTime:'11:15'}),1000);
+ state=D.control(state,form({action:'editBooking',patientId:'FC-DEMO-01',service:'Stretcher',destinationIndex:4,pickupTime:'08:00',appointmentTime:'09:30',returnTime:'11:15'}),1000);
  const patients=D.patientsFor(state),patient=patients.find(p=>p.id==='FC-DEMO-01');assert.equal(patient.name,'Alice Demo Foster');assert.equal(patient.service,'Stretcher');assert.equal(patient.travel,45);assert.equal(patient.distanceMiles,26);assert.equal(patient.returnPickup,675);assert.equal(state.returnSchedules['FC-DEMO-01'],undefined);assert.equal(patients.find(p=>p.id==='FC-DEMO-02').name,'Marcus Reed');
  assert.equal(D.project(state,1000).messages[0].title,'Demo booking updated');assert.notEqual(B.create(patients,settings).total,previousFare);
 });
 test('restoring a trip remains available after more bookings are added and invalid bookings are rejected',()=>{
  let state=D.initialState(1000);state=D.control(state,{action:'cancelBooking',patientId:'FC-DEMO-02'},1000);state=D.control(state,{action:'restoreBooking',patientId:'FC-DEMO-02'},1000);assert.equal(D.patientsFor(state).length,5);
  const open=D.control(state,{action:'cancelBooking',patientId:'FC-DEMO-01'},1000);
- for(const extra of [{pickupTime:'24:00'},{appointmentTime:'08:05'},{returnTime:'08:45'},{service:'Ambulance'},{destinationIndex:99},{vehicleWaiting:'true'},{notify:['unknown']},{date:'2026-10-30'},{name:''}])assert.throws(()=>D.control(open,form(extra),1000));
+ for(const extra of [{scheduleBasis:'PICKUP',pickupTime:'24:00'},{appointmentTime:'07:20'},{returnTime:'08:45'},{service:'Ambulance'},{destinationIndex:99},{vehicleWaiting:'true'},{notify:['unknown']},{date:'2026-10-30'},{name:''}])assert.throws(()=>D.control(open,form(extra),1000));
  const booked=D.control(open,form(),1000),restored=D.control(booked,{action:'restoreBooking',patientId:'FC-DEMO-01'},1000);assert.equal(D.patientsFor(restored).length,6);assert.equal(new Set(D.patientsFor(restored).map(patient=>patient.unit)).size,6);
 });
 test('managers add many bookings beyond the five seeded trips with unique demo vehicles and complete invoices',()=>{

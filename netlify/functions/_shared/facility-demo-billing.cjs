@@ -3,7 +3,7 @@ const DATE='2026-10-26';
 const LABELS={base:'Service / base fare',mileage:'Loaded mileage',fuel:'Fuel surcharge',traffic:'Traffic overage',premium:'Time premiums / minimum fare',waiting:'Waiting',positioning:'Empty-mile positioning',notice:'Short-notice surcharge',fee:'Configured processing fee'};
 const cents=value=>Math.round((Number(value)+1e-9)*100);
 const clock=minute=>`${String(Math.floor(minute/60)).padStart(2,'0')}:${String(minute%60).padStart(2,'0')}`;
-function signature(patients,date=DATE){return JSON.stringify({date,patients:patients.map(p=>[p.id,p.name,p.service,p.destination.address,p.distanceMiles??null,p.pickup,p.appointmentAt,p.returnPickup,p.waitMinutes||0,!!p.vehicleWaiting,p.tripType,p.serviceKey,p.stopWaitMinutes,p.fuelProfile,p.origin,p.stops,p.notes,p.patientContact,p.caregiverContact,p.destinationContact,p.flight,p.scheduleBasis])});}
+function signature(patients,date=DATE){return JSON.stringify({date,patients:patients.map(p=>[p.id,p.name,p.service,p.destination.address,p.distanceMiles??null,p.pickup,p.appointmentAt,p.returnPickup,p.waitMinutes||0,!!p.vehicleWaiting,p.tripType,p.serviceKey,p.stopWaitMinutes,p.fuelProfile,p.origin,p.stops,p.notes,p.patientContact,p.caregiverContact,p.destinationContact,p.flight,p.scheduleBasis,p.travel,p.scheduledTravelMinutes])});}
 function create(patients,settings,date=DATE,previous=null){
  const distances=[8,7.5,7.2,23,26];
  const rows=patients.flatMap((patient,index)=>(patient.tripType==='ONE_WAY'?['outbound']:['outbound','return']).map(leg=>{
