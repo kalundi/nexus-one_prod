@@ -1,6 +1,7 @@
 (function(){
   // Protect portal pages until the server verifies the active session.
   const policy={
+    '/enterprise.html':['ADMIN'],
     '/apps.html':['ADMIN'],
     '/training.html':['STAFF','DRIVER','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN'],
     '/facility.html':['FACILITY','DISPATCHER','ADMIN'],

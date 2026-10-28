@@ -2014,6 +2014,7 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p[0]==='admin'&&p[1]==='actors')return await require('./_shared/enterprise-actors.cjs').createHandler({query,getPool,requireUser,bearer,json,parseBody})(event,p,method);
   if(p[0]==='facility-portal')return await handleFacilityPortal(event,p,method);
   if(p.join('/')==='auth/login'&&method==='POST'&&String(parseBody(event).email||'').trim().toLowerCase()===DemoAccount.EMAIL)return await handleFacilityDemo(event,['facility-demo','login'],method);
   const maintenanceResponse=await handleMaintenance(event,p,method);
