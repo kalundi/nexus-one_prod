@@ -2,7 +2,8 @@
  'use strict';
  const $=id=>document.getElementById(id),esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const headers=()=>({authorization:`Bearer ${sessionStorage.getItem('nexusAccessToken')||''}`,'content-type':'application/json'});
- const ROLES={ADMIN:'Administrator',DISPATCHER:'Dispatcher',DRIVER:'Driver',FACILITY:'Facility manager',STAFF:'Staff / attendant',BILLING:'Billing',QA:'Quality assurance',EXECUTIVE:'Executive',PATIENT:'Patient',CARETAKER:'Caretaker'};
+ const ROLES={ADMIN:'Administrator',DISPATCHER:'Dispatcher',DRIVER:'Driver',FACILITY:'Facility manager',STAFF:'Staff / attendant',BILLING:'Billing',QA:'Quality assurance',EXECUTIVE:'Executive',PATIENT:'Patient',CARETAKER:'Caretaker',...(window.NexusEmsRoles||{})};
+ Object.entries(window.NexusEmsRoles||{}).forEach(([value,label])=>$('newRole').add(new Option(label,value)));
  const roleLabel=role=>role==='RIDER'?'Passenger':ROLES[role]||role;
  let users=[],functions={},groups=[],editingIds=[],selectedUser=null,saveInProgress=false,scheduleRequest=0;
  const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());

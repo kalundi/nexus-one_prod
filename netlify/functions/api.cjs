@@ -50,6 +50,8 @@ const {canPatientSeeDriverLocation,distanceMiles}=require('./_shared/patient-dri
 const LivecareDemo=require('./_shared/livecare-demo.cjs');
 const handleFacilityDemo=require('./_shared/facility-demo.cjs').createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlatformSettings});
 const DemoAccount=require('./_shared/facility-demo-account.cjs');
+const EMS_ROLES=Object.keys(require('../../nexus-ems-roles.js'));
+const EMS_ACCESS=require('../../nexus-ems-roles.js').access;
 const {requireActiveFacility}=require('./_shared/facility-access.cjs');
 const handleFacilityPortal=require('./_shared/facility-portal.cjs').createHandler({query,requireUser,bearer,json,parseBody});
 const {syncBookingCalendar,cancelBookingCalendar}=require('./_shared/booking-calendar.cjs');
@@ -126,7 +128,7 @@ function ensureMultiRoleSchema(){
   await query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS active_role text');
   await query(`CREATE TABLE IF NOT EXISTS user_role_requests (
    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-   role text NOT NULL CHECK (role IN ('PATIENT','CARETAKER','STAFF','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN')),
+   role text NOT NULL CHECK (role IN ('PATIENT','CARETAKER','STAFF','DRIVER','FACILITY','DISPATCHER','BILLING','QA','EXECUTIVE','ADMIN',${EMS_ROLES.map(role=>`'${role}'`).join(',')})),
    status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED')),
    requested_at timestamptz NOT NULL DEFAULT now(),reviewed_at timestamptz,reviewed_by uuid REFERENCES users(id) ON DELETE SET NULL,
    scope_id text,notes text,UNIQUE(user_id,role))`);
@@ -4353,7 +4355,7 @@ async function handler(event){
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
     await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz').catch(()=>{});
     const b=parseBody(event);required(b,['email','phone','name','role']);
-   const validRoles=['STAFF','ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER'];
+   const validRoles=['STAFF','ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER',...EMS_ROLES];
    if(!validRoles.includes(String(b.role).toUpperCase()))return json(400,{error:'Invalid role'});
    const assignedFacility=String(b.role).toUpperCase()==='FACILITY'?await requireActiveFacility(query,b.scopeId):null;
    const phoneDigits=normalizeE164(b.phone);
@@ -4388,10 +4390,11 @@ async function handler(event){
    let warning='';
    const normalizedEmail=clean(b.email).toLowerCase();
    const normalizedName=clean(b.name);
-   const normalizedRole=String(b.role).toUpperCase();
+   const accessTitle=EMS_ACCESS[String(b.role).toUpperCase()]?String(b.role).toUpperCase():null;
+   const normalizedRole=EMS_ACCESS[accessTitle]?.role||String(b.role).toUpperCase();
    const identitySubject=crypto.randomUUID();
    try{
-    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,must_change_password,password_reset_expires,active,organization_id,identity_subject,scope_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,true,$8,$9,$10,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,phoneDigits,tempPasswordExpiresAt,orgId,identitySubject,assignedFacility?.facility_code||null]);
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,must_change_password,password_reset_expires,active,organization_id,identity_subject,scope_id,access_title,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,true,$8,$9,$10,$11,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,phoneDigits,tempPasswordExpiresAt,orgId,identitySubject,assignedFacility?.facility_code||null,accessTitle]);
    }catch(err){
     const message=String(err?.message||'').toLowerCase();
     if(message.includes('organization')||message.includes('organization_id')){
@@ -4400,13 +4403,13 @@ async function handler(event){
     let createdViaFallback=false;
     try{
       // Fallback 1: keep organization and identity subject, drop optional temp-password columns.
-      await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,scope_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,$8,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,orgId,identitySubject,assignedFacility?.facility_code||null]);
+      await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,scope_id,access_title,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,$8,$9,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,orgId,identitySubject,assignedFacility?.facility_code||null,accessTitle]);
       createdViaFallback=true;
     }catch(fallbackErr1){
       const fallbackMessage1=String(fallbackErr1?.message||'').toLowerCase();
       if(fallbackMessage1.includes('identity_subject')){
         // Fallback 2: older schemas without identity_subject.
-        await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,scope_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,orgId,assignedFacility?.facility_code||null]);
+        await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,scope_id,access_title,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,$8,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,orgId,assignedFacility?.facility_code||null,accessTitle]);
         createdViaFallback=true;
       }else{
         throw Object.assign(new Error(`User create failed: ${fallbackErr1.message||'database insert error'}`),{statusCode:500});
