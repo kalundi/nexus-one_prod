@@ -40,10 +40,16 @@ test('Medicare stretcher requires ambulance-level medical necessity review', () 
   assert.match(policy.coverageMessage, /ambulance-level medical necessity/i);
 });
 
-test('facility trips are invoiced and do not require a deposit', () => {
+test('facility managers pay during booking without a facility invoice', () => {
   const policy = bookingPaymentPolicy({ authenticated: true, bookingSource: 'FACILITY' });
-  assert.equal(policy.facilityBilling, true);
-  assert.equal(policy.requiresDeposit, false);
+  assert.equal(policy.facilityBilling, false);
+  assert.equal(policy.payerType, 'SELF_PAY');
+  assert.equal(policy.requiresDeposit, true);
+});
+
+test('facility association requires checkout even for signed-in staff, and cannot request account billing',()=>{
+ for(const bookingSource of ['STAFF','PATIENT','CUSTOMER'])assert.equal(bookingPaymentPolicy({authenticated:true,bookingSource,facilityAssociated:true}).requiresDeposit,true);
+ const policy=bookingPaymentPolicy({payerType:'FACILITY'});assert.equal(policy.payerType,'SELF_PAY');assert.equal(policy.facilityBilling,false);assert.equal(policy.requiresDeposit,true);
 });
 
 test('self-pay passenger cannot board until paid in full', () => {

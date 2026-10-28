@@ -1280,6 +1280,7 @@
   }
 
   function applyAuthUi(){
+    window.NexusBookingFacility?.setUser(currentUser);
     if($('staffTripModeField')) $('staffTripModeField').hidden = !['ADMIN','DISPATCHER'].includes(String(currentUserRole||'').toUpperCase());
     const role = String(currentUserRole || 'CUSTOMER').toUpperCase();
     const signedIn = Boolean(token());
@@ -1302,8 +1303,10 @@
     }
     updateTripScheduleSavingsMessage(signedIn);
     if(paymentChoiceHint){
-      if(role === 'FACILITY' || role === 'ADMIN' || role === 'BILLING'){
-        paymentChoiceHint.textContent = 'Facility and staff-entered invoice bookings are sent to the billing email on file.';
+      if(role === 'FACILITY'){
+        paymentChoiceHint.textContent = 'Pay the 25% deposit or full fare while arranging transportation. The trip appears in your facility portal; the facility is not invoiced.';
+      }else if(role === 'ADMIN' || role === 'BILLING'){
+        paymentChoiceHint.textContent = 'Trips associated with a facility use secure checkout during booking; the facility is not invoiced.';
       }else if(role === 'DISPATCHER'){
         paymentChoiceHint.textContent = 'Dispatch-entered bookings send the rider a secure payment link before pickup.';
       }else if(role === 'DRIVER'){
@@ -4017,6 +4020,7 @@
 
   async function performBookingSubmission(){
     clearStatus();
+    if(window.NexusBookingFacility&&!window.NexusBookingFacility.validate())return;
     setBookingOutcome('', 'pending');
     if(!validateRequiredService({focus:true})){
       setStatus('Service type is required. Select a service to continue.', 'err');
@@ -4042,6 +4046,7 @@
       phone: formatPhone($('phone').value.trim()),
       email: $('email').value.trim(),
       payerType: $('payerType')?.value || 'SELF_PAY',
+      facilityId: $('bookingFacilityId')?.value || null,
       insuranceCarrier: String(insuranceCarrier?.value || '').trim(),
       tripType: String(tripType?.value || 'ONE_WAY').toUpperCase(),
       returnTripDate: String(returnTripDate?.value || '').trim(),
@@ -4205,6 +4210,7 @@
       bookingSubmissionPending = false;
       showPaymentOptions(ref, Number(data.booking?.estimatedFare ?? payload.estimatedFare ?? 0), data.requiresOnlinePayment !== false);
       bookingSubmitted = true;
+      window.NexusBookingFacility?.lock();
       editingBookingReference = '';
       journeyNavigationOverride = '';
       hideBookingNudge();

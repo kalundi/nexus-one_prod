@@ -41,6 +41,7 @@ const {parseChannels,isDryRunValue,previewSocialSelection,runSocialPublish}=requ
 const {mapFhirAppointment,parseHl7,verifyIntegrationRequest,payloadDigest}=require('./_shared/keymark-connectors.cjs');
 const {testConnection:testKeymarkFhirConnection}=require('./_shared/keymark-fhir-client.cjs');
 const {bookingPaymentPolicy,requiresFullPaymentBeforeBoarding}=require('./_shared/payment-policy.cjs');
+const {resolveBookingFacility}=require('./_shared/booking-facility.cjs');
 const {getSecureDocument,listSecureDocuments}=require('./_shared/secure-document-registry.cjs');
 const {sendSms,getSmsStatus}=require('./_shared/sms-consent.cjs');
 const handleSmsTest=require('./_shared/sms-test.cjs').createHandler({requireUser,bearer,parseBody,json,sendSms,getSmsStatus,audit});
@@ -1371,7 +1372,7 @@ async function sendPaymentTripConfirmation(row,options={}){
 }
 
 async function issueFacilityCompletionInvoice(row){
- if(clean(row.booking_source).toUpperCase()!=='FACILITY'||row.facility_invoice_sent_at)return null;
+ if(clean(row.booking_source).toUpperCase()!=='FACILITY'||clean(row.payer_type).toUpperCase()!=='FACILITY'||row.facility_invoice_sent_at)return null;
  const fare=Number(row.estimated_fare||0),facilityCode=clean(row.facility_id)||null;
  const managers=facilityCode?await query("SELECT email FROM users WHERE role='FACILITY' AND scope_id=$1 AND active=true",[facilityCode]).catch(()=>({rows:[]})):{rows:[]};
  const recipients=[...new Set(managers.rows.map(x=>clean(x.email)).filter(Boolean))];
@@ -2788,6 +2789,12 @@ async function handler(event){
    const r=await query(`SELECT facility_code AS id,name,address,'facility' AS type FROM facilities WHERE active=true AND (name ILIKE $1 OR address ILIKE $1) ORDER BY CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END,name LIMIT 12`,[`%${q}%`,`${q}%`]);
    return json(200,{locations:r.rows});
   }
+  if(p.join('/')==='booking/facilities'&&method==='GET'){
+   const q=clean(event.queryStringParameters?.q).slice(0,120),id=clean(event.queryStringParameters?.id).slice(0,120);
+   if(!id&&q.length<2)return json(200,{facilities:[]});
+   const r=await query(id?'SELECT facility_code AS id,name,address FROM facilities WHERE active=true AND facility_code=$1':`SELECT facility_code AS id,name,address FROM facilities WHERE active=true AND (name ILIKE $1 OR address ILIKE $1) ORDER BY name LIMIT 25`,id?[id]:[`%${q}%`]);
+   return json(200,{facilities:r.rows});
+  }
   if(p[0]==='patient-feedback'&&method==='POST'&&p.length===1){
    const b=parseBody(event);
    if(clean(b.website))return json(202,{accepted:true});
@@ -2887,7 +2894,8 @@ async function handler(event){
   else if(actorRole==='ADMIN'||actorRole==='BILLING') bookingSource='STAFF';
   bookingSource=normalizeBookingSource(bookingSource);
   if(isMockTrip)bookingSource='MOCK';
-  const paymentPolicy=isMockTrip?{payerType:'SELF_PAY',requiresDeposit:false,requiresApproval:false,coverageStatus:'MOCK',coverageMessage:'MOCK TRIP — pricing test only'}:bookingPaymentPolicy({authenticated:Boolean(bookingActor),bookingSource,payerType:b.payerType,service:b.service});
+  const bookingFacility=await resolveBookingFacility(query,bookingActor,b.facilityId);
+  const paymentPolicy=isMockTrip?{payerType:'SELF_PAY',requiresDeposit:false,requiresApproval:false,coverageStatus:'MOCK',coverageMessage:'MOCK TRIP — pricing test only'}:bookingPaymentPolicy({authenticated:Boolean(bookingActor),bookingSource,payerType:b.payerType,service:b.service,facilityAssociated:Boolean(bookingFacility)});
   const initialStatus=isMockTrip?'MOCK':paymentPolicy.requiresDeposit?'PENDING_PAYMENT':paymentPolicy.requiresApproval?'PENDING_APPROVAL':'SUBMITTED';
 
   const baseNotes=(isMockTrip?'MOCK TRIP — pricing test only. No live transport, reminders, or payments.\n':'')+(clean(b.notes)||'');
@@ -2932,7 +2940,7 @@ async function handler(event){
    let fare=submittedFare,promotionLabel=null,promotionDiscount=0,r;
   const insertSql=`INSERT INTO bookings(reference,name,phone,email,service,pickup,destination,trip_date,trip_time,status,notes,pickup_lat,pickup_lng,destination_lat,destination_lng,distance_miles,estimated_duration,estimated_fare,booking_source,submitter_entity,broker_company_name,broker_accepted_rate,facility_id,payer_type,requires_deposit,deposit_amount,balance_due,coverage_status,coverage_message,trip_type,return_trip_date,return_trip_time,recurrence_days,recurrence_end_date,promotion_code,fare_before_promotion,promotion_discount,caretaker_owner_id,caretaker_patient_id,caretaker_subject_id,created_at,updated_at,flight_info)
   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,$35,$36,$37,$38,$39,$40,now(),now(),$41::jsonb) RETURNING *`;
-  const insertParams=()=>[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingSource==='FACILITY'?clean(bookingActor?.scope_id||'')||null:null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null,tripType,returnTripDate,returnTripTime,JSON.stringify(recurrenceDays),recurrenceEndDate,promotionLabel,codeHash?submittedFare:null,promotionDiscount,caretakerSubject?.ownerId||null,caretakerSubject?.profileId||null,caretakerSubject?.subjectId||null,flightInfo?JSON.stringify(flightInfo):null];
+  const insertParams=()=>[ref,clean(b.name),clean(b.phone),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,pickupTimeEstimate||b.time,initialStatus,composedNotes||null,b.pickupLat||null,b.pickupLng||null,b.destinationLat||null,b.destinationLng||null,b.distanceMiles||null,clean(b.estimatedDuration)||null,fare,bookingSource,clean(b.requestedByUser||bookingActor?.email||'')||null,bookingSource==='BROKER'?clean(b.brokerCompanyName||'')||null:null,bookingSource==='BROKER'&&b.brokerAcceptedRate!=null?Number(b.brokerAcceptedRate):null,bookingFacility?.facility_code||null,paymentPolicy.payerType,paymentPolicy.requiresDeposit,paymentPolicy.requiresDeposit?fare*.25:0,paymentPolicy.requiresDeposit?fare*.75:fare,paymentPolicy.coverageStatus,paymentPolicy.coverageMessage||null,tripType,returnTripDate,returnTripTime,JSON.stringify(recurrenceDays),recurrenceEndDate,promotionLabel,codeHash?submittedFare:null,promotionDiscount,caretakerSubject?.ownerId||null,caretakerSubject?.profileId||null,caretakerSubject?.subjectId||null,flightInfo?JSON.stringify(flightInfo):null];
    if(codeHash){
     const client=await getPool().connect();
     try{
@@ -2962,7 +2970,7 @@ async function handler(event){
    // Complete assignment and its notifications before the function returns.
    if(!paymentPolicy.requiresDeposit&&!paymentPolicy.requiresApproval)await autoAssign(r.rows[0]);
    let notifications;
-   const isFacilityInvoice=bookingSource==='FACILITY';
+   const isFacilityInvoice=paymentPolicy.facilityBilling===true;
    const isDriverReferral=bookingSource==='DRIVER_REFERRAL';
 
    if(isFacilityInvoice){
@@ -3279,6 +3287,7 @@ async function handler(event){
    const phoneDigits=normalizeE164(b.phone);if(!phoneDigits)return json(400,{error:'Enter the phone number used for this booking'});
    const found=await query(`SELECT * FROM bookings WHERE reference=$1 AND regexp_replace(phone,'\\D','','g')=regexp_replace($2,'\\D','','g')`,[ref,phoneDigits]);
    if(!found.rows[0])return json(404,{error:'Booking not found or phone number does not match'});
+   if(Object.hasOwn(b,'facilityId')&&clean(b.facilityId)!==clean(found.rows[0].facility_id))return json(409,{error:'Please contact dispatch to change the facility associated with an existing booking.'});
    if(!['PENDING_PAYMENT','PENDING_APPROVAL','SUBMITTED','REQUESTED','SCHEDULED'].includes(clean(found.rows[0].status).toUpperCase()))return json(409,{error:'This trip can no longer be changed online. Please call dispatch.'});
    if(found.rows[0].driver_name||found.rows[0].driver_scope_id)return json(409,{error:'A driver is already assigned. Please call dispatch to change this trip.'});
   const flightInfo=normalizeBookingFlightInfo(b.flightInfo,b.date);
