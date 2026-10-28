@@ -1,0 +1,24 @@
+# Production facility manager portal
+
+Entry point: `/facility.html`. Managers sign in through the existing staff sign-in and must have an active `FACILITY` role with `scope_id` equal to an active `facilities.facility_code`. This workspace does not use the presentation token, demo configuration or browser-stored sample patients/trips. The separate `/facility-demo.html` remains a presentation.
+
+The server uses the validated session's facility scope, rejects conflicting facility IDs and checks every conversation reference against that facility's real bookings. Administrators and dispatchers select an active facility explicitly. Dispatch can open **Facility inbox** from its navigation and reply in the same workspace. The usual session expiry/revocation applies. Expired authorization clears rendered trip and conversation data.
+
+## Operations
+
+- **Trip board:** select an Eastern Time service day, search the loaded page, filter status, and page through 100 bookings at a time. Includes unpaid/pending requests and trips with a return scheduled that day. Shows actual dispatch status, payment status, assigned driver/vehicle and saved schedules. MOCK/DEMO source bookings and MOCK statuses are excluded. Metrics and unread badge cover the loaded page. Book a Ride uses the main booking app with the manager's facility locked by its existing booking authorization.
+- **Routes:** choose a booked trip and outbound/return leg. Uses saved addresses for Google road directions, with provider attribution/warnings and an external driving-directions fallback. These are planned routes; no simulated vehicle positions or invented ETAs are displayed. The existing Maps browser key/domain restrictions apply.
+- **Communications:** per-trip, persisted manager/dispatch inbox; status history is read from `trip_status_history`. Internal dispatch notes, private contact fields and history actors are not exposed. Messages are limited to 2,000 characters, stored as plain text, and retried using an idempotency UUID. Per-user read timestamps drive unread counts. Latest 100 messages and 100 activity entries are displayed. Delivery means saved to the shared portal, not SMS/email or a guaranteed immediate dispatch response. Urgent changes retain a visible coordination phone link.
+- **Locations:** top 50 locations derived across all completed/delivered/billed/paid real bookings for that facility. Counts distinct booking references per normalized address, includes both pickup and destination, excludes the normalized facility address, and ranks by count then latest service date. Case and repeated whitespace are normalized; different address spellings remain separate. No seeded locations appear for an empty facility. A completed booking changes rankings on the next refresh. Choose **Book to this location** to prefill the destination in the embedded booking form.
+
+The portal refreshes every 20 seconds while visible, on manual Refresh and on return to the browser tab. Communication status is refreshed when that view is open; locations recalculate when opened and during visible polling. Poll failures retain the last successful data with a stale-data notice. All facility API responses use the API's existing `no-store` headers. The new workspace does not persist trip/message data to localStorage.
+
+## Deployment
+
+Migration `094.001_facility_portal.sql` creates messages/read state, constraints, and facility/date indexes. RLS is enabled without public access policies; direct `anon` and `authenticated` access is revoked when those roles exist. The trusted backend database connection must own these tables or have the intended server-side privileges. Netlify's existing build command runs migrations before publishing the application.
+
+The checkout request carries a production-portal return flag, restricted to the internal `/facility.html` return page for both payment providers. It does not change charge calculations or authorize/confirm payment from a return URL. The existing webhook/payment confirmation remains authoritative.
+
+Provision production managers using User Management with the correct facility code. The reserved Annapolis demo account remains demo-only and is not a production manager credential. No production accounts, trips, messages, payments or database settings were created during local verification.
+
+Validation: isolated PostgreSQL tests cover migration replay, facility isolation, inactive/unassigned scopes, real-trip filtering, return days, location ranking updates, private history-note exclusion, message validation/idempotency, shared dispatch replies and per-user reads. Browser fixtures cover desktop/mobile navigation, booking prefill and locked facility, empty accounts, dispatch selection, map addresses/return legs/fallbacks and session-expiry clearing. Production deployment and live credentials are separate from these fixture checks.
