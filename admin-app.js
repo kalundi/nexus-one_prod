@@ -1533,7 +1533,7 @@ async function loadOutreachCampaign(){
  setDashboardSignal('outreachSection',data.campaign.status==='BLOCKED'?'alert':automation.enabled?'normal':'warn',data.campaign.status);updateDashboardAnomalySummary();
  const date=value=>value?new Date(value).toLocaleString('en-US',{timeZone:data.campaign.timezone,timeZoneName:'short'}):'Not yet';
  document.getElementById('outreachAutomationSummary').textContent=`Initial emails sent: ${automation.initialSent||0}. Follow-ups sent: ${automation.followUpsSent||0}. Replied: ${automation.replied||0}. Suppressed: ${automation.suppressed||0}. Last run: ${date(automation.lastRunAt)}. Replies checked: ${date(automation.replyCheckedAt)}. ${automation.enabled?'Next scheduled check: '+date(automation.nextCheckAt)+'.':'Automation is paused.'}`;
- const error=document.getElementById('outreachAutomationError');error.hidden=!automation.error;error.textContent=automation.error||'';
+ const error=document.getElementById('outreachAutomationError');error.hidden=!(automation.error||automation.trackingError);error.textContent=automation.error||automation.trackingError||'';
  document.getElementById('outreachRecipientCount').textContent=String(data.recipients.length);
  document.getElementById('outreachEligibleCount').textContent=String(data.eligibleCount);
  document.getElementById('outreachDeliveryStatus').textContent=data.delivery.postmark;
@@ -1541,7 +1541,14 @@ async function loadOutreachCampaign(){
  document.getElementById('outreachSender').value=`${data.campaign.fromName} <${data.campaign.fromEmail}>`;
  document.getElementById('outreachPreview').innerHTML=data.previewHtml;
  document.getElementById('outreachFollowUpPreview').innerHTML=data.followUpPreviewHtml;
- rows.innerHTML=data.recipients.map(item=>`<tr><td>${item.sequence}</td><td><strong>${escapeHtml(item.facility)}</strong><br><small>${escapeHtml(item.providerType)}</small></td><td>${escapeHtml(item.contactName)}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(item.phone||'—')}</td><td>${item.score}</td><td><span class="pill muted">${escapeHtml(item.status)}</span><br><small>Follow-up: ${escapeHtml(item.followUpStatus||'PENDING')}${item.followUpDue?' · due '+escapeHtml(item.followUpDue):''}</small>${item.error?'<br><small>'+escapeHtml(item.error)+'</small>':''}</td></tr>`).join('');
+ const deliveryLabel=value=>({PENDING:'Checking delivery',UNAVAILABLE:'Tracking unavailable',SENT:'Sent',DELIVERED:'Delivered',OPENED:'Opened',BOUNCED:'Bounced'}[value]||value||'Sent');
+ const deliveryLine=(label,status,sentAt)=>'<small>'+label+': '+escapeHtml(deliveryLabel(status))+(sentAt?' · '+escapeHtml(date(sentAt)):'')+'</small>';
+ rows.innerHTML=data.recipients.map(item=>{
+  const status=item.status==='SENT'&&['DELIVERED','OPENED','BOUNCED'].includes(item.deliveryStatus)?item.deliveryStatus:item.status;
+  const initial=item.sentAt?'<br>'+deliveryLine('Initial',item.deliveryStatus,item.sentAt):'';
+  const follow=item.followUpSentAt?deliveryLine('Follow-up',item.followUpDeliveryStatus,item.followUpSentAt):'<small>Follow-up: '+escapeHtml(item.followUpStatus||'PENDING')+(item.followUpDue?' · due '+escapeHtml(item.followUpDue):'')+'</small>';
+  return '<tr><td>'+item.sequence+'</td><td><strong>'+escapeHtml(item.facility)+'</strong><br><small>'+escapeHtml(item.providerType)+'</small></td><td>'+escapeHtml(item.contactName)+'</td><td>'+escapeHtml(item.email)+'</td><td>'+escapeHtml(item.phone||'—')+'</td><td>'+item.score+'</td><td><span class="pill muted">'+escapeHtml(status)+'</span>'+initial+'<br>'+follow+(item.error?'<br><small>'+escapeHtml(item.error)+'</small>':'')+'</td></tr>';
+ }).join('');
 }
 async function sendOutreachTest(){
  const button=document.getElementById('sendOutreachTest'),message=document.getElementById('outreachMsg');

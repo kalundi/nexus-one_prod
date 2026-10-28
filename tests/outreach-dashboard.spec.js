@@ -5,7 +5,7 @@ for(const mobile of [false,true])test(`outreach dashboard shows the full automat
  if(mobile)await page.setViewportSize({width:390,height:844});
  const calls=[];let enabled=true,error='POSTMARK_BROADCAST_MESSAGE_STREAM is missing.';
  await page.addInitScript(()=>{sessionStorage.setItem('nexusAccessToken','outreach-ui-test');sessionStorage.setItem('nexusUser',JSON.stringify({id:'test-admin',role:'ADMIN',email:'admin@example.test'}));});
- const data=()=>({campaign:{...campaign,status:!enabled?'PAUSED':error?'BLOCKED':'AUTOMATIC'},eligibleCount:262,recipients:audience.recipients.map((r,i)=>({...r,sequence:i+1,status:i<25?'SENT':'READY',followUpStatus:'PENDING',followUpDue:i<25?'2026-10-29':null})),delivery:{postmark:error?'not-configured':'configured'},previewHtml:'<p>Initial outreach preview</p>',followUpPreviewHtml:'<p>Follow-up preview</p>',automation:{enabled,error,initialSent:25,followUpsSent:0,lastRunAt:'2026-10-27T13:30:00Z',nextCheckAt:'2026-10-27T13:31:00Z'}});
+ const data=()=>({campaign:{...campaign,status:!enabled?'PAUSED':error?'BLOCKED':'AUTOMATIC'},eligibleCount:262,recipients:audience.recipients.map((r,i)=>({...r,sequence:i+1,status:i<25?'SENT':'READY',deliveryStatus:['DELIVERED','OPENED','BOUNCED','UNAVAILABLE'][i%4],sentAt:i<25?'2026-10-27T13:30:00Z':null,followUpStatus:i===0?'SENT':'PENDING',followUpDeliveryStatus:i===0?'OPENED':null,followUpSentAt:i===0?'2026-10-27T13:31:00Z':null,followUpDue:i>0&&i<25?'2026-10-29':null})),delivery:{postmark:error?'not-configured':'configured'},previewHtml:'<p>Initial outreach preview</p>',followUpPreviewHtml:'<p>Follow-up preview</p>',automation:{enabled,error,initialSent:25,followUpsSent:0,lastRunAt:'2026-10-27T13:30:00Z',nextCheckAt:'2026-10-27T13:31:00Z'}});
  await page.route('**/api/**',async route=>{
   const request=route.request(),path=new URL(request.url()).pathname;
   if(path==='/api/auth/me')return route.fulfill({json:{user:{id:'test-admin',role:'ADMIN',email:'admin@example.test'}}});
@@ -21,6 +21,12 @@ for(const mobile of [false,true])test(`outreach dashboard shows the full automat
  await page.goto('/admin.html#outreachSection');
  await expect(page.locator('#outreachSection')).toBeVisible();await expect(page.locator('#adminFocusTitle')).toHaveText('Outreach campaigns');
  await expect(page.locator('#outreachRecipientRows tr')).toHaveCount(262);await expect(page.locator('#outreachStatus')).toHaveText('BLOCKED');
+ await expect(page.locator('#outreachRecipientRows tr').nth(0)).toContainText('DELIVERED');
+ await expect(page.locator('#outreachRecipientRows tr').nth(0)).toContainText('Follow-up: Opened');
+ await expect(page.locator('#outreachRecipientRows tr').nth(0)).not.toContainText('due');
+ await expect(page.locator('#outreachRecipientRows tr').nth(1)).toContainText('OPENED');
+ await expect(page.locator('#outreachRecipientRows tr').nth(2)).toContainText('BOUNCED');
+ await expect(page.locator('#outreachRecipientRows tr').nth(3)).toContainText('Tracking unavailable');
  await expect(page.locator('#outreachAutomationSummary')).toContainText('Initial emails sent: 25');await expect(page.locator('#outreachAutomationError')).toContainText('BROADCAST');
  await page.locator('#toggleOutreachAutomation').click();await expect(page.locator('#outreachStatus')).toHaveText('PAUSED');await expect(page.locator('#toggleOutreachAutomation')).toHaveText('Resume automatic outreach');
  await page.locator('#checkOutreachConnections').click();await expect(page.locator('#outreachAutomationError')).toBeHidden();

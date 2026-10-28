@@ -13,6 +13,7 @@ async function sendEmail(to,subject,html,options={}){
  const from=options.fromEmail||config.from;
  const payload={From:from.includes('<')?from:`${options.fromName||'Nexus Medical Transit'} <${from}>`,To:recipients.join(','),Subject:subject,HtmlBody:html,MessageStream:config.stream};
  if(options.broadcast)payload.HtmlBody+='\n<p><a href="{{{ pm:unsubscribe }}}">Unsubscribe</a></p>';
+ if(typeof options.trackOpens==='boolean')payload.TrackOpens=options.trackOpens;
  if(options.replyTo)payload.ReplyTo=options.replyTo;
  if(options.attachments?.length)payload.Attachments=options.attachments.map(a=>({Name:a.filename||'attachment.txt',Content:String(a.content||''),ContentType:a.type||'application/octet-stream'})).filter(a=>a.Content);
  const response=await fetch('https://api.postmarkapp.com/email',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'X-Postmark-Server-Token':config.token,Accept:'application/json','Content-Type':'application/json'},body:JSON.stringify(payload)});

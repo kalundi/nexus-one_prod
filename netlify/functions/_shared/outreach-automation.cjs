@@ -24,6 +24,8 @@ function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients
   await query('ALTER TABLE outreach_deliveries ADD COLUMN IF NOT EXISTS claimed_at timestamptz');
   await query('ALTER TABLE outreach_deliveries ADD COLUMN IF NOT EXISTS provider_message_id text');
   await query('ALTER TABLE outreach_deliveries ADD COLUMN IF NOT EXISTS replied_at timestamptz');
+  await query('ALTER TABLE outreach_deliveries ADD COLUMN IF NOT EXISTS tracking jsonb');
+  await query('ALTER TABLE outreach_deliveries ADD COLUMN IF NOT EXISTS tracking_checked_at timestamptz');
   await query(`CREATE INDEX IF NOT EXISTS idx_outreach_delivery_stage ON outreach_deliveries(campaign_id,stage,status)`);
   await query(`CREATE TABLE IF NOT EXISTS outreach_automation(campaign_id text PRIMARY KEY,enabled boolean NOT NULL DEFAULT false,last_run_at timestamptz,reply_checked_at timestamptz,connections_checked_at timestamptz,last_error text,delivery_blocked boolean NOT NULL DEFAULT false,lease_id uuid,lease_until timestamptz,updated_at timestamptz NOT NULL DEFAULT now())`);
   for(const table of ['outreach_suppressions','outreach_deliveries','outreach_automation']){
@@ -95,17 +97,40 @@ function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients
   catch(error){await query('UPDATE outreach_automation SET last_error=$2 WHERE campaign_id=$1',[campaign.id,error.message]);return {ok:false,error:error.message};}
  }
  async function setEnabled(enabled){await ensureSchema();await query('UPDATE outreach_automation SET enabled=$2,updated_at=$3 WHERE campaign_id=$1',[campaign.id,enabled,now().toISOString()]);}
+ async function syncTracking(){
+  if(!email.isConfigured({broadcast:true}))return null;
+  // Rotate bounded batches so a refresh cannot exhaust the function timeout.
+  const pending=(await query(`SELECT id,provider_message_id FROM outreach_deliveries WHERE campaign_id=$1 AND status='SENT' AND provider_message_id IS NOT NULL AND (tracking_checked_at IS NULL OR tracking_checked_at<$2) ORDER BY tracking_checked_at ASC NULLS FIRST LIMIT 8`,[campaign.id,new Date(+now()-60000).toISOString()])).rows;
+  let failed=false;
+  await Promise.all(pending.map(async row=>{
+   try{
+    const config=email.configuration({broadcast:true});
+    const response=await fetcher('https://api.postmarkapp.com/messages/outbound/'+encodeURIComponent(row.provider_message_id)+'/details',{signal:AbortSignal.timeout(5000),headers:{'X-Postmark-Server-Token':config.token,Accept:'application/json'}});
+    const data=await response.json();
+    if(!response.ok){
+     if(response.status===404||data.ErrorCode===701){await query('UPDATE outreach_deliveries SET tracking=COALESCE(tracking,$2::jsonb),tracking_checked_at=$3 WHERE id=$1',[row.id,JSON.stringify({status:'UNAVAILABLE'}),now().toISOString()]);return;}
+     throw Error('Tracking unavailable');
+    }
+    if(data.MessageID!==row.provider_message_id||!Array.isArray(data.MessageEvents))throw Error('Invalid tracking response');
+    const event=type=>data.MessageEvents.find(e=>e.Type===type);
+    const tracking={status:event('Bounced')?'BOUNCED':event('Opened')?'OPENED':event('Delivered')?'DELIVERED':'SENT',deliveredAt:event('Delivered')?.ReceivedAt||null,openedAt:event('Opened')?.ReceivedAt||null,bouncedAt:event('Bounced')?.ReceivedAt||null,openTracking:data.TrackOpens===true};
+    await query('UPDATE outreach_deliveries SET tracking=$2::jsonb,tracking_checked_at=$3 WHERE id=$1',[row.id,JSON.stringify(tracking),now().toISOString()]);
+   }catch{failed=true;await query('UPDATE outreach_deliveries SET tracking_checked_at=$2 WHERE id=$1',[row.id,now().toISOString()]);}
+  }));
+  return failed?'Some Postmark delivery updates could not be refreshed. Previously confirmed statuses are retained.':null;
+ }
  async function dashboard(){
-  await ensureSchema();const automation=await state(),deliveries=(await query('SELECT * FROM outreach_deliveries WHERE campaign_id=$1',[campaign.id])).rows;
+  await ensureSchema();const trackingError=await syncTracking();const automation=await state(),deliveries=(await query('SELECT * FROM outreach_deliveries WHERE campaign_id=$1',[campaign.id])).rows;
   const suppressed=new Set((await query('SELECT lower(email) AS email FROM outreach_suppressions')).rows.map(r=>r.email));
   const index=new Map(deliveries.map(row=>[normalize(row.email)+'/'+row.stage,row]));
   const rows=recipients.map((recipient,i)=>{
    const initial=index.get(normalize(recipient.email)+'/INITIAL'),follow=index.get(normalize(recipient.email)+'/FOLLOW_UP');
-   return {...recipient,sequence:i+1,status:suppressed.has(normalize(recipient.email))?'SUPPRESSED':initial?.replied_at?'REPLIED':initial?.status||'READY',sentAt:initial?.sent_at||null,followUpStatus:suppressed.has(normalize(recipient.email))?'SUPPRESSED':initial?.replied_at?'STOPPED':follow?.status||'PENDING',followUpDue:initial?.sent_at?followUpDate(initial.sent_at):null,error:follow?.error_message||initial?.error_message||null};
+   const trackingStatus=row=>row?.tracking?.status||(row?.status==='SENT'?(row.provider_message_id?'PENDING':'UNAVAILABLE'):null);
+   return {...recipient,sequence:i+1,status:suppressed.has(normalize(recipient.email))?'SUPPRESSED':initial?.replied_at?'REPLIED':initial?.status||'READY',sentAt:initial?.sent_at||null,deliveryStatus:trackingStatus(initial),deliveryTracking:initial?.tracking||null,trackingCheckedAt:initial?.tracking_checked_at||null,followUpDeliveryStatus:trackingStatus(follow),followUpSentAt:follow?.sent_at||null,followUpStatus:suppressed.has(normalize(recipient.email))?'SUPPRESSED':initial?.replied_at?'STOPPED':follow?.status||'PENDING',followUpDue:initial?.sent_at&&!follow&&!initial.replied_at&&!suppressed.has(normalize(recipient.email))?followUpDate(initial.sent_at):null,error:follow?.error_message||initial?.error_message||null};
   });
   const configured=email.isConfigured({broadcast:true}),blocked=!configured||automation.last_error||automation.delivery_blocked;
   const status=!automation.enabled?'PAUSED':blocked?'BLOCKED':automation.connections_checked_at?'AUTOMATIC':'CHECKING CONNECTIONS';
-  return {campaign:{...campaign,status,sendEnabled:automation.enabled},selection:audience.selection,eligibleCount:audience.eligibleCount,recipients:rows,previewHtml:outreachHtml(rows[0]?.contactName,rows[0]?.facility),followUpPreviewHtml:outreachHtml(rows[0]?.contactName,rows[0]?.facility,true),delivery:{emailProvider:'Postmark',postmark:configured?'configured':'not-configured',sender:campaign.fromEmail},automation:{enabled:automation.enabled,lastRunAt:automation.last_run_at,replyCheckedAt:automation.reply_checked_at,connectionsCheckedAt:automation.connections_checked_at,error:automation.last_error||(!configured?'Configure a valid Postmark token and Broadcast stream.':null),nextCheckAt:nextWindow(now()),dailyInitialLimit:25,dailyFollowUpLimit:25,followUpsPerProspect:1,initialSent:deliveries.filter(r=>r.stage==='INITIAL'&&r.status==='SENT').length,followUpsSent:deliveries.filter(r=>r.stage==='FOLLOW_UP'&&r.status==='SENT').length,replied:rows.filter(r=>r.status==='REPLIED').length,suppressed:rows.filter(r=>r.status==='SUPPRESSED').length}};
+  return {campaign:{...campaign,status,sendEnabled:automation.enabled},selection:audience.selection,eligibleCount:audience.eligibleCount,recipients:rows,previewHtml:outreachHtml(rows[0]?.contactName,rows[0]?.facility),followUpPreviewHtml:outreachHtml(rows[0]?.contactName,rows[0]?.facility,true),delivery:{emailProvider:'Postmark',postmark:configured?'configured':'not-configured',sender:campaign.fromEmail},automation:{trackingError,enabled:automation.enabled,lastRunAt:automation.last_run_at,replyCheckedAt:automation.reply_checked_at,connectionsCheckedAt:automation.connections_checked_at,error:automation.last_error||(!configured?'Configure a valid Postmark token and Broadcast stream.':null),nextCheckAt:nextWindow(now()),dailyInitialLimit:25,dailyFollowUpLimit:25,followUpsPerProspect:1,initialSent:deliveries.filter(r=>r.stage==='INITIAL'&&r.status==='SENT').length,followUpsSent:deliveries.filter(r=>r.stage==='FOLLOW_UP'&&r.status==='SENT').length,replied:rows.filter(r=>r.status==='REPLIED').length,suppressed:rows.filter(r=>r.status==='SUPPRESSED').length}};
  }
  async function run(){
   const wallStarted=Date.now();await ensureSchema();let automation=await state();if(!automation.enabled)return {processed:0,reason:'Automatic outreach is paused'};
@@ -142,7 +167,7 @@ function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients
     if(!delivery.rows.length)continue;processed++;used[stage]++;
     let result;
     try{
-     result=await email.sendEmail(address,stage==='FOLLOW_UP'?'Re: '+campaign.subject:campaign.subject,outreachHtml(recipient.contactName,recipient.facility,stage==='FOLLOW_UP'),{broadcast:true,fromEmail:campaign.fromEmail,fromName:campaign.fromName,replyTo:campaign.replyTo});
+     result=await email.sendEmail(address,stage==='FOLLOW_UP'?'Re: '+campaign.subject:campaign.subject,outreachHtml(recipient.contactName,recipient.facility,stage==='FOLLOW_UP'),{broadcast:true,fromEmail:campaign.fromEmail,fromName:campaign.fromName,replyTo:campaign.replyTo,trackOpens:true});
      if(result.status!=='sent')throw Error('Postmark Broadcast is not configured.');
     }catch(error){
      const inactive=error.providerCode===406;
@@ -159,6 +184,6 @@ function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients
   }catch(error){await query('UPDATE outreach_automation SET last_error=$2 WHERE campaign_id=$1',[campaign.id,error.message]);return {processed,sent,blocked:true,error:error.message};}
   finally{await query('UPDATE outreach_automation SET lease_id=NULL,lease_until=NULL WHERE campaign_id=$1 AND lease_id=$2',[campaign.id,lease]);}
  }
- return {ensureSchema,setEnabled,checkConnections,dashboard,run};
+ return {ensureSchema,setEnabled,checkConnections,dashboard,syncTracking,run};
 }
 module.exports={createAutomation,localClock,inSendWindow,followUpDate,nextWindow,replyMatches};
