@@ -57,13 +57,13 @@ function eventPayload(booking, { timeZone = 'Eastern Standard Time' } = {}) {
   const endDateText = `${endDate.getUTCFullYear()}-${String(endDate.getUTCMonth() + 1).padStart(2, '0')}-${String(endDate.getUTCDate()).padStart(2, '0')}`;
   const endTimeText = `${String(Math.floor((endMinutes % 1440) / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}:00`;
   const reference = clean(booking.reference || booking.id);
-  const rider = clean(booking.name || booking.passenger_name) || 'Rider';
+  const rider = clean(booking.name || booking.passenger_name) || 'Passenger';
   const pickup = clean(booking.pickup || booking.pickup_address) || 'Not provided';
   const destination = clean(booking.destination || booking.dropoff_address) || 'Not provided';
   const service = clean(booking.service || booking.service_type) || 'Medical transportation';
   const details = [
     `<p><strong>Booking reference:</strong> ${escapeHtml(reference)}</p>`,
-    `<p><strong>Rider:</strong> ${escapeHtml(rider)}</p>`,
+    `<p><strong>Passenger:</strong> ${escapeHtml(rider)}</p>`,
     `<p><strong>Service:</strong> ${escapeHtml(service)}</p>`,
     `<p><strong>Pickup:</strong> ${escapeHtml(pickup)}</p>`,
     `<p><strong>Destination:</strong> ${escapeHtml(destination)}</p>`

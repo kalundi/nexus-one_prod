@@ -26,7 +26,7 @@ async function prepare(page,{roundTrip=false,multiStop=false,role,service='ambul
  });
  await page.goto('/booking-app.html');
  if(service)await page.locator('#serviceTypeSelect').selectOption(service);
- await page.locator('#name').fill('Service Duration Test');await page.locator('#phone').fill('(240) 555-0130');await page.locator('#confirmRiderBtn').click();
+ await page.locator('#firstName').fill('Service'); await page.locator('#lastName').fill('Duration Test');await page.locator('#phone').fill('(240) 555-0130');await page.locator('#email').fill('duration@example.com');await page.locator('#confirmRiderBtn').click();
  if(!service)return {getSubmitted:()=>submitted};
  if(multiStop){await page.locator('#multipleStopsToggle').check();await page.locator('#appointmentTime-2').fill('11:30');await page.locator('[data-route-stop="true"]').fill('300 Clinic Road, Bethesda, MD');}
  if(roundTrip){await page.locator('#tripType').selectOption('ROUND_TRIP');await page.locator('#returnTripDate').fill('2030-08-15');await page.locator('#returnTripTime').fill('10:45');}
@@ -118,7 +118,7 @@ test('multi-stop duration and waiting use service travel and the next appointmen
  await expect(page.locator('[data-service="wheelchair"] .serviceCardEta')).toHaveText('~1h 20m drive');
  await page.locator('[data-service="wheelchair"]').click();
  await expect(page.locator('#tripTime')).toHaveValue('09:05');await expect(page.locator('#stopPickupTime-1')).toHaveValue('10:20');await expect(page.locator('#waitMinutes')).toHaveValue('35');
- await expect(page.locator('#fareTravelBreakdown')).toContainText('1h 20m driving · 35 min waiting · 15 min rider assistance');
+ await expect(page.locator('#fareTravelBreakdown')).toContainText('1h 20m driving · 35 min waiting · 15 min passenger assistance');
 });
 
 test('a return several days later is shown separately from driving time',async({page})=>{

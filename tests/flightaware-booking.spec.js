@@ -15,7 +15,7 @@ test('booking flight lookup displays the correct airport terminal and resets whe
  });
  await page.setViewportSize({width:390,height:844});
  await page.goto('/booking-app.html');
- await page.locator('#name').fill('Flight Lookup Test');
+ await page.locator('#firstName').fill('Flight'); await page.locator('#lastName').fill('Lookup Test');
  await page.locator('#phone').fill('(240) 555-0148');
  await page.locator('#serviceTypeSelect').selectOption('ambulatory');
  await page.locator('#confirmRiderBtn').click();

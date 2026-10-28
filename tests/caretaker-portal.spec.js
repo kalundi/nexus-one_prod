@@ -27,7 +27,7 @@ test('caretaker signs in, saves patient and plan, and loads patient details into
  await page.getByRole('button',{name:'Save plan',exact:true}).click();await expect(page.locator('#plans')).toContainText('Not booked');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.getByRole('button',{name:'Continue to booking'}).click();
- await expect(page.locator('#name')).toHaveValue(patient.name);await expect(page.locator('#pickup')).toHaveValue(patient.pickup);await expect(page.locator('#destination')).toHaveValue('200 Clinic Road');
+ await expect(page.locator('#firstName')).toHaveValue(patient.name.split(/\s+/)[0]);await expect(page.locator('#lastName')).toHaveValue(patient.name.split(/\s+/).slice(1).join(' '));await expect(page.locator('#pickup')).toHaveValue(patient.pickup);await expect(page.locator('#destination')).toHaveValue('200 Clinic Road');
  await expect(page.locator('#tripDate')).toHaveValue('2099-12-01');await expect(page.locator('#tripTime')).toHaveValue(/^\d{2}:\d{2}$/);await expect(page.getByText(/Caretaker plan loaded/)).toContainText('Planned pickup: 09:00');await expect(page.locator('#appointmentTime')).toHaveValue('10:00');await expect(page.locator('#service')).toHaveValue('wheelchair');
  await expect(page.locator('#notes')).toHaveValue(patient.notes);
 });

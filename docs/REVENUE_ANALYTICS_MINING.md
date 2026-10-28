@@ -10,7 +10,7 @@ Operational data already lands in core tables such as:
 - `audit_log`
 - `gps_positions`
 
-The new analytics routes provide a finance-safe and executive-safe way to mine revenue and projection data without exposing unnecessary rider PII in normal reporting responses.
+The new analytics routes provide a finance-safe and executive-safe way to mine revenue and projection data without exposing unnecessary passenger PII in normal reporting responses.
 
 ## Secure API routes
 
@@ -101,6 +101,6 @@ This is useful for:
 
 Recommended next enhancements:
 - add a dedicated executive dashboard page that consumes `/api/admin/analytics/revenue`
-- add cohort views for repeat riders and facility partners
+- add cohort views for repeat passengers and facility partners
 - add a warehouse or nightly snapshot table if historical trend retention becomes more complex
 - add retention policies for GPS detail if only summary analytics are needed long-term

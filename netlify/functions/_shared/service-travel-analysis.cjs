@@ -1,7 +1,7 @@
 const Fare=require('../../../nexus-fare.js');
 const MAX_TRIPS=1000;
 const MIN_TRIPS=30;
-const CARE_FOCUS={ambulatory:'Boarding assistance and seatbelt checks',wheelchair:'Lift or ramp access, wheelchair securement and occupant restraints',broda:'Chair-specific transfer and transport setup',stretcher:'Loading, restraints, smooth travel and patient handoff',bariatric:'Crew and equipment setup, assisted loading and handoff',facility_transfer:'The rider’s mobility needs and facility handoff',facility_transfer_critical:'Clinical preparation, smooth travel and care handoff',bls:'Clinical preparation, monitoring and handoff',als1:'Clinical preparation, monitoring and handoff',als2:'Clinical preparation, monitoring and handoff'};
+const CARE_FOCUS={ambulatory:'Boarding assistance and seatbelt checks',wheelchair:'Lift or ramp access, wheelchair securement and occupant restraints',broda:'Chair-specific transfer and transport setup',stretcher:'Loading, restraints, smooth travel and patient handoff',bariatric:'Crew and equipment setup, assisted loading and handoff',facility_transfer:'The passenger’s mobility needs and facility handoff',facility_transfer_critical:'Clinical preparation, smooth travel and care handoff',bls:'Clinical preparation, monitoring and handoff',als1:'Clinical preparation, monitoring and handoff',als2:'Clinical preparation, monitoring and handoff'};
 const normal=value=>String(value||'').trim().toUpperCase().replace(/[\s-]+/g,'_');
 const minutes=(start,end)=>Math.max(0,(end-start)/60000);
 const median=values=>{const sorted=values.filter(value=>value!=null&&Number.isFinite(value)).sort((a,b)=>a-b);return sorted.length?(sorted[Math.floor((sorted.length-1)/2)]+sorted[Math.ceil((sorted.length-1)/2)])/2:null;};

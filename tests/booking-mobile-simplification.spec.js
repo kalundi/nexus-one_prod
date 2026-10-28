@@ -81,7 +81,7 @@ test('mobile booking confirms the fare before opening payment', async ({ page })
   expect(initialBox.height).toBeGreaterThanOrEqual(620);
   expect(initialBox.width).toBeLessThanOrEqual(390);
 
-  await page.locator('#name').fill('Jamie Patient');
+  await page.locator('#firstName').fill('Jamie'); await page.locator('#lastName').fill('Patient');
   await page.locator('#phone').fill('(240) 555-0101');
   await page.locator('#serviceTypeSelect').selectOption('wheelchair');
   await expect(page.locator('#confirmRiderBtn')).toBeEnabled({timeout:30000});
@@ -138,7 +138,7 @@ test('review card uses plain language and the patient-entered details', async ({
   await page.goto('/booking-app.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(()=>Boolean(window.NexusBookingApp));
   await page.locator('#fareSummarySection').evaluate((section) => {
-    const values = { name:'Jamie Patient', pickup:'100 Main Street', destination:'200 Medical Center Drive', tripDate:'2030-08-15', appointmentTime:'10:30' };
+    const values = { firstName:'Jamie', lastName:'Patient', pickup:'100 Main Street', destination:'200 Medical Center Drive', tripDate:'2030-08-15', appointmentTime:'10:30' };
     Object.entries(values).forEach(([id, value]) => {
       const field = document.getElementById(id);
       field.value = value;
@@ -195,6 +195,7 @@ test('rider details stay visible if the booking script fails to load', async ({ 
   await page.route('**/booking-app.js*', route => route.abort());
   await page.goto('/booking-app.html', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#riderDetailsSection')).toBeVisible();
-  await expect(page.locator('#name')).toBeVisible();
+  await expect(page.locator('#firstName')).toBeVisible();
+  await expect(page.locator('#lastName')).toBeVisible();
   await expect(page.locator('#phone')).toBeVisible();
 });

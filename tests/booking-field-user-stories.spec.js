@@ -9,7 +9,8 @@ test.beforeEach(async({page})=>{
 });
 
 const patientFields = [
-  { id:'name', label:'Passenger name', intent:'identify the person riding' },
+  { id:'firstName', label:'Passenger First Name', intent:'identify the passenger by first name' },
+  { id:'lastName', label:'Passenger Last Name', intent:'identify the passenger by last name' },
   { id:'phone', label:'Phone', intent:'send booking and ride updates' },
   { id:'email', label:'Email', intent:'provide the primary written receipt channel' },
   { id:'payerType', label:'How will this ride be paid?', intent:'show only relevant payment requirements' },
@@ -113,7 +114,7 @@ test('conditional fields appear only after the patient makes the matching choice
 test('confirming restored insurance selection reveals the required provider field', async ({ page }) => {
   await page.goto('/booking-app.html', { waitUntil:'domcontentloaded' });
   await expect(page.locator('#confirmRiderBtn')).toBeEnabled();
-  await page.locator('#name').fill('Jamie Patient');
+  await page.locator('#firstName').fill('Jamie'); await page.locator('#lastName').fill('Patient');
   await page.locator('#phone').fill('(240) 555-0101');
   await page.locator('#email').fill('fixture@example.com');
   await page.locator('#serviceTypeSelect').selectOption('ambulatory');

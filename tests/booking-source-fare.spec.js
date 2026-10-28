@@ -15,7 +15,7 @@ for(const base of [1125,1300])test(`BLS booking, save and trip editor use source
   return route.fulfill({json});
  });
  await page.goto('/booking-app.html');
- await page.locator('#name').fill('Fare Test');await page.locator('#phone').fill('(240) 555-0130');await page.locator('#email').fill('fixture@example.com');await page.locator('#serviceTypeSelect').selectOption('ambulatory');await page.locator('#confirmRiderBtn').click();
+ await page.locator('#firstName').fill('Fare'); await page.locator('#lastName').fill('Test');await page.locator('#phone').fill('(240) 555-0130');await page.locator('#email').fill('fixture@example.com');await page.locator('#serviceTypeSelect').selectOption('ambulatory');await page.locator('#confirmRiderBtn').click();
  await page.locator('#tripType').selectOption('ROUND_TRIP');await page.locator('#tripDate').fill('2030-10-15');await page.locator('#returnTripDate').fill('2030-10-15');await page.locator('#returnTripTime').fill('14:00');
  await page.locator('#appointmentTime').fill('13:15');await page.locator('#pickup').fill('23 Penn St, Baltimore, MD');await page.locator('#destination').fill('109 Forest Valley Dr, Forest Hill, MD');
  await page.locator('#confirmPickupDropoffBtn').click();await page.locator('#toggleMoreRideOptions').click();await page.locator('[data-service="bls"]').click();

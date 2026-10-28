@@ -84,10 +84,10 @@ https://nexusmt.com/accessibility.html
 - Primary Language: English (U.S.)
 
 #### Promotional Text
-Patient App gives riders and caregivers a secure place to track transportation, review trip details, and stay updated in real time.
+Patient App gives passengers and caregivers a secure place to track transportation, review trip details, and stay updated in real time.
 
 #### Description
-Patient App is the rider-facing mobile workspace for Nexus Medical Transit.
+Patient App is the passenger-facing mobile workspace for Nexus Medical Transit.
 
 Key features:
 - Secure patient sign-in
@@ -96,10 +96,10 @@ Key features:
 - Caregiver-friendly trip sharing workflows
 - Support access from a single transportation app
 
-Patient App is intended for authorized patient or rider accounts.
+Patient App is intended for authorized patient or passenger accounts.
 
 #### Keywords
-patient transportation,medical ride tracking,trip updates,non-emergency transport,rider app,caregiver ride access
+patient transportation,medical ride tracking,trip updates,non-emergency transport,passenger app,caregiver ride access
 
 #### Support URL
 https://nexusmt.com
@@ -123,7 +123,7 @@ App review notes:
 3. Role behavior:
    - Driver app provides trip workflow, shift controls, and mileage logging.
    - Booking app provides transportation request and booking workflows.
-   - Patient app provides trip visibility, updates, and rider support workflows.
+   - Patient app provides trip visibility, updates, and passenger support workflows.
 4. Location usage (Driver app):
    - Location is used to support trip navigation and operational dispatch visibility.
 5. If needed, our support team can provide live walkthrough during review.

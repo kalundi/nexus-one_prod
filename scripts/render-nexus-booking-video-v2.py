@@ -28,8 +28,8 @@ for state in meta:
     screens.append((screen, target))
 
 labels = [
-    ("1  ENTER RIDER DETAILS", "Start as a guest or sign in to save 5%."),
-    ("2  CONFIRM THE RIDER", "The next step unlocks after confirmation."),
+    ("1  ENTER PASSENGER DETAILS", "Start as a guest or sign in to save 5%."),
+    ("2  CONFIRM THE PASSENGER", "The next step unlocks after confirmation."),
     ("3  ADD PICKUP + DESTINATION", "Use the real address fields and suggestions."),
     ("4  CONFIRM THE ROUTE", "Nexus checks that every required stop is present."),
     ("5  CHOOSE THE RIDE TYPE", "Select the transportation support you need."),

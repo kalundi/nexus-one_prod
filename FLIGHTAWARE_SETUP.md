@@ -1,6 +1,6 @@
 # FlightAware Terminal Lookup
 
-The booking form can look up a flight by flight number and ride date. For an airport pickup it uses the flight's arrival airport and terminal; for an airport destination it uses the departure airport and terminal. The rider must confirm the returned airport matches the selected trip stop.
+The booking form can look up a flight by flight number and ride date. For an airport pickup it uses the flight's arrival airport and terminal; for an airport destination it uses the departure airport and terminal. The passenger must confirm the returned airport matches the selected trip stop.
 
 ## Configure
 
