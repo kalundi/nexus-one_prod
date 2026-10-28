@@ -50,6 +50,7 @@ const {canPatientSeeDriverLocation,distanceMiles}=require('./_shared/patient-dri
 const LivecareDemo=require('./_shared/livecare-demo.cjs');
 const handleFacilityDemo=require('./_shared/facility-demo.cjs').createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlatformSettings});
 const DemoAccount=require('./_shared/facility-demo-account.cjs');
+const handleFacilityPortal=require('./_shared/facility-portal.cjs').createHandler({query,requireUser,bearer,json,parseBody});
 const {syncBookingCalendar,cancelBookingCalendar}=require('./_shared/booking-calendar.cjs');
 const montgomeryOutreachPilot=require('../../data/montgomery-tier-a-outreach-pilot.json');
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_APPROVAL:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
@@ -1933,7 +1934,7 @@ async function createStripeCheckoutSession(amountCents,metadata){
  const bookingReference=clean(metadata?.bookingReference)||crypto.randomUUID();
  const form=new URLSearchParams();
  form.set('mode','payment');
- const checkoutReturnPage=metadata?.facilityPortal===true?'facility-demo.html':metadata?.patientApp===true?'patient.html':'booking-app.html';
+ const checkoutReturnPage=metadata?.productionFacilityPortal===true?'facility.html':metadata?.facilityPortal===true?'facility-demo.html':metadata?.patientApp===true?'patient.html':'booking-app.html';
  form.set('success_url',`${siteBase()}/${checkoutReturnPage}?payment=success&bookingReference=${encodeURIComponent(bookingReference)}`);
  form.set('cancel_url',`${siteBase()}/${checkoutReturnPage}?payment=cancelled&bookingReference=${encodeURIComponent(bookingReference)}`);
  form.set('line_items[0][price_data][currency]','usd');
@@ -1958,7 +1959,7 @@ async function createSquarePaymentLink(amountCents,metadata){
    location_id:process.env.SQUARE_LOCATION_ID
   },
   checkout_options:{
-   redirect_url:`${siteBase()}/${metadata?.facilityPortal===true?'facility-demo.html':metadata?.patientApp===true?'patient.html':'booking-app.html'}?payment=success&provider=square&bookingReference=${encodeURIComponent(bookingReference)}`
+   redirect_url:`${siteBase()}/${metadata?.productionFacilityPortal===true?'facility.html':metadata?.facilityPortal===true?'facility-demo.html':metadata?.patientApp===true?'patient.html':'booking-app.html'}?payment=success&provider=square&bookingReference=${encodeURIComponent(bookingReference)}`
   },
   pre_populated_data:{
    buyer_email:clean(metadata?.email)||undefined
@@ -2010,6 +2011,7 @@ async function sendBrokerRequestDispatchNotifications(br,toEmail,brokerName){
 async function handler(event){
  try{
   const p=routePath(event),method=event.httpMethod;
+  if(p[0]==='facility-portal')return await handleFacilityPortal(event,p,method);
   if(p.join('/')==='auth/login'&&method==='POST'&&String(parseBody(event).email||'').trim().toLowerCase()===DemoAccount.EMAIL)return await handleFacilityDemo(event,['facility-demo','login'],method);
   const maintenanceResponse=await handleMaintenance(event,p,method);
   if(maintenanceResponse)return maintenanceResponse;
@@ -3139,7 +3141,7 @@ async function handler(event){
    if(chargeAmount<50)return json(400,{error:'A valid payment amount is required'});
    const depositAmount=paymentMode==='deposit'?chargeAmount/100:totalFare;
    const balanceDue=paymentMode==='deposit'?Math.max(0,totalFare-depositAmount):0;
-   const session=await createStripeCheckoutSession(chargeAmount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined,paymentMode,patientApp:b.patientApp===true,facilityPortal:b.facilityPortal===true});
+   const session=await createStripeCheckoutSession(chargeAmount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined,paymentMode,patientApp:b.patientApp===true,facilityPortal:b.facilityPortal===true,productionFacilityPortal:b.productionFacilityPortal===true});
    await query("UPDATE bookings SET stripe_checkout_session_id=$2,payment_status=$3,deposit_amount=$4,balance_due=$5,payer_type=CASE WHEN coverage_status='NOT_COVERED_STANDARD' THEN 'SELF_PAY' ELSE payer_type END,coverage_status=CASE WHEN coverage_status='NOT_COVERED_STANDARD' THEN 'SELF_PAY' ELSE coverage_status END,updated_at=now() WHERE reference=$1",[r.rows[0].reference,session.id,'PENDING',depositAmount,balanceDue]);
    return json(200,{provider:'stripe',url:session.url,sessionId:session.id,amount:chargeAmount,paymentMode});
   }
@@ -3186,7 +3188,7 @@ async function handler(event){
    const r=await query('SELECT reference,email,estimated_fare,payment_status FROM bookings WHERE reference=$1',[b.bookingReference]);
    if(!r.rows[0])return json(404,{error:'Booking not found'});
    const amount=Math.round(Number(r.rows[0].estimated_fare||0)*100);if(amount<50)return json(400,{error:'A valid payment amount is required'});
-   const square=await createSquarePaymentLink(amount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined,patientApp:b.patientApp===true,facilityPortal:b.facilityPortal===true});
+   const square=await createSquarePaymentLink(amount,{bookingReference:r.rows[0].reference,email:r.rows[0].email||undefined,patientApp:b.patientApp===true,facilityPortal:b.facilityPortal===true,productionFacilityPortal:b.productionFacilityPortal===true});
    await query('UPDATE bookings SET square_payment_link_id=$2,square_order_id=$3,payment_status=$4,updated_at=now() WHERE reference=$1',[r.rows[0].reference,square.payment_link?.id||null,square.payment_link?.order_id||square.related_resources?.orders?.[0]?.id||null,'PENDING']);
    return json(200,{provider:'square',url:square.payment_link?.url,linkId:square.payment_link?.id||null,amount});
   }

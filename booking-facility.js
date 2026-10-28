@@ -43,6 +43,11 @@
   if(busy||requiredId&&$('bookingFacilityId').value!==requiredId||user?.role==='FACILITY'&&!$('bookingFacilityId').value){$('bookingFacilityStatus').textContent=busy?'Wait for the facility to finish loading.':'Choose the associated facility before booking.';$('bookingFacilityField').scrollIntoView({block:'center'});return false;}return true;
  }
  function init(){
+  window.addEventListener('message',event=>{
+   if(params.get('productionFacilityPortal')!=='1'||window.parent===window||event.origin!==location.origin||event.source!==window.parent||event.data?.type!=='nexus:facility-location')return;
+   const destination=String(event.data.destination||'').trim();if(!destination||destination.length>1000)return;
+   const input=$('destination');if(input){input.value=destination;input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}
+  });
   $('bookingFacilityFind').addEventListener('click',()=>{const search=$('bookingFacilitySearch').value.trim();if(search.length<2){$('bookingFacilityStatus').textContent='Enter at least two characters.';return;}requiredId='';load('',search);});
   $('bookingFacilitySearch').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();$('bookingFacilityFind').click();}});
   $('bookingFacilityId').addEventListener('change',()=>{if(user?.role!=='FACILITY')requiredId='';$('bookingFacilityStatus').textContent=$('bookingFacilityId').value?'The selected facility can view this trip. Pay securely during booking.':'No facility is associated with this trip.';});

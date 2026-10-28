@@ -2591,7 +2591,7 @@
       const r = await fetch(`/api/payments/${resolvedProvider}/checkout`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ bookingReference: currentBookingReference, amount: currentBookingFare, paymentMode: mode,patientApp:new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window,facilityPortal:new URLSearchParams(location.search).get('facilityPortal')==='1'&&window.parent!==window })
+        body: JSON.stringify({ bookingReference: currentBookingReference, amount: currentBookingFare, paymentMode: mode,patientApp:new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window,facilityPortal:new URLSearchParams(location.search).get('facilityPortal')==='1'&&window.parent!==window,productionFacilityPortal:new URLSearchParams(location.search).get('productionFacilityPortal')==='1'&&window.parent!==window })
       });
       const data = await r.json().catch(() => ({}));
       if(!r.ok) throw new Error(data.error || `Failed to start ${resolvedProvider} checkout`);
