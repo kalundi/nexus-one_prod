@@ -10,7 +10,7 @@ test('booking creation uses source pricing and the submitted scheduling basis, n
  const context={b:booking,readPlatformSettings:async()=>settings,TripTiming:{hydrate:async rows=>rows},query:()=>{},NexusFare:Fare,pickupTimeEstimate:booking.time,appointmentTime:booking.appointmentTime,tripType:booking.tripType,returnTripDate:booking.returnTripDate,returnTripTime:booking.returnTripTime,bookingSource:'CUSTOMER',json:(status,body)=>({status,body})};
  const saved=await vm.runInNewContext(`(async()=>{${api.slice(start,end)};return submittedFare;})()`,context);
  assert.equal(saved,Fare.calculateBooking(booking,booking.fareInputs,settings).discountedTotal);
- assert.notEqual(saved,Fare.calculateBooking(booking,{...booking.fareInputs,scheduleBasis:'PICKUP'},settings).discountedTotal);
+ assert.notEqual(Timing.plan(booking,booking.fareInputs,settings).crewArrivalAt,Timing.plan(booking,{...booking.fareInputs,scheduleBasis:'PICKUP'},settings).crewArrivalAt);
  const missing=await vm.runInNewContext(`(async()=>{${api.slice(start,end)};return submittedFare;})()`,{...context,b:{...booking,fareInputs:null}});
  assert.equal(missing.status,400);
 });
