@@ -15,8 +15,8 @@ test('Postmark transport uses server credentials, preserves attachments and reje
   });
   await t.test('marketing requires an explicit Broadcast stream and unsubscribe link',async()=>{
    assert.equal((await Email.sendEmail('a@example.com','Outreach','<p>Hello</p>',{broadcast:true})).status,'skipped');assert.equal(calls.length,1);
-   process.env.POSTMARK_BROADCAST_MESSAGE_STREAM='broadcasts';await Email.sendEmail('a@example.com','Outreach','<p>Hello</p>',{broadcast:true});
-   const body=JSON.parse(calls[1].body);assert.equal(body.MessageStream,'broadcasts');assert.match(body.HtmlBody,/\{\{\{ pm:unsubscribe \}\}\}/);
+   process.env.POSTMARK_BROADCAST_MESSAGE_STREAM='broadcasts';await Email.sendEmail('a@example.com','Outreach','<p>Hello</p>',{broadcast:true,trackOpens:true});
+   const body=JSON.parse(calls[1].body);assert.equal(body.TrackOpens,true);assert.equal(body.MessageStream,'broadcasts');assert.match(body.HtmlBody,/\{\{\{ pm:unsubscribe \}\}\}/);
   });
   await t.test('HTTP errors, Postmark error codes and malformed responses cannot claim success',async()=>{
    for(const [status,body] of [[401,{ErrorCode:10,Message:'private response'}],[422,{ErrorCode:400,Message:'private response'}],[200,{ErrorCode:406,Message:'private response'}],[200,{}]]){
