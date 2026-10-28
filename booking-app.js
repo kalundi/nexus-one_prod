@@ -2467,6 +2467,7 @@
 
   function showPaymentOptions(reference, fare, requiresOnlinePayment = true){
     currentBookingReference = String(reference || '').trim();
+    if(new URLSearchParams(location.search).get('facilityPortal')==='1'&&window.parent!==window)window.parent.postMessage({type:'nexus:facility-booking-saved',reference:currentBookingReference},location.origin);
     if(new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window)window.parent.postMessage({type:'nexus:booking-saved',reference:currentBookingReference},location.origin);
     currentBookingFare = Number(fare || 0);
     paymentRequiredForBooking = Boolean(requiresOnlinePayment);
@@ -2540,13 +2541,14 @@
       const r = await fetch(`/api/payments/${resolvedProvider}/checkout`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ bookingReference: currentBookingReference, amount: currentBookingFare, paymentMode: mode,patientApp:new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window })
+        body: JSON.stringify({ bookingReference: currentBookingReference, amount: currentBookingFare, paymentMode: mode,patientApp:new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window,facilityPortal:new URLSearchParams(location.search).get('facilityPortal')==='1'&&window.parent!==window })
       });
       const data = await r.json().catch(() => ({}));
       if(!r.ok) throw new Error(data.error || `Failed to start ${resolvedProvider} checkout`);
       if(!data.url) throw new Error(`${resolvedProvider} checkout URL was not returned`);
       try{sessionStorage.setItem('nexusCheckoutBooking',JSON.stringify({reference:currentBookingReference,fare:currentBookingFare,phone:String($('phone')?.value||managePhone?.value||'')}));}catch{}
-      if(new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window)window.parent.postMessage({type:'nexus:patient-checkout',url:data.url},location.origin);
+      if(new URLSearchParams(location.search).get('facilityPortal')==='1'&&window.parent!==window)window.parent.postMessage({type:'nexus:facility-checkout',url:data.url},location.origin);
+      else if(new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window)window.parent.postMessage({type:'nexus:patient-checkout',url:data.url},location.origin);
       else window.location.href = data.url;
     }catch(err){
       setPaymentMessage(err.message, true);
@@ -4046,7 +4048,7 @@
       phone: formatPhone($('phone').value.trim()),
       email: $('email').value.trim(),
       payerType: $('payerType')?.value || 'SELF_PAY',
-      facilityId: $('bookingFacilityId')?.value || null,
+      facilityId: window.NexusBookingFacility?.getFacilityId() || null,
       insuranceCarrier: String(insuranceCarrier?.value || '').trim(),
       tripType: String(tripType?.value || 'ONE_WAY').toUpperCase(),
       returnTripDate: String(returnTripDate?.value || '').trim(),

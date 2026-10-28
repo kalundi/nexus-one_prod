@@ -38,10 +38,11 @@
  $('billingPrint').addEventListener('click',()=>window.print());
  const selected=()=>dashboard?.patients.find(patient=>patient.id===selectedId)||dashboard?.patients[0];
  const demoToken=()=>sessionStorage.getItem(TOKEN_KEY)||'';
- const paidBookings=NexusFacilityPaidBookings.create({api,isActive:()=>!$('dashboard').hidden});
+ const embeddedBooking=NexusFacilityEmbeddedBooking.create({isActive:()=>!$('dashboard').hidden,showBookings:()=>openWorkspace('paidBookingsSection'),refreshBookings:()=>paidBookings.refresh(true)});
+ const paidBookings=NexusFacilityPaidBookings.create({api,isActive:()=>!$('dashboard').hidden,onLoaded:data=>embeddedBooking.configure(data.bookingUrl),onError:message=>embeddedBooking.error(message)});
  async function api(path,options={}){const token=(platformAccess?sessionStorage.getItem('nexusAccessToken'):demoToken())||sessionStorage.getItem('nexusAccessToken')||'';const response=await fetch(`/api/facility-demo/${path}`,{...options,headers:{...(token?{authorization:`Bearer ${token}`} :{}),'content-type':'application/json',...options.headers},cache:'no-store'});let data;try{data=await response.json();}catch{throw Error('The demo service could not be reached. Please retry.');}if(!response.ok){const error=Error(data.error||'Demo request failed.');error.status=response.status;throw error;}return data;}
  function toast(message,severity='info'){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').className=`toast ${severity}`;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,6500);}
- function showLogin(message=''){paidBookings.clear();presentationGuide.stop();presentationMusic.stop();setPasswordVisible(false);$('loginScreen').hidden=false;$('dashboard').hidden=true;$('loginNotice').textContent=message;mapController.clear();if(mapExpanded)setMapExpanded(false);}
+ function showLogin(message=''){embeddedBooking.clear();paidBookings.clear();presentationGuide.stop();presentationMusic.stop();setPasswordVisible(false);$('loginScreen').hidden=false;$('dashboard').hidden=true;$('loginNotice').textContent=message;mapController.clear();if(mapExpanded)setMapExpanded(false);}
  function showDashboard(data){const dayChanged=dashboard?.scenarioDate!==data.dashboard.scenarioDate,changed=JSON.stringify(dashboard?.patients.map(p=>[p.returnPickup,p.vehicleWaiting]))!==JSON.stringify(data.dashboard.patients.map(p=>[p.returnPickup,p.vehicleWaiting]));dashboard=data.dashboard;admin=!!data.admin;platformAccess=admin||!!data.presenter;$('logout').textContent='Log out';if(dayChanged){mapMode='all';$('billingDay').value=dashboard.scenarioDate;$('billingMonth').value=dashboard.scenarioDate.slice(0,7);invalidateRoute();}if(dayChanged||changed){billingRevision++;billingLoadedAt=0;}$('loginScreen').hidden=true;$('dashboard').hidden=false;render();paidBookings.refresh();}
  function legFor(patient){return patient.tripType!=='ONE_WAY'&&['return-approach','return','complete'].includes(patient.phase)?'return':'outbound';}
  function invalidateRoute(){mapController.clear();$('routeMapStatus').textContent='Loading road routes…';}
@@ -161,7 +162,9 @@
  setInterval(async()=>{if(polling||busy||$('dashboard').hidden)return;const requestToken=demoToken();polling=true;try{const data=await api('state');if(requestToken===demoToken()&&dashboard)showDashboard(data);}catch(error){$('connection').textContent='Connection interrupted · retrying';if(error.status===401){sessionStorage.removeItem(TOKEN_KEY);showLogin(error.message);}}finally{polling=false;}},2000);
 
  function openWorkspace(id){
-  workspace=['overview','boardSection','routePanel','detailsSection','inboxSection','paidBookingsSection'].includes(id)?id:'overview';$('workspaceCanvas').classList.toggle('overviewGrid',workspace==='overview');
+  workspace=['overview','boardSection','routePanel','detailsSection','inboxSection','paidBookingsSection','facilityBookingSection'].includes(id)?id:'overview';$('workspaceCanvas').classList.toggle('overviewGrid',workspace==='overview');
+  document.body.classList.toggle('facilityBookingView',workspace==='facilityBookingSection');
+  $('facilityBookingSection').hidden=workspace!=='facilityBookingSection';
   document.body.classList.toggle('paidBookingsView',workspace==='paidBookingsSection');
   $('paidBookingsSection').hidden=!['overview','paidBookingsSection'].includes(workspace);$('boardSection').hidden=!['overview','boardSection'].includes(workspace);$('cancelledBookingsSection').hidden=!['overview','boardSection'].includes(workspace);$('detailsSection').hidden=!['overview','routePanel','detailsSection'].includes(workspace);$('selectedPatientPanel').hidden=['overview','routePanel'].includes(workspace);$('detailsSection').classList.toggle('routesOnly',['overview','routePanel'].includes(workspace));$('inboxSection').hidden=workspace!=='inboxSection';$('billingSection').hidden=true;
   document.querySelectorAll('#facilityWorkspaceNav [data-workspace]').forEach(button=>button.setAttribute('aria-current',button.dataset.workspace===(workspace==='detailsSection'?'boardSection':workspace)?'page':'false'));
@@ -185,7 +188,8 @@
  $('editBooking').hidden=true;
  $('cancelBooking').addEventListener('click',async()=>{const patient=selected();if(patient&&await action('cancelBooking',{patientId:patient.id})){openWorkspace('boardSection');toast('Demo trip cancelled. The invoice and simulated alerts are updated.','success');}});
  $('cancelledBookingRows').addEventListener('click',async event=>{const button=event.target.closest('[data-restore]');if(button&&await action('restoreBooking',{patientId:button.dataset.restore}))toast('Demo trip restored; invoice and simulated alerts updated.','success');});
- openWorkspace('paidBookingsSection');
+ ['newBooking','bookFromBoard','bookPaidTrip'].forEach(id=>$(id).addEventListener('click',event=>{event.preventDefault();openWorkspace('facilityBookingSection');}));
+ openWorkspace('facilityBookingSection');
 
  (async()=>{
   if(recoveryToken){$('loginForm').hidden=true;$('demoResetForm').hidden=false;$('demoResetPassword').focus();return;}
