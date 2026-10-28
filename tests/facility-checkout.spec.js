@@ -12,7 +12,7 @@ for(const width of [1440,390])test(`facility embeds main booking and returns fro
   let json={};
   if(path==='/api/settings/public')json=settings;
   if(path==='/api/integrations/config')json={googleMapsEnabled:false,stripeEnabled:true};
-  if(path==='/api/auth/me')json={user:{role:'ADMIN',email:'test@example.com'}};
+  if(path==='/api/auth/me')json={user:{role:'FACILITY',scopeId:facility.id,email:'facility@nexusmt.com'}};
   if(path==='/api/booking/facilities')json={facilities:[facility]};
   if(path==='/api/facility-demo/state')json={admin:true,dashboard:Demo.dashboardFor({state:Demo.initialState()})};
   if(path==='/api/facility-demo/paid-bookings')json={facility,bookingUrl:'/booking-app.html?facility='+facility.id,trips:paid?[{reference:'FAC-PAID',name:payload.name,service:payload.service,trip_date:payload.date,trip_time:payload.time,pickup:payload.pickup,destination:payload.destination,status:'SUBMITTED',payment_status:'DEPOSIT_PAID'}]:[]};
@@ -42,22 +42,23 @@ for(const width of [1440,390])test(`facility embeds main booking and returns fro
  await page.locator('#viewFacilityPaidBookings').click();await expect(page.locator('#paidBookingRows')).toContainText('FAC-PAID');await expect(page.locator('#paidBookingRows')).toContainText('DEPOSIT PAID');await expect(page.locator('#paidBookingRows')).toContainText('Passenger Fixture');
  await page.screenshot({path:`output/facility-paid-bookings-confirmed-${width}.png`});expect(errors).toEqual([]);
 });
-test('facility search allows optional association and makes failed linked selection explicit',async({page})=>{
- await page.route('**/api/**',route=>route.fulfill({json:new URL(route.request().url()).pathname==='/api/settings/public'?settings:{facilities:[]}}));
- await page.goto('/booking-app.html?facility=missing');await expect(page.locator('#bookingFacilityStatus')).toContainText('unavailable');
- expect(await page.evaluate(()=>window.NexusBookingFacility.validate())).toBe(false);
- await page.locator('#bookingFacilitySearch').fill('FutureCare');await page.locator('#bookingFacilityFind').click();await expect(page.locator('#bookingFacilityStatus')).toContainText('No matching');
- expect(await page.evaluate(()=>window.NexusBookingFacility.validate())).toBe(true);
+for(const role of ['GUEST','PATIENT','ADMIN','DISPATCHER','DRIVER'])test(`associated facility stays hidden for ${role}, even with facility URL parameters`,async({page})=>{
+ if(role!=='GUEST')await page.addInitScript(()=>sessionStorage.setItem('nexusAccessToken','role-fixture'));
+ let searches=0;
+ await page.route('**/api/**',route=>{const p=new URL(route.request().url()).pathname;if(p==='/api/booking/facilities')searches++;return route.fulfill({json:p==='/api/settings/public'?settings:p==='/api/auth/me'?{user:{role,email:'fixture@example.com'}}:{}});});
+ await page.goto('/booking-app.html?facility=FC-ANNAPOLIS&facilityPortal=1');await expect(page.locator('#bookingFacilityField')).toBeHidden();
+ expect(await page.evaluate(()=>window.NexusBookingFacility.getFacilityId())).toBe(null);expect(searches).toBe(0);
 });
 test('manager login opens embedded booking automatically and logout removes the frame session',async({page})=>{
  await page.route('https://**',route=>route.abort());
  await page.route('**/api/**',route=>{
   const p=new URL(route.request().url()).pathname;
-  const json=p==='/api/settings/public'?settings:p==='/api/integrations/config'?{googleMapsEnabled:false}:p==='/api/booking/facilities'?{facilities:[facility]}:p==='/api/facility-demo/login'?{token:'scoped-manager-token',dashboard:Demo.dashboardFor({state:Demo.initialState()})}:p==='/api/facility-demo/state'?{dashboard:Demo.dashboardFor({state:Demo.initialState()})}:p==='/api/facility-demo/paid-bookings'?{facility,bookingUrl:'/booking-app.html?facility='+facility.id,trips:[]}:{};
+  const json=p==='/api/settings/public'?settings:p==='/api/integrations/config'?{googleMapsEnabled:false}:p==='/api/booking/facilities'?{facilities:[facility]}:p==='/api/facility-demo/booking-context'?{user:{role:'FACILITY',scopeId:facility.id},facility}:p==='/api/facility-demo/login'?{token:'scoped-manager-token',dashboard:Demo.dashboardFor({state:Demo.initialState()})}:p==='/api/facility-demo/state'?{dashboard:Demo.dashboardFor({state:Demo.initialState()})}:p==='/api/facility-demo/paid-bookings'?{facility,bookingUrl:'/booking-app.html?facility='+facility.id,trips:[]}:{};
   return route.fulfill({json});
  });
  await page.goto('/facility-demo.html');await page.locator('#loginEmail').fill('annapolis.demo@nexusmt.com');await page.locator('#loginPassword').fill('fixture-only-password');await page.locator('#loginButton').click();
  await expect(page.locator('#facilityBookingSection')).toBeVisible();await expect(page.frameLocator('#facilityBookingFrame').locator('#bookingFacilityId')).toHaveValue(facility.id);
+ await expect(page.frameLocator('#facilityBookingFrame').locator('#bookingFacilityField')).toBeVisible();
  expect(await page.evaluate(()=>sessionStorage.getItem('nexusFacilityDemoToken'))).toBe('scoped-manager-token');
  await page.evaluate(()=>window.postMessage({type:'nexus:facility-checkout',url:'https://example.invalid/spoof'},location.origin));
  await expect(page).toHaveURL(/facility-demo.html$/);

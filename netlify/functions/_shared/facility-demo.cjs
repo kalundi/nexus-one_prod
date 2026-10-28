@@ -198,6 +198,10 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
   if(!config)return json(admin?409:401,{error:admin?'Prepare demo manager access first.':'Sign in to the facility demo.'});
   if(!admin&&!presenter){const account=await DemoAccount.getAccount(query);if(!DemoAccount.allowed(account)||config.managedUserId!==String(account.id)||!validToken(bearer(event),DemoAccount.signingSecret(config,account)))return json(401,{error:'Your demo session expired or this account was changed. Sign in again.'});}
   if(method==='GET'&&p[1]==='paid-bookings')return json(200,await require('./facility-paid-bookings.cjs').view(query,platformUser));
+  if(method==='GET'&&p[1]==='booking-context'){
+   const facility=await require('./facility-paid-bookings.cjs').facilityFor(query,platformUser);
+   return json(200,{user:{role:platformUser?.role||'FACILITY',scopeId:facility.id},facility});
+  }
   if(p[1]==='editor')return require('./facility-demo-editor.cjs').handle(event,p,method,{config,json,query,getPool,parseBody,readPlatformSettings,KEY,DATES,FACILITY,PATIENTS,patientsFor,project,initialState,control,syncBilling});
   if(method==='GET'&&['state','billing'].includes(p[1])&&readPlatformSettings){
    const settings=await readPlatformSettings(),client=await getPool().connect();let invoices,snapshot;

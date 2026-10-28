@@ -20,11 +20,13 @@ test('demo login and shared manager controls work through isolated PostgreSQL wi
   const login=await request('login','POST',{email:Demo.USERNAME,password:setup.body.password});assert.equal(login.statusCode,200);const token=login.body.token;
   assert.equal((await request('state')).statusCode,401);
   assert.equal((await request('paid-bookings')).statusCode,401);
+  assert.equal((await request('booking-context')).statusCode,401);
   await db.exec(`CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
    INSERT INTO facilities VALUES('FC','FutureCare Annapolis','2700 Southaven Road, Annapolis, MD 21401',true);
    CREATE TABLE bookings(reference text,name text,service text,pickup text,destination text,trip_date date,trip_time time,status text,payment_status text,estimated_fare numeric,balance_due numeric,facility_id text,booking_source text,deposit_paid_at timestamptz,paid_in_full_at timestamptz);
    INSERT INTO bookings(reference,facility_id,booking_source,payment_status) VALUES('FACILITY-PAID','FC','CUSTOMER','PAID_IN_FULL'),('OTHER-PAID','OTHER','CUSTOMER','PAID_IN_FULL'),('NOT-PAID','FC','CUSTOMER','PENDING');`);
   const paid=await request('paid-bookings','GET',{},token);assert.equal(paid.statusCode,200);assert.deepEqual(paid.body.trips.map(t=>t.reference),['FACILITY-PAID']);assert.equal(paid.body.bookingUrl,'/booking-app.html?facility=FC');
+  const context=await request('booking-context','GET',{},token);assert.equal(context.statusCode,200);assert.equal(context.body.user.role,'FACILITY');assert.equal(context.body.user.scopeId,'FC');assert.equal(context.body.trips,undefined);
   const initial=await request('state','GET',{},token);assert.equal(initial.body.dashboard.patients.length,5);assert.equal(initial.body.passwordHash,undefined);assert.equal(initial.body.secret,undefined);
   const beforeQuote=(await db.query('SELECT value FROM system_settings WHERE key=$1',[Demo.KEY])).rows[0].value;
   const quoteBody={date:Demo.DATES[0],patientId:'FC-DEMO-01',requestId:'quote-request-000001',name:'Fictional Quote Resident',service:'Wheelchair',destinationIndex:0,pickupTime:'08:00',appointmentTime:'09:00',returnTime:'11:00',vehicleWaiting:true,appointment:'Demo appointment',notify:['caregiver']};

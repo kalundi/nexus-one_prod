@@ -1,6 +1,6 @@
 (()=>{'use strict';
  const $=id=>document.getElementById(id),params=new URLSearchParams(location.search);
- let user=null,revision=0,busy=false,requiredId=params.get('facility')||'',userKey='';
+ let user=null,revision=0,busy=false,requiredId='',userKey='',portalUser=null,portalToken='',checkingPortal=false;
  function selection(facilities,id=''){
   const select=$('bookingFacilityId'),previous=id||select.value;
   select.replaceChildren(new Option('No associated facility',''));
@@ -20,21 +20,35 @@
   finally{if(version===revision){busy=false;$('bookingFacilityId').disabled=user?.role==='FACILITY';}}
  }
  function setUser(next){
-  user=next;const key=(user?.role||'')+':'+(user?.scopeId||user?.scope_id||'');if(key===userKey)return;userKey=key;
-  const scoped=user?.role==='FACILITY';requiredId=scoped?(user.scopeId||user.scope_id||''):(params.get('facility')||'');
-  $('bookingFacilitySearch').disabled=scoped;$('bookingFacilityFind').disabled=scoped;$('bookingFacilityId').disabled=scoped;
-  if(requiredId)load(requiredId);
+  const savedToken=params.get('facilityPortal')==='1'?sessionStorage.getItem('nexusFacilityDemoToken')||'':'';
+  user=next||savedToken&&savedToken===portalToken&&portalUser||null;
+  const scoped=user?.role==='FACILITY';$('bookingFacilityField').hidden=!scoped;
+  const key=(user?.role||'')+':'+(user?.scopeId||user?.scope_id||'');
+  if(key!==userKey){userKey=key;revision++;busy=false;requiredId=scoped?(user.scopeId||user.scope_id||''):'';
+   $('bookingFacilitySearch').disabled=true;$('bookingFacilityFind').disabled=true;$('bookingFacilityId').disabled=true;
+   if(!scoped){selection([]);$('bookingFacilityStatus').textContent='';}
+   else if(requiredId)load(requiredId);
+  }
+  if(!next&&savedToken&&savedToken!==portalToken&&!checkingPortal)verifyPortal(savedToken);
+ }
+ async function verifyPortal(accessToken){
+  checkingPortal=true;
+  try{
+   const response=await fetch('/api/facility-demo/booking-context',{headers:{authorization:'Bearer '+accessToken},cache:'no-store'}),data=await response.json();
+   if(response.ok&&sessionStorage.getItem('nexusFacilityDemoToken')===accessToken){portalToken=accessToken;portalUser=data.user;if(!user)setUser(null);}
+  }catch{}finally{checkingPortal=false;}
  }
  function validate(){
+  if(user?.role!=='FACILITY')return !checkingPortal;
   if(busy||requiredId&&$('bookingFacilityId').value!==requiredId||user?.role==='FACILITY'&&!$('bookingFacilityId').value){$('bookingFacilityStatus').textContent=busy?'Wait for the facility to finish loading.':'Choose the associated facility before booking.';$('bookingFacilityField').scrollIntoView({block:'center'});return false;}return true;
  }
  function init(){
   $('bookingFacilityFind').addEventListener('click',()=>{const search=$('bookingFacilitySearch').value.trim();if(search.length<2){$('bookingFacilityStatus').textContent='Enter at least two characters.';return;}requiredId='';load('',search);});
   $('bookingFacilitySearch').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();$('bookingFacilityFind').click();}});
   $('bookingFacilityId').addEventListener('change',()=>{if(user?.role!=='FACILITY')requiredId='';$('bookingFacilityStatus').textContent=$('bookingFacilityId').value?'The selected facility can view this trip. Pay securely during booking.':'No facility is associated with this trip.';});
-  if(requiredId)load(requiredId);
+  setUser(null);
  }
  function lock(){['bookingFacilitySearch','bookingFacilityFind','bookingFacilityId'].forEach(id=>$(id).disabled=true);}
- window.NexusBookingFacility={setUser,validate,lock};
+ window.NexusBookingFacility={setUser,validate,lock,getFacilityId:()=>user?.role==='FACILITY'?$('bookingFacilityId').value:null};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();

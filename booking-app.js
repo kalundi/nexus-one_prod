@@ -4048,7 +4048,7 @@
       phone: formatPhone($('phone').value.trim()),
       email: $('email').value.trim(),
       payerType: $('payerType')?.value || 'SELF_PAY',
-      facilityId: $('bookingFacilityId')?.value || null,
+      facilityId: window.NexusBookingFacility?.getFacilityId() || null,
       insuranceCarrier: String(insuranceCarrier?.value || '').trim(),
       tripType: String(tripType?.value || 'ONE_WAY').toUpperCase(),
       returnTripDate: String(returnTripDate?.value || '').trim(),
