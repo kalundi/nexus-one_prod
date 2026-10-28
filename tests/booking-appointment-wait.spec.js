@@ -1,6 +1,14 @@
 const {test,expect}=require('@playwright/test');
 const Fare=require('../nexus-fare.js');
 const settings={organization:{yardAddress:'Company yard'},pricing:{ambulatory:{base:75,includedMiles:5,perMile:3.55,waitPer15:12}},fareRules:{smartTiming:{enabled:true},waitingPolicyVersion:2,freeWaitMinutes:15}};
+test('slow account initialization preserves passenger details already entered',async({page})=>{
+ let release;const gate=new Promise(resolve=>release=resolve);
+ await page.route('**/api/**',async route=>{const path=new URL(route.request().url()).pathname;if(path==='/api/integrations/config')await gate;return route.fulfill({json:path==='/api/settings/public'?settings:{}});});
+ await page.goto('/booking-app.html',{waitUntil:'domcontentloaded'});
+ await page.locator('#firstName').fill('Early');await page.locator('#lastName').fill('Passenger');await page.locator('#email').fill('early@example.com');
+ release();await expect(page.locator('#confirmRiderBtn')).toBeEnabled();await page.locator('#serviceTypeSelect').selectOption('ambulatory');
+ await expect(page.locator('#firstName')).toHaveValue('Early');await expect(page.locator('#lastName')).toHaveValue('Passenger');await expect(page.locator('#email')).toHaveValue('early@example.com');
+});
 for(const embedded of [false,true])for(const signedIn of [false,true])test(`appointment waiting and savings: embedded=${embedded}, signedIn=${signedIn}`,async({page})=>{
  await page.setViewportSize({width:1280,height:900});
  await page.addInitScript(signedIn=>{
@@ -19,6 +27,7 @@ for(const embedded of [false,true])for(const signedIn of [false,true])test(`appo
   await page.evaluate(()=>{document.body.innerHTML='<iframe id="booking" style="width:100%;height:800px;border:0" src="/booking-app.html?facilityPortal=1"></iframe>';});
  }else await page.goto('/booking-app.html');
  const ui=embedded?page.frameLocator('#booking'):page;
+ await expect(ui.locator('#confirmRiderBtn')).toBeEnabled();
  await ui.locator('#firstName').fill('Fixture');await ui.locator('#lastName').fill('Passenger');
  await ui.locator('#phone').fill('(240) 555-0130');await ui.locator('#email').fill('fixture@example.com');
  await ui.locator('#serviceTypeSelect').selectOption('ambulatory');await ui.locator('#confirmRiderBtn').click();
