@@ -662,11 +662,11 @@
     const legCopy=(breakdown.passengerLegs||[]).map(leg=>`${leg.kind==='RETURN'?'Return':'Outbound'}: ${leg.miles.toFixed(2)} miles (${leg.billableMiles.toFixed(2)} billable)`).join('. ');
     const mileageCopy=`Each leg: $${Number(selectedRate.base||0).toFixed(2)} base includes ${Number(selectedRate.includedMiles||0)} miles; additional miles are $${Number(selectedRate.perMile||0).toFixed(2)} each. ${legCopy}.`;
     if(rateSourceLabel)rateSourceLabel.textContent=mileageCopy;
-    const fuelCopy=`Fuel (${breakdown.fuelVehicleLabel}): ${Number(breakdown.passengerMilesTotal||0).toFixed(2)} passenger mi × $${Number(breakdown.fuelRatePerMile||0).toFixed(4)}/mi = $${Number(breakdown.fuelCharge||0).toFixed(2)} before schedule premiums, processing and savings. Included in your estimate.`;
+    const savingsCopy=[discountView.memberSavings>0?`Discount applied: $${discountView.memberSavings.toFixed(2)} (${discountView.discountPct}%).`:'',!discountView.signedIn?'You are not receiving the 5% member discount. Sign up or sign in to receive it.':''].filter(Boolean).join(' ');
     if($('estFuelRow'))$('estFuelRow').hidden=false;
     if($('estFuelLabel'))$('estFuelLabel').textContent=`Fuel · ${breakdown.fuelVehicleLabel} ($${Number(breakdown.fuelRatePerMile||0).toFixed(4)}/mi)`;
     if($('estFuelCharge'))$('estFuelCharge').textContent=`$${Number(breakdown.fuelCharge||0).toFixed(2)}`;
-    if($('fareConfirmFuel')){$('fareConfirmFuel').textContent=fuelCopy;$('fareConfirmFuel').hidden=false;}
+    if($('fareConfirmFuel')){$('fareConfirmFuel').textContent=savingsCopy;$('fareConfirmFuel').hidden=!savingsCopy;}
     ['fareSummaryMileage','fareConfirmMileage'].forEach(id=>{
       if($(id)){ $(id).textContent=mileageCopy; $(id).hidden=Number(miles||0)<=0; }
     });
@@ -697,7 +697,7 @@
       if($(id)){ $(id).textContent=waitingCopy; $(id).hidden=!waitingCopy; }
     });
     syncCalculatedWaitingUi();
-    if($('waitPricingHint')) $('waitPricingHint').textContent=`Calculated from arrival to the next pickup. First ${waiting.freeWaitMinutes} minutes free, then $${waiting.waitPer15.toFixed(2)} per started 15 minutes.`;
+    if($('waitPricingHint')) $('waitPricingHint').textContent=`Calculated from appointment time to the next pickup; early check-in is excluded. ${waiting.waitMinutes} minutes waiting − ${Math.min(waiting.waitMinutes,waiting.freeWaitMinutes)} free = ${waiting.billableWaitMinutes} billable minutes. Then $${waiting.waitPer15.toFixed(2)} per started 15 minutes.`;
     if(estSubtotal) estSubtotal.textContent = `$${Number(breakdown.subtotal || 0).toFixed(2)}`;
     if(estTax) estTax.textContent = `$${Number(breakdown.taxAmount || 0).toFixed(2)}${Number(breakdown.taxRatePct || 0) > 0 ? ` (${Number(breakdown.taxRatePct || 0).toFixed(2)}%)` : ''}`;
     if(estMemberSavingsRow) estMemberSavingsRow.hidden = discountView.discountPct <= 0;
@@ -955,9 +955,10 @@
     const smart=getSmartTimingPlan(service,routeMetrics);
     if(smart&&!smart.routingPending){
       const outbound=smart.legs.filter(l=>l.kind==='OUTBOUND');
-      const stopWaitMinutes=outbound.slice(0,-1).map((l,i)=>Math.max(0,Math.round((outbound[i+1].crewArrivalAt-l.vehicleAvailableAt)/60000)));
+      const stopWaitMinutes=outbound.slice(0,-1).map((l,i)=>Math.max(0,Math.round((outbound[i+1].crewArrivalAt-(l.waitingStartsAt??l.vehicleAvailableAt))/60000)));
       const returning=smart.legs.find(l=>l.kind==='RETURN');
-      const returnWaitMinutes=returning&&!smart.returnTimePending?Math.max(0,Math.round((returning.crewArrivalAt-outbound.at(-1).vehicleAvailableAt)/60000)):0;
+      const final=outbound.at(-1);
+      const returnWaitMinutes=returning&&final&&!smart.returnTimePending?Math.max(0,Math.round((returning.crewArrivalAt-(final.waitingStartsAt??final.vehicleAvailableAt))/60000)):0;
       return {stopWaitMinutes,returnWaitMinutes,waitMinutes:stopWaitMinutes.reduce((n,v)=>n+v,0)+returnWaitMinutes};
     }
     const appointments = getLegAppointments();
@@ -968,14 +969,14 @@
       const travel = getStopTravelMinutes(index+1,service);
       if(!hasRoute || !travel || current == null || next == null) return 0;
       const departure = next - 15 - Math.ceil(travel) - serviceTransitionBufferMinutes(service);
-      return Math.max(0, departure - (current - 15));
+      return Math.max(0, departure - current);
     });
     let returnWaitMinutes = 0;
     if(hasRoute && String(tripType?.value || '').toUpperCase() === 'ROUND_TRIP'){
       const appointment = parseTimeToMinutes(appointments[appointments.length - 1]?.appointmentTime || '');
       const outboundPickup = parseTimeToMinutes($('tripTime')?.value || '');
       const travel = Math.ceil(getOutboundTravel(service,routeMetrics).scheduledMinutes+stopWaitMinutes.reduce((sum,value)=>sum+value,0)+stopWaitMinutes.length*serviceTransitionBufferMinutes(service));
-      const arrival = isPickupTimeBasis() && outboundPickup != null ? outboundPickup + travel : (appointment == null ? null : appointment - 15);
+      const arrival = isPickupTimeBasis() && outboundPickup != null ? Math.max(outboundPickup + travel,appointment??0) : appointment;
       const pickup = parseTimeToMinutes(returnTripTime?.value || '');
       const outboundDate = Date.parse(`${$('tripDate')?.value}T00:00:00Z`);
       const returnDate = Date.parse(`${returnTripDate?.value}T00:00:00Z`);
@@ -1376,6 +1377,7 @@
 
   function revealSectionForAction(sectionId, focusId = ''){
     if(!sectionId) return;
+    journeyNavigationOverride = sectionId;
     document.body.classList.add('showCompletedSections');
     expandedSections.add(sectionId);
     if(sectionId === 'riderDetailsSection') riderDetailsInitiallyCollapsed.delete('riderDetailsSection');
@@ -1778,6 +1780,9 @@
     if(!fareEstimateSignature||(!force&&confirmedFareSignature===fareEstimateSignature)||(!force&&lastPromptedFareSignature===fareEstimateSignature))return;
     if(!getProgressState().allRequiredComplete||!destinationConfirmed)return;
     lastPromptedFareSignature=fareEstimateSignature;
+    const savings=Number(estimateState.memberSavings||0)+Number(appliedPromotion?.savings||0);
+    const savingsNote=[savings>0?`Discount applied: $${savings.toFixed(2)}.`:'',!token()?'You are not receiving the 5% member discount. Sign up or sign in to receive it.':''].filter(Boolean).join(' ');
+    if($('fareConfirmFuel')){$('fareConfirmFuel').textContent=savingsNote;$('fareConfirmFuel').hidden=!savingsNote;}
     if(fareConfirmAmount)fareConfirmAmount.textContent=`$${Number(estimateState.fare||0).toFixed(2)}`;
     if(fareConfirmDialog?.showModal)fareConfirmDialog.showModal();
   }

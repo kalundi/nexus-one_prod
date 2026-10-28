@@ -54,7 +54,7 @@
     const stops=drives.length===destinations.length?destinations:[destinations.at(-1)||''];
     const appointments=inputs.stopAppointmentTimes?.length?inputs.stopAppointmentTimes:[inputs.finalAppointmentTime||booking.appointmentTime||booking.submittedAppointmentTime||''];
     const basis=String(inputs.scheduleBasis||booking.scheduleBasis||'PICKUP').toUpperCase();
-    const legs=[],alerts=[];let cursor=suppliedPickup,waitingMinutes=0;
+    const legs=[],alerts=[];let cursor=suppliedPickup,waitingStartsAt=suppliedPickup,waitingMinutes=0;
     function makeLeg(from,to,drive,start,deadline,kind){
       const loading=handling(from,booking.service,'PICKUP',start,context,rules);
       const receiving=handling(to,booking.service,'DROPOFF',deadline||start+drive*MINUTE,context,rules);
@@ -90,11 +90,11 @@
         if(provisional){start=provisional.crewArrivalAt;alerts.length=alertCount;}
         if(i&&Number.isFinite(cursor)){
           if(start<cursor){alerts.push({code:'TIGHT_CONNECTION',leg:i,message:'The next stop cannot be reached with the required preparation and handoff time.'});start=cursor;}
-          else waitingMinutes+=(start-cursor)/MINUTE;
+          else waitingMinutes+=Math.max(0,(start-waitingStartsAt)/MINUTE);
         }
       }
       const leg=makeLeg(from,stops[i],drives[i],start,deadline,'OUTBOUND');
-      if(leg){legs.push(leg);cursor=leg.vehicleAvailableAt;}
+      if(leg){leg.waitingStartsAt=Math.max(leg.vehicleAvailableAt,Number.isFinite(appointment)?appointment:leg.vehicleAvailableAt);legs.push(leg);cursor=leg.vehicleAvailableAt;waitingStartsAt=leg.waitingStartsAt;}
     }
     const round=String(booking.tripType||'').toUpperCase()==='ROUND_TRIP';
     if(round&&legs.length){
@@ -102,7 +102,7 @@
       const returnAt=fare.scheduledEpoch(dateOnly(booking.returnTripDate||date),booking.returnTripTime);
       if(Number.isFinite(returnAt)){
         if(returnAt<cursor)alerts.push({code:'TIGHT_RETURN',message:'Return pickup overlaps outbound handoff and preparation.'});
-        waitingMinutes+=Math.max(0,(returnAt-cursor)/MINUTE);
+        waitingMinutes+=Math.max(0,(returnAt-waitingStartsAt)/MINUTE);
       }else alerts.push({code:'RETURN_TIME_PENDING',message:'Return pickup time is needed to confirm vehicle availability.'});
       const leg=makeLeg(stops.at(-1),booking.pickup,ret.scheduledMinutes,Math.max(cursor,Number.isFinite(returnAt)?returnAt:cursor),NaN,'RETURN');
       legs.push(leg);cursor=leg.vehicleAvailableAt;

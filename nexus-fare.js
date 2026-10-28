@@ -250,7 +250,7 @@
     const travel=serviceTravel(inputs.passengerLegs?.[0]||inputs,service,settings.fareRules||{});
     const appointments=inputs.stopAppointmentTimes||[];
     const stopWait=appointments.length>1&&travel.stopScheduledMinutes.length===appointments.length?appointments.slice(0,-1).reduce((sum,time,index)=>{
-      const arrival=scheduledEpoch(String(booking.date).slice(0,10),time)-15*60000;
+      const arrival=scheduledEpoch(String(booking.appointmentDate||booking.date).slice(0,10),time);
       const departure=scheduledEpoch(String(booking.date).slice(0,10),appointments[index+1])-15*60000-Math.ceil(travel.stopScheduledMinutes[index+1])*60000-travel.transitionBufferMinutes*60000;
       return sum+Math.max(0,(departure-arrival)/60000);
     },0):Number(inputs.stopWaitMinutes);
@@ -261,7 +261,8 @@
       const finalAppointment=inputs.finalAppointmentTime||booking.appointmentTime;
       const isAppointment=inputs.scheduleBasis==='APPOINTMENT'||(!inputs.scheduleBasis&&finalAppointment&&!/Schedule basis:\s*PICKUP/i.test(String(booking.notes||'')));
       const transitionMinutes=Math.max(0,travel.stopScheduledMinutes.length-1)*travel.transitionBufferMinutes;
-      const arrival=isAppointment?scheduledEpoch(String(booking.date).slice(0,10),finalAppointment)-15*60000:pickup+Math.ceil(travel.scheduledMinutes+stopWait+transitionMinutes)*60000;
+      const appointmentAt=scheduledEpoch(String(booking.appointmentDate||booking.date).slice(0,10),finalAppointment);
+      const arrival=isAppointment?appointmentAt:Math.max(pickup+Math.ceil(travel.scheduledMinutes+stopWait+transitionMinutes)*60000,Number.isFinite(appointmentAt)?appointmentAt:0);
       if(!Number.isFinite(arrival))throw Error('Final appointment time is required');
       returnWait=Math.max(0,Math.round((returnAt-arrival)/60000));
     }
