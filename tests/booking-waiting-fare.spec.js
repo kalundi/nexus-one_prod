@@ -32,7 +32,7 @@ for (const scenario of [
     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
   });
   await page.goto('/booking-app.html');
-  await page.locator('#name').fill('Waiting Fare Test');
+  await page.locator('#firstName').fill('Waiting'); await page.locator('#lastName').fill('Fare Test');
   await page.locator('#phone').fill('(240) 555-0148');
   await page.locator('#serviceTypeSelect').selectOption('ambulatory');
   await page.locator('#confirmRiderBtn').click();

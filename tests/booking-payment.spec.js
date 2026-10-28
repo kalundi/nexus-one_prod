@@ -78,7 +78,7 @@ test('shows the payment section after a successful booking submission', async ({
 
   await page.goto('/booking-app.html', { waitUntil: 'load' });
 
-  await page.locator('#name').fill('Ava Patel');
+  await page.locator('#firstName').fill('Ava'); await page.locator('#lastName').fill('Patel');
   await page.locator('#phone').fill('(240) 555-0101');
   await page.locator('#email').fill('ava@example.com');
   await page.locator('#serviceTypeSelect').selectOption('ambulatory');
@@ -190,7 +190,7 @@ test('falls back to Square when Stripe is unavailable', async ({ page }) => {
 
   await page.goto('/booking-app.html', { waitUntil: 'load' });
 
-  await page.locator('#name').fill('Ava Patel');
+  await page.locator('#firstName').fill('Ava'); await page.locator('#lastName').fill('Patel');
   await page.locator('#phone').fill('(240) 555-0102');
   await page.locator('#email').fill('ava2@example.com');
   await page.locator('#serviceTypeSelect').selectOption('ambulatory');

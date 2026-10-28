@@ -20,7 +20,7 @@ for (const width of [390, 1280]) {
     });
     await page.goto('/booking-app.html?liveMap=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#confirmRiderBtn')).toBeEnabled({ timeout: 3000 });
-    await page.locator('#name').fill('Section Progression Test');
+    await page.locator('#firstName').fill('Section'); await page.locator('#lastName').fill('Progression Test');
     await page.locator('#phone').fill('(240) 555-0148');
     await page.locator('#serviceTypeSelect').selectOption('ambulatory');
     await page.locator('#confirmRiderBtn').click();

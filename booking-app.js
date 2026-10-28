@@ -341,9 +341,29 @@
     return normalized === 'PATIENT' || normalized === 'RIDER';
   }
 
+  function setPassengerName(value = ''){
+    const parts = String(value || '').trim().split(/\s+/).filter(Boolean);
+    if($('firstName')) $('firstName').value = parts.shift() || '';
+    // Keep every remaining part of legacy full names, including compound surnames.
+    if($('lastName')) $('lastName').value = parts.join(' ');
+    return syncPassengerName();
+  }
+
+  function syncPassengerName(){
+    const name = ['firstName','lastName'].map(id => String($(id)?.value || '').trim()).filter(Boolean).join(' ');
+    if($('name')) $('name').value = name;
+    return name;
+  }
+
+  function passengerNameComplete(){
+    return ['firstName','lastName'].every(id => Boolean(String($(id)?.value || '').trim()));
+  }
+
   function getRiderFormSnapshot(){
     return {
-      name: String($('name')?.value || '').trim(),
+      name: syncPassengerName(),
+      firstName: String($('firstName')?.value || '').trim(),
+      lastName: String($('lastName')?.value || '').trim(),
       phone: String($('phone')?.value || '').trim(),
       email: String($('email')?.value || '').trim(),
       alternatePhone: String($('alternatePhone')?.value || '').trim(),
@@ -352,8 +372,12 @@
     };
   }
 
-  function setRiderFormValues({ name = '', phone = '', email = '', alternatePhone = '', alternateEmail = '', notes = '' } = {}){
-    if($('name')) $('name').value = String(name || '').trim();
+  function setRiderFormValues({ name = '', firstName, lastName, phone = '', email = '', alternatePhone = '', alternateEmail = '', notes = '' } = {}){
+    if(firstName !== undefined || lastName !== undefined){
+      if($('firstName')) $('firstName').value = String(firstName || '').trim();
+      if($('lastName')) $('lastName').value = String(lastName || '').trim();
+      syncPassengerName();
+    }else setPassengerName(name);
     if($('phone')) $('phone').value = formatPhone(String(phone || '').trim());
     if($('email')) $('email').value = String(email || '').trim();
     if($('alternatePhone')) $('alternatePhone').value = String(alternatePhone || '').trim();
@@ -372,8 +396,9 @@
       const nextName = userName || current.name;
       const nextPhone = userPhone || current.phone;
       const nextEmail = userEmail || current.email;
-      setRiderFormValues({ name: nextName, phone: nextPhone, email: nextEmail, alternatePhone:current.alternatePhone,alternateEmail:current.alternateEmail,notes: current.notes });
-      riderDetailsConfirmed = Boolean(nextName && nextPhone && nextEmail && $('email')?.checkValidity());
+      const nameParts = nextName === current.name ? {firstName:current.firstName,lastName:current.lastName} : {};
+      setRiderFormValues({ name: nextName, ...nameParts, phone: nextPhone, email: nextEmail, alternatePhone:current.alternatePhone,alternateEmail:current.alternateEmail,notes: current.notes });
+      riderDetailsConfirmed = Boolean(passengerNameComplete() && nextPhone && nextEmail && $('email')?.checkValidity());
       if(riderDetailsConfirmed){
         riderDetailsInitiallyCollapsed.add('riderDetailsSection');
         expandedSections.delete('riderDetailsSection');
@@ -428,7 +453,7 @@
 
   function updateTelemetrySpotlight(){
     const riderName = String($('name')?.value || currentUser?.displayName || currentUser?.name || '').trim();
-    if(telemetryRiderName) telemetryRiderName.textContent = riderName || 'Rider details pending';
+    if(telemetryRiderName) telemetryRiderName.textContent = riderName || 'Passenger details pending';
     if(telemetryDriverName) telemetryDriverName.textContent = resolveTelemetryDriverName(lastTelemetryVehicles);
     if(telemetryMission){
       telemetryMission.textContent = riderDetailsConfirmed
@@ -621,7 +646,7 @@
 
     estMiles.textContent = `${Number(breakdown.passengerMilesTotal||estimateState.miles).toFixed(1)} mi total`;
     estimateState.tripDurationText=breakdown.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.journeyMinutes)}${String(tripType?.value)==='ROUND_TRIP'?' round trip':' trip'}`:'Time pending';
-    estimateState.travelBreakdown=[`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving`,breakdown.waitMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:'',breakdown.transitionMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''].filter(Boolean).join(' \u00b7 ');
+    estimateState.travelBreakdown=[`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving`,breakdown.waitMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:'',breakdown.transitionMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} passenger assistance`:''].filter(Boolean).join(' \u00b7 ');
     estDuration.textContent = estimateState.tripDurationText;
     renderSmartTiming(breakdown.timingPlan);
     if($('fareTravelBreakdown'))$('fareTravelBreakdown').textContent=estimateState.travelBreakdown;
@@ -629,7 +654,7 @@
       const hasReturn=String(tripType?.value)==='ROUND_TRIP';
       const returnDate=returnTripDate?.value;
       const returnLabel=returnDate?new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(returnDate+'T12:00:00Z')):'';
-      const parts=[hasReturn&&returnLabel&&returnTripTime?.value?`Return ${returnLabel} at ${returnTripTime.value}`:'',breakdown.waitMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting included in fare`:'',breakdown.transitionMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:'',breakdown.drivingMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.journeyMinutes)} trip total`:''];
+      const parts=[hasReturn&&returnLabel&&returnTripTime?.value?`Return ${returnLabel} at ${returnTripTime.value}`:'',breakdown.waitMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting included in fare`:'',breakdown.transitionMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} passenger assistance`:'',breakdown.drivingMinutes>0?`${NexusFare.formatTravelMinutes(breakdown.journeyMinutes)} trip total`:''];
       $('rideTimingSummary').textContent=parts.filter(Boolean).join(' | ')
       $('rideTimingSummary').hidden=!(hasReturn||isMultipleStopsEnabled())||!breakdown.drivingMinutes;
     }
@@ -784,7 +809,7 @@
       chip.hidden=!canUse||(hideUnselected&&service!==selected)||(!selectedOnly&&chip.classList.contains('secondaryRideOption')&&!secondaryExpanded);
       if(eta){
         eta.textContent=breakdown?.drivingMinutes>0?`~${NexusFare.formatTravelMinutes(breakdown.timingPlan?breakdown.journeyMinutes:breakdown.drivingMinutes)} ${breakdown.timingPlan?'total':'drive'}`:'Time pending';
-        eta.title=breakdown?`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving${breakdown.waitMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:''}${breakdown.transitionMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} rider assistance`:''}`:'Enter the route and schedule to calculate travel time.';
+        eta.title=breakdown?`${NexusFare.formatTravelMinutes(breakdown.drivingMinutes)} driving${breakdown.waitMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.waitMinutes)} waiting`:''}${breakdown.transitionMinutes>0?` + ${NexusFare.formatTravelMinutes(breakdown.transitionMinutes)} passenger assistance`:''}`:'Enter the route and schedule to calculate travel time.';
         eta.setAttribute('aria-label',eta.title);
       }
       const requiresReview=service==='stretcher'||service==='bariatric';
@@ -1011,10 +1036,10 @@
     const conflicts = checks.filter((check) => check.cushionMinutes < 0);
     if(conflicts.length){
       const first = conflicts[0];
-      return { feasible: false, checks, message: `Schedule conflict: Stop ${first.toLeg} is at least ${Math.abs(first.cushionMinutes)} minutes too early for one driver. Allow ${first.waitMinutes} minutes at Stop ${first.fromLeg}, ${first.assistanceBuffer} minutes for rider assistance, and about ${first.travelMinutes} minutes of travel.` };
+      return { feasible: false, checks, message: `Schedule conflict: Stop ${first.toLeg} is at least ${Math.abs(first.cushionMinutes)} minutes too early for one driver. Allow ${first.waitMinutes} minutes at Stop ${first.fromLeg}, ${first.assistanceBuffer} minutes for passenger assistance, and about ${first.travelMinutes} minutes of travel.` };
     }
     const tightest = checks.reduce((minimum, check) => Math.min(minimum, check.cushionMinutes), Infinity);
-    return { feasible: true, checks, message: `Schedule appears feasible for one driver, with a minimum ${Math.max(0, Math.floor(tightest))}-minute cushion. Travel, expected stop time, traffic, and rider assistance are included.` };
+    return { feasible: true, checks, message: `Schedule appears feasible for one driver, with a minimum ${Math.max(0, Math.floor(tightest))}-minute cushion. Travel, expected stop time, traffic, and passenger assistance are included.` };
   }
 
   function renderMultiStopFeasibility(){
@@ -1061,7 +1086,7 @@
       if(index < stopCount){
         const waitField = document.createElement('div');
         waitField.className = 'pickupWaitPair hasWaiting stopWaitField';
-        waitField.innerHTML = `<div class="field"><label for="stopPickupTime-${index}">Stop ${index} Pickup Time</label><input id="stopPickupTime-${index}" type="time" readonly class="systemGeneratedField"><small class="subtle">Calculated from the next appointment, travel, and rider assistance.</small></div><div class="field"><label for="stopWaitMinutes-${index}">Waiting (minutes)</label><input id="stopWaitMinutes-${index}" type="number" readonly data-stop-wait-minutes="true" class="systemGeneratedField" value="0"></div>`;
+        waitField.innerHTML = `<div class="field"><label for="stopPickupTime-${index}">Stop ${index} Pickup Time</label><input id="stopPickupTime-${index}" type="time" readonly class="systemGeneratedField"><small class="subtle">Calculated from the next appointment, travel, and passenger assistance.</small></div><div class="field"><label for="stopWaitMinutes-${index}">Waiting (minutes)</label><input id="stopWaitMinutes-${index}" type="number" readonly data-stop-wait-minutes="true" class="systemGeneratedField" value="0"></div>`;
         legAppointmentTimesGrid.appendChild(waitField);
       }
     }
@@ -1287,11 +1312,12 @@
     window.NexusBookingFacility?.setUser(currentUser);
     if($('staffTripModeField')) $('staffTripModeField').hidden = !['ADMIN','DISPATCHER'].includes(String(currentUserRole||'').toUpperCase());
     const role = String(currentUserRole || 'CUSTOMER').toUpperCase();
+    const roleLabel = role === 'RIDER' ? 'PASSENGER' : role;
     const signedIn = Boolean(token());
-    if(authRoleBadge) authRoleBadge.textContent = signedIn ? role : 'CUSTOMER';
+    if(authRoleBadge) authRoleBadge.textContent = signedIn ? roleLabel : 'CUSTOMER';
     if(authStatusText){
-      if(isPrivilegedServiceRole(role)) authStatusText.textContent = `Signed in as ${role}. You can view all ride types.`;
-      else if(signedIn) authStatusText.textContent = `Signed in as ${role}. Save 5% on one-way and 10% on round-trip or recurring rides.`;
+      if(isPrivilegedServiceRole(role)) authStatusText.textContent = `Signed in as ${roleLabel}. You can view all ride types.`;
+      else if(signedIn) authStatusText.textContent = `Signed in as ${roleLabel}. Save 5% on one-way and 10% on round-trip or recurring rides.`;
       else authStatusText.textContent = 'Book as a guest and save 5% on round-trip or recurring rides. Sign up to save 10%.';
     }
     if(authActionBtn){
@@ -1312,9 +1338,9 @@
       }else if(role === 'ADMIN' || role === 'BILLING'){
         paymentChoiceHint.textContent = 'Trips associated with a facility use secure checkout during booking; the facility is not invoiced.';
       }else if(role === 'DISPATCHER'){
-        paymentChoiceHint.textContent = 'Dispatch-entered bookings send the rider a secure payment link before pickup.';
+        paymentChoiceHint.textContent = 'Dispatch-entered bookings send the passenger a secure payment link before pickup.';
       }else if(role === 'DRIVER'){
-        paymentChoiceHint.textContent = 'Driver-entered bookings send rider details and trigger a referral incentive alert for admin follow-up.';
+        paymentChoiceHint.textContent = 'Driver-entered bookings send passenger details and trigger a referral incentive alert for admin follow-up.';
       }else if(isRiderRole(role)){
         paymentChoiceHint.textContent = 'A secure payment link will be sent to your phone 60 to 30 minutes before pickup.';
       }else{
@@ -1333,10 +1359,9 @@
   }
 
   function syncRiderIdentityMode(){
-    const nameInput = $('name');
     const phoneInput = $('phone');
     const emailInput = $('email');
-    if(nameInput) nameInput.readOnly = false;
+    ['firstName','lastName'].forEach(id => { if($(id)) $(id).readOnly = false; });
     if(phoneInput) phoneInput.readOnly = false;
     if(emailInput) emailInput.readOnly = false;
   }
@@ -1380,6 +1405,7 @@
   }
 
   function syncSectionProgressUi(){
+    syncPassengerName();
     const progress = getProgressState();
     updateTelemetrySpotlight();
     if(fareSummaryAmount){
@@ -1418,7 +1444,7 @@
     if($('reviewSchedule')) $('reviewSchedule').textContent = `${String($('tripDate')?.value || '-')} at ${String(appointmentTimeInput?.value || '-')}`;
     if($('reviewScheduleSummary')) $('reviewScheduleSummary').textContent = `${String($('tripDate')?.value || 'Date pending')} at ${String(appointmentTimeInput?.value || 'time pending')} � Pickup estimate ${String($('tripTime')?.value || 'pending')}`;
     if($('rideSchedulePillText')) $('rideSchedulePillText').textContent = $('tripTime')?.value ? `Pickup ${String($('tripTime').value)}` : 'Scheduled pickup';
-    if($('rideRiderPillText')) $('rideRiderPillText').textContent = String($('name')?.value || 'For rider').trim() || 'For rider';
+    if($('rideRiderPillText')) $('rideRiderPillText').textContent = String($('name')?.value || 'For passenger').trim() || 'For passenger';
     if($('reviewService')) $('reviewService').textContent = reviewServiceLabel;
 
     AUTO_COLLAPSIBLE_SECTION_IDS.forEach((sectionId) => {
@@ -1551,7 +1577,7 @@
 
   function updateNextStepGuide(){
     if(!nextStepGuide||!nextStepText||!nextStepAction)return;
-    let targetId='riderDetailsSection',focusId='name',message='Enter and confirm the rider details.';
+    let targetId='riderDetailsSection',focusId='firstName',message='Enter and confirm the passenger details.';
     if(riderDetailsConfirmed){targetId='pickupDropoffSection';focusId='pickup';message='Enter the route and appointment schedule to calculate prices.';}
     if(riderDetailsConfirmed&&destinationConfirmed){targetId='rideTypeSection';focusId='serviceChips';message='Compare the estimates and choose a Nexus ride.';}
     const rideComplete=rideChoiceConfirmed&&Boolean(normalizeService($('service')?.value)&&$('tripDate')?.value&&isPrimaryScheduleInputComplete()&&$('tripTime')?.value);
@@ -1584,7 +1610,7 @@
     if(routeReady)step=3;
     if(rideReady)step=4;
     if(bookingSubmitted||bookingSubmissionPending)step=5;
-    const labels=['Rider details','Route & schedule','Choose ride','Review','Payment & confirmation'];
+    const labels=['Passenger details','Route & schedule','Choose ride','Review','Payment & confirmation'];
     const journeyTargets=['riderDetailsSection','pickupDropoffSection','rideTypeSection','fareSummarySection','paymentSection'];
     const overrideStep=journeyTargets.indexOf(journeyNavigationOverride);
     if(overrideStep>=0)step=overrideStep+1;
@@ -1619,7 +1645,7 @@
     if(bookingSubmitted)return;
     const phone=formatPhone(String($('phone')?.value||''));
     if(phone.replace(/\D/g,'').length!==10)return;
-    await fetch('/api/booking-drafts',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({draftToken:bookingDraftToken,name:String($('name')?.value||'').trim(),phone,email:String($('email')?.value||'').trim(),currentStep:currentDraftStep()})}).catch(()=>{});
+    await fetch('/api/booking-drafts',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({draftToken:bookingDraftToken,name:syncPassengerName(),phone,email:String($('email')?.value||'').trim(),currentStep:currentDraftStep()})}).catch(()=>{});
   }
 
   function scheduleBookingDraftSave(){
@@ -1667,9 +1693,9 @@
       if(CUSTOMER_ALLOWED_SERVICES.has(service))selectService(service);
       if($('pickup')&&!String($('pickup').value||'').trim()&&preferences.defaultPickup)$('pickup').value=preferences.defaultPickup;
       const needLines=[];
-      if(preferences.remainsInWheelchair)needLines.push('Rider remains in wheelchair during transport.');
+      if(preferences.remainsInWheelchair)needLines.push('Passenger remains in wheelchair during transport.');
       if(preferences.transferAssistance)needLines.push('Transfer or boarding assistance requested.');
-      if(preferences.oxygenRequired)needLines.push('Rider travels with oxygen.');
+      if(preferences.oxygenRequired)needLines.push('Passenger travels with oxygen.');
       if(preferences.accessibilityNotes)needLines.push(String(preferences.accessibilityNotes));
       if($('notes')&&!String($('notes').value||'').trim()&&needLines.length)$('notes').value=needLines.join(' ');
       const wheelchairAnswer=document.querySelector(`input[name="remainsInWheelchair"][value="${preferences.remainsInWheelchair?'yes':'no'}"]`);if(wheelchairAnswer)wheelchairAnswer.checked=true;
@@ -1778,7 +1804,7 @@
       editButton.addEventListener('click', () => {
         expandedSections.add(sectionId);
         section.classList.remove('sectionCollapsed');
-        const firstInput = section.querySelector('input, textarea, select, button');
+        const firstInput = section.querySelector('input:not([type="hidden"]), textarea, select, button');
         if(firstInput) firstInput.focus();
       });
       section.appendChild(editButton);
@@ -1793,7 +1819,7 @@
         expandedSections.add('riderDetailsSection');
         riderDetailsInitiallyCollapsed.delete('riderDetailsSection');
         riderDetailsSection.classList.remove('sectionCollapsed');
-        const firstInput = riderDetailsSection.querySelector('input, textarea, select, button');
+        const firstInput = riderDetailsSection.querySelector('input:not([type="hidden"]), textarea, select, button');
         if(firstInput) firstInput.focus();
       });
       riderDetailsSection.appendChild(editButton);
@@ -1807,7 +1833,7 @@
       });
     }
 
-    ['tripDate', 'appointmentTime', 'tripTime', 'name', 'phone', 'email', 'alternatePhone', 'alternateEmail', 'notes'].forEach((id) => {
+    ['tripDate', 'appointmentTime', 'tripTime', 'firstName', 'lastName', 'phone', 'email', 'alternatePhone', 'alternateEmail', 'notes'].forEach((id) => {
       const field = $(id);
       if(!field) return;
       ['change', 'input', 'blur'].forEach((eventName) => {
@@ -1818,8 +1844,8 @@
             renderMultiStopFeasibility();
           }
           if(id === 'tripDate') refreshFareForMembership();
-          if(eventName==='input'&&['email','alternatePhone','alternateEmail'].includes(id))clearStatus();
-          if(['name','phone','email','alternatePhone','alternateEmail','notes'].includes(id)){
+          if(eventName==='input'&&['firstName','lastName','email','alternatePhone','alternateEmail'].includes(id))clearStatus();
+          if(['firstName','lastName','phone','email','alternatePhone','alternateEmail','notes'].includes(id)){
             riderDetailsInitiallyCollapsed.delete('riderDetailsSection');
             expandedSections.delete('riderDetailsSection');
             riderDetailsConfirmed = false;
@@ -1834,6 +1860,17 @@
 
     if(loginEmail) loginEmail.addEventListener('input', () => syncSectionProgressUi());
     if(loginPassword) loginPassword.addEventListener('input', () => syncSectionProgressUi());
+  }
+
+  function validatePassengerName(){
+    syncPassengerName();
+    const invalid = ['firstName','lastName'].map(id => $(id)).find(field => field && !String(field.value || '').trim());
+    if(!invalid) return true;
+    setStatus(invalid.id === 'firstName' ? 'Enter the passenger first name.' : 'Enter the passenger last name.', 'err');
+    riderDetailsConfirmed = false;
+    revealSectionForAction('riderDetailsSection', invalid.id);
+    invalid.reportValidity();
+    return false;
   }
 
   function validateRiderContacts(){
@@ -1851,8 +1888,9 @@
       syncSectionProgressUi();
       return;
     }
-    const name = String($('name')?.value || '').trim();
     const phone = String($('phone')?.value || '').trim();
+    if(!validatePassengerName()){syncSectionProgressUi();return;}
+    const name = syncPassengerName();
     if(!validateRiderContacts()){syncSectionProgressUi();return;}
     if(!name || !phone){
       setStatus('Enter passenger name and phone, then confirm details.', 'err');
@@ -1874,7 +1912,7 @@
     riderDetailsConfirmed = true;
     journeyNavigationOverride='';
     expandedSections.delete('riderDetailsSection');
-    setStatus('Rider details confirmed.', 'ok');
+    setStatus('Passenger details confirmed.', 'ok');
     syncSectionProgressUi();
     window.requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:'auto'}));
   }
@@ -3447,7 +3485,7 @@
     });
     journeyHeaderAction?.addEventListener('click',()=>{
       const targetId=journeyHeaderAction.dataset.target||nextStepAction?.dataset.target||'riderDetailsSection';
-      const focusId=journeyHeaderAction.dataset.focus||nextStepAction?.dataset.focus||'name';
+      const focusId=journeyHeaderAction.dataset.focus||nextStepAction?.dataset.focus||'firstName';
       if(targetId==='submitBtn'){submitBtn?.scrollIntoView({behavior:'smooth',block:'center'});submitBtn?.focus();}
       else revealSectionForAction(targetId,focusId);
     });
@@ -3535,7 +3573,7 @@
         forgotPasswordPanel.hidden = !opening;
         if(opening){
           if(forgotPasswordEmail && !forgotPasswordEmail.value) forgotPasswordEmail.value = String(loginEmail?.value || '').trim();
-          setForgotPasswordMessage('Enter the email on your rider or staff account and we will send a secure reset link if the account exists.');
+          setForgotPasswordMessage('Enter the email on your passenger or staff account and we will send a secure reset link if the account exists.');
         }
       };
     }
@@ -3845,7 +3883,7 @@
   function reuseTripRoute(booking){
     if($('pickup'))$('pickup').value=String(booking?.pickup||'');if($('destination'))$('destination').value=String(booking?.destination||'');
     const service=normalizeService(booking?.service);if(service&&allowedServicesForRole(currentUserRole).has(service))selectService(service);
-    if(currentUser){if($('name')&&!$('name').value)$('name').value=String(currentUser.name||currentUser.display_name||'');if($('email')&&!$('email').value)$('email').value=String(currentUser.email||'');if($('phone')&&!$('phone').value)$('phone').value=formatPhone(String(currentUser.phone||''));riderDetailsConfirmed=Boolean($('name')?.value&&$('phone')?.value&&$('email')?.value&&$('email')?.checkValidity());}
+    if(currentUser){if(!syncPassengerName())setPassengerName(currentUser.displayName||currentUser.name||currentUser.display_name||'');if($('email')&&!$('email').value)$('email').value=String(currentUser.email||'');if($('phone')&&!$('phone').value)$('phone').value=formatPhone(String(currentUser.phone||''));riderDetailsConfirmed=Boolean(passengerNameComplete()&&$('phone')?.value&&$('email')?.value&&$('email')?.checkValidity());}
     markDestinationUnconfirmed();expandedSections.add('pickupDropoffSection');switchAppTab('book');syncSectionProgressUi();revealSectionForAction('pickupDropoffSection','confirmPickupDropoffBtn');
   }
 
@@ -3858,7 +3896,8 @@
     if(patientDefaultsBanner)patientDefaultsBanner.hidden=true;
     document.querySelectorAll('input[name="remainsInWheelchair"]').forEach(input=>{input.checked=false;});
     reuseTripRoute(plan);
-    for(const [id,value] of Object.entries({name:plan.name,phone:plan.phone,email:plan.email,tripDate:plan.date,tripTime:String(plan.trip_time||'').slice(0,5),appointmentTime:String(plan.appointment_time||'').slice(0,5),notes:plan.notes})){
+    setPassengerName(plan.name);
+    for(const [id,value] of Object.entries({phone:plan.phone,email:plan.email,tripDate:plan.date,tripTime:String(plan.trip_time||'').slice(0,5),appointmentTime:String(plan.appointment_time||'').slice(0,5),notes:plan.notes})){
       if($(id))$(id).value=String(value||'');
     }
     if(tripType)tripType.value='ONE_WAY';
@@ -4034,6 +4073,7 @@
 
   async function performBookingSubmission(){
     clearStatus();
+    if(!validatePassengerName())return;
     if(!validateRiderContacts())return;
     if(window.NexusBookingFacility&&!window.NexusBookingFacility.validate())return;
     setBookingOutcome('', 'pending');
@@ -4121,7 +4161,7 @@
       setStatus('Please complete all required fields.', 'err');
       setBookingOutcome('Action required before booking', 'pending');
       if(!payload.name || !payload.phone || (payload.payerType==='INSURANCE'&&!payload.insuranceCarrier)){
-        revealSectionForAction('riderDetailsSection', !payload.name ? 'name' : (!payload.phone ? 'phone' : 'insuranceCarrier'));
+        revealSectionForAction('riderDetailsSection', !payload.name ? 'firstName' : (!payload.phone ? 'phone' : 'insuranceCarrier'));
       }else if(!payload.pickup || !routeDestinations.length || !destinationReady){
         revealSectionForAction('pickupDropoffSection', !payload.pickup ? 'pickup' : 'destination');
       }else if(invalidRoundTrip){
@@ -4381,7 +4421,7 @@
     const password = String(signupPassword?.value || '');
     const passwordConfirm = String(signupPasswordConfirm?.value || '');
     if(!riderName || !phone || !email || !password || !passwordConfirm){
-      setLoginMessage('Complete all signup fields to create your rider account.', true);
+      setLoginMessage('Complete all signup fields to create your passenger account.', true);
       return;
     }
     if(password !== passwordConfirm){
@@ -4499,7 +4539,7 @@
       const r = await fetch(`/api/bookings/${encodeURIComponent(activeManagedBooking.reference)}/cancel`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone, reason: 'Cancelled by rider from booking app' })
+        body: JSON.stringify({ phone, reason: 'Cancelled by passenger from booking app' })
       });
       const data = await r.json().catch(() => ({}));
       if(!r.ok) throw new Error(data.error || 'Cancellation failed');
@@ -4647,7 +4687,7 @@
     if(confirmPickupDropoffBtn) confirmPickupDropoffBtn.addEventListener('click', confirmPickupDropoffDetails);
     $('continueRideBtn')?.addEventListener('click',async()=>{
       const continueButton=$('continueRideBtn');
-      if(!riderDetailsConfirmed){setStatus('Confirm the rider details first.','err');revealSectionForAction('riderDetailsSection','name');return;}
+      if(!riderDetailsConfirmed){setStatus('Confirm the passenger details first.','err');revealSectionForAction('riderDetailsSection','firstName');return;}
       if(!destinationConfirmed){setStatus('Confirm the pickup and destination first.','err');revealSectionForAction('pickupDropoffSection','pickup');return;}
       if(!normalizeService($('service')?.value)){validateRequiredService({focus:true});setStatus('Service type is required. Select a service to continue.','err');return;}
       if(!$('tripDate')?.value||!isPrimaryScheduleInputComplete()){setStatus(isMultipleStopsEnabled()?'Choose a ride and enter the appointment time for every stop.':'Choose a ride and enter either a pickup or appointment time.','err');return;}
@@ -4694,7 +4734,7 @@
       window.setTimeout(syncMapViewport,280);
     });
     $('rideSchedulePill')?.addEventListener('click',()=>{journeyNavigationOverride='pickupDropoffSection';revealSectionForAction('pickupDropoffSection','tripDate');});
-    $('rideRiderPill')?.addEventListener('click',()=>revealSectionForAction('riderDetailsSection','name'));
+    $('rideRiderPill')?.addEventListener('click',()=>revealSectionForAction('riderDetailsSection','firstName'));
     if(payStripeBtn) payStripeBtn.addEventListener('click', () => startHostedPayment('stripe', 'full'));
     if(paySquareBtn) paySquareBtn.addEventListener('click', () => startHostedPayment('square', 'full'));
     if(payDepositBtn) payDepositBtn.addEventListener('click', () => startHostedPayment('stripe', 'deposit'));
@@ -4736,7 +4776,7 @@
         window.nexusTrack?.('booking_abandoned', { step: currentDraftStep().toLowerCase() });
         const phone=formatPhone(String($('phone')?.value||''));
         if(phone.replace(/\D/g,'').length===10){
-          const payload=JSON.stringify({draftToken:bookingDraftToken,name:String($('name')?.value||'').trim(),phone,email:String($('email')?.value||'').trim(),currentStep:currentDraftStep()});
+          const payload=JSON.stringify({draftToken:bookingDraftToken,name:syncPassengerName(),phone,email:String($('email')?.value||'').trim(),currentStep:currentDraftStep()});
           try{navigator.sendBeacon('/api/booking-drafts',new Blob([payload],{type:'application/json'}));}catch{}
         }
       }

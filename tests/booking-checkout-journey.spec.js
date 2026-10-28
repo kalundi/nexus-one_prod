@@ -11,7 +11,7 @@ async function prepareRide(page) {
     )});
   });
   await page.goto('/booking-app.html');
-  await page.locator('#name').fill('Journey Test');
+  await page.locator('#firstName').fill('Journey'); await page.locator('#lastName').fill('Test');
   await page.locator('#phone').fill('(240) 555-0148');
   await page.locator('#serviceTypeSelect').selectOption('ambulatory');
   await page.locator('#confirmRiderBtn').click();

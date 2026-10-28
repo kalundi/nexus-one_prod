@@ -58,7 +58,7 @@ test('capture the Uber booking flow with dummy data', async ({ page }) => {
   await page.waitForTimeout(stepDelay);
   await page.screenshot({ path:'output/visual-review-01-rider.png' });
 
-  await page.locator('#name').fill('Jordan Sample');
+  await page.locator('#firstName').fill('Jordan'); await page.locator('#lastName').fill('Sample');
   await page.locator('#phone').fill('(240) 555-0148');
   await page.locator('#email').fill('jordan.sample@example.com');
   await page.locator('#serviceTypeSelect').selectOption('ambulatory');
@@ -100,9 +100,9 @@ test('capture the Uber booking flow with dummy data', async ({ page }) => {
   await page.screenshot({ path:'output/visual-review-05-payment.png' });
   await page.locator('.journeyStep').nth(0).click();
   await expect(page.locator('#riderDetailsSection')).toBeVisible();
-  await expect(page.locator('#name')).toHaveValue('Jordan Sample');
+  await expect(page.locator('#firstName')).toHaveValue('Jordan'); await expect(page.locator('#lastName')).toHaveValue('Sample');
   await expect(page.locator('.journeyStep').nth(0)).toHaveClass(/current/);
-  await page.locator('#name').fill('Jordan Sample Updated');
+  await page.locator('#firstName').fill('Jordan'); await page.locator('#lastName').fill('Sample Updated');
   await page.locator('#confirmRiderBtn').click();
   await page.locator('#confirmPickupDropoffBtn').click();
   await expect(page.locator('#rideTypeSection')).toBeVisible();

@@ -279,7 +279,7 @@ try{
       const tripTime = slotTimes[(i + dayIndex) % slotTimes.length];
       const reference = generateReference();
       const riderNum = String(((dayIndex * TRIPS_PER_DAY) + i + 1)).padStart(4, '0');
-      const riderName = `Demo Rider ${riderNum}`;
+      const riderName = `Demo Passenger ${riderNum}`;
       const riderPhone = `(${200 + (i % 8)}01) 555-${String(1000 + ((dayIndex * TRIPS_PER_DAY + i) % 9000)).padStart(4, '0')}`;
       const riderEmail = `demo.rider.${riderNum}@example.com`;
       const note = `${WORKLOAD_NOTE_PREFIX} weekday workload seed • ${driver.name} (${driver.unit})`;

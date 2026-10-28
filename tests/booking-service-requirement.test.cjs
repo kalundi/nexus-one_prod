@@ -31,9 +31,10 @@ test('legacy booking and profile preference values normalize to the existing bar
   assert.match(api,/normalizeBariatricService\(b\.mobilityType\|\|'AMBULATORY'\)/);
 });
 
-test('optional email is not required and required fields are marked',()=>{
-  for(const label of ['Passenger name','Phone','Pickup','Destination','Outbound date','Appointment Time'])assert.ok(html.includes(`${label} <span class="requiredMark">*</span>`));
-  assert.match(html,/Email \(optional\)/);assert.doesNotMatch(html,/<input id="email"[^>]*required/);
+test('passenger names and primary contacts are required and required fields are marked',()=>{
+  for(const label of ['Passenger First Name','Passenger Last Name','Phone','Email','Pickup','Destination','Outbound date','Appointment Time'])assert.ok(html.includes(`${label} <span class="requiredMark">*</span>`));
+  assert.match(html,/<input id="email"[^>]*required/);
+  assert.doesNotMatch(html,/<input id="alternateEmail"[^>]*required/);
 });
 
 test('helper filters unavailable recommendations while retaining its disclaimer',()=>{

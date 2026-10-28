@@ -69,11 +69,12 @@ await page.goto(`http://127.0.0.1:${port}/booking-app.html`, { waitUntil:'networ
 await activate('#bookingLoginSection');
 await focusAndShot('#bookingLoginSection', '01-login.png', '#signUpBtn', 'CHOOSE GUEST OR SIGN IN', 'Book as a guest, or sign in to save 5%.', 'Book as a guest, or sign in or create an account to save five percent.');
 await activate('#riderDetailsSection');
-await focusAndShot('#riderDetailsSection', '02-rider-empty.png', '#name', 'ENTER RIDER DETAILS', 'Enter the passenger information.', 'Enter the passenger name, phone number, and email.');
-await page.fill('#name', 'Jordan Matthews');
+await focusAndShot('#riderDetailsSection', '02-rider-empty.png', '#firstName', 'ENTER PASSENGER DETAILS', 'Enter the passenger information.', 'Enter the passenger name, phone number, and email.');
+await page.fill('#firstName', 'Jordan');
+await page.fill('#lastName', 'Matthews');
 await page.fill('#phone', '(240) 555-0147');
 await page.fill('#email', 'jordan@example.com');
-await focusAndShot('#confirmRiderBtn', '03-rider-filled.png', '#confirmRiderBtn', 'CONFIRM THE RIDER', 'Confirm to unlock the next section.', 'Select Confirm Details to unlock the pickup and destination section.');
+await focusAndShot('#confirmRiderBtn', '03-rider-filled.png', '#confirmRiderBtn', 'CONFIRM THE PASSENGER', 'Confirm to unlock the next section.', 'Select Confirm Details to unlock the pickup and destination section.');
 await page.evaluate(() => document.querySelector('#confirmRiderBtn').click());
 await activate('#pickupDropoffSection');
 await focusAndShot('#pickupDropoffSection', '04-route-empty.png', '#pickup', 'ADD PICKUP + DESTINATION', 'Enter each address or add multiple stops.', 'Enter the pickup address and destination. You can also add multiple stops.');

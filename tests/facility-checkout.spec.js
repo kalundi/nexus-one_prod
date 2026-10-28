@@ -29,9 +29,9 @@ for(const width of [1440,390])test(`facility embeds main booking and returns fro
  await expect(booking.locator('#bookingFacilityId')).toHaveValue(facility.id);
  await expect(booking.locator('#bookingFacilityHelp')).toContainText('facility is not invoiced');
  await expect(page).toHaveURL(/\/facility-demo.html$/);
- await booking.locator('#name').fill('Passenger Fixture');
+ await booking.locator('#firstName').fill('Passenger'); await booking.locator('#lastName').fill('Fixture');
  await page.locator('#viewFacilityPaidBookings').click();await expect(page.locator('#paidBookingsSection')).toBeVisible();
- await page.locator('#newBooking').click();await expect(booking.locator('#name')).toHaveValue('Passenger Fixture');
+ await page.locator('#newBooking').click();await expect(booking.locator('#firstName')).toHaveValue('Passenger'); await expect(booking.locator('#lastName')).toHaveValue('Fixture');
  await booking.locator('#phone').fill('(240) 555-0130');await booking.locator('#email').fill('fixture@example.com');await booking.locator('#serviceTypeSelect').selectOption('ambulatory');
  await booking.locator('#bookingFacilityField').scrollIntoViewIfNeeded();await page.screenshot({path:`output/facility-embedded-booking-${width}.png`});
  await booking.locator('#confirmRiderBtn').click();await booking.locator('#tripDate').fill('2030-10-15');await booking.locator('#appointmentTime').fill('13:15');

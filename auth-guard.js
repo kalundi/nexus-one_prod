@@ -119,9 +119,10 @@
       user=(await switched.json()).user;
     }
     const role=user.role.toUpperCase();
+    const roleLabel=role==='RIDER'?'PASSENGER':role;
     user.role=role;
     if(!allowed.includes(role)){
-      deny('Your '+role+' account does not have permission to access this workspace.');
+      deny('Your '+roleLabel+' account does not have permission to access this workspace.');
       return null;
     }
 
@@ -137,7 +138,7 @@
       const displayName=user.displayName || user.name || user.email || 'Signed in user';
       bar.innerHTML=`<div><span>🔒 Secure session</span><strong></strong><small></small></div><button type="button" id="secureLogout">Sign out</button>`;
       bar.querySelector('strong').textContent=displayName;
-      bar.querySelector('small').textContent=role;
+      bar.querySelector('small').textContent=roleLabel;
       document.body.prepend(bar);
       document.getElementById('secureLogout').addEventListener('click',async()=>{
         try{

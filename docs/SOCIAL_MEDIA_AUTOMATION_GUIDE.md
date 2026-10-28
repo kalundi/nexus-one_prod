@@ -29,7 +29,7 @@ This guide defines a safe, repeatable posting system for Nexus Medical Transit s
 
 ## Posting Rules
 
-- Never post patient names, trip references, addresses, or any rider-identifying details.
+- Never post patient names, trip references, addresses, or any passenger-identifying details.
 - Never promise emergency response. Use `For emergencies call 911.` when relevant.
 - Avoid clinical claims you cannot prove.
 - Keep the public main line as `(888) 639-5766`.

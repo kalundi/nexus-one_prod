@@ -3012,7 +3012,7 @@ async function handler(event){
    }
   const mergedNotifications={...notifications,...extra,calendar:calendarSync};
    await query('UPDATE bookings SET notification_status=$2::jsonb WHERE reference=$1',[ref,JSON.stringify(mergedNotifications)]).catch(()=>{});
-   const paymentNotice='A secure payment link will be sent to the rider 60 to 30 minutes before pickup.';
+   const paymentNotice='A secure payment link will be sent to the passenger 60 to 30 minutes before pickup.';
   return json(201,{booking:{...booking,notifications:mergedNotifications},requiresOnlinePayment:false,clientMessage:`Booking created. ${paymentNotice}`});
   }
   if(p[0]==='bookings'&&p[1]&&method==='GET'){
@@ -3304,7 +3304,7 @@ async function handler(event){
   const fareNotes=clean(b.notes).replace(/\s*\|?\s*Fare inputs: \{[^\n|]*\}/g,'').trim();
   const updatedNotes=upsertAppointmentNote([fareNotes,flightNote,waitingNote,stopWaitingNote,`Fare inputs: ${JSON.stringify(b.fareInputs)}`].filter(Boolean).join('\n'),clean(b.appointmentTime));
   const updated=await query(`UPDATE bookings SET name=$2,email=$3,service=$4,pickup=$5,destination=$6,trip_date=$7,trip_time=$8,notes=$9,distance_miles=$10,estimated_duration=$11,estimated_fare=$12,deposit_amount=CASE WHEN requires_deposit THEN $12*.25 ELSE deposit_amount END,balance_due=CASE WHEN requires_deposit THEN $12*.75 ELSE $12 END,flight_info=$13::jsonb,route_fare_inputs=$14::jsonb,trip_type=$15,return_trip_date=$16::date,return_trip_time=$17::time,appointment_date=$18::date,alternate_phone=$19,alternate_email=$20,updated_at=now() WHERE reference=$1 RETURNING *`,[ref,clean(b.name),clean(b.email)||null,clean(b.service),clean(b.pickup),clean(b.destination),b.date,clean(b.time),updatedNotes,b.fareInputs.miles,clean(b.estimatedDuration)||null,fare,flightInfo?JSON.stringify(flightInfo):null,b.fareInputs.routeVerified?JSON.stringify(b.fareInputs):null,fareBooking.tripType||'ONE_WAY',fareBooking.tripType==='ROUND_TRIP'?fareBooking.returnTripDate:null,fareBooking.tripType==='ROUND_TRIP'?fareBooking.returnTripTime||null:null,b.fareInputs.appointmentDate||b.appointmentDate||b.date,Object.hasOwn(b,'alternatePhone')?contacts.alternatePhone:found.rows[0].alternate_phone||null,Object.hasOwn(b,'alternateEmail')?contacts.alternateEmail:found.rows[0].alternate_email||null]);
-   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),'Rider updated booking details','PASSENGER']);
+   await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,updated.rows[0].status,statusLabel(updated.rows[0].status),'Passenger updated booking details','PASSENGER']);
    await audit('BOOKING',ref,'RIDER_UPDATED',{service:b.service,date:b.date,time:b.time});
    const notifications=await sendTripStakeholderUpdate(found.rows[0],updated.rows[0],{display_name:'Passenger'},'Booking details updated online').catch(()=>({status:'failed'}));
   const calendarSync=await syncCalendarLifecycle(updated.rows[0]);

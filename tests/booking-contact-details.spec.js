@@ -9,7 +9,7 @@ for(const width of [1280,390])test(`booking contact requirements, optional alter
  await expect(page.getByText('By providing your number and continuing,',{exact:false})).toBeHidden();
  await expect(page.locator('label[for="email"]')).toHaveText('Email *');await expect(page.locator('#email')).toHaveAttribute('required','');
  expect(await page.locator('#alternatePhone').getAttribute('required')).toBe(null);expect(await page.locator('#alternateEmail').getAttribute('required')).toBe(null);
- await page.locator('#name').fill('Contact Fixture');await page.locator('#phone').fill('(240) 555-0101');await page.locator('#serviceTypeSelect').selectOption('ambulatory');await page.locator('#confirmRiderBtn').click();
+ await page.locator('#firstName').fill('Contact'); await page.locator('#lastName').fill('Fixture');await page.locator('#phone').fill('(240) 555-0101');await page.locator('#serviceTypeSelect').selectOption('ambulatory');await page.locator('#confirmRiderBtn').click();
  await expect(page.locator('#statusMsg')).toContainText('primary email');
  await page.locator('#email').fill('primary@example.com');await page.locator('#alternateEmail').fill('invalid');await page.locator('#confirmRiderBtn').click();await expect(page.locator('#statusMsg')).toContainText('alternate email');
  await page.locator('#alternateEmail').fill('');expect(await page.locator('#alternatePhone').evaluate(e=>e.checkValidity())).toBe(true);expect(await page.locator('#alternateEmail').evaluate(e=>e.checkValidity())).toBe(true);

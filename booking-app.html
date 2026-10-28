@@ -740,9 +740,9 @@
       <p class="topTagline">Secure booking · Progress saved automatically · Live trip visibility</p>
     </header>
     <nav class="journeyHeader" id="journeyHeader" role="progressbar" aria-label="Booking progress" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1">
-      <span class="srOnly">Current: <strong id="journeyCurrent">Rider</strong>. Next: <strong id="journeyNext">Route</strong>.</span>
+      <span class="srOnly">Current: <strong id="journeyCurrent">Passenger</strong>. Next: <strong id="journeyNext">Route</strong>.</span>
       <div class="journeySteps" id="journeySegments" aria-label="Booking steps">
-        <span class="journeyStep current"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="journeyStepNumber">1</span><span class="journeyStepLabel">Rider</span></span><span class="journeyConnector"></span>
+        <span class="journeyStep current"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="journeyStepNumber">1</span><span class="journeyStepLabel">Passenger</span></span><span class="journeyConnector"></span>
         <span class="journeyStep"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></span><span class="journeyStepNumber">2</span><span class="journeyStepLabel">Route</span></span><span class="journeyConnector"></span>
         <span class="journeyStep"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><circle cx="8" cy="17" r="4"/><circle cx="9" cy="5" r="2"/><path d="M9 8v5h5l3 5M9 11h4"/></svg></span><span class="journeyStepNumber">3</span><span class="journeyStepLabel">Ride</span></span><span class="journeyConnector"></span>
         <span class="journeyStep"><span class="journeyStepIcon"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></span><span class="journeyStepNumber">4</span><span class="journeyStepLabel">Review</span></span><span class="journeyConnector"></span>
@@ -774,7 +774,7 @@
       </div>
       <aside class="nextStepGuide" id="nextStepGuide" aria-live="polite">
         <span class="nextStepArrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4v16M6 14l6 6 6-6"/></svg></span>
-        <span class="nextStepCopy"><small>Next step</small><strong id="nextStepText">Enter the rider’s details.</strong></span>
+        <span class="nextStepCopy"><small>Next step</small><strong id="nextStepText">Enter the passenger’s details.</strong></span>
         <button type="button" class="ghost" id="nextStepAction">Go</button>
       </aside>
 
@@ -807,7 +807,7 @@
           <div class="authActions" style="margin-top:2px">
             <button type="button" class="ghost" id="sendResetPasswordBtn">Send Reset Link</button>
           </div>
-          <small class="subtle" id="forgotPasswordMessage">Enter the email on your rider or staff account and we will send a secure reset link if the account exists.</small>
+          <small class="subtle" id="forgotPasswordMessage">Enter the email on your passenger or staff account and we will send a secure reset link if the account exists.</small>
           <a class="forgotPasswordLink" id="forgotPasswordResetLink" href="#" hidden target="_blank" rel="noopener noreferrer">Open secure reset link</a>
         </div>
         <div class="authActions" style="margin-top:8px">
@@ -817,7 +817,7 @@
           <div class="authGrid loginCredentials">
             <div class="field">
               <label for="signupName">Full name</label>
-              <input id="signupName" type="text" placeholder="Jane Rider" autocomplete="name">
+              <input id="signupName" type="text" placeholder="Jane Doe" autocomplete="name">
             </div>
             <div class="field">
               <label for="signupPhone">Phone</label>
@@ -858,7 +858,7 @@
           </div>
         </div>
         <small class="subtle" id="loginMessage" style="margin:8px 0 0">Enter your email and password, then use Sign In above.</small>
-        <small class="subtle" style="margin:6px 0 0">Book as a guest anytime, or create your rider account to lock in 5% off every ride.</small>
+        <small class="subtle" style="margin:6px 0 0">Book as a guest anytime, or create your passenger account to lock in 5% off every ride.</small>
 
         <div class="manageTripWrap">
           <button type="button" class="ghost manageTripToggle" id="toggleManageTripBtn">Manage an existing trip</button>
@@ -895,13 +895,20 @@
       </section>
 
       <section class="section sectionProgressive unlocked currentBookingCard" id="riderDetailsSection">
-        <h2>Rider Details</h2>
+        <h2>Passenger Details</h2>
         <p class="sectionSummary" id="bookingLoginSummary">Passenger: -</p>
         <p class="subtle" style="margin:8px 0 10px">Enter the passenger details below.</p>
 
+        <input id="name" name="name" type="hidden">
+        <div class="metaRow bookingContactRow">
         <div class="field">
-          <label for="name">Passenger name <span class="requiredMark">*</span></label>
-          <input id="name" name="name" placeholder="Full name" autocomplete="name" required>
+          <label for="firstName">Passenger First Name <span class="requiredMark">*</span></label>
+          <input id="firstName" name="firstName" placeholder="First name" autocomplete="given-name" required>
+        </div>
+        <div class="field">
+          <label for="lastName">Passenger Last Name <span class="requiredMark">*</span></label>
+          <input id="lastName" name="lastName" placeholder="Last name" autocomplete="family-name" required>
+        </div>
         </div>
         <div class="metaRow bookingContactRow">
         <div class="field">
@@ -977,7 +984,7 @@
       </section>
 
       <section class="section sectionProgressive" id="pickupDropoffSection">
-        <h2>Rider Pickup and Destination</h2>
+        <h2>Passenger Pickup and Destination</h2>
         <p class="scheduleSavingsMessage" id="tripScheduleSavingsMessage" aria-live="polite">Round-trip and recurring rides save 10% when signed in or 5% as a guest.</p>
         <div class="multiStopsRow">
           <label class="multiStopsToggle" for="multipleStopsToggle">
@@ -1057,21 +1064,21 @@ Destination: -</p>
         <p class="subtle" id="rideTravelHint">Times above fares show driving. Round trips include both directions; waiting is shown separately.</p>
         <p class="subtle rideGuidancePrompt">Answer three quick questions. We will recommend the most suitable ride option.</p>
         <p class="sectionSummary" id="rideTypeSummary">Service: - | Date: - | Appointment: - | Pickup: -</p>
-        <div class="rideContextBar"><button type="button" class="rideContextPill" id="rideSchedulePill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><span id="rideSchedulePillText">Scheduled pickup</span></button><button type="button" class="rideContextPill" id="rideRiderPill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span id="rideRiderPillText">For rider</span></button></div>
+        <div class="rideContextBar"><button type="button" class="rideContextPill" id="rideSchedulePill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><span id="rideSchedulePillText">Scheduled pickup</span></button><button type="button" class="rideContextPill" id="rideRiderPill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span id="rideRiderPillText">For passenger</span></button></div>
         <div class="field rideOptionsField"><span class="fieldLabel">Compare available ride estimates</span><div class="serviceChips rideMarketplace" id="serviceChips" role="radiogroup" aria-label="Available ride options" aria-required="true" aria-describedby="serviceError" tabindex="-1">
-          <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For riders who can walk independently or with light assistance.</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="ambulatory"><span class="serviceCardCopy"><span class="serviceCardName">Ambulatory</span><span class="serviceCardDescription">For passengers who can walk independently or with light assistance.</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip secondaryRideOption" type="button" data-service="facility_transfer" hidden>IFT Routine</button><button class="chip secondaryRideOption" type="button" data-service="facility_transfer_critical" hidden>IFT High-Acuity</button>
-          <button class="chip serviceCard" type="button" data-service="wheelchair"><span class="serviceCardCopy"><span class="serviceCardName">Wheelchair</span><span class="serviceCardDescription">Accessible vehicle and securement for riders remaining in a wheelchair.</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard" type="button" data-service="stretcher"><span class="serviceCardCopy"><span class="serviceCardName">Stretcher</span><span class="serviceCardDescription">For riders who must travel lying down; needs may require review.</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard" type="button" data-service="broda"><span class="serviceCardCopy"><span class="serviceCardName">Broda</span><span class="serviceCardDescription">For riders who use a Broda chair.</span></span><span class="serviceSelectedMark">Selected</span></button>
-          <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardCopy"><span class="serviceCardName">Bariatric</span><span class="serviceCardDescription">For riders who need a bariatric service, including additional space or support.</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="wheelchair"><span class="serviceCardCopy"><span class="serviceCardName">Wheelchair</span><span class="serviceCardDescription">Accessible vehicle and securement for passengers remaining in a wheelchair.</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="stretcher"><span class="serviceCardCopy"><span class="serviceCardName">Stretcher</span><span class="serviceCardDescription">For passengers who must travel lying down; needs may require review.</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="broda"><span class="serviceCardCopy"><span class="serviceCardName">Broda</span><span class="serviceCardDescription">For passengers who use a Broda chair.</span></span><span class="serviceSelectedMark">Selected</span></button>
+          <button class="chip serviceCard" type="button" data-service="bariatric"><span class="serviceCardCopy"><span class="serviceCardName">Bariatric</span><span class="serviceCardDescription">For passengers who need a bariatric service, including additional space or support.</span></span><span class="serviceSelectedMark">Selected</span></button>
           <button class="chip serviceCard secondaryRideOption" type="button" data-service="bls" hidden>BLS</button><button class="chip serviceCard secondaryRideOption" type="button" data-service="als1" hidden>ALS 1</button><button class="chip serviceCard secondaryRideOption" type="button" data-service="als2" hidden>ALS 2</button>
         </div><button class="moreRideOptions" type="button" id="toggleMoreRideOptions" aria-expanded="false" aria-controls="serviceChips">Show more ride options</button><p class="muted" id="specializedRideAccessHint" hidden>BLS and other specialized ride options require an Admin, Dispatcher, Facility Manager, or Tester account. Use Sign In to access them with an authorized account.</p></div>
         <p class="subtle" id="rideTimingSummary" aria-live="polite" hidden></p>
         <details id="ambulatoryFuelChoiceField" hidden>
           <summary>Vehicle preference (optional)</summary>
           <div class="field"><label for="bookingFuelProfile">SUV / sedan preference</label>
-          <select id="bookingFuelProfile"><option value="">Automatic — match rider needs</option></select>
+          <select id="bookingFuelProfile"><option value="">Automatic — match passenger needs</option></select>
           <small class="subtle">Nexus normally selects a suitable available vehicle. Select a preference only when needed. Fuel is included in the estimate.</small></div>
         </details>
         <div id="routeScheduleFields">
@@ -1112,14 +1119,14 @@ Destination: -</p>
           </div></div>
         </div>
         <div class="legAppointmentTimes" id="legAppointmentTimes" hidden>
-          <p class="legAppointmentTimesTitle"><strong>Multi-stop schedule check</strong><br><span class="subtle">Enter each appointment time. Pickup and waiting at each stop are calculated from the next appointment. We include travel, traffic, and rider assistance to check whether one driver can make every appointment.</span></p>
+          <p class="legAppointmentTimesTitle"><strong>Multi-stop schedule check</strong><br><span class="subtle">Enter each appointment time. Pickup and waiting at each stop are calculated from the next appointment. We include travel, traffic, and passenger assistance to check whether one driver can make every appointment.</span></p>
           <div class="legAppointmentTimesGrid" id="legAppointmentTimesGrid"></div>
           <p class="scheduleFeasibility pending" id="scheduleFeasibility" aria-live="polite">Complete the route and stop schedule to check feasibility.</p>
         </div>
         </div>
         <div id="roundTripFields" class="scheduleGroup" aria-labelledby="returnScheduleTitle" hidden>
           <h3 class="scheduleGroupTitle" id="returnScheduleTitle">Return ride</h3>
-          <p class="scheduleGroupHint">Choose when the rider should be picked up for the ride back. Waiting is calculated from estimated arrival until this pickup.</p>
+          <p class="scheduleGroupHint">Choose when the passenger should be picked up for the ride back. Waiting is calculated from estimated arrival until this pickup.</p>
           <div class="metaRow returnScheduleRow">
             <div class="field"><label for="returnTripDate">Return date <span class="requiredMark">*</span></label><input id="returnTripDate" name="returnTripDate" type="date"></div>
             <div class="field"><label for="returnTripTime">Return pickup time <span class="requiredMark">*</span></label><input id="returnTripTime" name="returnTripTime" type="time"></div>
@@ -1188,13 +1195,13 @@ Destination: -</p>
           <div class="telemetrySpotlightHeader">
             <div>
               <b>Ride Visibility</b>
-              <span>Clear, equitable access for every rider, family, and care coordinator.</span>
+              <span>Clear, equitable access for every passenger, family, and care coordinator.</span>
             </div>
             <span class="telemetrySpotlightPill">Access First</span>
           </div>
           <div class="telemetrySpotlightGrid">
             <div class="telemetryIdentityCard">
-              <small>Rider</small>
+              <small>Passenger</small>
               <strong id="telemetryRiderName">-</strong>
             </div>
             <div class="telemetryIdentityCard">
@@ -1226,9 +1233,9 @@ Destination: -</p>
         <div class="guidanceBody" id="rideGuidanceForm">
           <h2 id="rideGuidanceTitle">Find the right ride type</h2>
           <p class="subtle">Answer a few mobility questions. This aid does not make a clinical determination.</p>
-          <fieldset class="guidanceQuestion"><legend>Will the rider remain in a wheelchair?</legend><div class="guidanceOptions"><label><input type="radio" name="remainsInWheelchair" value="yes"> Yes</label><label><input type="radio" name="remainsInWheelchair" value="no" checked> No</label></div></fieldset>
-          <fieldset class="guidanceQuestion"><legend>Must the rider travel lying down?</legend><div class="guidanceOptions"><label><input type="radio" name="lyingDown" value="yes"> Yes</label><label><input type="radio" name="lyingDown" value="no" checked> No</label></div></fieldset>
-          <fieldset class="guidanceQuestion"><legend>Does the rider need a bariatric service or additional space/support?</legend><div class="guidanceOptions"><label><input type="radio" name="extraSpace" value="yes"> Yes</label><label><input type="radio" name="extraSpace" value="no" checked> No</label></div></fieldset>
+          <fieldset class="guidanceQuestion"><legend>Will the passenger remain in a wheelchair?</legend><div class="guidanceOptions"><label><input type="radio" name="remainsInWheelchair" value="yes"> Yes</label><label><input type="radio" name="remainsInWheelchair" value="no" checked> No</label></div></fieldset>
+          <fieldset class="guidanceQuestion"><legend>Must the passenger travel lying down?</legend><div class="guidanceOptions"><label><input type="radio" name="lyingDown" value="yes"> Yes</label><label><input type="radio" name="lyingDown" value="no" checked> No</label></div></fieldset>
+          <fieldset class="guidanceQuestion"><legend>Does the passenger need a bariatric service or additional space/support?</legend><div class="guidanceOptions"><label><input type="radio" name="extraSpace" value="yes"> Yes</label><label><input type="radio" name="extraSpace" value="no" checked> No</label></div></fieldset>
           <div class="guidanceResult" id="rideGuidanceResult" hidden aria-live="polite"><strong id="rideGuidanceRecommendation"></strong><p id="rideGuidanceReason"></p></div>
           <div class="guidanceActions"><button type="button" class="primary" id="getRideRecommendationBtn">Show recommendation</button><button type="button" class="primary" id="useRideRecommendationBtn" hidden>Use this ride type</button><button type="button" class="ghost" id="closeRideGuidanceBtn">Review other options</button></div>
         </div>
@@ -1251,7 +1258,7 @@ Destination: -</p>
 
       <section class="section sectionProgressive" id="fareSummarySection">
         <div class="reviewDetails" aria-label="Ride details" hidden>
-          <div class="reviewLine"><small>Rider</small><strong id="reviewRider">-</strong></div>
+          <div class="reviewLine"><small>Passenger</small><strong id="reviewRider">-</strong></div>
           <div class="reviewLine"><small>Route</small><strong id="reviewRoute">-</strong></div>
           <div class="reviewLine"><small>Schedule</small><strong id="reviewSchedule">-</strong></div>
           <div class="reviewLine"><small>Ride</small><strong id="reviewService">-</strong></div>
@@ -1335,8 +1342,8 @@ Destination: -</p>
   <script src="./nexus-core.js"></script>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=20261011-footer-spacing"></script>
-  <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261016-vehicle-fuel"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-facility.js?v=2"></script><script src="./booking-app.js?v=20261028-alternate-contacts"></script>
+  <script src="./booking-service-guidance.js?v=20261028-passenger"></script>
+<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261016-vehicle-fuel"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-facility.js?v=2"></script><script src="./booking-app.js?v=20261028-passenger"></script>
 <script src="./patient-booking-bridge.js?v=20261010"></script>
 </body>
 </html>

@@ -123,7 +123,7 @@ def frame(t):
         add_guide(im,t,345,310,470)
         caption(im,"Tell us the service and support you need.")
     elif t < 28:
-        phone_mock(im,"Rider Details",[("RIDER","Enter rider information"),("CONTACT","Phone or email updates"),("NOTES","Add helpful ride notes")],"REVIEW RIDE")
+        phone_mock(im,"Passenger Details",[("PASSENGER","Enter passenger information"),("CONTACT","Phone or email updates"),("NOTES","Add helpful ride notes")],"REVIEW RIDE")
         add_guide(im,t,345,310,470)
         caption(im,"Add contact details, then review your request.")
     elif t < 34:
