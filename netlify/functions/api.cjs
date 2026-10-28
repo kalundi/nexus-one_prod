@@ -50,6 +50,7 @@ const {canPatientSeeDriverLocation,distanceMiles}=require('./_shared/patient-dri
 const LivecareDemo=require('./_shared/livecare-demo.cjs');
 const handleFacilityDemo=require('./_shared/facility-demo.cjs').createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlatformSettings});
 const DemoAccount=require('./_shared/facility-demo-account.cjs');
+const {requireActiveFacility}=require('./_shared/facility-access.cjs');
 const handleFacilityPortal=require('./_shared/facility-portal.cjs').createHandler({query,requireUser,bearer,json,parseBody});
 const {syncBookingCalendar,cancelBookingCalendar}=require('./_shared/booking-calendar.cjs');
 const montgomeryOutreachPilot=require('../../data/montgomery-tier-a-outreach-pilot.json');
@@ -4227,11 +4228,18 @@ async function handler(event){
    await ensureMultiRoleSchema();
    const me=await requireUser(bearer(event),['ADMIN']),requestId=decodeURIComponent(p[2]),b=parseBody(event),decision=String(b.decision||'').toUpperCase();
    if(!['APPROVED','REJECTED'].includes(decision))return json(400,{error:'Decision must be APPROVED or REJECTED'});
-   const found=await query(`SELECT rr.*,u.email FROM user_role_requests rr JOIN users u ON u.id=rr.user_id WHERE rr.id=$1 LIMIT 1`,[requestId]);
-   const request=found.rows[0];if(!request)return json(404,{error:'Role request not found'});
-   const scopeId=clean(b.scopeId)||request.scope_id||null;
-   if(decision==='APPROVED'&&['DRIVER','FACILITY'].includes(request.role)&&!scopeId)return json(400,{error:`${request.role} approval requires a driver or facility scope ID`});
-   const updated=await query(`UPDATE user_role_requests SET status=$2,scope_id=$3,reviewed_at=now(),reviewed_by=$4,notes=$5 WHERE id=$1 RETURNING *`,[requestId,decision,scopeId,me.id,clean(b.notes)||null]);
+   const client=await getPool().connect();let request,scopeId,updated;
+   try{
+    await client.query('BEGIN');const q=client.query.bind(client);
+    request=(await q(`SELECT rr.*,u.email FROM user_role_requests rr JOIN users u ON u.id=rr.user_id WHERE rr.id=$1 LIMIT 1 FOR UPDATE OF rr`,[requestId])).rows[0];
+    if(!request)throw Object.assign(Error('Role request not found'),{statusCode:404});
+    scopeId=clean(b.scopeId)||request.scope_id||null;
+    if(decision==='APPROVED'&&request.role==='DRIVER'&&!scopeId)throw Object.assign(Error('Driver approval requires a driver scope ID'),{statusCode:400});
+    if(decision==='APPROVED'&&request.role==='FACILITY')await requireActiveFacility(q,scopeId);
+    updated=await q(`UPDATE user_role_requests SET status=$2,scope_id=$3,reviewed_at=now(),reviewed_by=$4,notes=$5 WHERE id=$1 RETURNING *`,[requestId,decision,scopeId,me.id,clean(b.notes)||null]);
+    if(decision==='APPROVED'&&request.role==='FACILITY')await q("UPDATE users SET scope_id=$2,updated_at=now() WHERE id=$1 AND role='FACILITY'",[request.user_id,scopeId]);
+    await client.query('COMMIT');
+   }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
    await audit('USER_ROLE',requestId,decision,{userId:request.user_id,email:request.email,role:request.role,scopeId,by:me.email});
    return json(200,{request:updated.rows[0]});
   }
@@ -4347,6 +4355,7 @@ async function handler(event){
     const b=parseBody(event);required(b,['email','phone','name','role']);
    const validRoles=['STAFF','ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER'];
    if(!validRoles.includes(String(b.role).toUpperCase()))return json(400,{error:'Invalid role'});
+   const assignedFacility=String(b.role).toUpperCase()==='FACILITY'?await requireActiveFacility(query,b.scopeId):null;
    const phoneDigits=normalizeE164(b.phone);
    if(!phoneDigits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});
    const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1)',[b.email]);
@@ -4382,7 +4391,7 @@ async function handler(event){
    const normalizedRole=String(b.role).toUpperCase();
    const identitySubject=crypto.randomUUID();
    try{
-    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,must_change_password,password_reset_expires,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,true,$8,$9,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,phoneDigits,tempPasswordExpiresAt,orgId,identitySubject]);
+    await query(`INSERT INTO users(id,email,display_name,role,password_hash,phone,must_change_password,password_reset_expires,active,organization_id,identity_subject,scope_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,true,$7,true,$8,$9,$10,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,phoneDigits,tempPasswordExpiresAt,orgId,identitySubject,assignedFacility?.facility_code||null]);
    }catch(err){
     const message=String(err?.message||'').toLowerCase();
     if(message.includes('organization')||message.includes('organization_id')){
@@ -4391,13 +4400,13 @@ async function handler(event){
     let createdViaFallback=false;
     try{
       // Fallback 1: keep organization and identity subject, drop optional temp-password columns.
-      await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,orgId,identitySubject]);
+      await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,identity_subject,scope_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,$8,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,orgId,identitySubject,assignedFacility?.facility_code||null]);
       createdViaFallback=true;
     }catch(fallbackErr1){
       const fallbackMessage1=String(fallbackErr1?.message||'').toLowerCase();
       if(fallbackMessage1.includes('identity_subject')){
         // Fallback 2: older schemas without identity_subject.
-        await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,orgId]);
+        await query(`INSERT INTO users(id,email,display_name,role,password_hash,active,organization_id,scope_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,now(),now())`,[userId,normalizedEmail,normalizedName,normalizedRole,passwordHash,orgId,assignedFacility?.facility_code||null]);
         createdViaFallback=true;
       }else{
         throw Object.assign(new Error(`User create failed: ${fallbackErr1.message||'database insert error'}`),{statusCode:500});
@@ -4438,8 +4447,8 @@ async function handler(event){
     emailDeliveryStatus='failed';
     warning=`${warning?`${warning} `:''}Credential email failed to send. Share the temporary password securely with the user.`.trim();
    }
-   await audit('USER',userId,'CREATED',{userCode:createdIdentity.user_code,role:b.role,by:me.user_code||me.email,emailDeliveryStatus});
-    return json(201,{user:{id:userId,userCode:createdIdentity?.user_code,email:b.email,name:b.name,phone:phoneDigits,role:b.role,active:true,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,warning,emailDeliveryStatus});
+   await audit('USER',userId,'CREATED',{userCode:createdIdentity.user_code,role:b.role,scopeId:assignedFacility?.facility_code||null,by:me.user_code||me.email,emailDeliveryStatus});
+    return json(201,{user:{id:userId,userCode:createdIdentity?.user_code,email:b.email,name:b.name,phone:phoneDigits,role:b.role,scopeId:assignedFacility?.facility_code||null,facilityName:assignedFacility?.name||null,active:true,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,warning,emailDeliveryStatus});
    }catch(err){
     const message=clean(err?.message||'Failed to create user');
     return json(err?.statusCode||500,{error:err?.statusCode?message:`Create user failed: ${message}`});
