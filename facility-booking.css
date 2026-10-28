@@ -10,3 +10,9 @@
 #paidBookingsSection .sectionHead{gap:16px;flex-wrap:wrap}
 #paidBookingsStatus{color:var(--muted)}
 .paidBookingsView #facilityWorkspaceMain>:not(#paidBookingsSection){display:none!important}
+.facilityBookingView #facilityWorkspaceMain>:not(#facilityBookingSection){display:none!important}
+#facilityBookingSection{min-width:0;padding:16px;}
+#facilityBookingSection .sectionHead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+#facilityBookingFrame{display:block;width:100%;height:calc(100dvh - 210px);min-height:620px;border:0;border-radius:12px;background:#f5f8fc;}
+#facilityBookingStatus:empty{display:none;}
+@media(max-width:620px){#facilityBookingSection{padding:10px;}#facilityBookingFrame{height:calc(100dvh - 225px);min-height:620px;}}

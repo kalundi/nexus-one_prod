@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <script>if(new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window)document.documentElement.classList.add('patientEmbeddedBooking');</script>
+  <script>if((new URLSearchParams(location.search).get('patientApp')==='1'||new URLSearchParams(location.search).get('facilityPortal')==='1')&&window.parent!==window)document.documentElement.classList.add('patientEmbeddedBooking');</script>
   <style>.patientEmbeddedBooking .top,.patientEmbeddedBooking .appTabBar,.patientEmbeddedBooking .bookingHelpCall{display:none!important}.patientEmbeddedBooking .phone{padding:0 0 110px!important}.patientEmbeddedBooking .journeyHeader{border-radius:12px 12px 0 0}.patientEmbeddedBooking .phone .bottomBar{bottom:0!important}.patientEmbeddedBooking .patientDefaultsBanner{margin-top:8px}</style>
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="description" content="Request wheelchair, stretcher, dialysis, hospital discharge, and other planned medical transportation across Maryland, Washington, DC, and Northern Virginia.">
