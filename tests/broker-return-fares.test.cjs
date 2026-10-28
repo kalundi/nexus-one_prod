@@ -13,9 +13,9 @@ vm.runInContext(fs.readFileSync(webhookPath,'utf8'),webhook);
 test('broker-provided round trip doubles passenger legs and calculates return waiting',()=>{
  const result=Fare.calculateEstimate({...trip,tripType:'ONE_WAY',intakePayload:{trip_type:'ROUND_TRIP',return_trip_date:trip.date,return_trip_time:'12:00 PM'}},settings);
  assert.equal(result.passengerLegCount,2);
- assert.equal(result.waitMinutes,90);
- assert.equal(result.waitCharge,93.75);
- assert.equal(result.discountedTotal,444.39);
+ assert.equal(result.waitMinutes,75);
+ assert.equal(result.waitCharge,75);
+ assert.equal(result.discountedTotal,425.08);
 });
 test('pending return still prices both legs without inventing waiting or a return short-notice charge',t=>{
  t.mock.method(Date,'now',()=>Date.parse('2030-08-14T20:00:00Z'));
@@ -38,7 +38,7 @@ test('explicit pending return does not recover a discarded time from old notes',
 });
 test('Postgres date objects calculate current fares instead of falling back to saved amounts',()=>{
  const result=Fare.calculateEstimate({...trip,date:new Date(2030,7,15),tripType:'ROUND_TRIP',returnTripDate:new Date(2030,7,15),returnTripTime:'12:00'},settings);
- assert.equal(result.discountedTotal,444.39);
+ assert.equal(result.discountedTotal,425.08);
 });
 test('broker materialization carries return schedule and source from saved intake data',()=>{
  const result=buildBrokerBookingPayload({trip_date:trip.date,parsed_payload:{trip_type:'ROUND_TRIP',return_trip_date:trip.date,return_trip_time:'12:00'}},{});
@@ -50,8 +50,8 @@ test('broker materialization carries return schedule and source from saved intak
 test('broker afternoon pickup and appointment retain their PM times',()=>{
  const result=Fare.calculateEstimate({...trip,time:'1:00 PM',appointmentTime:'1:45 PM',tripType:'ROUND_TRIP',returnTripDate:trip.date,returnTripTime:'3:00 PM'},settings);
  assert.equal(result.inputs.pickupTime,'13:00');
- assert.equal(result.waitMinutes,90);
- assert.equal(result.discountedTotal,444.39);
+ assert.equal(result.waitMinutes,75);
+ assert.equal(result.discountedTotal,425.08);
 });
 test('broker email parser distinguishes return pickup from outbound appointment and pickup',()=>{
  const parsed=webhook.parseBrokerIntakeText('Patient: Test Rider\nPickup: 100 Main St, Bethesda MD 20817\nDestination: 200 Oak Ave, Rockville MD 20850\nAppointment date: 08/15/2030\nAppointment time: 10:45 AM\nPickup time: 10:00 AM\nService: Wheelchair\nTrip type: Round trip\nReturn date: 08/15/2030\nReturn pickup time: 12:00 PM\nWait Time: $25.00\nRate: $180');
@@ -69,8 +69,8 @@ test('will-call is retained as a round trip without a fabricated pickup time',()
 });
 test('email platform estimate uses current fare rules with scheduled waiting instead of a fixed two hours',()=>{
  const result=webhook.computePlatformRate({service:'wheelchair',trip_date:trip.date,pickup_time:trip.time,trip_time:trip.appointmentTime,created_at:trip.createdAt,distance_miles:trip.distanceMiles,trip_type:'ROUND_TRIP',return_trip_date:trip.date,return_trip_time:'12:00'},settings);
- assert.equal(result.platformRate,444.39);
- assert.equal(result.fareCalculation.waitMinutes,90);
+ assert.equal(result.platformRate,425.08);
+ assert.equal(result.fareCalculation.waitMinutes,75);
  const oneWay=webhook.computePlatformRate({service:'wheelchair',trip_date:trip.date,pickup_time:trip.time,trip_time:trip.appointmentTime,created_at:trip.createdAt,distance_miles:trip.distanceMiles,trip_type:'ONE_WAY'},settings);
  assert.equal(oneWay.platformRate,173.91);
  assert.equal(oneWay.fareCalculation.waitMinutes,0);

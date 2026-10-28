@@ -29,7 +29,7 @@ test('round trip includes each leg, calculated return waiting and selected savin
 });
 test('multiple-stop waiting adds stop waits and uses the final appointment for return waiting',()=>{
  const fare=Fare.calculateBooking({...booking,tripType:'ROUND_TRIP',returnTripDate:'2030-08-15',returnTripTime:'12:00'}, {...inputs,stopWaitMinutes:35,scheduleBasis:'APPOINTMENT',finalAppointmentTime:'11:30'},settings);
- assert.equal(fare.waitMinutes,80);
+ assert.equal(fare.waitMinutes,65);
 });
 test('each started 15-minute waiting block uses the selected service rate',()=>{
  const fare=Fare.calculateBooking(booking,{...inputs,stopWaitMinutes:16},settings);

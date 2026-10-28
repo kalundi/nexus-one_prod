@@ -385,12 +385,16 @@
     if($('notes')) $('notes').value = String(notes || '').trim();
   }
 
+  let initialIdentityResolution = true;
   function applyRiderDetailsFromAuthUser(){
     const role = String(currentUserRole || '').toUpperCase();
     const userName = String(currentUser?.displayName || currentUser?.name || '').trim();
     const userPhone = String(currentUser?.phone || '').trim();
     const userEmail = String(currentUser?.email || '').trim();
     const current = getRiderFormSnapshot();
+    const preserveEntry = initialIdentityResolution;
+    initialIdentityResolution = false;
+    if(preserveEntry && !isRiderRole(role) && Object.values(current).some(Boolean)) return;
 
     if(isRiderRole(role)){
       const nextName = userName || current.name;
@@ -4622,10 +4626,10 @@
     bindBookingNudge();
     bindAccessibilityControls();
     bindRideGuidance();
-    const syncInsuranceCarrierUi=()=>{const isPrivateInsurance=String(payerType?.value||'').toUpperCase()==='INSURANCE';if(insuranceCarrierField)insuranceCarrierField.hidden=!isPrivateInsurance;if(insuranceCarrier){insuranceCarrier.required=isPrivateInsurance;if(!isPrivateInsurance)insuranceCarrier.value='';}const marker=$('insuranceCarrierRequiredMark');if(marker)marker.hidden=!isPrivateInsurance;riderDetailsConfirmed=false;};
+    const syncInsuranceCarrierUi=(resetConfirmation=true)=>{const isPrivateInsurance=String(payerType?.value||'').toUpperCase()==='INSURANCE';if(insuranceCarrierField)insuranceCarrierField.hidden=!isPrivateInsurance;if(insuranceCarrier){insuranceCarrier.required=isPrivateInsurance;if(!isPrivateInsurance)insuranceCarrier.value='';}const marker=$('insuranceCarrierRequiredMark');if(marker)marker.hidden=!isPrivateInsurance;if(resetConfirmation)riderDetailsConfirmed=false;};
     payerType?.addEventListener('change',()=>{syncInsuranceCarrierUi();syncSectionProgressUi();});
     insuranceCarrier?.addEventListener('change',()=>{riderDetailsConfirmed=false;syncSectionProgressUi();});
-    syncInsuranceCarrierUi();
+    syncInsuranceCarrierUi(false);
     tripType?.addEventListener('change',()=>{syncTripScheduleUi();measuredRouteInputs=null;refreshFareForMembership();autoEstimate();syncSectionProgressUi();});
     [returnTripDate,returnTripTime].forEach((input)=>input?.addEventListener('change',()=>{refreshFareForMembership();syncSectionProgressUi();}));
     recurrenceEndDate?.addEventListener('change',syncSectionProgressUi);
