@@ -89,7 +89,7 @@ BEGIN
  END IF;
  payload=to_jsonb(NEW);
  identity_kind=CASE WHEN TG_TABLE_NAME IN ('organizations','facilities') THEN 'ENTITY' ELSE 'PERSON' END;
- label=left(COALESCE(NULLIF(trim(payload->>'display_name'),''),NULLIF(trim(payload->>'name'),''),'Unnamed record'),250);
+ label=left(COALESCE(NULLIF(trim(payload->>'display_name'),''),NULLIF(trim(payload->>'name'),''),NULLIF(trim(concat_ws(' ',payload->>'first_name',payload->>'last_name')),''),'Unnamed record'),250);
  identity_id=NEW.actor_id;
  -- Only the explicit employee-to-user foreign key shares a person identity.
  IF TG_TABLE_NAME='employees' AND payload->>'user_id' IS NOT NULL THEN
@@ -118,7 +118,9 @@ END $$;
 DO $$ DECLARE source_table text; columns_list text; BEGIN
  FOREACH source_table IN ARRAY ARRAY['organizations','users','employees','facilities','patients'] LOOP
   EXECUTE format('DROP TRIGGER IF EXISTS sync_enterprise_actor ON %I',source_table);
-  columns_list=CASE source_table WHEN 'organizations' THEN 'name,display_name,actor_id' WHEN 'users' THEN 'display_name,role,access_title,actor_id' WHEN 'employees' THEN 'display_name,role,user_id,actor_id' WHEN 'facilities' THEN 'name,actor_id' ELSE 'display_name,actor_id' END;
+  columns_list=CASE source_table WHEN 'organizations' THEN 'name,display_name,actor_id' WHEN 'users' THEN 'display_name,role,access_title,actor_id' WHEN 'employees' THEN 'display_name,role,user_id,actor_id' WHEN 'facilities' THEN 'name,actor_id' ELSE 'display_name,name,first_name,last_name,actor_id' END;
+  SELECT string_agg(quote_ident(c.column_name),',') INTO columns_list FROM information_schema.columns c
+   WHERE c.table_schema=current_schema() AND c.table_name=source_table AND c.column_name=ANY(string_to_array(columns_list,','));
   EXECUTE format('CREATE TRIGGER sync_enterprise_actor BEFORE INSERT OR UPDATE OF %s OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION nexus_sync_actor()',columns_list,source_table);
   EXECUTE format('UPDATE %I SET actor_id=actor_id WHERE actor_id IS NULL',source_table);
  END LOOP;

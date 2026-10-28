@@ -11,7 +11,7 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody}){
   await q("INSERT INTO actor_classifications(actor_id,category,subtype) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",[id,category,subtype]);
   return {category,subtype};
  }
- const recordSources=`SELECT actor_id,'USER' source,id::text record_id,display_name name FROM users UNION ALL SELECT actor_id,'EMPLOYEE',id::text,display_name FROM employees UNION ALL SELECT actor_id,'PATIENT',id::text,display_name FROM patients UNION ALL SELECT actor_id,'FACILITY',facility_code,name FROM facilities UNION ALL SELECT actor_id,'ORGANIZATION',id::text,name FROM organizations`;
+ const recordSources=`SELECT actor_id,'USER' source,id::text record_id,display_name name FROM users UNION ALL SELECT actor_id,'EMPLOYEE',id::text,display_name FROM employees UNION ALL SELECT actor_id,'PATIENT',id::text,COALESCE(NULLIF(to_jsonb(p)->>'display_name',''),NULLIF(to_jsonb(p)->>'name',''),NULLIF(trim(concat_ws(' ',to_jsonb(p)->>'first_name',to_jsonb(p)->>'last_name')),''),'Unnamed record') FROM patients p UNION ALL SELECT actor_id,'FACILITY',facility_code,name FROM facilities UNION ALL SELECT actor_id,'ORGANIZATION',id::text,name FROM organizations`;
  return async(event,p,method)=>{
   if(p[0]!=='admin'||p[1]!=='actors')return null;
   const me=await requireUser(bearer(event),['ADMIN']);

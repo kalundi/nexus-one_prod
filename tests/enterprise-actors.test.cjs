@@ -1,20 +1,20 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{PGlite}=require('@electric-sql/pglite'),fs=require('node:fs');
 const {createHandler}=require('../netlify/functions/_shared/enterprise-actors.cjs');
-async function fixture(){
+async function fixture({legacyPatient=false}={}){
  const db=new PGlite();
  await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
  CREATE TABLE organizations(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text,display_name text);
  CREATE TABLE users(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),display_name text,role text,access_title text,scope_id text,organization_id uuid REFERENCES organizations(id));
  CREATE TABLE employees(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),display_name text,role text,user_id uuid REFERENCES users(id));
  CREATE TABLE facilities(id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,facility_code text UNIQUE,name text);
- CREATE TABLE patients(id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,display_name text,facility_code text REFERENCES facilities(facility_code));
+ CREATE TABLE patients(id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,${legacyPatient?'name':'display_name'} text,facility_code text REFERENCES facilities(facility_code));
  INSERT INTO organizations(name) VALUES('Nexus');
  INSERT INTO facilities(facility_code,name) VALUES('A','Facility A'),('B','Facility B');
  INSERT INTO users(display_name,role,access_title,organization_id) SELECT 'Crew Member','DRIVER','EMT',id FROM organizations;
  INSERT INTO employees(display_name,role,user_id) SELECT display_name,role,id FROM users;
  INSERT INTO users(display_name,role,scope_id) VALUES('Facility Manager','FACILITY','A');
- INSERT INTO patients(display_name,facility_code) VALUES('Crew Member','A');`);
- await db.exec(fs.readFileSync('database/migrations/097.001_enterprise_actors.sql','utf8'));
+ INSERT INTO patients(${legacyPatient?'name':'display_name'},facility_code) VALUES('Crew Member','A');`);
+ try{await db.exec(fs.readFileSync('database/migrations/097.001_enterprise_actors.sql','utf8'));}catch(error){await db.close();throw error;}
  return db;
 }
 test('backfill preserves explicit identities and keeps permissions separate from classifications',async t=>{
@@ -27,6 +27,16 @@ test('backfill preserves explicit identities and keeps permissions separate from
  for(const subtype of ['EMT','PARAMEDIC','DISPATCHER','BILLING'])assert.ok(types.some(t=>t.category==='EMPLOYEE'&&t.subtype===subtype));
  for(const subtype of ['HOSPITAL','DIALYSIS','SNF','ALF','CLINIC'])assert.ok(types.some(t=>t.category==='FACILITY'&&t.subtype===subtype));
  for(const subtype of ['NURSE','CASE_MANAGER','SOCIAL_WORKER','PHYSICIAN','SCHEDULER','ADMINISTRATOR'])assert.ok(types.some(t=>t.category==='CONTACT'&&t.subtype===subtype));
+});
+test('legacy patient name columns backfill, synchronize and appear in directory details',async t=>{
+ const db=await fixture({legacyPatient:true});t.after(()=>db.close());
+ const patient=(await db.query('SELECT * FROM patients')).rows[0];
+ assert.equal((await db.query('SELECT display_name FROM actors WHERE id=$1',[patient.actor_id])).rows[0].display_name,'Crew Member');
+ await db.query("UPDATE patients SET name='Updated Legacy Patient'");
+ assert.equal((await db.query('SELECT display_name FROM actors WHERE id=$1',[patient.actor_id])).rows[0].display_name,'Updated Legacy Patient');
+ const handler=createHandler({query:(...a)=>db.query(...a),requireUser:async()=>({role:'ADMIN'}),bearer:()=>'',json:(status,body)=>({status,...body})});
+ const details=await handler({},['admin','actors',patient.actor_id],'GET');
+ assert.equal(details.records[0].name,'Updated Legacy Patient');
 });
 test('future inserts, title changes and authoritative facility assignments stay synchronized',async t=>{
  const db=await fixture();t.after(()=>db.close());
