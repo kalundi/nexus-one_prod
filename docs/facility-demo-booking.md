@@ -1,5 +1,7 @@
 # Facility demonstration booking
 
+Historical simulation workflow. New transportation bookings now use the main booking app and payment flow described in [Facility booking and payment](facility-booking-checkout.md). The standalone form below is retired from the facility portal.
+
 The facility manager books presentation trips from `facility-demo.html`. Trips are stored in the isolated `demo:facility:futurecare-annapolis` configuration in `system_settings`. They never enter real dispatch, payment, email or SMS workflows.
 
 The booking form offers the main booking application's ten transport services: Ambulatory, Wheelchair, Broda, Stretcher, Bariatric, BLS, ALS 1, ALS 2, IFT Routine and IFT High-Acuity. Services without configured platform pricing remain visible but cannot be booked. Ambulatory trips offer the shared engine's supported vehicle fuel preferences.

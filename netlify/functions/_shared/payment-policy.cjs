@@ -22,15 +22,16 @@ function normalizeService(value) {
   return service;
 }
 
-function bookingPaymentPolicy({ authenticated = false, bookingSource = 'CUSTOMER', payerType = 'SELF_PAY', service = '' } = {}) {
+function bookingPaymentPolicy({ authenticated = false, bookingSource = 'CUSTOMER', payerType = 'SELF_PAY', service = '', facilityAssociated = false } = {}) {
   const source = String(bookingSource || 'CUSTOMER').toUpperCase();
-  const payer = normalizePayerType(payerType, source);
+  const requestedPayer = normalizePayerType(payerType);
+  const payer = requestedPayer === 'FACILITY' ? 'SELF_PAY' : requestedPayer;
   const serviceType = normalizeService(service);
-  const facilityBilling = source === 'FACILITY' || payer === 'FACILITY';
+  const facilityBilling = false;
   const medicareStandardNemtNotCovered = payer === 'MEDICARE' && ['ambulatory', 'wheelchair', 'bariatric'].includes(serviceType);
   const medicareMedicalNecessityReview = payer === 'MEDICARE' && ['stretcher', 'bls', 'als'].includes(serviceType);
   const requiresApproval = payer === 'MEDICAID' || payer === 'INSURANCE' || medicareMedicalNecessityReview;
-  const requiresDeposit = (!authenticated && !facilityBilling && payer === 'SELF_PAY') || medicareStandardNemtNotCovered;
+  const requiresDeposit = ((!authenticated || source === 'FACILITY' || facilityAssociated) && payer === 'SELF_PAY') || medicareStandardNemtNotCovered;
   let coverageStatus = 'SELF_PAY';
   let coverageMessage = '';
   if (payer === 'MEDICAID') {

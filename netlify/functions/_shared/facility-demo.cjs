@@ -190,13 +190,14 @@ function createHandler({query,getPool,requireUser,bearer,json,parseBody,readPlat
    return json(200,{token:encodeToken(DemoAccount.signingSecret(config,account)),user:{id:String(account.id),userCode:account.user_code,email:account.email,name:account.display_name,role:'FACILITY',scope:SCOPE,demoOnly:true,loginUrl:'/facility-demo.html'},dashboard:dashboardFor(config)});
   }
   const config=(await query('SELECT value FROM system_settings WHERE key=$1',[KEY])).rows[0]?.value;
-  let admin=false,presenter=false;
-  try{const user=await requireUser(bearer(event));admin=user.role==='ADMIN';
+  let admin=false,presenter=false,platformUser=null;
+  try{const user=await requireUser(bearer(event));platformUser=user;admin=user.role==='ADMIN';
    const email=String(user.email||'').trim().toLowerCase();
    presenter=(email==='facility@nexusmt.com'&&user.role==='FACILITY')||(email==='dispatch@nexusmt.com'&&user.role==='DISPATCHER');
   }catch{}
   if(!config)return json(admin?409:401,{error:admin?'Prepare demo manager access first.':'Sign in to the facility demo.'});
   if(!admin&&!presenter){const account=await DemoAccount.getAccount(query);if(!DemoAccount.allowed(account)||config.managedUserId!==String(account.id)||!validToken(bearer(event),DemoAccount.signingSecret(config,account)))return json(401,{error:'Your demo session expired or this account was changed. Sign in again.'});}
+  if(method==='GET'&&p[1]==='paid-bookings')return json(200,await require('./facility-paid-bookings.cjs').view(query,platformUser));
   if(p[1]==='editor')return require('./facility-demo-editor.cjs').handle(event,p,method,{config,json,query,getPool,parseBody,readPlatformSettings,KEY,DATES,FACILITY,PATIENTS,patientsFor,project,initialState,control,syncBilling});
   if(method==='GET'&&['state','billing'].includes(p[1])&&readPlatformSettings){
    const settings=await readPlatformSettings(),client=await getPool().connect();let invoices,snapshot;

@@ -908,6 +908,15 @@
           <label for="email">Email (optional)</label>
           <input id="email" name="email" type="email" placeholder="name@example.com" autocomplete="email">
         </div>
+        <div class="field" id="bookingFacilityField">
+          <label for="bookingFacilitySearch">Associated facility (optional)</label>
+          <input id="bookingFacilitySearch" type="search" autocomplete="off" placeholder="Search facility name or address" aria-describedby="bookingFacilityHelp">
+          <button type="button" class="ghost" id="bookingFacilityFind">Find facility</button>
+          <label for="bookingFacilityId">Choose facility for this trip</label>
+          <select id="bookingFacilityId" name="facilityId"><option value="">No associated facility</option></select>
+          <small class="subtle" id="bookingFacilityHelp">The selected facility can view this trip in its portal. Payment is completed through this booking app; the facility is not invoiced.</small>
+          <small id="bookingFacilityStatus" role="status" aria-live="polite"></small>
+        </div>
         <div class="metaRow riderServicePaymentGrid">
         <div class="field">
           <label for="payerType">How will this ride be paid?</label>
@@ -1254,7 +1263,7 @@ Destination: -</p>
           <button type="button" class="primary" id="payStripeBtn" hidden>Pay with Stripe</button>
           <button type="button" class="secondaryPay" id="paySquareBtn" hidden>Pay with Square</button>
         </div>
-        <p class="paymentChoiceHint" id="paymentChoiceHint">Self-pay guest bookings require a 25% deposit or full payment to be confirmed. Facility bookings are invoiced after trip completion.</p>
+        <p class="paymentChoiceHint" id="paymentChoiceHint">Self-pay bookings associated with a facility require a 25% deposit or full payment during booking. The facility is not invoiced.</p>
         <p class="subtle" id="paymentStatusMsg" role="status" aria-live="polite"></p>
         <p class="subtle"><a href="tel:+18886395766">Need help with payment? Call Nexus</a></p>
       </section>
@@ -1312,7 +1321,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=20261011-footer-spacing"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261016-vehicle-fuel"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-app.js?v=20261016-vehicle-fuel"></script>
+<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261016-vehicle-fuel"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-facility.js?v=1"></script><script src="./booking-app.js?v=20261027-facility-checkout"></script>
 <script src="./patient-booking-bridge.js?v=20261010"></script>
 </body>
 </html>
