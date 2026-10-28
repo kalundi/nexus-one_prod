@@ -30,11 +30,28 @@ for(const width of [1440,390])test(`production manager works across board, route
  await page.locator('[data-route]').click();await expect(page.locator('#routesView')).toBeVisible();await expect(page.locator('#routeDetails')).toContainText(trip.destination);await expect(page.locator('#mapStatus')).toContainText('unavailable');
  await page.locator('#routeLeg').selectOption('return');await expect(page.locator('#directionsLink')).toHaveAttribute('href',/origin=200\+Hospital/);await expect(page.locator('#routeDetails')).toContainText('Return pickup: 2026-10-28 12:00 ET');
  await page.locator('nav [data-view="communications"]').click();await expect(page.locator('#messages')).toContainText('No messages yet');await page.locator('#messageText').fill('Please use entrance B.');await page.locator('#sendMessage').click();await expect(page.locator('#messages')).toContainText('Please use entrance B.');expect(captured.messages).toHaveLength(1);expect(captured.messages[0].requestId).toMatch(/^[a-f0-9-]{36}$/);await expect(page.locator('#tripActivity')).toContainText('Scheduled');
- await page.locator('nav [data-view="locations"]').click();await expect(page.locator('#locationList')).toContainText('4 completed bookings');await page.locator('[data-location]').click();await expect(page.locator('#bookingView')).toBeVisible();await expect(page.locator('#facilityBookingFrame')).toHaveAttribute('src',/productionFacilityPortal=1/);
+ await page.locator('nav [data-view="locations"]').click();await expect(page.locator('#locationList')).toContainText('4 completed bookings');await page.locator('[data-location]').click();await expect(page.locator('#bookingDialog')).toBeVisible();await expect(page.locator('#locationsView')).toBeVisible();await expect(page.locator('#facilityBookingFrame')).toHaveAttribute('src',/productionFacilityPortal=1/);
  await expect(page.frameLocator('#facilityBookingFrame').locator('#destination')).toHaveValue(trip.destination);
  await expect(page.frameLocator('#facilityBookingFrame').locator('#bookingFacilityId')).toHaveValue(facility.id);
  await page.screenshot({path:`output/facility-production-${width}.png`,fullPage:true});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);expect(captured.scope.every(id=>id==='FC-A')).toBe(true);expect(errors).toEqual([]);
+});
+test('manager cannot open another facility URL or load its dashboard data',async({page})=>{
+ await fixture(page);let requests=0;page.on('request',r=>{if(r.url().includes('/api/facility-portal/')||r.url().includes('/api/portal/trips'))requests++;});
+ await page.goto('/facility.html?facility=FC-B');await expect(page.getByRole('heading',{name:'Authorization required'})).toBeVisible();await expect(page.getByText('Your manager account does not have access to this facility.')).toBeVisible();expect(requests).toBe(0);await expect(page.locator('#tripRows')).toHaveCount(0);
+});
+test('manager scope stays assigned even if the hidden selector is tampered with',async({page})=>{
+ const captured=await fixture(page);await page.goto('/facility.html?facility=FC-A');await expect(page.locator('#tripRows')).toContainText(trip.reference);
+ await page.evaluate(()=>{const select=document.getElementById('facilitySelect');select.add(new Option('Other facility','FC-B'));select.value='FC-B';select.dispatchEvent(new Event('change'));});
+ await expect(page.locator('#facilityName')).toHaveText(facility.name);await expect(page.locator('#tripRows')).toContainText(trip.reference);expect(captured.scope.every(id=>id==='FC-A')).toBe(true);
+});
+test('unauthenticated facility links require login and preserve the facility destination',async({page})=>{
+ await page.route('**/api/**',r=>r.fulfill({json:{}}));await page.goto('/facility.html?facility=FC-A');await expect(page).toHaveURL(/livecare\.html\?login=1&redirect=%2Ffacility\.html%3Ffacility%3DFC-A/);
+});
+test('shared Nexus header and footer use the ride sign and open an accessible popup',async({page})=>{
+ await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);await expect(page.locator('.footerUnified .footerBrandCompact')).toBeVisible();await expect(page.locator('.footerSocial a[aria-label="X"]')).toHaveCount(1);
+ const button=page.locator('header [data-view="booking"]');await expect(button).toHaveClass(/bookRideSign/);await expect(page.locator('#facilityBookingFrame')).toHaveAttribute('src','about:blank');await button.click();await expect(page.getByRole('dialog',{name:'Book a Ride'})).toBeVisible();await expect(page.locator('#boardView')).toBeVisible();await expect(page.locator('#bookingFacilityName')).toHaveText(facility.name);await expect(page.locator('#closeBookingDialog')).toBeFocused();
+ await page.locator('#closeBookingDialog').click();await expect(page.locator('#bookingDialog')).not.toBeVisible();await expect(button).toBeFocused();await button.click();await page.keyboard.press('Escape');await expect(page.locator('#bookingDialog')).not.toBeVisible();await expect(button).toBeFocused();
 });
 test('empty production accounts show empty operations and no fictional locations',async({page})=>{
  await fixture(page,{empty:true});await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText('No trips match');await page.locator('nav [data-view="locations"]').click();await expect(page.locator('#locationStatus')).toContainText('No completed transportation history');await expect(page.locator('#locationList')).toBeEmpty();await page.locator('nav [data-view="communications"]').click();await expect(page.locator('#messageStatus')).toContainText('Choose a service day');
