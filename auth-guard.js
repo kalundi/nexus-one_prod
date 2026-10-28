@@ -44,7 +44,8 @@
   }
 
   const token=sessionStorage.getItem('nexusAccessToken');
-  const loginUrl='/livecare.html?login=1&redirect='+encodeURIComponent(pathname);
+  const facilityQuery=pathname==='/facility.html'&&params.get('facility')?'?'+new URLSearchParams({facility:params.get('facility')}):'';
+  const loginUrl='/livecare.html?login=1&redirect='+encodeURIComponent(pathname+facilityQuery);
   let settled=false;
 
   const clearSession=()=>{
@@ -126,6 +127,11 @@
       return null;
     }
 
+    if(pathname==='/facility.html'&&role==='FACILITY'){
+      const facilityScope=String(user.scopeId||user.scope_id||'').trim();
+      if(!facilityScope){deny('Your manager account must be assigned to an active facility. Contact Nexus.');return null;}
+      if(params.get('facility')&&params.get('facility')!==facilityScope){deny('Your manager account does not have access to this facility.');return null;}
+    }
     window.NexusAuthorizedUser=user;
     sessionStorage.setItem('nexusUser',JSON.stringify(user));
     reveal(user);

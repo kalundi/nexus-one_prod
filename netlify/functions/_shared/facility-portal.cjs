@@ -9,6 +9,7 @@ function createHandler({query,requireUser,bearer,json,parseBody}){
   const user=await requireUser(bearer(event),['FACILITY','ADMIN','DISPATCHER']);
   const params=event.queryStringParameters||{},isManager=user.role==='FACILITY';
   if(isManager&&!clean(user.scope_id))throw error('Your manager account needs an assigned facility. Contact Nexus.',409);
+  if(isManager&&params.facility&&params.facility!==clean(user.scope_id))throw error('This facility is outside your account.',403);
   const facilities=(await query(`SELECT facility_code AS id,name,address FROM facilities WHERE active=true${isManager?' AND facility_code=$1':''} ORDER BY name`,isManager?[user.scope_id]:[])).rows;
   if(isManager&&!facilities.length)throw error('Your assigned facility is inactive or unavailable. Contact Nexus.',409);
   if(p[1]==='context'&&method==='GET')return json(200,{facilities,manager:isManager,today:easternDate()});

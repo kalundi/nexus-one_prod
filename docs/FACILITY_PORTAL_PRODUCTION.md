@@ -4,6 +4,10 @@ Entry point: `/facility.html`. Managers sign in through the existing staff sign-
 
 The server uses the validated session's facility scope, rejects conflicting facility IDs and checks every conversation reference against that facility's real bookings. Administrators and dispatchers select an active facility explicitly. Dispatch can open **Facility inbox** from its navigation and reply in the same workspace. The usual session expiry/revocation applies. Expired authorization clears rendered trip and conversation data.
 
+Facility-specific entry links may use `/facility.html?facility=FACILITY_CODE`. The login redirect retains this facility. Manager accounts without an assigned facility, or with a scope different from the requested facility, are denied before a dashboard or trip request is loaded. The server also rejects conflicting facility IDs on the context endpoint. The manager's hidden selector is never used as authority for the active facility.
+
+The header, footer, account controls and red Book a Ride sign use the main site's shared `platform.css` and `platform.js`. All portal Book a Ride buttons open the same native modal dialog over the current workspace. It loads the main booking app on demand with the assigned facility locked, restores keyboard focus when closed, supports Escape, and closes/clears its frame on lost authorization. Frequent-location booking opens this dialog with the destination prefilled. Checkout returns reopen the dialog for the saved booking.
+
 ## Operations
 
 - **Trip board:** select an Eastern Time service day, search the loaded page, filter status, and page through 100 bookings at a time. Includes unpaid/pending requests and trips with a return scheduled that day. Shows actual dispatch status, payment status, assigned driver/vehicle and saved schedules. MOCK/DEMO source bookings and MOCK statuses are excluded. Metrics and unread badge cover the loaded page. Book a Ride uses the main booking app with the manager's facility locked by its existing booking authorization.

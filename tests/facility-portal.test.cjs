@@ -32,6 +32,7 @@ test('production facility operations enforce scope, persist conversations and ra
   assert.deepEqual((await call('context')).body.facilities.map(f=>f.id),['FC-A']);
   assert.deepEqual((await call('context','dispatch')).body.facilities.map(f=>f.id),['FC-A','FC-B']);
   assert.equal((await call('trips','manager',{facility:'FC-B',date:'2026-01-01'})).statusCode,403);
+  for(const endpoint of ['context','locations','communications/B1','read/B1'])assert.equal((await call(endpoint,'manager',{facility:'FC-B'},endpoint==='read/B1'?{through:new Date().toISOString()}:null)).statusCode,403);
   assert.equal((await call('trips','dispatch',{date:'2026-01-01'})).statusCode,409);
   await db.exec("UPDATE bookings SET notes='Appointment time: 9:30 AM' WHERE reference='A1'");
   const board=await call('trips','manager',{date:'2026-01-01'});assert.equal(board.statusCode,200);assert.equal(board.body.trips[0].appointment_time,'09:30:00');assert.deepEqual(board.body.trips.map(t=>t.reference),['A1','CANCEL','PENDING']);
