@@ -405,13 +405,15 @@ document.getElementById('createUserBtn').addEventListener('click',async()=>{
   const phone=document.getElementById('newPhone').value.trim();
   const name=document.getElementById('newName').value.trim();
   const role=document.getElementById('newRole').value;
+  const scopeId=role==='FACILITY'?window.NexusAdminFacilityAccess.newScope():null;
   const msgEl=document.getElementById('createUserMsg');
   msgEl.hidden=true;
   if(!email||!phone||!name||!role){showMsg(msgEl,'All fields are required.','err');return;}
+  if(role==='FACILITY'&&!scopeId){showMsg(msgEl,'Select the facility this manager is authorized to access.','err');document.getElementById('newUserFacility').focus();return;}
   const btn=document.getElementById('createUserBtn');
   btn.disabled=true;btn.textContent='Creating...';
   try{
-    const r=await fetch('/api/admin/users',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({email,phone,name,role})});
+    const r=await fetch('/api/admin/users',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({email,phone,name,role,scopeId})});
     const data=await r.json();
     if(!r.ok)throw new Error(data.error||'Failed to create user');
     const expiresText=data.tempPasswordExpiresAt?new Date(data.tempPasswordExpiresAt).toLocaleString():'2 hours';
@@ -419,11 +421,12 @@ document.getElementById('createUserBtn').addEventListener('click',async()=>{
       ? ' Credential email sent to the user.'
       : ' Credential email was not sent automatically.';
     const policyText=data.warning?` ${data.warning}`:' User must change it on first sign-in.';
-    showMsg(msgEl,`User ${data.user.email} created. Nexus ID: ${data.user.userCode}. Temporary password: ${data.tempPassword}. Expires: ${expiresText}.${emailText}${policyText}`,'ok');
+    showMsg(msgEl,`User ${data.user.email} created. Nexus ID: ${data.user.userCode}.${data.user.facilityName?' Assigned facility: '+data.user.facilityName+'.':''} Temporary password: ${data.tempPassword}. Expires: ${expiresText}.${emailText}${policyText}`,'ok');
     document.getElementById('newEmail').value='';
     document.getElementById('newPhone').value='';
     document.getElementById('newName').value='';
     document.getElementById('newRole').value='';
+    window.NexusAdminFacilityAccess.reset();
     loadUsers();
   }catch(e){showMsg(msgEl,e.message,'err');}
   finally{btn.disabled=false;btn.textContent='Create user';}
@@ -1446,7 +1449,7 @@ async function loadRoleRequests(){
  body.innerHTML=(data.requests||[]).map(request=>`<tr><td><strong>${request.name||'—'}</strong><br><small>${request.email||''}<br>${request.phone||''}</small></td><td>${request.role}</td><td>${request.status}</td><td>${request.requestedAt?new Date(request.requestedAt).toLocaleString():'—'}</td><td>${request.status==='PENDING'?`<button class="button" data-role-approve="${request.id}" data-role="${request.role}">Approve</button> <button class="button secondary" data-role-reject="${request.id}">Reject</button>`:'Reviewed'}</td></tr>`).join('')||'<tr><td colspan="5">No role requests found.</td></tr>';
 }
 async function decideRoleRequest(id,decision,role){
- let scopeId='';if(decision==='APPROVED'&&['DRIVER','FACILITY'].includes(role))scopeId=prompt(`Enter the ${role.toLowerCase()} scope ID required for this account:`,'')||'';
+ let scopeId='';if(decision==='APPROVED'&&role==='FACILITY')scopeId=await window.NexusAdminFacilityAccess.choose();else if(decision==='APPROVED'&&role==='DRIVER')scopeId=prompt('Enter the driver scope ID required for this account:','')||'';
  if(decision==='APPROVED'&&['DRIVER','FACILITY'].includes(role)&&!scopeId)return;
  const response=await fetch(`/api/admin/role-requests/${encodeURIComponent(id)}`,{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({decision,scopeId})}),data=await response.json().catch(()=>({}));
  if(!response.ok)return alert(data.error||'Unable to review request');showToast(`Role request ${decision.toLowerCase()}.`);loadRoleRequests();

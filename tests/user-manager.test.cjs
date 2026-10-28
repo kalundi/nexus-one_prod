@@ -11,6 +11,8 @@ async function fixture(){
  CREATE TABLE users(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),email text UNIQUE,display_name text,role text,scope_id text,phone text,active boolean DEFAULT true,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
  CREATE TABLE user_role_requests(user_id uuid REFERENCES users(id),role text,status text,scope_id text,reviewed_at timestamptz);
  CREATE TABLE sessions(user_id uuid,revoked_at timestamptz);
+ CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
+ INSERT INTO facilities VALUES('FC-A','Care Facility A','100 Facility Lane',true),('FC-B','Care Facility B','200 Facility Lane',true),('FC-X','Closed facility','300 Facility Lane',false);
  CREATE TABLE bookings(reference text PRIMARY KEY,driver_name text,driver_scope_id text,trip_date date,email text,phone text,name text);
  ${fs.readFileSync('database/migrations/048.001_workforce_employee_tables.sql','utf8').split('CREATE TABLE IF NOT EXISTS trip_work_assignments')[0]}`);
  await db.query("INSERT INTO users(id,email,display_name,role,scope_id,phone) VALUES($1,'admin@test.test','Test Admin','ADMIN',NULL,'+12405550101'),($2,'driver@test.test','Test Driver','DRIVER','legacy-driver','+12405550102')",[ADMIN,DRIVER]);
@@ -23,6 +25,16 @@ async function fixture(){
  const call=async(path,method='GET',body,queryStringParameters)=>{const result=await handle({headers:{authorization:'Bearer test'},body:JSON.stringify(body||{}),queryStringParameters},path.split('/'),method);return result?{status:result.statusCode,...JSON.parse(result.body)}:null;};
  return {db,call,audits,actor,close:()=>db.close()};
 }
+test('facility manager grants require an active assigned facility and edits synchronize approved scopes',async()=>{
+ const f=await fixture();try{
+  for(const scopeId of ['', 'UNKNOWN','FC-X'])await assert.rejects(f.call(`admin/users/${DRIVER}`,'PATCH',{role:'FACILITY',scopeId}),/Select.*facility/);
+  assert.equal((await f.db.query('SELECT role FROM users WHERE id=$1',[DRIVER])).rows[0].role,'DRIVER');
+  const granted=await f.call(`admin/users/${DRIVER}`,'PATCH',{role:'FACILITY',scopeId:'FC-A'});assert.equal(granted.user.scopeId,'FC-A');
+  await f.db.query("INSERT INTO user_role_requests(user_id,role,status,scope_id) VALUES($1,'FACILITY','APPROVED','FC-A')",[DRIVER]);
+  await f.call(`admin/users/${DRIVER}`,'PATCH',{scopeId:'FC-B'});assert.equal((await f.db.query("SELECT scope_id FROM user_role_requests WHERE user_id=$1 AND role='FACILITY'",[DRIVER])).rows[0].scope_id,'FC-B');
+  await f.call(`admin/users/${DRIVER}`,'PATCH',{active:false});assert.equal((await f.db.query('SELECT active FROM users WHERE id=$1',[DRIVER])).rows[0].active,false);
+ }finally{await f.close();}
+});
 test('random memorable IDs backfill accounts, stay unique and survive role/status/profile edits',async()=>{
  const f=await fixture();try{
   const before=(await f.call('admin/users')).users;assert.equal(before.length,2);before.forEach(u=>assert.match(u.userCode,/^N\d{4}$/));

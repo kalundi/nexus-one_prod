@@ -2,7 +2,7 @@
  'use strict';
  const $=id=>document.getElementById(id),esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const headers=()=>({authorization:`Bearer ${sessionStorage.getItem('nexusAccessToken')||''}`,'content-type':'application/json'});
- const ROLES={ADMIN:'Administrator',DISPATCHER:'Dispatcher',DRIVER:'Driver',FACILITY:'Facility',STAFF:'Staff / attendant',BILLING:'Billing',QA:'Quality assurance',EXECUTIVE:'Executive',PATIENT:'Patient',CARETAKER:'Caretaker'};
+ const ROLES={ADMIN:'Administrator',DISPATCHER:'Dispatcher',DRIVER:'Driver',FACILITY:'Facility manager',STAFF:'Staff / attendant',BILLING:'Billing',QA:'Quality assurance',EXECUTIVE:'Executive',PATIENT:'Patient',CARETAKER:'Caretaker'};
  const roleLabel=role=>role==='RIDER'?'Passenger':ROLES[role]||role;
  let users=[],functions={},groups=[],editingIds=[],selectedUser=null,saveInProgress=false,scheduleRequest=0;
  const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -34,6 +34,7 @@
   const u=selectedUser;$('userAccountTitle').textContent=u.name||'Manage account';$('userAccountIdentity').textContent=`${u.userCode||'ID pending'} · ${u.email}`;
   $('editUserName').value=u.name||'';$('editUserPhone').value=u.phone||'';$('editUserPhone').required=!u.demoOnly;$('editUserRole').value=u.role;$('editUserScope').value=u.scopeId||'';
   $('editUserRole').disabled=!!u.demoOnly;$('editUserScope').readOnly=!!u.demoOnly;$('resendUserAccount').textContent=u.demoOnly?'Issue demo password':'Reissue credentials';
+  window.NexusAdminFacilityAccess.syncEdit(!!u.demoOnly);
   $('editUserFunctions').innerHTML='<legend>Operational functions</legend>'+Object.entries(functions).map(([key,label])=>`<label class="functionChoice"><input type="checkbox" value="${key}" ${u.functions?.includes(key)?'checked':''}>${esc(label)}</label>`).join('');
   $('userAccountAccess').textContent=u.demoOnly?'Demo-only access: FutureCare Annapolis presentation. Credentials use the production user directory. No production trip, patient, billing, or dispatch access.':`Experiences: ${(u.roles||[u.role]).map(roleLabel).join(', ')}. Functions label responsibilities; role access controls permissions.`;
   $('userAccountCreated').textContent=`Account created ${u.createdAt?new Date(u.createdAt).toLocaleDateString('en-US'):'—'}. Nexus ID stays the same across all experiences.`;
@@ -54,7 +55,7 @@
    await loadUsers();openUser(id);message('userAccountMsg','Account updated. Availability and access use the updated account.');await loadDriverSchedule({silent:true});
   }catch(e){message('userAccountMsg',e.message,true);}finally{saveInProgress=false;['saveUserAccount','toggleUserAccount'].forEach(key=>$(key).disabled=false);}
  }
- $('userAccountForm').addEventListener('submit',e=>{e.preventDefault();updateAccount({name:$('editUserName').value.trim(),phone:$('editUserPhone').value.trim(),role:$('editUserRole').value,scopeId:$('editUserScope').value.trim(),functions:[...$('editUserFunctions').querySelectorAll('input:checked')].map(el=>el.value)});});
+ $('userAccountForm').addEventListener('submit',e=>{e.preventDefault();updateAccount({name:$('editUserName').value.trim(),phone:$('editUserPhone').value.trim(),role:$('editUserRole').value,scopeId:window.NexusAdminFacilityAccess.editScope(),functions:[...$('editUserFunctions').querySelectorAll('input:checked')].map(el=>el.value)});});
  $('toggleUserAccount').addEventListener('click',()=>updateAccount({active:!(selectedUser.active&&selectedUser.employeeActive!==false)}));
  $('userAccountSchedule').addEventListener('click',()=>{
   const email=selectedUser.email;$('userAccountDialog').close();document.querySelector('[data-user-module-open="driverSchedulePanel"]').click();$('scheduleDriverEmail').value=email;resetSchedule();loadDriverSchedule();
