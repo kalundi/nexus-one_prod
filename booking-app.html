@@ -377,6 +377,10 @@
     .metaRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     .metaRow .field{min-width:0}
     .metaRow input,.metaRow select{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+    .bookingContactRow{align-items:start}.bookingContactRow .field{align-content:start;grid-template-rows:20px auto}.bookingContactRow label{margin:0;line-height:20px}.bookingContactRow input{min-height:48px;margin:0}
+    @media(max-width:620px){.bookingContactRow{grid-template-columns:1fr}}
+    .bookingContactRow{align-items:start}.bookingContactRow .field{align-content:start;grid-template-rows:20px auto}.bookingContactRow label{margin:0;line-height:20px}.bookingContactRow input{min-height:48px;margin:0}
+    @media(max-width:620px){.bookingContactRow{grid-template-columns:1fr}}
     .suiteRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:8px;align-items:start}.suiteRow .field{min-width:0;display:grid;grid-template-rows:22px auto;align-content:start;margin:0}.suiteRow .field>label{margin:0;align-self:start;line-height:18px}.suiteRow input{width:100%;min-width:0;box-sizing:border-box;margin:0}
     .pickupWaitPair{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}.pickupWaitPair.hasWaiting{grid-template-columns:repeat(2,minmax(0,1fr))}.scheduleRow>.pickupWaitPair{grid-column:1/-1}.pickupWaitPair.hasWaiting .systemGeneratedTag{display:none}
     .scheduleGroup{margin-top:16px;padding:16px;border:1px solid #d4e1e8;border-radius:14px;background:#fff}.scheduleGroupTitle{margin:0;color:#173f52;font:800 16px/1.4 Sora,sans-serif}.scheduleGroupHint{margin:5px 0 12px;color:#607786;font-size:13px;line-height:1.5}.returnScheduleRow{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.returnScheduleRow .field{margin:0}.scheduleGroup select,#tripType{min-height:48px;width:100%;border:1px solid #c7d3da;border-radius:8px;padding:10px;background:#fff;font:inherit;color:#173f52}
@@ -899,14 +903,26 @@
           <label for="name">Passenger name <span class="requiredMark">*</span></label>
           <input id="name" name="name" placeholder="Full name" autocomplete="name" required>
         </div>
+        <div class="metaRow bookingContactRow">
         <div class="field">
           <label for="phone">Phone <span class="requiredMark">*</span></label>
           <input id="phone" name="phone" type="tel" placeholder="(240) 555-0101" autocomplete="tel" required>
-          <small class="subtle">By providing your number and continuing, you agree to receive transactional booking and ride texts from Nexus Medical Transit, including one reminder if an unfinished booking is inactive for five minutes. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to opt out. Consent is not a condition of purchase.</small>
+          <small class="subtle" hidden>By providing your number and continuing, you agree to receive transactional booking and ride texts from Nexus Medical Transit, including one reminder if an unfinished booking is inactive for five minutes. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to opt out. Consent is not a condition of purchase.</small>
         </div>
         <div class="field">
-          <label for="email">Email (optional)</label>
-          <input id="email" name="email" type="email" placeholder="name@example.com" autocomplete="email">
+          <label for="alternatePhone">Alternate Phone (optional)</label>
+          <input id="alternatePhone" name="alternatePhone" type="tel" placeholder="Alternate phone number" autocomplete="section-alternate tel" pattern="\+?[0-9\s\(\)\.\-]{8,30}">
+        </div>
+        </div>
+        <div class="metaRow bookingContactRow">
+        <div class="field">
+          <label for="email">Email <span class="requiredMark">*</span></label>
+          <input id="email" name="email" type="email" placeholder="name@example.com" autocomplete="email" maxlength="254" required>
+        </div>
+        <div class="field">
+          <label for="alternateEmail">Alternate Email (optional)</label>
+          <input id="alternateEmail" name="alternateEmail" type="email" placeholder="alternate@example.com" autocomplete="section-alternate email" maxlength="254">
+        </div>
         </div>
         <div class="field" id="bookingFacilityField" hidden>
           <label for="bookingFacilitySearch">Associated facility (optional)</label>
@@ -1320,7 +1336,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=20261011-footer-spacing"></script>
   <script src="./booking-service-guidance.js?v=20260816-accessibility"></script>
-<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261016-vehicle-fuel"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-facility.js?v=2"></script><script src="./booking-app.js?v=20261027-facility-role"></script>
+<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261016-vehicle-fuel"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-facility.js?v=2"></script><script src="./booking-app.js?v=20261028-alternate-contacts"></script>
 <script src="./patient-booking-bridge.js?v=20261010"></script>
 </body>
 </html>

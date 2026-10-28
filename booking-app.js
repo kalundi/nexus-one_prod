@@ -346,14 +346,18 @@
       name: String($('name')?.value || '').trim(),
       phone: String($('phone')?.value || '').trim(),
       email: String($('email')?.value || '').trim(),
+      alternatePhone: String($('alternatePhone')?.value || '').trim(),
+      alternateEmail: String($('alternateEmail')?.value || '').trim(),
       notes: String($('notes')?.value || '').trim()
     };
   }
 
-  function setRiderFormValues({ name = '', phone = '', email = '', notes = '' } = {}){
+  function setRiderFormValues({ name = '', phone = '', email = '', alternatePhone = '', alternateEmail = '', notes = '' } = {}){
     if($('name')) $('name').value = String(name || '').trim();
     if($('phone')) $('phone').value = formatPhone(String(phone || '').trim());
     if($('email')) $('email').value = String(email || '').trim();
+    if($('alternatePhone')) $('alternatePhone').value = String(alternatePhone || '').trim();
+    if($('alternateEmail')) $('alternateEmail').value = String(alternateEmail || '').trim();
     if($('notes')) $('notes').value = String(notes || '').trim();
   }
 
@@ -368,8 +372,8 @@
       const nextName = userName || current.name;
       const nextPhone = userPhone || current.phone;
       const nextEmail = userEmail || current.email;
-      setRiderFormValues({ name: nextName, phone: nextPhone, email: nextEmail, notes: current.notes });
-      riderDetailsConfirmed = Boolean(nextName && nextPhone);
+      setRiderFormValues({ name: nextName, phone: nextPhone, email: nextEmail, alternatePhone:current.alternatePhone,alternateEmail:current.alternateEmail,notes: current.notes });
+      riderDetailsConfirmed = Boolean(nextName && nextPhone && nextEmail && $('email')?.checkValidity());
       if(riderDetailsConfirmed){
         riderDetailsInitiallyCollapsed.add('riderDetailsSection');
         expandedSections.delete('riderDetailsSection');
@@ -1803,7 +1807,7 @@
       });
     }
 
-    ['tripDate', 'appointmentTime', 'tripTime', 'name', 'phone', 'email', 'notes'].forEach((id) => {
+    ['tripDate', 'appointmentTime', 'tripTime', 'name', 'phone', 'email', 'alternatePhone', 'alternateEmail', 'notes'].forEach((id) => {
       const field = $(id);
       if(!field) return;
       ['change', 'input', 'blur'].forEach((eventName) => {
@@ -1814,7 +1818,8 @@
             renderMultiStopFeasibility();
           }
           if(id === 'tripDate') refreshFareForMembership();
-          if(id === 'name' || id === 'phone' || id === 'email' || id === 'notes'){
+          if(eventName==='input'&&['email','alternatePhone','alternateEmail'].includes(id))clearStatus();
+          if(['name','phone','email','alternatePhone','alternateEmail','notes'].includes(id)){
             riderDetailsInitiallyCollapsed.delete('riderDetailsSection');
             expandedSections.delete('riderDetailsSection');
             riderDetailsConfirmed = false;
@@ -1831,6 +1836,12 @@
     if(loginPassword) loginPassword.addEventListener('input', () => syncSectionProgressUi());
   }
 
+  function validateRiderContacts(){
+    const invalid=['email','alternatePhone','alternateEmail'].map(id=>$(id)).find(field=>field&&(!field.checkValidity()||field.type==='email'&&field.value&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(field.value)));
+    if(!invalid)return true;
+    setStatus(invalid.id==='email'?'Enter a valid primary email address.':invalid.id==='alternateEmail'?'Enter a valid alternate email address.':'Enter a valid alternate phone number.','err');
+    riderDetailsConfirmed=false;revealSectionForAction('riderDetailsSection',invalid.id);invalid.reportValidity();return false;
+  }
   function confirmRiderDetails(){
     const pickerSelection=normalizeService($('serviceTypeSelect')?.value);
     if(pickerSelection&&pickerSelection!==normalizeService($('service')?.value))selectService(pickerSelection);
@@ -1842,6 +1853,7 @@
     }
     const name = String($('name')?.value || '').trim();
     const phone = String($('phone')?.value || '').trim();
+    if(!validateRiderContacts()){syncSectionProgressUi();return;}
     if(!name || !phone){
       setStatus('Enter passenger name and phone, then confirm details.', 'err');
       riderDetailsConfirmed = false;
@@ -3833,7 +3845,7 @@
   function reuseTripRoute(booking){
     if($('pickup'))$('pickup').value=String(booking?.pickup||'');if($('destination'))$('destination').value=String(booking?.destination||'');
     const service=normalizeService(booking?.service);if(service&&allowedServicesForRole(currentUserRole).has(service))selectService(service);
-    if(currentUser){if($('name')&&!$('name').value)$('name').value=String(currentUser.name||currentUser.display_name||'');if($('email')&&!$('email').value)$('email').value=String(currentUser.email||'');if($('phone')&&!$('phone').value)$('phone').value=formatPhone(String(currentUser.phone||''));riderDetailsConfirmed=Boolean($('name')?.value&&$('phone')?.value);}
+    if(currentUser){if($('name')&&!$('name').value)$('name').value=String(currentUser.name||currentUser.display_name||'');if($('email')&&!$('email').value)$('email').value=String(currentUser.email||'');if($('phone')&&!$('phone').value)$('phone').value=formatPhone(String(currentUser.phone||''));riderDetailsConfirmed=Boolean($('name')?.value&&$('phone')?.value&&$('email')?.value&&$('email')?.checkValidity());}
     markDestinationUnconfirmed();expandedSections.add('pickupDropoffSection');switchAppTab('book');syncSectionProgressUi();revealSectionForAction('pickupDropoffSection','confirmPickupDropoffBtn');
   }
 
@@ -4022,6 +4034,7 @@
 
   async function performBookingSubmission(){
     clearStatus();
+    if(!validateRiderContacts())return;
     if(window.NexusBookingFacility&&!window.NexusBookingFacility.validate())return;
     setBookingOutcome('', 'pending');
     if(!validateRequiredService({focus:true})){
@@ -4047,6 +4060,8 @@
       name: $('name').value.trim(),
       phone: formatPhone($('phone').value.trim()),
       email: $('email').value.trim(),
+      alternatePhone: window.NexusPhone?.normalize($('alternatePhone')?.value) || $('alternatePhone')?.value.trim() || null,
+      alternateEmail: $('alternateEmail')?.value.trim() || null,
       payerType: $('payerType')?.value || 'SELF_PAY',
       facilityId: window.NexusBookingFacility?.getFacilityId() || null,
       insuranceCarrier: String(insuranceCarrier?.value || '').trim(),

@@ -1,0 +1,22 @@
+const {test,expect}=require('@playwright/test');
+const settings={organization:{yardAddress:'Company yard'},pricing:{ambulatory:{base:75,includedMiles:5,perMile:3.55,waitPer15:12.5}},fareRules:{smartTiming:{enabled:true},waitingPolicyVersion:2,freeWaitMinutes:15}};
+for(const width of [1280,390])test(`booking contact requirements, optional alternates and payload at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:1100});let payload;const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(()=>{window.google={maps:{TravelMode:{DRIVING:'DRIVING'},TrafficModel:{BEST_GUESS:'bestguess',PESSIMISTIC:'pessimistic'},UnitSystem:{IMPERIAL:1},DirectionsService:class{route(r,cb){cb({routes:[{legs:[{distance:{value:16093.44},duration:{value:1800,text:'30 min'},duration_in_traffic:{value:1800}}]}]},'OK');}}}};});
+ await page.route('**/api/**',route=>{const p=new URL(route.request().url()).pathname;let json=p==='/api/settings/public'?settings:p==='/api/integrations/config'?{googleMapsEnabled:false,stripeEnabled:true}:{};
+  if(p==='/api/bookings'){payload=route.request().postDataJSON();json={booking:{reference:'CONTACT-TEST',estimatedFare:payload.estimatedFare},requiresOnlinePayment:true,depositRequired:true};}return route.fulfill({json});});
+ await page.goto('/booking-app.html');
+ await expect(page.getByText('By providing your number and continuing,',{exact:false})).toBeHidden();
+ await expect(page.locator('label[for="email"]')).toHaveText('Email *');await expect(page.locator('#email')).toHaveAttribute('required','');
+ expect(await page.locator('#alternatePhone').getAttribute('required')).toBe(null);expect(await page.locator('#alternateEmail').getAttribute('required')).toBe(null);
+ await page.locator('#name').fill('Contact Fixture');await page.locator('#phone').fill('(240) 555-0101');await page.locator('#serviceTypeSelect').selectOption('ambulatory');await page.locator('#confirmRiderBtn').click();
+ await expect(page.locator('#statusMsg')).toContainText('primary email');
+ await page.locator('#email').fill('primary@example.com');await page.locator('#alternateEmail').fill('invalid');await page.locator('#confirmRiderBtn').click();await expect(page.locator('#statusMsg')).toContainText('alternate email');
+ await page.locator('#alternateEmail').fill('');expect(await page.locator('#alternatePhone').evaluate(e=>e.checkValidity())).toBe(true);expect(await page.locator('#alternateEmail').evaluate(e=>e.checkValidity())).toBe(true);
+ await page.locator('#alternatePhone').fill('(240) 555-0123');await page.locator('#alternateEmail').fill('alternate@example.com');
+ const phone=await page.locator('#phone').boundingBox(),alternate=await page.locator('#alternatePhone').boundingBox();
+ if(width>620)expect(Math.abs(phone.y-alternate.y)).toBeLessThan(2);else expect(alternate.y).toBeGreaterThan(phone.y);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);await page.screenshot({path:`output/booking-contact-fields-${width}.png`});
+ await page.locator('#confirmRiderBtn').click();await page.locator('#tripDate').fill('2030-10-15');await page.locator('#appointmentTime').fill('13:15');await page.locator('#pickup').fill('100 Main Street, Annapolis, MD');await page.locator('#destination').fill('2001 Medical Parkway, Annapolis, MD');await page.locator('#confirmPickupDropoffBtn').click();await page.locator('#continueRideBtn').click();await page.locator('#fareConfirmAccept').click();
+ await expect.poll(()=>payload?.email).toBe('primary@example.com');expect(payload.alternatePhone).toBe('+12405550123');expect(payload.alternateEmail).toBe('alternate@example.com');await expect(page.locator('#payDepositBtn')).toBeEnabled();expect(errors).toEqual([]);
+});

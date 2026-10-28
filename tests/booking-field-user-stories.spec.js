@@ -1,9 +1,17 @@
 const { test, expect } = require('@playwright/test');
 
+test.beforeEach(async({page})=>{
+  await page.route('**/api/**',route=>{
+    const path=new URL(route.request().url()).pathname;
+    const json=path==='/api/settings/public'?{pricing:{ambulatory:{base:75,includedMiles:5,perMile:3.55,waitPer15:12.5}},fareRules:{}}:path==='/api/integrations/config'?{googleMapsEnabled:false}:{};
+    return route.fulfill({json});
+  });
+});
+
 const patientFields = [
   { id:'name', label:'Passenger name', intent:'identify the person riding' },
   { id:'phone', label:'Phone', intent:'send booking and ride updates' },
-  { id:'email', label:'Email (optional)', intent:'provide an optional written receipt channel' },
+  { id:'email', label:'Email', intent:'provide the primary written receipt channel' },
   { id:'payerType', label:'How will this ride be paid?', intent:'show only relevant payment requirements' },
   { id:'notes', label:'Notes (optional)', intent:'capture only necessary pickup or mobility instructions' },
   { id:'multipleStopsToggle', label:'Multiple Stops', intent:'reveal extra destinations only when requested' },
@@ -45,7 +53,7 @@ test('every patient booking field has a readable label and stays inside its card
         cardRight: cardBox?.right
       };
     });
-    expect(result.label, `${story.id}: ${story.intent}`).toContain(story.label);
+    expect(result.label.toLowerCase(), `${story.id}: ${story.intent}`).toContain(story.label.toLowerCase());
     expect(result.width, `${story.id}: ${story.intent}`).toBeGreaterThanOrEqual(story.id === 'multipleStopsToggle' ? 18 : 44);
     expect(result.left, `${story.id}: ${story.intent}`).toBeGreaterThanOrEqual(result.cardLeft - 1);
     expect(result.right, `${story.id}: ${story.intent}`).toBeLessThanOrEqual(result.cardRight + 1);
@@ -107,6 +115,7 @@ test('confirming restored insurance selection reveals the required provider fiel
   await expect(page.locator('#confirmRiderBtn')).toBeEnabled();
   await page.locator('#name').fill('Jamie Patient');
   await page.locator('#phone').fill('(240) 555-0101');
+  await page.locator('#email').fill('fixture@example.com');
   await page.locator('#serviceTypeSelect').selectOption('ambulatory');
   await page.locator('#payerType').evaluate((select) => { select.value='INSURANCE'; });
   await page.locator('#confirmRiderBtn').click();
