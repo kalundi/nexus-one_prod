@@ -8,7 +8,7 @@ const ADMIN='11111111-1111-4111-8111-111111111111',DRIVER='22222222-2222-4222-82
 async function fixture(){
  const db=new PGlite();
  await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
- CREATE TABLE users(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),email text UNIQUE,display_name text,role text,scope_id text,phone text,active boolean DEFAULT true,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
+ CREATE TABLE users(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),email text UNIQUE,display_name text,role text,access_title text,scope_id text,phone text,active boolean DEFAULT true,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
  CREATE TABLE user_role_requests(user_id uuid REFERENCES users(id),role text,status text,scope_id text,reviewed_at timestamptz);
  CREATE TABLE sessions(user_id uuid,revoked_at timestamptz);
  CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
@@ -50,6 +50,14 @@ test('random memorable IDs backfill accounts, stay unique and survive role/statu
   const booking=(await f.db.query("SELECT driver_user_id FROM bookings WHERE reference='LEGACY-TRIP'")).rows[0];assert.equal(booking.driver_user_id,DRIVER,'Existing assignments retain the canonical account key after a rename');
   await assert.rejects(f.db.query("UPDATE users SET user_code='N99999' WHERE id=$1",[DRIVER]),/cannot be changed/);
   assert.ok(f.audits.some(a=>a[3].userCode===driver.userCode));
+ }finally{await f.close();}
+});
+test('EMS account edits retain the title while applying the matching existing permission role',async()=>{
+ const f=await fixture();try{const catalog=require('../nexus-ems-roles.js');
+  for(const title of Object.keys(catalog)){
+   const result=await f.call(`admin/users/${DRIVER}`,'PATCH',{role:title});assert.equal(result.user.role,title);assert.equal(result.user.accessRole,catalog.access[title].role);
+   const row=(await f.db.query('SELECT role,access_title FROM users WHERE id=$1',[DRIVER])).rows[0];assert.equal(row.access_title,title);assert.equal(row.role,catalog.access[title].role);
+  }
  }finally{await f.close();}
 });
 test('future schedule revisions retain current coverage, replace removed weekdays and take effect on the correct date',async()=>{

@@ -7,8 +7,9 @@
   EXECUTIVE:['Executive','/executive.html'],PATIENT:['Patient','/patient.html'],CARETAKER:['Caretaker','/caretaker.html'],
   STAFF:['Staff & training','/training.html']
  };
+ Object.entries(window.NexusEmsRoles||{}).forEach(([role,label])=>{experiences[role]=[label,window.NexusEmsRoles.access[role].url];});
  const token=()=>sessionStorage.getItem('nexusAccessToken')||'';
- function rolesFor(user){return [...new Set(user?.roles||[user?.role])].map(role=>String(role).toUpperCase()).filter(role=>experiences[role]);}
+ function rolesFor(user){const roles=[...new Set(user?.roles||[user?.role])].map(role=>String(role).toUpperCase());return roles.filter(role=>experiences[role]&&!(user.titleRole&&role===user.role&&!roles.includes('ADMIN')));}
  function styles(){
   if(document.getElementById('nexusExperienceStyles'))return;
   const style=document.createElement('style');style.id='nexusExperienceStyles';
@@ -19,7 +20,7 @@
   const roles=rolesFor(user);if(roles.length<2)return null;styles();
   const group=document.createElement('div');group.className='nexusRoleSwitcher';
   const title=document.createElement('small');title.textContent='Switch experience';group.appendChild(title);
-  const active=String(user.role||'').toUpperCase();
+  const active=String(user.titleRole||user.role||'').toUpperCase();
   const error=document.createElement('p');error.className='nexusExperienceError';error.setAttribute('role','alert');error.hidden=true;
   Object.keys(experiences).filter(role=>roles.includes(role)).forEach(role=>{
    const button=document.createElement('button');button.type='button';button.dataset.nexusExperienceRole=role;
@@ -33,7 +34,7 @@
      const response=await fetch('/api/auth/switch-role',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({role})});
      const data=await response.json().catch(()=>({}));
      if(!response.ok)throw new Error(data.error||'Unable to switch experience. Please try again.');
-     if(data.user?.role!==role)throw new Error('Unable to confirm this experience. Please try again.');
+     if(data.user?.titleRole!==role&&data.user?.role!==role)throw new Error('Unable to confirm this experience. Please try again.');
      sessionStorage.setItem('nexusUser',JSON.stringify(data.user));
      location.assign(experiences[role][1]);
     }catch(caught){

@@ -2,8 +2,9 @@ const {json,parseBody,bearer}=require('./http.cjs');
 const {normalizeE164}=require('./phone.cjs');
 const DemoAccount=require('./facility-demo-account.cjs');
 const {requireActiveFacility}=require('./facility-access.cjs');
+const EMS=require('../../../nexus-ems-roles.js');
 const MockDriverPractice=require('./mock-driver-practice.cjs');
-const ROLES=['ADMIN','DISPATCHER','DRIVER','FACILITY','STAFF','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER'];
+const ROLES=['ADMIN','DISPATCHER','DRIVER','FACILITY','STAFF','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER',...Object.keys(require('../../../nexus-ems-roles.js'))];
 const FUNCTIONS={ADMINISTRATION:'Administration',DISPATCH:'Dispatch',DRIVING:'Driving',PATIENT_CARE:'Patient care',FACILITY_COORDINATION:'Facility coordination',BILLING:'Billing',QUALITY_REVIEW:'Quality review',OPERATIONS:'Operations',CARE_SUPPORT:'Care support'};
 const clean=v=>String(v??'').trim();
 const dateValue=v=>v instanceof Date?v.toISOString().slice(0,10):clean(v).slice(0,10);
@@ -22,7 +23,7 @@ function parseSchedule(body){
  if(!weekdays.length||weekdays.some(day=>!Number.isInteger(day)||day<1||day>7))fail('Select at least one valid weekday.');
  return {startTime,endTime,effectiveStartDate,effectiveEndDate,weekdays};
 }
-function mapUser(u){const demoOnly=DemoAccount.isDemoUser(u),roles=demoOnly?['FACILITY']:[...new Set([u.role,...(u.approved_roles||[]),'PATIENT'])];return {id:String(u.id),userCode:u.user_code,email:u.email,name:u.display_name,phone:u.phone||'',role:u.role,scopeId:u.scope_id||'',demoOnly,loginUrl:demoOnly?'/facility-demo.html':null,functions:u.functions||[],roles:roles.includes('ADMIN')?ROLES:roles,active:u.active,employeeActive:u.employee_active??null,createdAt:u.created_at};}
+function mapUser(u){const demoOnly=DemoAccount.isDemoUser(u),roles=demoOnly?['FACILITY']:[...new Set([u.access_title||u.role,u.role,...(u.approved_roles||[]),'PATIENT'])];return {id:String(u.id),userCode:u.user_code,email:u.email,name:u.display_name,phone:u.phone||'',role:u.access_title||u.role,accessRole:u.role,scopeId:u.scope_id||'',demoOnly,loginUrl:demoOnly?'/facility-demo.html':EMS.access[u.access_title]?.url||null,functions:u.functions||[],roles:roles.includes('ADMIN')?ROLES:roles,active:u.active,employeeActive:u.employee_active??null,createdAt:u.created_at};}
 function createUserManager({query,getPool,requireUser,audit}){
  async function transaction(work){
   const client=await getPool().connect();
@@ -120,9 +121,11 @@ function createUserManager({query,getPool,requireUser,audit}){
    if(String(current.id)===String(me.id)&&(body.active===false||(body.role&&body.role!==current.role)))throw Object.assign(new Error('Use another administrator account to change your own access.'),{statusCode:409});
    const next={...current,display_name:Object.hasOwn(body,'name')?clean(body.name):current.display_name,phone:Object.hasOwn(body,'phone')?normalizeE164(body.phone):current.phone,role:body.role||current.role,
     scope_id:Object.hasOwn(body,'scopeId')?clean(body.scopeId)||null:current.scope_id,functions:body.functions?[...new Set(body.functions)]:current.functions,active:body.active??current.active};
+   next.access_title=body.role?(EMS.access[body.role]?body.role:null):current.access_title||null;
+   next.role=EMS.access[next.role]?.role||next.role;
    if(next.role==='DRIVER'&&!next.scope_id)next.scope_id=(await q("SELECT scope_id FROM user_role_requests WHERE user_id=$1 AND role='DRIVER' AND status='APPROVED' LIMIT 1",[current.id])).rows[0]?.scope_id||current.user_code;
    if(next.role==='FACILITY'&&next.active&&!DemoAccount.isDemoUser(current))await requireActiveFacility(q,next.scope_id);
-   const changed=(await q('UPDATE users SET display_name=$2,phone=$3,role=$4,scope_id=$5,functions=$6,active=$7,updated_at=now() WHERE id=$1 RETURNING *',[current.id,next.display_name,next.phone,next.role,next.scope_id,next.functions,next.active])).rows[0];
+   const changed=(await q('UPDATE users SET display_name=$2,phone=$3,role=$4,scope_id=$5,functions=$6,active=$7,access_title=$8,updated_at=now() WHERE id=$1 RETURNING *',[current.id,next.display_name,next.phone,next.role,next.scope_id,next.functions,next.active,next.access_title])).rows[0];
    // Also update approved scopes and every live session's access on its next request.
    if(next.role===current.role&&next.scope_id!==current.scope_id)await q("UPDATE user_role_requests SET scope_id=$3 WHERE user_id=$1 AND role=$2 AND status='APPROVED'",[current.id,next.role,next.scope_id]);
    if(!next.active)await q('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',[current.id]);

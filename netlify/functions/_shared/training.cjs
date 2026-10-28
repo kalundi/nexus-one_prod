@@ -3,7 +3,7 @@ const {json,parseBody,bearer}=require('./http.cjs');
 const handleContract=require('./training-contract.cjs');
 const {notifyTrainingAdmins}=require('./training-notifications.cjs');
 const pdfResponse=file=>({statusCode:200,isBase64Encoded:true,headers:{'content-type':'application/pdf','cache-control':'private, no-store','content-disposition':'inline; filename="training.pdf"','x-content-type-options':'nosniff'},body:Buffer.from(file).toString('base64')});
-const STAFF=['STAFF','ADMIN','DRIVER','DISPATCHER','BILLING','QA','EXECUTIVE'];
+const STAFF=['STAFF','ADMIN','DRIVER','DISPATCHER','BILLING','QA','EXECUTIVE',...Object.keys(require('../../../nexus-ems-roles.js'))];
 const ACK='I acknowledge that I have read or watched this assigned material, understand my responsibilities, and will ask my supervisor about anything unclear. This acknowledgment does not replace required practical training or supervisor approval.';
 const fail=(message,statusCode=400)=>{throw Object.assign(new Error(message),{statusCode})};
 const clean=(value,max=200)=>String(value??'').trim().slice(0,max);

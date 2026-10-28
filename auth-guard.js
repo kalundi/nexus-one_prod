@@ -114,7 +114,7 @@
       throw new Error('Authentication response did not include a valid user role');
     }
 
-    if(!allowed.includes(user.role.toUpperCase()) && user.roles?.includes('ADMIN')){
+    if(!allowed.includes(user.role.toUpperCase()) && !allowed.includes(user.accessRole) && user.roles?.includes('ADMIN')){
       const switched=await fetch('/api/auth/switch-role',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({role:'ADMIN'})});
       if(!switched.ok) throw new Error('Administrator experience could not be restored');
       user=(await switched.json()).user;
@@ -122,7 +122,7 @@
     const role=user.role.toUpperCase();
     const roleLabel=role==='RIDER'?'PASSENGER':role;
     user.role=role;
-    if(!allowed.includes(role)){
+    if(!allowed.includes(role)&&!(allowed.includes('STAFF')&&user.accessRole==='STAFF')){
       deny('Your '+roleLabel+' account does not have permission to access this workspace.');
       return null;
     }
