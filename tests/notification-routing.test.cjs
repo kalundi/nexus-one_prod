@@ -9,7 +9,7 @@ test('buildEmailRecipients includes the default team emails plus the primary rec
 
 test('buildSmsRecipients includes the default phone numbers plus the primary recipient', () => {
   const recipients = buildSmsRecipients('202-555-0100');
-  assert.deepEqual(recipients, ['202-555-0100', '202-270-2174', '301-760-8981', '202-315-9253', '301-500-7946']);
+  assert.deepEqual(recipients, ['202-555-0100', '301-760-8981', '301-500-7946']);
 });
 
 test('notification routing accepts customer and operations recipient arrays', () => {
