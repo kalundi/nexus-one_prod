@@ -1,5 +1,5 @@
 const DEFAULT_EMAIL_RECIPIENTS = ['fletcher@nexusmt.com', 'jubilee@nexusmt.com'];
-const DEFAULT_SMS_RECIPIENTS = ['202-270-2174', '301-760-8981', '202-315-9253', '301-500-7946'];
+const DEFAULT_SMS_RECIPIENTS = ['301-760-8981', '301-500-7946'];
 
 function buildEmailRecipients(primaryEmail) {
   const recipients = [];

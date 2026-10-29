@@ -8,7 +8,6 @@ const DOCUMENTS={
   links:[
    {label:'Call Nexus main toll-free',href:'tel:+18886395766',x:73.05,y:35.68,width:20.51,height:3.52},
    {label:'Call Nexus customer service',href:'tel:+18887604990',x:73.05,y:40.04,width:20.51,height:3.58},
-   {label:'Call Nexus regional DC',href:'tel:+12023159253',x:73.05,y:44.53,width:20.51,height:3.58},
    {label:'Call Nexus regional Maryland',href:'tel:+12403947089',x:73.05,y:48.89,width:20.51,height:3.65},
    {label:'Email Nexus',href:'mailto:contact@nexusmt.com?subject=Facility%20Transportation%20Inquiry',x:72.46,y:53.19,width:23.83,height:4.3},
    {label:'Visit Nexus Medical Transit',href:'https://nexusmt.com/',x:72.46,y:57.94,width:23.83,height:4.43},
