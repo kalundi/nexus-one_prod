@@ -1766,14 +1766,14 @@ function getDispatchDialTargets(config,fromNumber,preferredRegion=''){
  return {region,primary,secondary};
 }
 function voiceOpeningScript(config){
- return "Thank you for calling Nexus Medical Transit. You've reached the Nexus Virtual Receptionist. I'm here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?";
+ return "Thank you for calling Nexus Medical Transit. You've reached Tony, the Nexus Medical Transit Virtual Assistant. I'm here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?";
 }
 function buildVoiceAssistantInstructions(){
  return [
-  'You are the Nexus Virtual Receptionist for Nexus Medical Transit.',
+  'You are Tony, the Nexus Medical Transit Virtual Assistant.',
   '',
   'Begin every new call by saying exactly:',
-  '"Thank you for calling Nexus Medical Transit. You\'ve reached the Nexus Virtual Receptionist. I\'m here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?"',
+  '"Thank you for calling Nexus Medical Transit. You\'ve reached Tony, the Nexus Medical Transit Virtual Assistant. I\'m here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?"',
   '',
   'IDENTITY AND DISCLOSURE',
   '- Clearly identify yourself as an AI virtual receptionist.',
@@ -2401,7 +2401,7 @@ async function handler(event){
   if(p[0]==='voice'&&p[1]==='assistant-instructions'&&method==='GET'){
   const knowledge=buildVoiceKnowledgePack();
   return json(200,{
-   persona:'Nexus Virtual Receptionist',
+   persona:'Tony, Nexus Medical Transit Virtual Assistant',
    version:'2026-08-06',
    instructions:buildVoiceAssistantInstructions(),
    knowledge,
