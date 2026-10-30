@@ -245,23 +245,31 @@
     const service=String(booking.service||'').trim().toLowerCase();
     const rate=settings?.pricing?.[service];
     if(!rate)throw Error('Current service pricing is unavailable');
-    const pickup=scheduledEpoch(String(booking.date||'').slice(0,10),booking.time);
+    // Normalize every date the fare math reads, once, up front. Bookings arrive
+    // with dates in many shapes — ISO strings, US numeric forms, month names,
+    // and JS Date objects from the database — and the math below needs ISO.
+    // Normalizing here (instead of slice(0,10) on the raw value) keeps a
+    // non-ISO date from blocking a save the editor cannot fix.
+    const bookingDateISO=bookingDate(booking.date);
+    const appointmentDateISO=bookingDate(booking.appointmentDate||booking.date);
+    const returnDateISO=bookingDate(booking.returnTripDate);
+    const pickup=scheduledEpoch(bookingDateISO,booking.time);
     if(!Number.isFinite(pickup))throw Error('Pickup date and time are required');
     const travel=serviceTravel(inputs.passengerLegs?.[0]||inputs,service,settings.fareRules||{});
     const appointments=inputs.stopAppointmentTimes||[];
     const stopWait=appointments.length>1&&travel.stopScheduledMinutes.length===appointments.length?appointments.slice(0,-1).reduce((sum,time,index)=>{
-      const arrival=scheduledEpoch(String(booking.appointmentDate||booking.date).slice(0,10),time);
-      const departure=scheduledEpoch(String(booking.date).slice(0,10),appointments[index+1])-15*60000-Math.ceil(travel.stopScheduledMinutes[index+1])*60000-travel.transitionBufferMinutes*60000;
+      const arrival=scheduledEpoch(appointmentDateISO,time);
+      const departure=scheduledEpoch(bookingDateISO,appointments[index+1])-15*60000-Math.ceil(travel.stopScheduledMinutes[index+1])*60000-travel.transitionBufferMinutes*60000;
       return sum+Math.max(0,(departure-arrival)/60000);
     },0):Number(inputs.stopWaitMinutes);
     let returnWait=0;
     if(booking.tripType==='ROUND_TRIP'&&!booking.returnTimePending){
-      const returnAt=scheduledEpoch(String(booking.returnTripDate||'').slice(0,10),booking.returnTripTime);
+      const returnAt=scheduledEpoch(returnDateISO,booking.returnTripTime);
       if(!Number.isFinite(returnAt)||returnAt<pickup)throw Error('Verify the return date and pickup time');
       const finalAppointment=inputs.finalAppointmentTime||booking.appointmentTime;
       const isAppointment=inputs.scheduleBasis==='APPOINTMENT'||(!inputs.scheduleBasis&&finalAppointment&&!/Schedule basis:\s*PICKUP/i.test(String(booking.notes||'')));
       const transitionMinutes=Math.max(0,travel.stopScheduledMinutes.length-1)*travel.transitionBufferMinutes;
-      const appointmentAt=scheduledEpoch(String(booking.appointmentDate||booking.date).slice(0,10),finalAppointment);
+      const appointmentAt=scheduledEpoch(appointmentDateISO,finalAppointment);
       const arrival=isAppointment?appointmentAt:Math.max(pickup+Math.ceil(travel.scheduledMinutes+stopWait+transitionMinutes)*60000,Number.isFinite(appointmentAt)?appointmentAt:0);
       if(!Number.isFinite(arrival))throw Error('Final appointment time is required');
       returnWait=Math.max(0,Math.round((returnAt-arrival)/60000));
@@ -269,8 +277,8 @@
     const timing=typeof module==='object'&&module.exports?require('./nexus-trip-timing.js'):globalThis.NexusTripTiming;
     const timingPlan=settings.fareRules?.smartTiming?.enabled&&timing?timing.plan(booking,inputs,settings):null;
     const plannedPickup=timingPlan?timing.localParts(timingPlan.crewArrivalAt):null;
-    const result=calculate({service,vehicleUnit:booking.vehicleUnit,fuelProfile:inputs.fuelProfile,rate,rules:settings.fareRules||{},timingPlan,miles:Number(inputs.miles),date:plannedPickup?.date||String(booking.date).slice(0,10),time:plannedPickup?.time||booking.time,tripType:booking.tripType,
-      returnDate:String(booking.returnTripDate||'').slice(0,10),returnTime:booking.returnTripTime,
+    const result=calculate({service,vehicleUnit:booking.vehicleUnit,fuelProfile:inputs.fuelProfile,rate,rules:settings.fareRules||{},timingPlan,miles:Number(inputs.miles),date:plannedPickup?.date||bookingDateISO,time:plannedPickup?.time||booking.time,tripType:booking.tripType,
+      returnDate:returnDateISO,returnTime:booking.returnTripTime,
       waitMinutes:stopWait+returnWait,
       metrics:{durationMinutes:Number(inputs.durationMinutes),trafficDurationMinutes:Number(inputs.trafficDurationMinutes),passengerLegs:inputs.passengerLegs,deadheadRoutes:inputs.deadheadRoutes,deadheadSegments:inputs.deadheadSegments.map(Number),returnTimePending:booking.returnTimePending}});
     const savings=applySavings(result.total,inputs.discountPct);
@@ -362,7 +370,46 @@
     if(Object.prototype.toString.call(value)==='[object Date]'&&Number.isFinite(value.getTime()))return value.getFullYear()+'-'+String(value.getMonth()+1).padStart(2,'0')+'-'+String(value.getDate()).padStart(2,'0');
     const text=String(value||'').trim();
     const iso=text.match(/^\d{4}-\d{2}-\d{2}/);if(iso)return iso[0];
-    const slash=text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/);if(slash)return (slash[3].length===2?'20':'')+slash[3]+'-'+slash[1].padStart(2,'0')+'-'+slash[2].padStart(2,'0');
+    // Accept a date only when its calendar components validate: reject impossible
+    // dates (month 13, February 30) instead of silently coercing them.
+    const valid=(y,m,d)=>{
+      if(!Number.isFinite(y)||!Number.isFinite(m)||!Number.isFinite(d))return '';
+      if(m<1||m>12||d<1||d>31)return '';
+      const check=new Date(y,m-1,d);
+      if(check.getFullYear()!==y||check.getMonth()!==m-1||check.getDate()!==d)return '';
+      return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    };
+    const ymd=text.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+    if(ymd)return valid(Number(ymd[1]),Number(ymd[2]),Number(ymd[3]));
+    // Month-name forms: "Oct 30, 2026", "October 30 2026", "Thu Oct 30 2026 ...",
+    // and Date.toString() output. The month name pins the field order, so these
+    // are never read as day-first.
+    const months={jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,sept:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12};
+    const named=text.match(/([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/);
+    if(named){
+      const month=months[named[1].toLowerCase()];
+      if(!month)return '';
+      return valid(Number(named[3]),month,Number(named[2]));
+    }
+    // Numeric forms are month-first by convention (as before), except when the
+    // first field cannot be a month — "30/10/2026" is day-first, not month 30.
+    const slash=text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/);
+    if(slash){
+      const first=Number(slash[1]),second=Number(slash[2]);
+      const year=Number((slash[3].length===2?'20':'')+slash[3]);
+      if(first>12&&second<=12)return valid(year,second,first);
+      return valid(year,first,second);
+    }
+    // Last resort: a platform Date parse, accepted only when the parsed date
+    // round-trips against the month name, day, and year written in the text,
+    // so an ambiguous or partial string can never be silently reinterpreted.
+    const parsed=new Date(text);
+    if(Number.isFinite(parsed.getTime())){
+      const monthToken=text.match(/[A-Za-z]{3,9}/);
+      const dayToken=text.match(/\b(\d{1,2})(?:st|nd|rd|th)?\b/);
+      const yearToken=text.match(/\b(\d{4})\b/);
+      if(monthToken&&months[monthToken[0].toLowerCase()]===parsed.getMonth()+1&&dayToken&&Number(dayToken[1])===parsed.getDate()&&yearToken&&Number(yearToken[1])===parsed.getFullYear())return valid(parsed.getFullYear(),parsed.getMonth()+1,parsed.getDate());
+    }
     return '';
   }
   function bookingTime(value){
