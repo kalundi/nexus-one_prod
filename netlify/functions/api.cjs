@@ -1630,7 +1630,7 @@ function getVoiceConfig(){
  const supportPhone=formatPhoneDisplay(supportPhoneE164);
  const afterHoursVoicemail=clean(process.env.AFTER_HOURS_VOICEMAIL_NUMBER||'');
  const streamUrl=clean(process.env.TWILIO_MEDIA_STREAM_URL||'');
- const voiceName=clean(process.env.TWILIO_VOICE_NAME||'Polly.Joanna-Neural');
+ const voiceName=clean(process.env.TWILIO_VOICE_NAME||'Polly.Matthew-Neural');
  const voiceLanguage=clean(process.env.TWILIO_VOICE_LANGUAGE||'en-US');
  const voiceMenuInitialPrompt=clean(process.env.VOICE_MENU_INITIAL_PROMPT||'Please tell me what you need, or press 1 for dispatch.');
  const voiceMenuRetryPrompt=clean(process.env.VOICE_MENU_RETRY_PROMPT||'Sorry, I did not catch that. Please take your time and say your request after the tone.');
@@ -1687,7 +1687,7 @@ function formatPhoneDisplay(value){
  return clean(value)||'(888) 760-4990';
 }
 function sayTag(text,config){
- const voice=xmlEscape(config?.voiceName||'Polly.Joanna-Neural');
+ const voice=xmlEscape(config?.voiceName||'Polly.Matthew-Neural');
  const language=xmlEscape(config?.voiceLanguage||'en-US');
  return `<Say voice="${voice}" language="${language}">${xmlEscape(text)}</Say>`;
 }
@@ -1766,14 +1766,14 @@ function getDispatchDialTargets(config,fromNumber,preferredRegion=''){
  return {region,primary,secondary};
 }
 function voiceOpeningScript(config){
- return "Thank you for calling Nexus Medical Transit. You've reached the Nexus Virtual Receptionist. I'm here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?";
+ return "Thank you for calling Nexus Medical Transit. You've reached Tony, the Nexus Medical Transit Virtual Assistant. I'm here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?";
 }
 function buildVoiceAssistantInstructions(){
  return [
-  'You are the Nexus Virtual Receptionist for Nexus Medical Transit.',
+  'You are Tony, the Nexus Medical Transit Virtual Assistant.',
   '',
   'Begin every new call by saying exactly:',
-  '"Thank you for calling Nexus Medical Transit. You\'ve reached the Nexus Virtual Receptionist. I\'m here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?"',
+  '"Thank you for calling Nexus Medical Transit. You\'ve reached Tony, the Nexus Medical Transit Virtual Assistant. I\'m here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?"',
   '',
   'IDENTITY AND DISCLOSURE',
   '- Clearly identify yourself as an AI virtual receptionist.',
@@ -2387,7 +2387,7 @@ async function handler(event){
     VALUES(NULLIF($1,''),'INBOUND',$2,$3,'RECEIVED') ON CONFLICT(twilio_call_sid) DO UPDATE SET call_status='RECEIVED',updated_at=now()`,[callSid,toE164(callerFrom),toE164(calledNumber)]).catch(error=>console.error('Unable to record inbound voice call',error.message));
    const openNow=isBusinessHoursOpen(config);
    if(!openNow&&config.afterHoursVoicemail){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. You\'ve reached Tony, the Nexus Medical Transit Virtual Assistant. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
     return xmlResponse(200,body);
    }
   const opening=voiceOpeningScript(config);
@@ -2401,7 +2401,7 @@ async function handler(event){
   if(p[0]==='voice'&&p[1]==='assistant-instructions'&&method==='GET'){
   const knowledge=buildVoiceKnowledgePack();
   return json(200,{
-   persona:'Nexus Virtual Receptionist',
+   persona:'Tony, Nexus Medical Transit Virtual Assistant',
    version:'2026-08-06',
    instructions:buildVoiceAssistantInstructions(),
    knowledge,
