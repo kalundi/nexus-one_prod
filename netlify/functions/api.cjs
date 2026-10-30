@@ -1729,6 +1729,13 @@ function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary',regi
  const dialNumber=xmlEscape(targetNumber);
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(message)}</Say>\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
 }
+
+function voiceVoicemailTwiml(config,source=''){
+ const sourceParam=clean(source)?`source=${encodeURIComponent(clean(source))}`:'';
+ const recordAction=xmlEscape(voiceRouteUrl('voicemail-complete',sourceParam));
+ const transcribeCallback=xmlEscape(voiceRouteUrl('voicemail-transcription',sourceParam));
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Please leave your name, your callback number, and a brief message after the tone. Please don\'t share medical details in your message. We will return your call as soon as possible.',config)}\n  <Record action="${recordAction}" method="POST" transcribe="true" transcribeCallback="${transcribeCallback}" recordingStatusCallback="${transcribeCallback}" recordingStatusCallbackMethod="POST" maxLength="120" playBeep="true" />\n</Response>`;
+}
 function getCallerAreaCode(value){
  const digits=String(value||'').replace(/\D/g,'');
  const normalized=digits.length===11&&digits.startsWith('1')?digits.slice(1):digits;
@@ -2387,7 +2394,7 @@ async function handler(event){
     VALUES(NULLIF($1,''),'INBOUND',$2,$3,'RECEIVED') ON CONFLICT(twilio_call_sid) DO UPDATE SET call_status='RECEIVED',updated_at=now()`,[callSid,toE164(callerFrom),toE164(calledNumber)]).catch(error=>console.error('Unable to record inbound voice call',error.message));
    const openNow=isBusinessHoursOpen(config);
    if(!openNow&&config.afterHoursVoicemail){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. You\'ve reached Tony, the Nexus Medical Transit Virtual Assistant. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. You\'ve reached Tony, the Nexus Medical Transit Virtual Assistant. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('voicemail','source=after-hours'))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
   const opening=voiceOpeningScript(config);
@@ -2522,11 +2529,57 @@ async function handler(event){
     });
     return xmlResponse(200,body);
    }
-   if(config.afterHoursVoicemail){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>We were unable to reach dispatch. Please leave a voicemail and we will return your call.</Say>\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
-    return xmlResponse(200,body);
+   const voicemailBody=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('We were unable to reach dispatch. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('voicemail','source=dispatch-fallback'))}</Redirect>\n</Response>`;
+   return xmlResponse(200,voicemailBody);
+  }
+  if(p[0]==='voice'&&p[1]==='voicemail'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   const source=clean(event.queryStringParameters?.source||'');
+   return xmlResponse(200,voiceVoicemailTwiml(config,source));
+  }
+  if(p[0]==='voice'&&p[1]==='voicemail-complete'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   const params=parseWebhookBody(event);
+   const source=clean(event.queryStringParameters?.source||params.source||'');
+   const callSid=clean(params.CallSid||params.callSid||'');
+   const callerFrom=clean(params.From||params.from||'');
+   const recordingSid=clean(params.RecordingSid||params.recordingSid||'');
+   const recordingUrl=clean(params.RecordingUrl||params.recordingUrl||'');
+   if(recordingUrl){
+    await query(`INSERT INTO dispatch_voice_calls(twilio_call_sid,direction,caller_phone,called_number,call_status,recording_sid,recording_url,voicemail_status,voicemail_received_at)
+     VALUES(NULLIF($1,''),'INBOUND',$2,NULL,'VOICEMAIL_RECEIVED',NULLIF($3,''),NULLIF($4,''),'RECEIVED',now())
+     ON CONFLICT(twilio_call_sid) DO UPDATE SET recording_sid=COALESCE(EXCLUDED.recording_sid,dispatch_voice_calls.recording_sid),recording_url=COALESCE(EXCLUDED.recording_url,dispatch_voice_calls.recording_url),voicemail_status='RECEIVED',voicemail_received_at=COALESCE(dispatch_voice_calls.voicemail_received_at,now()),call_status='VOICEMAIL_RECEIVED',updated_at=now()`,[callSid,toE164(callerFrom)||callerFrom,recordingSid,recordingUrl]).catch(error=>console.error('Unable to record voicemail completion',error.message));
+    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you. Your message has been recorded. We will return your call as soon as possible.',config)}\n  <Hangup />\n</Response>`);
    }
-  return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(`We were unable to connect to dispatch. Please call us back at ${config.supportPhone}.`,config)}\n</Response>`);
+   if(source==='after-hours'&&config.afterHoursVoicemail){
+    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('We were unable to record your message. Please hold while I connect you to voicemail.',config)}\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`);
+   }
+   return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(`We were unable to record your message. Please call us back at ${config.supportPhone}.`,config)}\n  <Hangup />\n</Response>`);
+  }
+  if(p[0]==='voice'&&p[1]==='voicemail-transcription'&&method==='POST'){
+   const params=parseWebhookBody(event);
+   const callSid=clean(params.CallSid||params.callSid||'');
+   const callerFrom=clean(params.From||params.from||'');
+   const recordingSid=clean(params.RecordingSid||params.recordingSid||'');
+   const recordingUrl=clean(params.RecordingUrl||params.recordingUrl||'');
+   const recordingStatus=clean(params.RecordingStatus||params.recordingStatus||'').toLowerCase();
+   const transcriptionSid=clean(params.TranscriptionSid||params.transcriptionSid||'');
+   const transcriptionText=clean(params.TranscriptionText||params.transcriptionText||'');
+   const transcriptionStatus=clean(params.TranscriptionStatus||params.transcriptionStatus||'').toLowerCase();
+   const shouldNotify=Boolean(recordingUrl)||Boolean(transcriptionText)||['completed','failed'].includes(transcriptionStatus)||recordingStatus==='completed';
+   await query(`INSERT INTO dispatch_voice_calls(twilio_call_sid,direction,caller_phone,called_number,call_status,recording_sid,recording_url,transcription_sid,transcription_text,transcription_status,voicemail_status,voicemail_received_at)
+    VALUES(NULLIF($1,''),'INBOUND',$2,NULL,'VOICEMAIL_RECEIVED',NULLIF($3,''),NULLIF($4,''),NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),'RECEIVED',now())
+    ON CONFLICT(twilio_call_sid) DO UPDATE SET caller_phone=COALESCE(NULLIF(dispatch_voice_calls.caller_phone,''),EXCLUDED.caller_phone),recording_sid=COALESCE(EXCLUDED.recording_sid,dispatch_voice_calls.recording_sid),recording_url=COALESCE(EXCLUDED.recording_url,dispatch_voice_calls.recording_url),transcription_sid=COALESCE(EXCLUDED.transcription_sid,dispatch_voice_calls.transcription_sid),transcription_text=COALESCE(EXCLUDED.transcription_text,dispatch_voice_calls.transcription_text),transcription_status=COALESCE(EXCLUDED.transcription_status,dispatch_voice_calls.transcription_status),voicemail_status='RECEIVED',voicemail_received_at=COALESCE(dispatch_voice_calls.voicemail_received_at,now()),call_status='VOICEMAIL_RECEIVED',updated_at=now()`,[callSid,toE164(callerFrom)||callerFrom,recordingSid,recordingUrl,transcriptionSid,transcriptionText,transcriptionStatus]).catch(error=>console.error('Unable to record voicemail transcription',error.message));
+   if(shouldNotify&&callSid){
+    const claimed=await query(`UPDATE dispatch_voice_calls SET voicemail_notified_at=now(),updated_at=now() WHERE twilio_call_sid=$1 AND voicemail_notified_at IS NULL RETURNING id`,[callSid]).catch(()=>null);
+    if(claimed?.rows?.length){
+     const transcriptLine=transcriptionText?`Transcript: ${transcriptionText}`:'Transcript unavailable — listen to the recording.';
+     const smsBody=`Nexus Medical Transit voicemail from ${callerFrom||'unknown caller'}. ${transcriptLine} Recording: ${recordingUrl||'unavailable'}`;
+     const emailHtml=`<h2>New voicemail</h2><p>From: <strong>${xmlEscape(callerFrom||'unknown caller')}</strong></p><p>${xmlEscape(transcriptLine)}</p><p>Recording: <a href="${xmlEscape(recordingUrl||'#')}">${xmlEscape(recordingUrl||'unavailable')}</a></p>`;
+     await Promise.allSettled([Promise.all(buildSmsRecipients([]).map(phone=>sendSms(phone,smsBody))).then(()=>({status:'sent'})),sendEmail(buildEmailRecipients(),`New voicemail from ${callerFrom||'unknown caller'}`,emailHtml)]).catch(()=>{});
+    }
+   }
+   return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?><Response />');
   }
   if(p[0]==='voice'&&p[1]==='primary-webhook-failure'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();
