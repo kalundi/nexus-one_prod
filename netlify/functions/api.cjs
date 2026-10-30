@@ -1630,7 +1630,7 @@ function getVoiceConfig(){
  const supportPhone=formatPhoneDisplay(supportPhoneE164);
  const afterHoursVoicemail=clean(process.env.AFTER_HOURS_VOICEMAIL_NUMBER||'');
  const streamUrl=clean(process.env.TWILIO_MEDIA_STREAM_URL||'');
- const voiceName=clean(process.env.TWILIO_VOICE_NAME||'Polly.Joanna-Neural');
+ const voiceName=clean(process.env.TWILIO_VOICE_NAME||'Polly.Matthew-Neural');
  const voiceLanguage=clean(process.env.TWILIO_VOICE_LANGUAGE||'en-US');
  const voiceMenuInitialPrompt=clean(process.env.VOICE_MENU_INITIAL_PROMPT||'Please tell me what you need, or press 1 for dispatch.');
  const voiceMenuRetryPrompt=clean(process.env.VOICE_MENU_RETRY_PROMPT||'Sorry, I did not catch that. Please take your time and say your request after the tone.');
@@ -1687,7 +1687,7 @@ function formatPhoneDisplay(value){
  return clean(value)||'(888) 760-4990';
 }
 function sayTag(text,config){
- const voice=xmlEscape(config?.voiceName||'Polly.Joanna-Neural');
+ const voice=xmlEscape(config?.voiceName||'Polly.Matthew-Neural');
  const language=xmlEscape(config?.voiceLanguage||'en-US');
  return `<Say voice="${voice}" language="${language}">${xmlEscape(text)}</Say>`;
 }
