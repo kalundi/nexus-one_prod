@@ -1722,12 +1722,13 @@ async function createTwilioVoiceCall({to,from,url,statusCallback}){
 function callbackConnectTwiml(customerPhone,callerId,config){
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Connecting you to the caller through the Nexus business line.',config)}\n  <Dial callerId="${xmlEscape(callerId)}" timeout="30">\n    <Number>${xmlEscape(customerPhone)}</Number>\n  </Dial>\n</Response>`;
 }
-function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary',region=''}){
+function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary',region='',config}){
+ const voiceConfig=config||getVoiceConfig();
  const actionParams=new URLSearchParams({attempt:String(attempt||'primary')});
  if(region)actionParams.set('region',String(region));
  const actionUrl=xmlEscape(voiceRouteUrl('dispatch-fallback',actionParams.toString()));
  const dialNumber=xmlEscape(targetNumber);
- return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>${xmlEscape(message)}</Say>\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(message,voiceConfig)}\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
 }
 
 function voiceVoicemailTwiml(config,source=''){
@@ -2497,7 +2498,7 @@ async function handler(event){
     const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
     const preferredRegion=clean(event.queryStringParameters?.region||params.region||'').toUpperCase();
     const targets=getDispatchDialTargets(config,callerFrom,preferredRegion);
-    if(!targets.primary)return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Dispatch transfer is temporarily unavailable. Please call back shortly.</Say>\n</Response>');
+    if(!targets.primary)return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Dispatch transfer is temporarily unavailable. Please call back shortly.',config)}\n</Response>`);
     const regionalLabel=targets.region==='DC'?'the Washington D C regional dispatch center':targets.region==='MD'?'the Maryland regional dispatch center':'Nexus dispatch';
    const body=dispatchDialTwiml({
      message:`Please hold while I connect you with ${regionalLabel}.`,
@@ -2596,7 +2597,7 @@ async function handler(event){
     });
     return xmlResponse(200,body);
    }
-   return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Say>Our phone system is temporarily unavailable. Please call back shortly.</Say>\n</Response>');
+   return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Our phone system is temporarily unavailable. Please call back shortly.',config)}\n</Response>`);
   }
   if(p[0]==='voice'&&p[1]==='ride-request'&&method==='POST'){
    const config=getVoiceConfig();
