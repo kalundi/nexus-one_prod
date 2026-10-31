@@ -12,5 +12,11 @@ Disallow: /operations.html
 Disallow: /patient.html
 Disallow: /qa.html
 Disallow: /set-password.html
+Disallow: /caretaker.html
+Disallow: /enterprise.html
+Disallow: /apps.html
+Disallow: /facility-demo.html
+Disallow: /livecare-demo.html
+Disallow: /test-payment.html
 
 Sitemap: https://nexusmt.com/sitemap.xml
