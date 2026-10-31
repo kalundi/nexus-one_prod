@@ -766,8 +766,8 @@
 
   function buildBookingUrl(el){
     const service=inferServiceFromElement(el);
-    if(!service)return '/booking-app.html';
-    return '/booking-app.html?service='+encodeURIComponent(service);
+    if(!service)return 'https://mynexusride.com';
+    return 'https://mynexusride.com/?service='+encodeURIComponent(service);
   }
 
   function applyBookRideSign(root){
@@ -854,7 +854,7 @@
 
   function bookingUrl(el){
     const service=parseService(el);
-    return service?`/booking-app.html?service=${encodeURIComponent(service)}`:'/booking-app.html';
+    return service?`https://mynexusride.com/?service=${encodeURIComponent(service)}`:'https://mynexusride.com';
   }
 
   function showLivecareInMobileMenu(){

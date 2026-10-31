@@ -312,7 +312,7 @@ function intercept(el){
   el.addEventListener('click',e=>{
     e.preventDefault();
     const resolver=window.NexusBookingIntent?.buildBookingUrl;
-    const target=typeof resolver==='function' ? resolver(el) : '/booking-app.html';
+    const target=typeof resolver==='function' ? resolver(el) : 'https://mynexusride.com';
     window.location.href=target;
   });
 }
