@@ -7,7 +7,7 @@ const DOCUMENTS={
   calculator:{type:'nexus-pricing',x:2.2,y:78.25,width:64.25,height:11.45,defaultService:'wheelchair',defaultMiles:13,defaultWaitMinutes:30},
   links:[
    {label:'Call Nexus main toll-free',href:'tel:+18886395766',x:73.05,y:35.68,width:20.51,height:3.52},
-   {label:'Call Nexus customer service',href:'tel:+18887604990',x:73.05,y:40.04,width:20.51,height:3.58},
+   {label:'Call Nexus ambulance services',href:'tel:+18887604990',x:73.05,y:40.04,width:20.51,height:3.58},
    {label:'Email Nexus',href:'mailto:contact@nexusmt.com?subject=Facility%20Transportation%20Inquiry',x:72.46,y:53.19,width:23.83,height:4.3},
    {label:'Visit Nexus Medical Transit',href:'https://nexusmt.com/',x:72.46,y:57.94,width:23.83,height:4.43},
    {label:'Nexus on YouTube',href:'https://www.youtube.com/@nexus_m_t',x:69.14,y:68.88,width:5.08,height:4.82},

@@ -1755,8 +1755,8 @@ function getVoiceConfig(){
  const voiceMenuRetryPrompt=clean(process.env.VOICE_MENU_RETRY_PROMPT||'Sorry, I did not catch that. Please take your time and say your request after the tone.');
  const voiceMenuHelpPromptInitial=clean(process.env.VOICE_MENU_HELP_PROMPT_INITIAL||'You can say dispatch, representative, or human at any time.');
  const voiceMenuHelpPromptRetry=clean(process.env.VOICE_MENU_HELP_PROMPT_RETRY||'You can say dispatch, booking help, or service hours.');
- const voiceMenuKeypadPromptInitial=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_INITIAL||'Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours.');
- const voiceMenuKeypadPromptRetry=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_RETRY||'Press 1 for dispatch. Press 2 for booking help. Press 3 for service areas and business hours.');
+ const voiceMenuKeypadPromptInitial=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_INITIAL||'Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours. Press 4 for ambulance services.');
+ const voiceMenuKeypadPromptRetry=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_RETRY||'Press 1 for dispatch. Press 2 for booking help. Press 3 for service areas and business hours. Press 4 for ambulance services.');
  const voiceMenuListenPrompt=clean(process.env.VOICE_MENU_LISTEN_PROMPT||'Take your time. I am listening.');
  const voiceMenuGatherTimeout=parseBoundedInt(process.env.VOICE_MENU_GATHER_TIMEOUT,10,4,20);
  const voiceMenuSpeechTimeout=parseBoundedInt(process.env.VOICE_MENU_SPEECH_TIMEOUT,5,2,12);
@@ -1885,6 +1885,21 @@ function voiceSelfServeFollowupTwiml(config,source='dispatch-fallback',lines=[],
  const lineBlock=lines.map((line)=>`${sayTag(line,config)}\n  <Pause length="1" />\n  `).join('');
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${lineBlock}<Gather input="dtmf" numDigits="1" timeout="${gatherTimeout}" action="${actionUrl}" method="POST">\n    ${sayTag(optionsPrompt,config)}\n  </Gather>\n  ${sayTag('Thank you for calling Nexus Medical Transit. Goodbye.',config)}\n  <Hangup />\n</Response>`;
 }
+const AMBULANCE_MENU_PROMPT='You have reached Nexus ambulance services. If this is a medical emergency, hang up and dial 9 1 1. Press 1 to request a new ambulance transport. Press 2 for interfacility transfers and hospital discharges. Press 3 for the status of an ambulance trip in progress. Press 4 for ambulance billing and insurance. Press 5 for facility partnerships and contracts. Press 0 to return to the main menu.';
+const AMBULANCE_DEPARTMENT_LINES={
+ '1':'For a new ambulance transport request, I will connect you with Nexus dispatch now.',
+ '2':'For interfacility transfers and hospital discharges, I will connect you with Nexus dispatch for coordination.',
+ '3':'For the status of an ambulance trip in progress, I will connect you with Nexus dispatch now.',
+ '4':'For ambulance billing and insurance questions, I will connect you with a Nexus representative now.',
+ '5':'For facility partnerships and contracts, I will connect you with our team now.'
+};
+function voiceAmbulanceMenuTwiml(config,retryCount=0){
+ const actionUrl=xmlEscape(voiceRouteUrl('ambulance-menu-handle',`retry=${encodeURIComponent(String(retryCount))}`));
+ const redirectUrl=xmlEscape(voiceRouteUrl('ambulance-menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`));
+ const gatherTimeout=Math.max(4,Number(config?.voiceMenuGatherTimeout||10));
+ const retryBlock=retryCount>0?`${sayTag('Sorry, I did not catch that.',config)}\n  `:'';
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${retryBlock}<Gather input="dtmf" numDigits="1" timeout="${gatherTimeout}" action="${actionUrl}" method="POST">\n    ${sayTag(AMBULANCE_MENU_PROMPT,config)}\n  </Gather>\n  <Redirect method="POST">${redirectUrl}</Redirect>\n</Response>`;
+}
 function getCallerAreaCode(value){
  const digits=String(value||'').replace(/\D/g,'');
  const normalized=digits.length===11&&digits.startsWith('1')?digits.slice(1):digits;
@@ -1962,6 +1977,11 @@ function buildVoiceAssistantInstructions(){
   '- Medicaid or broker authorization',
   '',
   'Say that a Nexus representative must confirm the request.',
+  '',
+  'AMBULANCE SERVICES',
+  '- Nexus operates a dedicated ambulance line: (888) 760-4990, for BLS and ALS ambulance transport.',
+  '- Ambulance callers usually need: a new ambulance transport request, an interfacility transfer or hospital discharge, the status of an ambulance trip in progress, ambulance billing or insurance, or a facility partnership or contract question. Route all of these to dispatch.',
+  '- Nexus ambulance transport is scheduled, planned transport. If the situation is a medical emergency, tell the caller to hang up and call 911 immediately.',
   '',
   'CALL TRANSFER',
   'Transfer to dispatch when:',
@@ -2566,6 +2586,7 @@ async function handler(event){
     facilityScheduling:'Route hospital/facility callers to dispatch/facility scheduling support',
     tripStatus:'Route active trip issues to dispatch immediately',
     billing:'Route billing questions to billing support',
+    ambulance:'Route ambulance requests, transfers, trip status, billing, and facility partnership questions to dispatch; direct emergencies to 911',
     dispatch:'Transfer to dispatch immediately',
     hr:'Route careers/employment questions to HR support',
     emergencyScreening:'Direct life-threatening emergencies to 911 immediately'
@@ -2600,6 +2621,10 @@ async function handler(event){
      return xmlResponse(200,body);
     }
       return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(`Dispatch is temporarily unavailable. Please call us at ${config.supportPhone}.`,config)}\n</Response>`);
+   }
+   if(digits==='4'||/(ambulance)/i.test(speech)){
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('ambulance-menu'))}</Redirect>\n</Response>`;
+    return xmlResponse(200,body);
    }
   if(/(trip\s*status|check\s*my\s*trip|where\s*is\s*my\s*ride|where\s*is\s*the\s*driver|eta)/i.test(intentText)){
    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can help with trip status.',config)}\n  <Pause length="1" />\n  ${sayTag('For active trip issues or if a driver cannot be located, I will connect you with dispatch now.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch'))}</Redirect>\n</Response>`;
@@ -2722,6 +2747,44 @@ async function handler(event){
    }
    const retryUrl=xmlEscape(voiceRouteUrl('self-serve',`source=${encodeURIComponent(source)}&retry=${retry+1}`));
    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Sorry, I did not catch that.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${retryUrl}</Redirect>\n</Response>`);
+  }
+  if(p[0]==='voice'&&p[1]==='ambulance-menu'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
+   return xmlResponse(200,voiceAmbulanceMenuTwiml(config,retry));
+  }
+  if(p[0]==='voice'&&p[1]==='ambulance-menu-handle'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   const params=parseWebhookBody(event);
+   const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
+   const digits=clean(params.Digits||params.digits||'');
+   const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
+   if(digits==='0'){
+    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`);
+   }
+   const departmentLine=AMBULANCE_DEPARTMENT_LINES[digits];
+   if(departmentLine){
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(departmentLine,config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch'))}</Redirect>\n</Response>`;
+    return xmlResponse(200,body);
+   }
+   if(retry>=1){
+    const targets=getDispatchDialTargets(config,callerFrom);
+    if(targets.primary){
+     return xmlResponse(200,dispatchDialTwiml({
+      message:'I will connect you with Nexus dispatch for further assistance.',
+      targetNumber:targets.primary,
+      callerId:config.callerId,
+      attempt:'primary',
+      region:targets.region
+     }));
+    }
+    if(config.afterHoursVoicemail){
+      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I was unable to understand the request. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Dial callerId="${xmlEscape(config.callerId)}">${xmlEscape(config.afterHoursVoicemail)}</Dial>\n</Response>`;
+      return xmlResponse(200,body);
+    }
+    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I was unable to understand the request. Please call back and say dispatch for a live representative.',config)}\n</Response>`);
+   }
+   return xmlResponse(200,voiceAmbulanceMenuTwiml(config,retry+1));
   }
   if(p[0]==='voice'&&p[1]==='voicemail'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();

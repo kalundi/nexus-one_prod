@@ -67,13 +67,13 @@ test('every template carries the brand block and never a retired number', () => 
     assert.match(content.html, /For emergencies, call 911/);
     assert.match(content.html, /Clarksburg, MD/);
     assert.match(content.html, /\(888\) 639-5766/);
-    assert.match(content.html, /Customer Service:<\/strong> 888-760-4990/);
+    assert.match(content.html, /Ambulance Services:<\/strong> 888-760-4990/);
     // No street address is published (Gateway Center Dr number unverified).
     assert.ok(!content.html.includes('Gateway Center'), 'street address must not appear');
-    // SMS uses the primary number and never the Customer Service number.
+    // SMS uses the primary number and never the Ambulance Services number.
     assert.match(content.sms, /^Nexus Medical Transit/);
     assert.match(content.sms, /\(888\) 639-5766/);
-    assert.ok(!content.sms.includes('760-4990'), 'SMS must not use the Customer Service number');
+    assert.ok(!content.sms.includes('760-4990'), 'SMS must not use the Ambulance Services number');
     // No invented rates, hours, discounts or guarantees.
     assert.ok(!/\$\d/.test(content.sms), 'SMS must not state amounts');
     assert.ok(!/discount|guarantee/i.test(content.html + content.sms), 'no discounts or guarantees');
