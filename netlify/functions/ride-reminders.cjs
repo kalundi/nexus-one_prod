@@ -5,6 +5,8 @@ const {sendEmail}=require('./_shared/email.cjs');
 
 const {query} = require('./_shared/db.cjs');
 const {sendSms} = require('./_shared/sms-consent.cjs');
+const PatientNotify = require('./_shared/patient-notifications.cjs');
+const {buildPatientSmsRecipients} = require('./_shared/notification-routing.cjs');
 
 const envEnabled = name => Boolean(process.env[name]);
 const siteBase = () => String(process.env.SITE_URL || process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://nexusmt.com').replace(/\/$/, '');
@@ -58,35 +60,41 @@ exports.handler = async () => {
         const invoicedBooking = ['FACILITY', 'STAFF'].includes(String(b.booking_source || '').toUpperCase());
         const includePaymentLink = !invoicedBooking && !paymentCompleted;
         const payLink = `${siteBase()}/booking-app.html?payBalance=1&bookingReference=${encodeURIComponent(b.reference)}`;
-        const paymentLinkText = includePaymentLink ? ` Complete payment before pickup: ${payLink}` : '';
         const dispatchEmail = process.env.COMPANY_EMAIL || 'dispatch@nexusmt.com';
         const dispatchPhone = process.env.DISPATCH_PHONE || null;
         const driverPhone = b.driver_phone || null;
         const driverEmail = b.driver_email || null;
 
-        const patientSms = `Nexus Medical Transit reminder: Your ride (${b.reference}) is in about 2 hours. Driver: ${driverName}. Pickup at ${pickupTime} from ${b.pickup}.${paymentLinkText} Call (888) 760-4990 with questions.`;
-        const patientEmail = `
-          <div style="font-family:sans-serif;max-width:560px;margin:auto">
-            <h2 style="color:#082f49">Your ride is in 2 hours</h2>
-            <table style="width:100%;border-collapse:collapse;margin:16px 0">
-              <tr><td style="padding:8px;font-weight:600;color:#62758a">Reference</td><td style="padding:8px">${b.reference}</td></tr>
-              <tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Driver</td><td style="padding:8px"><strong>${driverName}</strong></td></tr>
-              <tr><td style="padding:8px;font-weight:600;color:#62758a">Pickup Time</td><td style="padding:8px"><strong>${pickupTime}</strong></td></tr>
-              <tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup Address</td><td style="padding:8px">${b.pickup}</td></tr>
-              <tr><td style="padding:8px;font-weight:600;color:#62758a">Destination</td><td style="padding:8px">${b.destination}</td></tr>
-              <tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Service</td><td style="padding:8px">${b.service}</td></tr>
-            </table>
-            ${includePaymentLink ? `<p><strong>Payment:</strong> <a href="${payLink}">Complete payment before pickup</a></p>` : ''}
-            <p>Need to cancel or reschedule? Call <strong>(888) 760-4990</strong>.</p>
-            <p style="color:#62758a;font-size:13px">Nexus Medical Transit · Washington Metropolitan Area</p>
-          </div>`;
+        // Patient copy: branded reminder (approved draft §4.3) to the primary
+        // contact plus the alternate contact stored on the booking.
+        const reminderView = PatientNotify.view({...b, driverName});
+        const reminderContent = PatientNotify.reminderContent(reminderView, {paymentLink: includePaymentLink ? payLink : null});
+        const reminderAltContent = PatientNotify.reminderContent(reminderView, {paymentLink: includePaymentLink ? payLink : null}, {forAlternate: true});
+        const patientPhones = buildPatientSmsRecipients(b);
+        const patientSmsPromise = patientPhones.length
+          ? Promise.allSettled(patientPhones.map(phone => sendSms(phone, reminderContent.sms))).then(results => {
+              const sent = results.find(r => r.status === 'fulfilled' && r.value?.status === 'sent');
+              const failed = results.find(r => r.status === 'rejected');
+              return sent ? sent.value : (failed ? {status: 'failed', error: failed.reason?.message} : {status: 'skipped'});
+            })
+          : Promise.resolve({status: 'skipped'});
+        const patientEmailPromise = (async () => {
+          const sends = [];
+          if (b.email) sends.push(sendEmail(b.email, reminderContent.subject, reminderContent.html));
+          if (b.alternate_email) sends.push(sendEmail(b.alternate_email, reminderAltContent.subject, reminderAltContent.html));
+          if (!sends.length) return {status: 'skipped'};
+          const results = await Promise.allSettled(sends);
+          const sent = results.find(r => r.status === 'fulfilled' && r.value?.status === 'sent');
+          const failed = results.find(r => r.status === 'rejected');
+          return sent ? sent.value : (failed ? {status: 'failed', error: failed.reason?.message} : {status: 'skipped'});
+        })();
 
         const dispatchHtml = `<h2>⏰ 2-Hour Pickup Alert — ${b.reference}</h2><p><strong>Patient:</strong> ${b.name || '—'} (${b.phone || '—'})</p><p><strong>Driver:</strong> ${driverName}</p><p><strong>Pickup:</strong> ${b.pickup} at <strong>${pickupTime}</strong></p><p><strong>Destination:</strong> ${b.destination}</p><p><strong>Service:</strong> ${b.service}</p><p><strong>Status:</strong> ${b.status}</p>`;
         const teamsMsg = `⏰ **2-Hour Pickup Alert** | Ref: ${b.reference}\n- **Patient:** ${b.name || '—'} | ${b.phone || '—'}\n- **Driver:** ${driverName}\n- **Pickup:** ${b.pickup} at **${pickupTime}**\n- **Destination:** ${b.destination}\n- **Service:** ${b.service}\n- **Status:** ${b.status}`;
 
         const [patientSmsR, patientEmailR, dispatchEmailR, teamsR] = await Promise.allSettled([
-          sendSms(b.phone, patientSms),
-          b.email ? sendEmail(b.email, `Ride reminder: ${b.reference} — pickup in 2 hours`, patientEmail) : Promise.resolve({status: 'skipped'}),
+          patientSmsPromise,
+          patientEmailPromise,
           sendEmail(dispatchEmail, `⏰ 2-Hour Alert: ${b.reference} — ${b.name || 'Passenger'}`, dispatchHtml),
           sendTeamsAlert(teamsMsg, '⏰ 2-Hour Pickup Alert — Admin_NMT')
         ]);

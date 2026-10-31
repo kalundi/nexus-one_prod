@@ -8,7 +8,8 @@ exports.handler=async()=>{
   try{
    const firstName=String(draft.name||'').trim().split(/\s+/)[0];
    const greeting=firstName?`Hi ${firstName}, `:'';
-   const text=`${greeting}you started booking a ride with Nexus Medical Transit but did not finish. Continue securely at https://nexusmt.com/booking-app.html or call (888) 760-4990. Msg & data rates may apply. Reply HELP for help. Reply STOP to opt out.`;
+   // Branded pattern (approved 2026-10-31): standard prefix + primary number.
+   const text=`Nexus Medical Transit: ${greeting}${firstName?'you':'You'} started booking a ride with us but did not finish. Continue securely at https://nexusmt.com/booking-app.html or call (888) 639-5766. Msg & data rates may apply. Reply HELP for help. Reply STOP to opt out.`;
    const result=await sendSms(draft.phone,text);
    if(result.status==='sent'||result.status==='blocked-opt-out'){
     await query("UPDATE booking_drafts SET reminder_sent_at=now(),updated_at=now() WHERE completed_at IS NULL AND reminder_sent_at IS NULL AND regexp_replace(phone,'\\D','','g')=regexp_replace($1,'\\D','','g')",[draft.phone]);

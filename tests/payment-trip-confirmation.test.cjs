@@ -11,7 +11,15 @@ test('paid booking notification contains receipt and full trip details',()=>{
  assert.match(source,/sendPaymentTripConfirmation\(paidBooking,/);
 });
 
-test('payment receipt goes only to the phone and email saved on the booking',()=>{
- assert.match(source,/const smsRecipients=clean\(row\.phone\)\?\[clean\(row\.phone\)\]:\[\],emailRecipients=clean\(row\.email\)\?\[clean\(row\.email\)\]:\[\]/);
+test('payment receipt goes only to the contacts saved on the booking (primary + alternate, no internal copies)',()=>{
+ // Branded notifications (2026-10-31): recipients are the booking's own
+ // primary + alternate contacts; the internal default recipients must not
+ // be added to this message.
+ const fnStart=source.indexOf('async function sendPaymentTripConfirmation');
+ const fnEnd=source.indexOf('async function issueFacilityCompletionInvoice');
+ const fnSource=source.slice(fnStart,fnEnd);
+ assert.match(fnSource,/buildPatientSmsRecipients\(row\)/);
+ assert.match(fnSource,/buildPatientEmailRecipients\(row\)/);
+ assert.doesNotMatch(fnSource,/buildSmsRecipients\(|buildEmailRecipients\(/);
  assert.doesNotMatch(source,/maintenance\/resend-payment-trip\/NMT-20260905-8539/);
 });
