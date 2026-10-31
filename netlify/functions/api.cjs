@@ -29,7 +29,8 @@ const {createApplicantResponseHandler}=require('./_shared/applicant-response.cjs
 const handleApplicantResponse=createApplicantResponseHandler({query,sendEmail,audit});
 const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestStatus}=require('./_shared/broker-auto-book.cjs');
 const {canAdvanceBookingForAvailability}=require('./_shared/dispatch-approval.cjs');
-const {buildEmailRecipients,buildSmsRecipients}=require('./_shared/notification-routing.cjs');
+const {buildEmailRecipients,buildSmsRecipients,buildPatientEmailRecipients,buildPatientSmsRecipients,alternateEmailOf}=require('./_shared/notification-routing.cjs');
+const PatientNotify=require('./_shared/patient-notifications.cjs');
 const {normalizeE164}=require('./_shared/phone.cjs');
 const {resolveAssignedStatus}=require('./_shared/assignment-status.cjs');
 const {isDriverAssignableStatus, normalizeDriverAcceptanceStatus}=require('./_shared/driver-assignments.cjs');
@@ -391,7 +392,7 @@ function fuelPreferenceUnits(booking,settings,prefs){
   return profile===requested;
  });
 }
-async function autoAssign(booking){
+async function autoAssign(booking,options={}){
  let reservationClient;
  try{
   const svc=(booking.service||'').toLowerCase().replace(/-/g,'_');
@@ -414,7 +415,7 @@ async function autoAssign(booking){
   await reservationClient.query('COMMIT');
   reservationClient.release();reservationClient=null;
   await notifyAssignedDriver(updatedBooking,{driverName,driverScopeId,driverEmail,driverPhone,vehicleUnit}).catch(e=>console.error('[ASSIGNMENT_NOTIFY]',e.message));
-  await sendTripStakeholderUpdate(booking,updatedBooking,{display_name:'Nexus Dispatch'},'Driver or vehicle assignment updated').catch(e=>console.error('[TRIP_UPDATE_NOTIFY]',e.message));
+  await sendTripStakeholderUpdate(booking,updatedBooking,{display_name:'Nexus Dispatch'},'Driver or vehicle assignment updated',{patientDriverAssigned:options.patientDriverAssigned!==false}).catch(e=>console.error('[TRIP_UPDATE_NOTIFY]',e.message));
   return {assigned:true,driverName,vehicleUnit,status:nextStatus,message:`Assigned to ${driverName||'—'} / ${vehicleUnit||'—'}`};
  }catch(e){if(reservationClient)await reservationClient.query('ROLLBACK').catch(()=>{});console.error('[AUTO-ASSIGN]',e.message);return {assigned:false,message:'Auto-assign error: '+e.message};}
  finally{reservationClient?.release();}
@@ -1298,16 +1299,90 @@ function setupLink(token){
   const base=String(process.env.SITE_URL||process.env.URL||process.env.DEPLOY_PRIME_URL||'https://nexusmt.com').replace(/\/$/,'');
   return `${base}/set-password.html?token=${encodeURIComponent(token)}`;
 }
+// --- Branded patient notifications (templates approved by Anthony 2026-10-31) ---
+// Patient-side sends go to the booking's primary contact plus the alternate
+// contact stored on the booking (alternate_email / alternate_phone). Internal
+// ops recipients are handled separately by callers so the patient copy never
+// carries internal fields (editor name, driver confirmed rate, patient phone).
+function contactDigits(value){return String(value||'').replace(/\D/g,'').slice(-10);}
+function withoutPatientContacts(recipients,booking,{email=false}={}){
+ const patient=email?buildPatientEmailRecipients(booking):buildPatientSmsRecipients(booking);
+ const keys=new Set(patient.map(v=>email?String(v).toLowerCase():contactDigits(v)).filter(Boolean));
+ return [...new Set((recipients||[]).filter(Boolean))].filter(v=>{const k=email?String(v).toLowerCase():contactDigits(v);return !k||!keys.has(k);});
+}
+async function sendPatientEmailCopies(booking,content){
+ const emails=buildPatientEmailRecipients(booking);
+ if(!emails.length)return {status:'skipped'};
+ const alternate=alternateEmailOf(booking).toLowerCase();
+ const primary=emails.filter(e=>e.toLowerCase()!==alternate);
+ const sends=[];
+ if(primary.length)sends.push(sendEmail(primary,content.subject,content.html));
+ if(alternate&&emails.some(e=>e.toLowerCase()===alternate))sends.push(sendEmail([alternateEmailOf(booking)],content.subject,content.alternateHtml||content.html));
+ const results=await Promise.allSettled(sends);
+ const sent=results.find(r=>r.status==='fulfilled'&&r.value?.status==='sent');
+ if(sent)return sent.value;
+ const failed=results.find(r=>r.status==='rejected');
+ return failed?{status:'failed',error:failed.reason?.message}:{status:'skipped'};
+}
+async function sendPatientSmsCopies(booking,text){
+ const phones=buildPatientSmsRecipients(booking);
+ if(!phones.length)return {status:'skipped',count:0};
+ const results=await Promise.allSettled(phones.map(phone=>sendSms(phone,text)));
+ const sentCount=results.filter(r=>r.status==='fulfilled'&&r.value?.status==='sent').length;
+ const failed=results.find(r=>r.status==='rejected');
+ return {status:sentCount?'sent':(failed?'failed':'skipped'),count:phones.length,sent:sentCount,...(failed?{error:failed.reason?.message}:{})};
+}
+async function sendPatientNotification(booking,content){
+ const [sms,email]=await Promise.all([sendPatientSmsCopies(booking,content.sms),sendPatientEmailCopies(booking,content)]);
+ return {sms,email};
+}
+// New patient message (approved draft §4.5): thank-you + rebook after a
+// completed trip. The review ask renders only when a review link is
+// configured (NEXUS_REVIEW_LINK) — no Google Business Profile exists yet, so
+// by default the message launches without it. Conservative suppression: it
+// never goes to facility- or broker-booked passengers (their payer
+// relationship is with the facility/broker) or mock trips, and it sends at
+// most once per booking (tracked in notification_status, the same pattern
+// ride-reminders.cjs uses).
+async function notifyPatientTripCompleted(row){
+ try{
+  if(!row)return {status:'skipped'};
+  const source=clean(row.booking_source).toUpperCase(),payer=clean(row.payer_type).toUpperCase();
+  if(source==='MOCK'||clean(row.status).toUpperCase()==='MOCK')return {status:'skipped-mock'};
+  if(source==='FACILITY'||source==='BROKER'||payer==='FACILITY')return {status:'skipped-facility-or-broker'};
+  let priorStatus=row.notification_status;
+  if(typeof priorStatus==='string'){try{priorStatus=JSON.parse(priorStatus);}catch{priorStatus=null;}}
+  if(priorStatus?.patientCompleted?.sentAt)return {status:'skipped-already-sent'};
+  const mapped=mapBooking(row);
+  const v=PatientNotify.view(mapped);
+  const reviewLink=clean(process.env.NEXUS_REVIEW_LINK||'');
+  const content=PatientNotify.completedContent(v,{reviewLink});
+  const alternate=PatientNotify.completedContent(v,{reviewLink},{forAlternate:true});
+  const result=await sendPatientNotification(mapped,{...content,alternateHtml:alternate.html});
+  await query(`UPDATE bookings SET notification_status=COALESCE(notification_status,'{}')::jsonb || $2::jsonb,updated_at=now() WHERE reference=$1`,[row.reference,JSON.stringify({patientCompleted:{sentAt:new Date().toISOString(),sms:result.sms?.status||'unknown',email:result.email?.status||'unknown',reviewAsk:Boolean(reviewLink)}})]).catch(()=>{});
+  return {status:'sent',...result};
+ }catch(err){console.error('[PATIENT_COMPLETED_NOTIFY]',err.message);return {status:'failed',error:err.message};}
+}
+
 async function notifyBooking(b){
  const driverLine=b.driverName?`\nDriver: ${b.driverName}`:'';
  const pickupLine=b.pickupTime||b.time;
+ // Patient copy: branded confirmation (approved draft §4.1) to the primary
+ // contact plus the alternate contact on the booking.
+ const v=PatientNotify.view({...b,pickupTime:pickupLine});
+ const content=PatientNotify.confirmationContent(v);
+ const alternate=PatientNotify.confirmationContent(v,{forAlternate:true});
+ const patient=await sendPatientNotification(b,{...content,alternateHtml:alternate.html});
+ // Internal copy: ops recipients keep the previous operational format.
  const text=`Nexus Medical Transit: Your trip ${b.reference} is confirmed for ${b.date} at ${pickupLine}.${driverLine} Questions? Call (888) 760-4990. Msg & data rates may apply. Reply HELP for help or STOP to opt out.`;
  const html=`<h2 style="color:#082f49">Trip Confirmed — ${b.reference}</h2><table style="width:100%;border-collapse:collapse;margin:16px 0">${b.driverName?`<tr><td style="padding:8px;font-weight:600;color:#62758a">Driver</td><td style="padding:8px"><strong>${b.driverName}</strong></td></tr>`:''}<tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup Time</td><td style="padding:8px"><strong>${pickupLine}</strong></td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Date</td><td style="padding:8px">${b.date}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup</td><td style="padding:8px">${b.pickup}</td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Destination</td><td style="padding:8px">${b.destination}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Service</td><td style="padding:8px">${b.service||'—'}</td></tr></table><p>Questions? Call <strong>(888) 760-4990</strong></p>`;
  const recipients=await resolveBookingIntakeRecipients(b);
- const smsRecipients=recipients.sms;
- const emailRecipients=recipients.email;
- const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Trip confirmed — ${b.reference}`,html),sendBookingTeamsAlert({...b,pickupTime:pickupLine},'🚐 New Trip Booked — Admin_NMT','New Trip Booked')]);
- return {sms:results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message},teams:results[2].status==='fulfilled'?results[2].value:{status:'failed',error:results[2].reason?.message}};
+ const smsRecipients=withoutPatientContacts(recipients.sms,b);
+ const emailRecipients=withoutPatientContacts(recipients.email,b,{email:true});
+ const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),emailRecipients.length?sendEmail(emailRecipients,`Trip confirmed — ${b.reference}`,html):Promise.resolve({status:'skipped'}),sendBookingTeamsAlert({...b,pickupTime:pickupLine},'🚐 New Trip Booked — Admin_NMT','New Trip Booked')]);
+ const internalSms=results[0].status==='fulfilled'?results[0].value:{status:'failed',error:results[0].reason?.message};
+ const internalEmail=results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message};
+ return {sms:{status:patient.sms.status==='sent'||internalSms.status==='sent'?'sent':internalSms.status,patient:patient.sms,internal:internalSms},email:{status:patient.email.status==='sent'||internalEmail.status==='sent'?'sent':internalEmail.status,patient:patient.email,internal:internalEmail},teams:results[2].status==='fulfilled'?results[2].value:{status:'failed',error:results[2].reason?.message}};
 }
 async function sendInvoice(b){
  const fare=Number(b.estimatedFare||b.estimated_fare||0);
@@ -1334,12 +1409,23 @@ async function resolveBookingIntakeRecipients(b){
 }
 
 async function notifyBookingPending(b,{subject,statusText,detail}){
- const recipients=await resolveBookingIntakeRecipients(b);
  const pickupLine=clean(b.pickupTime||b.time);
+ // Patient copy: branded pending variant (approved draft §4.1).
+ const patientSubject=subject.startsWith('Deposit required')?`Booking received — awaiting payment — ${b.reference} | Nexus Medical Transit`:subject.startsWith('Booking pending approval')?`Booking received — pending approval — ${b.reference} | Nexus Medical Transit`:`Booking received — ${b.reference} | Nexus Medical Transit`;
+ const v=PatientNotify.view({...b,pickupTime:pickupLine});
+ const content=PatientNotify.pendingContent(v,{subject:patientSubject,statusText,detail});
+ const alternate=PatientNotify.pendingContent(v,{subject:patientSubject,statusText,detail},{forAlternate:true});
+ const patient=await sendPatientNotification(b,{...content,alternateHtml:alternate.html});
+ // Internal copy: ops recipients keep the previous operational format.
+ const recipients=await resolveBookingIntakeRecipients(b);
+ const smsRecipients=withoutPatientContacts(recipients.sms,b);
+ const emailRecipients=withoutPatientContacts(recipients.email,b,{email:true});
  const sms=`Nexus Medical Transit: Booking ${b.reference} ${statusText}. ${detail} Questions? Call (888) 760-4990.`;
  const html=`<h2>Booking ${statusText} — ${b.reference}</h2><p>${detail}</p><p><strong>Passenger:</strong> ${b.name||'—'}</p><p><strong>Date/time:</strong> ${b.date||'—'} at ${pickupLine||'—'}</p><p><strong>Route:</strong> ${b.pickup||'—'} → ${b.destination||'—'}</p><p><strong>Service:</strong> ${b.service||'—'}</p>`;
- const results=await Promise.allSettled([Promise.all(recipients.sms.map(phone=>sendSms(phone,sms))),sendEmail(recipients.email,subject,html)]);
- return {sms:results[0].status==='fulfilled'?{status:'sent'}:{status:'failed',error:results[0].reason?.message},email:results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message}};
+ const results=await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,sms))),emailRecipients.length?sendEmail(emailRecipients,subject,html):Promise.resolve({status:'skipped'})]);
+ const internalSms=results[0].status==='fulfilled'?{status:'sent'}:{status:'failed',error:results[0].reason?.message};
+ const internalEmail=results[1].status==='fulfilled'?results[1].value:{status:'failed',error:results[1].reason?.message};
+ return {sms:{status:patient.sms.status==='sent'||internalSms.status==='sent'?'sent':internalSms.status,patient:patient.sms,internal:internalSms},email:{status:patient.email.status==='sent'||internalEmail.status==='sent'?'sent':internalEmail.status,patient:patient.email,internal:internalEmail}};
 }
 
 function paymentTripConfirmationContent(row,{paymentMode='full',amountPaid=0,balanceDue=0}={}){
@@ -1350,7 +1436,7 @@ function paymentTripConfirmationContent(row,{paymentMode='full',amountPaid=0,bal
  const paid=Number(amountPaid||0),remaining=Math.max(0,Number(balanceDue||0));
  const paymentLine=isDeposit?`Deposit paid: $${paid.toFixed(2)}. Remaining balance: $${remaining.toFixed(2)}.`:`Payment complete: $${paid.toFixed(2)} paid in full.`;
  const returnLine=clean(b.tripType).toUpperCase()==='ROUND_TRIP'?` Return trip: ${b.returnTripDate||b.date||'TBD'} at ${b.returnTripTime||'TBD'}.`:'';
- const sms=`Nexus Medical Transit: ${paymentLine} Trip ${b.reference}: ${b.date||'TBD'} at ${pickupTime}. Pickup: ${b.pickup||'TBD'}. Destination: ${b.destination||'TBD'}. Service: ${b.service||'TBD'}.${appointmentTime?` Appointment time: ${appointmentTime}.`:''}${returnLine} Questions? Call (888) 760-4990. Reply STOP to opt out.`;
+ const sms=`Nexus Medical Transit: ${paymentLine} Trip ${b.reference}: ${b.date||'TBD'} at ${pickupTime}. Pickup: ${b.pickup||'TBD'}. Destination: ${b.destination||'TBD'}. Service: ${b.service||'TBD'}.${appointmentTime?` Appointment time: ${appointmentTime}.`:''}${returnLine} Questions? Call (888) 639-5766. Reply STOP to opt out.`;
  const esc=value=>clean(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
  const rows=[
   ['Booking reference',b.reference],['Passenger',b.name],['Payment status',isDeposit?'Deposit received':'Paid in full'],
@@ -1359,16 +1445,22 @@ function paymentTripConfirmationContent(row,{paymentMode='full',amountPaid=0,bal
   ['Pickup',b.pickup],['Destination',b.destination],['Service',b.service],['Trip type',clean(b.tripType).replaceAll('_',' ')||'ONE WAY'],
   ...(clean(b.tripType).toUpperCase()==='ROUND_TRIP'?[['Return date',b.returnTripDate||b.date],['Return time',b.returnTripTime||'TBD']]:[])
  ];
- const html=`<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#153247;line-height:1.5"><h2 style="color:#082f49">${isDeposit?'Deposit received':'Payment complete'} — ${esc(b.reference)}</h2><p>Your payment has been confirmed and your ride is reserved.</p><table style="width:100%;border-collapse:collapse;margin:16px 0">${rows.map(([label,value],index)=>`<tr${index%2===0?' style="background:#f3f8fb"':''}><td style="padding:8px;font-weight:600;color:#62758a;vertical-align:top">${esc(label)}</td><td style="padding:8px">${esc(value||'—')}</td></tr>`).join('')}</table><p>Please keep this message as your payment receipt and trip confirmation.</p><p>Questions? Call <strong>(888) 760-4990</strong>.</p></div>`;
- return {sms,html,subject:`${isDeposit?'Deposit and trip confirmed':'Payment receipt and trip confirmation'} — ${b.reference}`};
+ const v=PatientNotify.view(b);
+ const tableHtml=`<table style="width:100%;border-collapse:collapse;margin:16px 0">${rows.map(([label,value],index)=>`<tr${index%2===0?' style="background:#f3f8fb"':''}><td style="padding:8px;font-weight:600;color:#62758a;vertical-align:top">${esc(label)}</td><td style="padding:8px">${esc(value||'—')}</td></tr>`).join('')}</table>`;
+ const inner=`<p>Hi ${esc(v.firstName||'there')},</p>${options.forAlternate?`<p>You're listed as an alternate contact for ${esc(b.name||'a patient')}'s ride with Nexus Medical Transit, so we're keeping you in the loop.</p>`:''}<h2 style="color:#082f49">${isDeposit?'Deposit received':'Payment complete'} — ${esc(b.reference)}</h2><p>Your payment has been confirmed and your ride is reserved.</p>${tableHtml}<p>Please keep this message as your payment receipt and trip confirmation.</p><p>Need to change or cancel? Call <strong>(888) 639-5766</strong>.</p>`;
+ const html=PatientNotify.emailShell(v,inner);
+ return {sms,html,subject:`${isDeposit?'Deposit received — trip confirmed':'Payment receipt and trip confirmation'} — ${b.reference} | Nexus Medical Transit`};
 }
 
 async function sendPaymentTripConfirmation(row,options={}){
  const content=paymentTripConfirmationContent(row,options);
- const smsRecipients=clean(row.phone)?[clean(row.phone)]:[],emailRecipients=clean(row.email)?[clean(row.email)]:[];
+ const alternateContent=paymentTripConfirmationContent(row,{...options,forAlternate:true});
+ // Patient-side recipients saved on the booking (primary + alternate) only —
+ // this message intentionally has no internal copies.
+ const smsRecipients=buildPatientSmsRecipients(row),emailRecipients=buildPatientEmailRecipients(row);
  const results=await Promise.allSettled([
   smsRecipients.length?Promise.all(smsRecipients.map(phone=>sendSms(phone,content.sms))):Promise.resolve([]),
-  emailRecipients.length?sendEmail(emailRecipients,content.subject,content.html):Promise.resolve({status:'skipped'})
+  emailRecipients.length?sendPatientEmailCopies(row,{...content,alternateHtml:alternateContent.html}):Promise.resolve({status:'skipped'})
  ]);
  const smsValue=results[0].status==='fulfilled'?results[0].value:null;
  const smsStatuses=Array.isArray(smsValue)?smsValue.map(value=>clean(value?.status)||'accepted'):[];
@@ -1410,7 +1502,7 @@ async function sendBalanceDueReminder(b,balanceDue){
  await Promise.allSettled([Promise.all(smsRecipients.map(phone=>sendSms(phone,text))).then(()=>({status:'sent'})),sendEmail(emailRecipients,`Balance due — ${b.reference}`,html)]);
 }
 
-async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
+async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote='',options={}){
  try{
   const before=mapBooking(beforeRow||{});
   const after=mapBooking(afterRow||{});
@@ -1465,9 +1557,11 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
   adminEmails.push('admin@nexusmt.com');
 
   const caretakers=await require('./_shared/caretaker-access.cjs').alertRecipients(reference).catch(error=>{console.error('[CARETAKER_ALERTS]',error.message);return []});
-  const smsTargets=new Set([...buildSmsRecipients(after.phone),...(driverPhone?[driverPhone]:[]),...caretakers.map(row=>row.phone).filter(Boolean)]);
+  // Internal recipients keep the detailed copy below; the patient's own
+  // contacts are excluded here and receive the branded patient copy instead.
+  const smsTargets=new Set([...withoutPatientContacts(buildSmsRecipients(after.phone),after),...(driverPhone?[driverPhone]:[]),...caretakers.map(row=>row.phone).filter(Boolean)]);
   const emailTargets=new Set([
-   ...buildEmailRecipients(after.email),
+   ...withoutPatientContacts(buildEmailRecipients(after.email),after,{email:true}),
    ...(driverEmail?[driverEmail]:[]),
    ...facilityEmails,
    ...caretakers.map(row=>row.email).filter(Boolean),
@@ -1497,16 +1591,41 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote=''){
   }catch(err){
    emailResult={status:'failed',error:err?.message||'Email send failed'};
   }
-  const emailSentCount=emailResult?.status==='sent'?emailList.length:0;
-  const anySent=smsSentCount>0||emailSentCount>0;
+  // Patient copy: branded and plain-language, with internal fields (editor
+  // name, driver confirmed rate, the patient's own phone) left out. Callers
+  // that send their own dedicated patient message (the cancel and reschedule
+  // routes) pass {patientCopy:false} so the patient is not notified twice.
+  let patientResult={status:'skipped'};
+  if(options.patientCopy!==false){
+   const decision=PatientNotify.patientChangeSummary(before,after);
+   if(decision.kind==='completed'){
+    patientResult=await notifyPatientTripCompleted(afterRow);
+   }else{
+    let part=decision.parts[0];
+    if(part?.kind==='driver-assigned'&&options.patientDriverAssigned===false)part=decision.parts.find(p=>p.kind!=='driver-assigned');
+    if(part){
+     const v=PatientNotify.view(after);
+     const builder=part.kind==='driver-assigned'?PatientNotify.driverAssignedContent:part.kind==='enroute'?PatientNotify.enRouteContent:null;
+     const content=builder?builder(v):PatientNotify.statusUpdateContent(v,{summary:part.summary});
+     const alternate=builder?builder(v,{forAlternate:true}):PatientNotify.statusUpdateContent(v,{summary:part.summary},{forAlternate:true});
+     patientResult=await sendPatientNotification(after,{...content,alternateHtml:alternate.html});
+    }
+   }
+  }
+  const patientSmsSent=Number(patientResult.sms?.sent||0);
+  const patientEmailSent=patientResult.email?.status==='sent'?buildPatientEmailRecipients(after).length:0;
+  const totalSmsSent=smsSentCount+patientSmsSent;
+  const totalEmailSent=emailSentCount+patientEmailSent;
+  const anySent=totalSmsSent>0||totalEmailSent>0;
   const effectiveStatus=anySent?'sent':'skipped';
 
   return {
    status:effectiveStatus,
    sms:smsResult,
    email:emailResult,
-   recipients:anySent?{sms:smsSentCount,email:emailSentCount}:undefined,
-   targets:{sms:smsList.length,email:emailList.length}
+   patient:patientResult,
+   recipients:anySent?{sms:totalSmsSent,email:totalEmailSent}:undefined,
+   targets:{sms:smsList.length+buildPatientSmsRecipients(after).length,email:emailList.length+buildPatientEmailRecipients(after).length}
   };
  }catch(error){
   console.error('[TRIP_UPDATE_NOTIFY]',error.message);
@@ -3028,7 +3147,9 @@ async function handler(event){
   const booking={...mappedBooking,appointmentTime,appointmentTimes,pickupTime:pickupTimeEstimate||mappedBooking.time,requestedByRole,requestedByUser:clean(b.requestedByUser||bookingActor?.email||'')};
   const calendarSync=await syncCalendarLifecycle(booking);
    // Complete assignment and its notifications before the function returns.
-   if(!paymentPolicy.requiresDeposit&&!paymentPolicy.requiresApproval)await autoAssign(r.rows[0]);
+   // The booking confirmation that follows immediately includes the driver,
+   // so the patient does not also need the separate driver-assigned message.
+   if(!paymentPolicy.requiresDeposit&&!paymentPolicy.requiresApproval)await autoAssign(r.rows[0],{patientDriverAssigned:false});
    let notifications;
    const isFacilityInvoice=paymentPolicy.facilityBilling===true;
    const isDriverReferral=bookingSource==='DRIVER_REFERRAL';
@@ -3138,16 +3259,16 @@ async function handler(event){
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,'CANCELLED','cancelled',clean(b.reason)||'Cancelled by passenger','PASSENGER']);
     await audit('BOOKING',ref,'CANCELLED',{reason:clean(b.reason)||'Passenger request',cancellationFeeAmount,cancellationFeeApplied,policyKey});
    const booking=mapBooking(updated.rows[0]);
-     const driverAlert=sendTripStakeholderUpdate(r.rows[0],updated.rows[0],{display_name:'Passenger'},clean(b.reason)||'Cancelled by passenger').catch(e=>console.error('[CANCEL_NOTIFY]',e.message));
-   // Notify passenger and company of cancellation
-   const cancelSmsRecipients=buildSmsRecipients(booking.phone);
-   const cancelEmailRecipients=buildEmailRecipients(booking.email||process.env.COMPANY_EMAIL);
-   await Promise.allSettled([
-     Promise.all(cancelSmsRecipients.map((phone)=>sendSms(phone,`Nexus Medical Transit: Your trip ${ref} has been cancelled. Reference saved for your records. Call (888) 760-4990 to rebook.`))).then(()=>({status:'sent'})),
-     booking.email?sendEmail(cancelEmailRecipients,`Trip ${ref} cancelled`,`<h2>Your trip has been cancelled</h2><p>Reference <strong>${ref}</strong> has been cancelled as requested.</p><p>Call <strong>(888) 760-4990</strong> or visit nexusmt.com to book a new trip.</p>`):Promise.resolve(),
-       process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Trip cancellation: ${ref}`,`<h2>Trip Cancelled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>Original Date/Time:</strong> ${booking.date} at ${booking.time}</p><p><strong>Reason:</strong> ${clean(b.reason)||'Passenger request'}</p>`):Promise.resolve(),
-       driverAlert
-   ]);
+     const driverAlert=sendTripStakeholderUpdate(r.rows[0],updated.rows[0],{display_name:'Passenger'},clean(b.reason)||'Cancelled by passenger',{patientCopy:false}).catch(e=>console.error('[CANCEL_NOTIFY]',e.message));
+   // Patient copy: branded cancellation (approved draft §4.6) to the primary
+   // contact plus the alternate contact on the booking.
+   const cancelView=PatientNotify.view(booking);
+   const cancelContent=PatientNotify.cancellationContent(cancelView);
+   const cancelAlternate=PatientNotify.cancellationContent(cancelView,{forAlternate:true});
+   const patientCancel=sendPatientNotification(booking,{...cancelContent,alternateHtml:cancelAlternate.html});
+   // Internal copy: company inbox / default team recipients keep the details.
+   const internalCancel=sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL||null),`Trip cancellation: ${ref}`,`<h2>Trip Cancelled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>Original Date/Time:</strong> ${booking.date} at ${booking.time}</p><p><strong>Reason:</strong> ${clean(b.reason)||'Passenger request'}</p>`);
+   await Promise.allSettled([patientCancel,internalCancel,driverAlert]);
   const calendarSync=await syncCalendarLifecycle(updated.rows[0]);
   return json(200,{booking,calendarSync,cancellationFee:{applied:cancellationFeeApplied,amount:cancellationFeeAmount,policyKey,windowHours,leadHours},message:'Booking cancelled successfully'});
   }
@@ -3164,16 +3285,16 @@ async function handler(event){
    await query('INSERT INTO trip_status_history(booking_reference,status,status_label,note,actor) VALUES($1,$2,$3,$4,$5)',[ref,r.rows[0].status,statusLabel(r.rows[0].status),`Rescheduled to ${b.date} at ${b.time}`,'PASSENGER']);
    await audit('BOOKING',ref,'RESCHEDULED',{newDate:b.date,newTime:b.time});
    const booking=mapBooking(updated.rows[0]);
-   const driverAlert=sendTripStakeholderUpdate(r.rows[0],updated.rows[0],{display_name:'Passenger'},`Rescheduled to ${b.date} at ${b.time}`).catch(e=>console.error('[RESCHEDULE_NOTIFY]',e.message));
-   // Notify passenger of reschedule
-   const rescheduleSmsRecipients=buildSmsRecipients(booking.phone);
-   const rescheduleEmailRecipients=buildEmailRecipients(booking.email||process.env.COMPANY_EMAIL);
-   await Promise.allSettled([
-     Promise.all(rescheduleSmsRecipients.map((phone)=>sendSms(phone,`Nexus Medical Transit: Your trip ${ref} has been rescheduled to ${b.date} at ${b.time}. Questions? Call (888) 760-4990.`))).then(()=>({status:'sent'})),
-     booking.email?sendEmail(rescheduleEmailRecipients,`Trip ${ref} rescheduled`,`<h2>Your trip has been rescheduled</h2><p>Reference <strong>${ref}</strong> is now scheduled for <strong>${b.date} at ${b.time}</strong>.</p><p>Questions? Call <strong>(888) 760-4990</strong>.</p>`):Promise.resolve(),
-     process.env.COMPANY_EMAIL?sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL),`Trip rescheduled: ${ref}`,`<h2>Trip Rescheduled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>New Date/Time:</strong> ${b.date} at ${b.time}</p><p><strong>Service:</strong> ${booking.service}</p>`):Promise.resolve(),
-     driverAlert
-   ]);
+   const driverAlert=sendTripStakeholderUpdate(r.rows[0],updated.rows[0],{display_name:'Passenger'},`Rescheduled to ${b.date} at ${b.time}`,{patientCopy:false}).catch(e=>console.error('[RESCHEDULE_NOTIFY]',e.message));
+   // Patient copy: branded update (approved draft §4.4 pattern via §4.6 note)
+   // to the primary contact plus the alternate contact on the booking.
+   const rescheduleView=PatientNotify.view(booking);
+   const rescheduleContent=PatientNotify.rescheduleContent(rescheduleView);
+   const rescheduleAlternate=PatientNotify.rescheduleContent(rescheduleView,{forAlternate:true});
+   const patientReschedule=sendPatientNotification(booking,{...rescheduleContent,alternateHtml:rescheduleAlternate.html});
+   // Internal copy: company inbox / default team recipients keep the details.
+   const internalReschedule=sendEmail(buildEmailRecipients(process.env.COMPANY_EMAIL||null),`Trip rescheduled: ${ref}`,`<h2>Trip Rescheduled</h2><p><strong>Reference:</strong> ${ref}</p><p><strong>Passenger:</strong> ${booking.name} (${booking.phone})</p><p><strong>Route:</strong> ${booking.pickup} → ${booking.destination}</p><p><strong>New Date/Time:</strong> ${b.date} at ${b.time}</p><p><strong>Service:</strong> ${booking.service}</p>`);
+   await Promise.allSettled([patientReschedule,internalReschedule,driverAlert]);
   return json(200,{booking,calendarSync,message:'Booking rescheduled successfully'});
   }
   if(p[0]==='payments'&&method==='POST'){
@@ -5277,3 +5398,4 @@ exports.buildBookingTeamsMessage=buildBookingTeamsMessage;
 exports.sendBookingTeamsAlert=sendBookingTeamsAlert;
 exports.notifyAssignedDriver=notifyAssignedDriver;
 exports.notifyBooking=notifyBooking;
+exports.notifyPatientTripCompleted=notifyPatientTripCompleted;

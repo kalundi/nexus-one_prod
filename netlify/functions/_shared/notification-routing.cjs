@@ -25,9 +25,48 @@ function buildSmsRecipients(primaryPhone) {
   return recipients;
 }
 
+// Patient-side recipients for branded patient notifications: the booking's
+// primary contact plus the alternate contact stored on the booking, WITHOUT
+// the internal default recipients above. Bookings capture alternate_email /
+// alternate_phone (booking-contacts.cjs) but, before this change, no
+// notification read them. Accepts a raw DB row (snake_case) or a mapped
+// booking (camelCase).
+function uniqueContacts(values) {
+  const recipients = [];
+  for (const value of values) {
+    const contact = String(value || '').trim();
+    if (contact && !recipients.some(existing => existing.toLowerCase() === contact.toLowerCase())) recipients.push(contact);
+  }
+  return recipients;
+}
+
+function buildPatientEmailRecipients(booking) {
+  const b = booking || {};
+  return uniqueContacts([b.email, b.alternateEmail ?? b.alternate_email]);
+}
+
+function buildPatientSmsRecipients(booking) {
+  const b = booking || {};
+  return uniqueContacts([b.phone, b.alternatePhone ?? b.alternate_phone]);
+}
+
+function alternateEmailOf(booking) {
+  const b = booking || {};
+  return String(b.alternateEmail ?? b.alternate_email ?? '').trim();
+}
+
+function alternatePhoneOf(booking) {
+  const b = booking || {};
+  return String(b.alternatePhone ?? b.alternate_phone ?? '').trim();
+}
+
 module.exports = {
   DEFAULT_EMAIL_RECIPIENTS,
   DEFAULT_SMS_RECIPIENTS,
   buildEmailRecipients,
-  buildSmsRecipients
+  buildSmsRecipients,
+  buildPatientEmailRecipients,
+  buildPatientSmsRecipients,
+  alternateEmailOf,
+  alternatePhoneOf
 };
