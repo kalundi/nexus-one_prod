@@ -46,8 +46,9 @@ test('no keypress in the self-serve menu defaults to voicemail', () => {
   assert.ok(helpers.includes('${voicemailUrl}</Redirect>'), 'the post-gather redirect uses the voicemail URL');
 });
 
-test('booking link is the canonical booking page everywhere', () => {
-  assert.ok(helpers.includes("const SELF_SERVE_BOOKING_URL='https://nexusmt.com/booking-app.html'"), 'booking URL is the canonical booking-app page');
+test('booking link is the public booking front door everywhere', () => {
+  assert.ok(helpers.includes("const SELF_SERVE_BOOKING_URL='https://mynexusride.com'"), 'booking URL is mynexusride.com, the public booking front door');
+  assert.ok(!helpers.includes('nexusmt.com/booking-app.html'), 'the old nexusmt.com booking-app URL is gone from the self-serve copy');
 });
 
 test('text-link branch validates the caller number and sends the branded SMS', () => {
@@ -59,6 +60,7 @@ test('text-link branch validates the caller number and sends the branded SMS', (
   assert.ok(handle.includes('sendSms(target,SELF_SERVE_BOOKING_SMS)'), 'handler sends via the shared sendSms path');
   assert.ok(handle.includes('I have sent the booking link to this phone by text message.'), 'handler confirms the text by voice');
   assert.ok(handle.includes('I could not text a link to this number.'), 'handler degrades gracefully when texting is impossible');
+  assert.ok(handle.includes('You can still book anytime at m-y-n-e-x-u-s-r-i-d-e dot com'), 'the could-not-text fallback spells out mynexusride.com');
 });
 
 test('self-serve SMS is branded, short, and carries STOP wording', () => {
@@ -69,7 +71,8 @@ test('self-serve SMS is branded, short, and carries STOP wording', () => {
 });
 
 test('spoken info covers booking steps, confirmation, email, and 911', () => {
-  assert.ok(helpers.includes('n-e-x-u-s-m-t dot com'), 'info spells out the domain');
+  assert.ok(helpers.includes('m-y-n-e-x-u-s-r-i-d-e dot com'), 'info spells out the booking domain');
+  assert.ok(!helpers.includes('n-e-x-u-s-m-t dot com'), 'info no longer spells out the old domain for booking');
   assert.ok(helpers.includes('the pickup address, where you are going, the date and time'), 'info lists what the caller needs ready');
   assert.ok(helpers.includes('ambulatory, wheelchair, stretcher, or bariatric'), 'info lists the service types');
   assert.ok(helpers.includes('you will get a confirmation by text and email'), 'info promises the text/email confirmation');
@@ -93,6 +96,12 @@ test('voicemail branch goes to the existing voicemail flow unchanged', () => {
   const handle = api.slice(handleStart, handleStart + 3200);
   assert.ok(handle.includes("digits==='3'"), 'handler has a voicemail branch');
   assert.ok(handle.includes("voiceRouteUrl('voicemail'"), 'voicemail branch redirects to the existing voicemail route with its source');
+});
+
+test('main-menu book-online message points at mynexusride.com', () => {
+  assert.ok(api.includes('you can book online at m-y-n-e-x-u-s-r-i-d-e dot com.'), 'menu option 2 spells out mynexusride.com for booking');
+  assert.ok(!api.includes('slash booking'), 'the old nexusmt.com slash-booking wording is gone');
+  assert.ok(api.includes('this is not a confirmed reservation until a Nexus representative confirms availability, pickup details, and pricing.'), 'menu option 2 keeps its not-confirmed disclaimer');
 });
 
 test('an unrecognized keypress re-offers the menu once, then defaults to voicemail', () => {

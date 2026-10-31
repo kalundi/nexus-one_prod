@@ -1856,11 +1856,11 @@ function voiceVoicemailTwiml(config,source=''){
  const transcribeCallback=xmlEscape(voiceRouteUrl('voicemail-transcription',sourceParam));
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Please leave your name, your callback number, and a brief message after the tone. Please don\'t share medical details in your message. We will return your call as soon as possible.',config)}\n  <Record action="${recordAction}" method="POST" transcribe="true" transcribeCallback="${transcribeCallback}" recordingStatusCallback="${transcribeCallback}" recordingStatusCallbackMethod="POST" maxLength="120" playBeep="true" />\n</Response>`;
 }
-const SELF_SERVE_BOOKING_URL='https://nexusmt.com/booking-app.html';
+const SELF_SERVE_BOOKING_URL='https://mynexusride.com';
 const SELF_SERVE_BOOKING_SMS=`Nexus Medical Transit: Sorry we missed your call. You can book your trip anytime at ${SELF_SERVE_BOOKING_URL} and you'll get a confirmation by text and email. Questions? Call (888) 639-5766. Msg & data rates may apply. Reply HELP for help. Reply STOP to opt out.`;
 const SELF_SERVE_MENU_PROMPT='Before you go, here are two quicker options. Press 1, and I will text the booking link to this phone, so you can book your trip online anytime. Press 2 to hear how booking works. Or press 3 to leave a voicemail, and we will return your call.';
 const SELF_SERVE_INFO_LINES=[
- 'You can book a trip anytime on our website. The address is n-e-x-u-s-m-t dot com. Tap Book a Ride to start.',
+ 'You can book a trip anytime on our website. The address is m-y-n-e-x-u-s-r-i-d-e dot com. Tap Book a Ride to start.',
  'Have these ready: the pickup address, where you are going, the date and time, and the kind of ride you need — ambulatory, wheelchair, stretcher, or bariatric.',
  'When you finish, you will get a confirmation by text and email. Please note that a trip is not confirmed until a Nexus representative confirms availability, pickup details, and pricing.',
  'For non-urgent questions, you can also email us at contact at nexusmt dot com.',
@@ -2614,7 +2614,7 @@ async function handler(event){
    return xmlResponse(200,body);
   }
   if(digits==='2'||/(book|booking|ride|transport|request|schedule|dialysis|wheelchair|stretcher|bariatric|ambulatory)/i.test(intentText)){
-      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can submit a general callback request, or you can book online at nexusmt dot com slash booking.',config)}\n  <Pause length="1" />\n  ${sayTag('Please note that this is not a confirmed reservation until a Nexus representative confirms availability, pickup details, and pricing.',config)}\n  <Pause length="1" />\n  ${sayTag('If you would like to speak to dispatch now, say dispatch or press 1.',config)}\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
+      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can submit a general callback request, or you can book online at m-y-n-e-x-u-s-r-i-d-e dot com.',config)}\n  <Pause length="1" />\n  ${sayTag('Please note that this is not a confirmed reservation until a Nexus representative confirms availability, pickup details, and pricing.',config)}\n  <Pause length="1" />\n  ${sayTag('If you would like to speak to dispatch now, say dispatch or press 1.',config)}\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
    if(digits==='3'||/(hours|service|area|location|coverage)/i.test(intentText)){
@@ -2711,7 +2711,7 @@ async function handler(event){
     }
     const lines=[sent
      ?'I have sent the booking link to this phone by text message. Tap the link anytime to book your trip online.'
-     :'I could not text a link to this number. You can still book anytime at n-e-x-u-s-m-t dot com, or press 3 to leave a voicemail.'];
+     :'I could not text a link to this number. You can still book anytime at m-y-n-e-x-u-s-r-i-d-e dot com, or press 3 to leave a voicemail.'];
     return xmlResponse(200,voiceSelfServeFollowupTwiml(config,source,lines,'Press 2 to hear how booking works, or press 3 to leave a voicemail. Or simply hang up.'));
    }
    if(digits==='2'){
