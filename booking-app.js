@@ -118,6 +118,64 @@
   const multipleStopsToggle = $('multipleStopsToggle');
   const stopCountSelect = $('stopCountSelect');
   const destinationRowsContainer = $('destinationRows');
+  const extraServiceDatesBlock = $('extraServiceDates');
+  const extraTripDateRows = $('extraTripDateRows');
+  const addServiceDateBtn = $('addServiceDateBtn');
+
+  // Multiple service dates: the primary #tripDate stays authoritative for fare,
+  // timing and validation. Extra dates only multiply the final submission —
+  // one booking per date through the normal create path. Payment is never
+  // charged at submit time (checkout is a separate post-booking action), so
+  // creating several bookings here cannot repeat a card charge.
+  function buildExtraDateRow(value = ''){
+    const row = document.createElement('div');
+    row.className = 'extraDateRow';
+    row.innerHTML = `
+      <div class="field">
+        <label>Additional service date<input type="date" class="extraTripDate"></label>
+      </div>
+      <button type="button" class="extraDateRemoveBtn" aria-label="Remove this service date">Remove</button>
+    `;
+    const input = row.querySelector('.extraTripDate');
+    if(input) input.value = value;
+    row.querySelector('.extraDateRemoveBtn')?.addEventListener('click', () => { row.remove(); });
+    return row;
+  }
+
+  function shiftDateByDays(dateStr, offsetDays){
+    const base = Date.parse(`${dateStr}T00:00:00Z`);
+    if(!Number.isFinite(base) || !offsetDays) return dateStr;
+    return new Date(base + offsetDays * 86400000).toISOString().slice(0, 10);
+  }
+
+  function dayOffsetBetween(fromDate, toDate){
+    const from = Date.parse(`${fromDate}T00:00:00Z`);
+    const to = Date.parse(`${toDate}T00:00:00Z`);
+    if(!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+    return Math.round((to - from) / 86400000);
+  }
+
+  function getServiceDates(){
+    const primary = String($('tripDate')?.value || '').trim();
+    // Editing an existing booking updates that booking only — extra dates never apply.
+    if(String(editingBookingReference || '').trim()) return primary ? [primary] : [];
+    // Recurring rides already generate multiple dates server-side from the pattern.
+    if(String($('tripType')?.value || '').toUpperCase() === 'RECURRING') return primary ? [primary] : [];
+    const values = [primary, ...Array.from(document.querySelectorAll('.extraTripDate')).map((input) => String(input.value || '').trim())].filter(Boolean);
+    return [...new Set(values)].sort();
+  }
+
+  function clearExtraServiceDates(){
+    if(extraTripDateRows) extraTripDateRows.innerHTML = '';
+    if(extraServiceDatesBlock) extraServiceDatesBlock.hidden = Boolean(String(editingBookingReference || '').trim());
+  }
+
+  addServiceDateBtn?.addEventListener('click', () => {
+    if(!extraTripDateRows) return;
+    extraTripDateRows.appendChild(buildExtraDateRow());
+    const inputs = extraTripDateRows.querySelectorAll('.extraTripDate');
+    inputs[inputs.length - 1]?.focus();
+  });
   const pickupSuggestionsPanel = $('pickupSuggestionsPanel');
   const destinationSuggestionsPanel = $('destinationSuggestionsPanel');
   const completedSectionsToggleWrap = $('completedSectionsToggleWrap');
@@ -3506,6 +3564,7 @@
         if(!targetId||!target)return;
         if(bookingSubmitted&&targetId!=='paymentSection'){
           editingBookingReference=currentBookingReference;
+          clearExtraServiceDates();
           bookingSubmitted=false;
           setStatus(`Editing booking ${editingBookingReference}. Submit your changes to update this same booking.`, 'ok');
         }
@@ -4230,27 +4289,70 @@
       if(accessToken) headers.authorization = `Bearer ${accessToken}`;
       const updateReference=String(editingBookingReference||'').trim();
       const bookingEndpoint=updateReference?`/api/bookings/${encodeURIComponent(updateReference)}/update`:'/api/bookings';
-      const r = await fetch(bookingEndpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload)
-      });
-      let data = await r.json().catch(() => ({}));
-      const localStaticPreview=['localhost','127.0.0.1'].includes(window.location.hostname)&&r.status===404;
-      if(localStaticPreview){
-        data={booking:{reference:`LOCAL-${Date.now().toString().slice(-6)}`,estimatedFare:payload.estimatedFare,status:'PENDING_PAYMENT'},clientMessage:'Local preview booking created.',persisted:false,requiresOnlinePayment:true,depositRequired:true};
-      }else if(!r.ok){
-        throw new Error(data.error || 'Booking request failed');
+      // Multiple service dates: create one booking per selected date through this
+      // same endpoint, sequentially. Only the date fields change per booking —
+      // appointmentDate, the timing-derived date, and (for round trips) the return
+      // date shifted by the same day offset. Payment is a separate post-booking
+      // action, so this loop never repeats a card charge. Editing always submits
+      // exactly one update for the primary date.
+      const primaryServiceDate = String(payload.appointmentDate || '').trim();
+      const serviceDates = updateReference ? [primaryServiceDate] : getServiceDates();
+      const submissionDates = serviceDates.length ? serviceDates : [primaryServiceDate];
+      const submissionResults = [];
+      for(const serviceDate of submissionDates){
+        const datePayload = { ...payload };
+        if(serviceDate && serviceDate !== primaryServiceDate){
+          const offsetDays = dayOffsetBetween(primaryServiceDate, serviceDate);
+          datePayload.appointmentDate = serviceDate;
+          datePayload.date = shiftDateByDays(String(payload.date || primaryServiceDate), offsetDays);
+          if(datePayload.returnTripDate) datePayload.returnTripDate = shiftDateByDays(datePayload.returnTripDate, offsetDays);
+        }
+        try{
+          const dateResponse = await fetch(bookingEndpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(datePayload)
+          });
+          let dateData = await dateResponse.json().catch(() => ({}));
+          const localStaticPreview=['localhost','127.0.0.1'].includes(window.location.hostname)&&dateResponse.status===404;
+          if(localStaticPreview){
+            dateData={booking:{reference:`LOCAL-${Date.now().toString().slice(-6)}`,estimatedFare:datePayload.estimatedFare,status:'PENDING_PAYMENT'},clientMessage:'Local preview booking created.',persisted:false,requiresOnlinePayment:true,depositRequired:true};
+          }else if(!dateResponse.ok){
+            throw new Error(dateData.error || 'Booking request failed');
+          }
+          submissionResults.push({date:serviceDate, ok:true, status:dateResponse.status, data:dateData, ref:dateData.booking?.reference || dateData.booking?.id || 'N/A'});
+        }catch(dateErr){
+          submissionResults.push({date:serviceDate, ok:false, error:dateErr.message || 'Booking request failed'});
+        }
       }
-
-      const ref = data.booking?.reference || data.booking?.id || 'N/A';
+      const successfulSubmissions = submissionResults.filter((entry) => entry.ok);
+      const failedSubmissions = submissionResults.filter((entry) => !entry.ok);
+      if(!successfulSubmissions.length){
+        throw new Error(failedSubmissions[0]?.error || 'Booking request failed');
+      }
+      // Downstream confirmation/payment handling works from the first successful
+      // booking, exactly as the single-booking flow did.
+      const r = { status: successfulSubmissions[0].status };
+      const data = successfulSubmissions[0].data;
+      const ref = successfulSubmissions[0].ref;
       const confirmationMessage = String(data.clientMessage || data.message || '').trim();
       const pendingNotice = data.persisted===false
         ? ' Your request is pending confirmation from dispatch.'
         : '';
       const onlinePaymentEnabled = stripeEnabled || squareEnabled;
       const confirmationBase = (confirmationMessage || `Booking created. Reference: ${ref}`) + pendingNotice;
-      if(data.isMockTrip || onlinePaymentEnabled){
+      const multiDateSubmission = submissionDates.length > 1;
+      if(multiDateSubmission){
+        const bookedList = successfulSubmissions.map((entry) => `${entry.date} — Ref ${entry.ref}`).join('; ');
+        let multiMessage = `Bookings created for ${successfulSubmissions.length} service date${successfulSubmissions.length === 1 ? '' : 's'}: ${bookedList}.` + pendingNotice;
+        if(failedSubmissions.length){
+          multiMessage += ` Could not book ${failedSubmissions.map((entry) => entry.date).join(', ')} (${failedSubmissions[0].error}). Those dates were not booked — please submit them separately or contact dispatch.`;
+        }
+        if(!(data.isMockTrip || onlinePaymentEnabled)){
+          multiMessage += ' Dispatch will contact you shortly to finalize payment.';
+        }
+        setStatus(multiMessage, failedSubmissions.length ? 'err' : 'ok');
+      }else if(data.isMockTrip || onlinePaymentEnabled){
         setStatus(confirmationBase, 'ok');
       }else{
         setStatus(`${confirmationBase} Dispatch will contact you shortly to finalize payment.`, 'ok');
@@ -4261,12 +4363,14 @@
       const bookingStatus = String(data.booking?.status || '').toUpperCase().replaceAll('-', '_');
       const isPending = requiresDeposit || pendingApproval || data.persisted === false || r.status === 202 || bookingStatus === 'PENDING' || bookingStatus === 'PENDING_PAYMENT' || bookingStatus === 'PENDING_APPROVAL';
       const outcomeText = coverageNotAvailable ? 'Medicare not generally covered � self-pay required' : requiresDeposit ? '25% deposit required to confirm booking' : pendingApproval ? 'Booking Pending Approval' : isPending ? 'Booking Pending' : 'Booking Confirmed';
-      const popupMessage = confirmationMessage || `Booking created. Reference: ${ref}`;
+      const popupMessage = multiDateSubmission
+        ? `Bookings created for ${successfulSubmissions.length} service date${successfulSubmissions.length === 1 ? '' : 's'}: ${successfulSubmissions.map((entry) => `${entry.date} — Ref ${entry.ref}`).join('; ')}`
+        : (confirmationMessage || `Booking created. Reference: ${ref}`);
       if(data.requiresOnlinePayment===false){
         window.NexusTripPopup?.show({
           title: coverageNotAvailable ? 'Self-pay required' : (pendingApproval ? 'Pending approval' : (isPending ? 'Trip request received' : 'Trip booked successfully')),
           message: popupMessage,
-          detail:isPending?(pendingApproval?'Coverage must be verified before this booking is confirmed.':'Dispatch will confirm and finalize your trip shortly.'):'Your trip is now booked and dispatch will follow up as needed.',
+          detail:failedSubmissions.length?'Some selected dates could not be booked. Check the booking message above for the dates that need attention.':(isPending?(pendingApproval?'Coverage must be verified before this booking is confirmed.':'Dispatch will confirm and finalize your trip shortly.'):'Your trip is now booked and dispatch will follow up as needed.'),
           accent:isPending?'#0f766e':'#0b1d47'
         });
       }
@@ -4275,9 +4379,13 @@
       document.body.scrollTop=0;
       bookingSubmissionPending = false;
       showPaymentOptions(ref, Number(data.booking?.estimatedFare ?? payload.estimatedFare ?? 0), data.requiresOnlinePayment !== false);
+      if(successfulSubmissions.length > 1 && paymentSummary){
+        paymentSummary.textContent += ` Also booked: ${successfulSubmissions.slice(1).map((entry) => `${entry.date} — Ref ${entry.ref}`).join('; ')}. Each booking is paid separately through its own payment link.`;
+      }
       bookingSubmitted = true;
       window.NexusBookingFacility?.lock();
       editingBookingReference = '';
+      if(extraServiceDatesBlock) extraServiceDatesBlock.hidden = false;
       journeyNavigationOverride = '';
       hideBookingNudge();
       window.nexusTrack?.('booking_complete',{
@@ -4287,7 +4395,7 @@
       completeBookingDraft();
       if(submitBtn) submitBtn.textContent = 'Book My Ride';
       syncSectionProgressUi();
-      setBookingOutcome(outcomeText, isPending ? 'pending' : 'confirmed');
+      setBookingOutcome(failedSubmissions.length ? `${successfulSubmissions.length} of ${submissionDates.length} dates booked` : outcomeText, failedSubmissions.length ? 'pending' : (isPending ? 'pending' : 'confirmed'));
     }catch(err){
       bookingSubmissionPending = false;
       paymentSection.hidden = true;
