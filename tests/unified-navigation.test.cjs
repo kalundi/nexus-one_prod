@@ -11,7 +11,7 @@ test('shared navigation creates ordered Home group and compact actions',()=>{
  assert.match(js,/className='nexusHomeGroup'/);
  assert.match(js,/textContent='Sign Up'/);
  assert.match(js,/Sign In/);
- assert.match(js,/nav\.querySelectorAll\(':scope>a\[href\*="booking-app"\]'\)\.forEach\(link=>link\.remove\(\)\)/);
+ assert.match(js,/nav\.querySelectorAll\(':scope>a\[href\*="booking-app"\],:scope>a\[href\*="mynexusride\.com"\]'\)\.forEach\(link=>link\.remove\(\)\)/);
  assert.doesNotMatch(js,/textContent='Caretakers'/);
  assert.match(js,/\.globalActions,\.navRight/);
  assert.match(js,/nexusMenuDismiss/);

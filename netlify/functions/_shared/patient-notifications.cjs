@@ -10,6 +10,7 @@
 const PRIMARY_PHONE = '(888) 639-5766';
 const CUSTOMER_SERVICE_PHONE = '888-760-4990';
 const SITE_URL = 'https://nexusmt.com';
+const BOOKING_URL = 'https://mynexusride.com';
 const LOGO_URL = 'https://nexusmt.com/nexus-logo.png';
 
 const clean = value => String(value ?? '').trim();
@@ -54,7 +55,7 @@ function emailHeader() {
 }
 
 function emailFooter(v) {
-  return `<p>Thank you for choosing Nexus Medical Transit.</p><p>— The Nexus Medical Transit team<br><strong>Book or rebook:</strong> ${PRIMARY_PHONE} · <a href="${SITE_URL}">nexusmt.com</a><br><strong>Customer Service:</strong> ${CUSTOMER_SERVICE_PHONE}</p><div style="border-top:1px solid #dbe6ee;margin-top:20px;padding-top:12px;color:#62758a;font-size:13px;line-height:1.6"><p style="margin:0 0 6px"><strong>Our services:</strong> wheelchair · stretcher &amp; bariatric · ambulance (BLS/ALS) · dialysis &amp; recurring rides · hospital discharge · medical shuttle — with door-through-door support.</p><p style="margin:0 0 6px">Nexus Medical Transit · Clarksburg, MD · Serving Maryland, Washington DC &amp; Northern Virginia<br>Dispatch ${PRIMARY_PHONE} · Customer Service ${CUSTOMER_SERVICE_PHONE} · nexusmt.com</p><p style="margin:0 0 6px">Nexus provides planned, scheduled medical transport. <strong>For emergencies, call 911.</strong></p><p style="margin:0">You're receiving this because you were listed as a contact on booking ${esc(v.reference)}.</p></div>`;
+  return `<p>Thank you for choosing Nexus Medical Transit.</p><p>— The Nexus Medical Transit team<br><strong>Book or rebook:</strong> ${PRIMARY_PHONE} · <a href="${BOOKING_URL}">mynexusride.com</a><br><strong>Customer Service:</strong> ${CUSTOMER_SERVICE_PHONE}</p><div style="border-top:1px solid #dbe6ee;margin-top:20px;padding-top:12px;color:#62758a;font-size:13px;line-height:1.6"><p style="margin:0 0 6px"><strong>Our services:</strong> wheelchair · stretcher &amp; bariatric · ambulance (BLS/ALS) · dialysis &amp; recurring rides · hospital discharge · medical shuttle — with door-through-door support.</p><p style="margin:0 0 6px">Nexus Medical Transit · Clarksburg, MD · Serving Maryland, Washington DC &amp; Northern Virginia<br>Dispatch ${PRIMARY_PHONE} · Customer Service ${CUSTOMER_SERVICE_PHONE} · nexusmt.com</p><p style="margin:0 0 6px">Nexus provides planned, scheduled medical transport. <strong>For emergencies, call 911.</strong></p><p style="margin:0">You're receiving this because you were listed as a contact on booking ${esc(v.reference)}.</p></div>`;
 }
 
 // Wrap inner body HTML in the standard branded email shell (header + footer).
@@ -177,19 +178,19 @@ function enRouteContent(v, options = {}) {
 function completedContent(v, { reviewLink = '' } = {}, options = {}) {
   const link = clean(reviewLink);
   const reviewHtml = link ? `<p><strong>How did we do?</strong> If you have a moment, a quick review helps other families and patients in Maryland, DC and Northern Virginia find us when they need a ride: <a href="${esc(link)}">Leave a review</a></p>` : '';
-  const body = `${greeting(v, options)}<p>Your trip <strong>${esc(v.reference)}</strong> on ${esc(v.date)} (${esc(v.pickup)} → ${esc(v.destination)}) is complete. Thank you for riding with Nexus Medical Transit — we hope the ride made the day a little easier.</p>${reviewHtml}<p><strong>Need another ride?</strong> Many of our riders book with us again for follow-up appointments, dialysis and recurring treatments, hospital discharges, and everyday medical visits. Booking again is easy:</p><ul><li>Call <strong>${PRIMARY_PHONE}</strong></li><li>Book at <strong>nexusmt.com</strong></li><li>Just mention your last trip reference, ${esc(v.reference)}, and we'll take it from there.</li></ul>`;
+  const body = `${greeting(v, options)}<p>Your trip <strong>${esc(v.reference)}</strong> on ${esc(v.date)} (${esc(v.pickup)} → ${esc(v.destination)}) is complete. Thank you for riding with Nexus Medical Transit — we hope the ride made the day a little easier.</p>${reviewHtml}<p><strong>Need another ride?</strong> Many of our riders book with us again for follow-up appointments, dialysis and recurring treatments, hospital discharges, and everyday medical visits. Booking again is easy:</p><ul><li>Call <strong>${PRIMARY_PHONE}</strong></li><li>Book at <strong>mynexusride.com</strong></li><li>Just mention your last trip reference, ${esc(v.reference)}, and we'll take it from there.</li></ul>`;
   return {
     subject: `Thank you for riding with Nexus — ${v.reference}`,
-    sms: `Nexus Medical Transit: Thank you for riding with us, ${v.firstName || 'there'} — trip ${v.reference} is complete.${link ? ` If we did well, a quick review helps other families find us: ${link}` : ''} Need another ride? Call ${PRIMARY_PHONE} or book at nexusmt.com. Reply STOP to opt out.`,
+    sms: `Nexus Medical Transit: Thank you for riding with us, ${v.firstName || 'there'} — trip ${v.reference} is complete.${link ? ` If we did well, a quick review helps other families find us: ${link}` : ''} Need another ride? Call ${PRIMARY_PHONE} or book at mynexusride.com. Reply STOP to opt out.`,
     html: emailShell(v, body)
   };
 }
 
 function cancellationContent(v, options = {}) {
-  const body = `${greeting(v, options)}<p>Your trip <strong>${esc(v.reference)}</strong> — ${esc(v.date)} at ${esc(v.pickupTime)}, ${esc(v.pickup)} → ${esc(v.destination)} — has been cancelled as requested. No further action is needed.</p><p>If this cancellation was a mistake, or you'd like to reschedule instead, call us at <strong>${PRIMARY_PHONE}</strong> and we'll set it back up.</p><p>When you need us again — a follow-up appointment, a discharge, a recurring treatment — we're here: <strong>${PRIMARY_PHONE}</strong> · <strong>nexusmt.com</strong>.</p>`;
+  const body = `${greeting(v, options)}<p>Your trip <strong>${esc(v.reference)}</strong> — ${esc(v.date)} at ${esc(v.pickupTime)}, ${esc(v.pickup)} → ${esc(v.destination)} — has been cancelled as requested. No further action is needed.</p><p>If this cancellation was a mistake, or you'd like to reschedule instead, call us at <strong>${PRIMARY_PHONE}</strong> and we'll set it back up.</p><p>When you need us again — a follow-up appointment, a discharge, a recurring treatment — we're here: <strong>${PRIMARY_PHONE}</strong> · <strong>mynexusride.com</strong>.</p>`;
   return {
     subject: `Trip cancelled — ${v.reference} | Nexus Medical Transit`,
-    sms: `Nexus Medical Transit: Trip ${v.reference} on ${v.date} has been cancelled. Sorry we won't see you this time. To rebook: ${PRIMARY_PHONE} or nexusmt.com.`,
+    sms: `Nexus Medical Transit: Trip ${v.reference} on ${v.date} has been cancelled. Sorry we won't see you this time. To rebook: ${PRIMARY_PHONE} or mynexusride.com.`,
     html: emailShell(v, body)
   };
 }
