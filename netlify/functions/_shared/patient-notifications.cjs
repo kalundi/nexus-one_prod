@@ -2,7 +2,7 @@
 // Implements the templates Anthony approved on 2026-10-31 (see
 // branded-patient-notifications-2026-10-31.md): a standard brand block on
 // every patient email, a standard SMS pattern, (888) 639-5766 as the primary
-// book/rebook number, 888-760-4990 as Customer Service in the email footer
+// book/rebook number, 888-760-4990 as Ambulance Services in the email footer
 // only, and one marketing element per message at most, after the trip facts.
 // The retired 202 numbers must never appear here. No rates, hours, discounts
 // or guarantees are stated. Pure content builders — sending lives in callers.
@@ -55,7 +55,7 @@ function emailHeader() {
 }
 
 function emailFooter(v) {
-  return `<p>Thank you for choosing Nexus Medical Transit.</p><p>— The Nexus Medical Transit team<br><strong>Book or rebook:</strong> ${PRIMARY_PHONE} · <a href="${BOOKING_URL}">mynexusride.com</a><br><strong>Customer Service:</strong> ${CUSTOMER_SERVICE_PHONE}</p><div style="border-top:1px solid #dbe6ee;margin-top:20px;padding-top:12px;color:#62758a;font-size:13px;line-height:1.6"><p style="margin:0 0 6px"><strong>Our services:</strong> wheelchair · stretcher &amp; bariatric · ambulance (BLS/ALS) · dialysis &amp; recurring rides · hospital discharge · medical shuttle — with door-through-door support.</p><p style="margin:0 0 6px">Nexus Medical Transit · Clarksburg, MD · Serving Maryland, Washington DC &amp; Northern Virginia<br>Dispatch ${PRIMARY_PHONE} · Customer Service ${CUSTOMER_SERVICE_PHONE} · nexusmt.com</p><p style="margin:0 0 6px">Nexus provides planned, scheduled medical transport. <strong>For emergencies, call 911.</strong></p><p style="margin:0">You're receiving this because you were listed as a contact on booking ${esc(v.reference)}.</p></div>`;
+  return `<p>Thank you for choosing Nexus Medical Transit.</p><p>— The Nexus Medical Transit team<br><strong>Book or rebook:</strong> ${PRIMARY_PHONE} · <a href="${BOOKING_URL}">mynexusride.com</a><br><strong>Ambulance Services:</strong> ${CUSTOMER_SERVICE_PHONE}</p><div style="border-top:1px solid #dbe6ee;margin-top:20px;padding-top:12px;color:#62758a;font-size:13px;line-height:1.6"><p style="margin:0 0 6px"><strong>Our services:</strong> wheelchair · stretcher &amp; bariatric · ambulance (BLS/ALS) · dialysis &amp; recurring rides · hospital discharge · medical shuttle — with door-through-door support.</p><p style="margin:0 0 6px">Nexus Medical Transit · Clarksburg, MD · Serving Maryland, Washington DC &amp; Northern Virginia<br>Dispatch ${PRIMARY_PHONE} · Ambulance Services ${CUSTOMER_SERVICE_PHONE} · nexusmt.com</p><p style="margin:0 0 6px">Nexus provides planned, scheduled medical transport. <strong>For emergencies, call 911.</strong></p><p style="margin:0">You're receiving this because you were listed as a contact on booking ${esc(v.reference)}.</p></div>`;
 }
 
 // Wrap inner body HTML in the standard branded email shell (header + footer).
