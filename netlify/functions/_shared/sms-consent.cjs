@@ -13,6 +13,16 @@ function normalizePhone(value){
  return `+${digits}`;
 }
 
+// Strict US deliverability check used before spending a Twilio send:
+// a number is only plausible if it is 10 digits, or 11 digits starting
+// with the country code 1. normalizePhone() alone passes any digit string
+// through as +<digits>, which is how junk/test phones on abandoned booking
+// drafts became Twilio Error 21211 (Invalid 'To') failures.
+function isValidUsPhone(value){
+ const digits=String(value||'').replace(/\D/g,'');
+ return digits.length===10||(digits.length===11&&digits.startsWith('1'));
+}
+
 function classifySmsKeyword(body,optOutType=''){
  const providerType=String(optOutType||'').trim().toUpperCase();
  if(['STOP','START','HELP'].includes(providerType))return providerType;
@@ -93,4 +103,4 @@ async function getSmsStatus(id){
  if(!response.ok)throw Object.assign(Error('Twilio status lookup failed'),{code:data.code,statusCode:response.status});
  return {messageId:id,status:data.status||'unknown',deliveryConfirmed:data.status==='delivered'||data.status==='read',errorCode:Number(data.error_code)||null};
 }
-module.exports={STOP_KEYWORDS,START_KEYWORDS,HELP_KEYWORDS,normalizePhone,classifySmsKeyword,twilioSignature,verifyTwilioSignature,ensureSmsConsentTable,recordSmsPreference,isSmsOptedOut,sendSms,getSmsStatus};
+module.exports={STOP_KEYWORDS,START_KEYWORDS,HELP_KEYWORDS,normalizePhone,isValidUsPhone,classifySmsKeyword,twilioSignature,verifyTwilioSignature,ensureSmsConsentTable,recordSmsPreference,isSmsOptedOut,sendSms,getSmsStatus};

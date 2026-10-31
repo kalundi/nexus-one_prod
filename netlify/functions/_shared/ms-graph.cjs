@@ -30,7 +30,20 @@ function requireGraphConfig(){
  return config;
 }
 
+// Cache the client-credentials token for its lifetime (minus a safety
+// margin) instead of requesting a fresh token on every Graph call. A single
+// graph-mail-sync run previously made one token request per message
+// attachment/MIME fetch on top of the message calls themselves.
+let cachedGraphToken=null;
+
+function clearGraphTokenCache(){
+ cachedGraphToken=null;
+}
+
 async function getGraphAccessToken(){
+ if(cachedGraphToken&&cachedGraphToken.expiresAt>Date.now()+60_000){
+  return cachedGraphToken.value;
+ }
  const {tenantId,clientId,clientSecret}=requireGraphCredentials();
  const body=new URLSearchParams({
   client_id:clientId,
@@ -45,6 +58,8 @@ async function getGraphAccessToken(){
  });
  const data=await response.json().catch(()=>({}));
  if(!response.ok) throw new Error(data.error_description||data.error||`Graph token request failed (${response.status})`);
+ const ttlSeconds=Math.max(60,(Number(data.expires_in)||3600)-300);
+ cachedGraphToken={value:data.access_token,expiresAt:Date.now()+ttlSeconds*1000};
  return data.access_token;
 }
 
@@ -143,6 +158,7 @@ module.exports={
  requireGraphCredentials,
  requireGraphConfig,
  getGraphAccessToken,
+ clearGraphTokenCache,
  graphFetch,
  graphFetchUrl,
  listMessages,
