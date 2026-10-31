@@ -1856,6 +1856,35 @@ function voiceVoicemailTwiml(config,source=''){
  const transcribeCallback=xmlEscape(voiceRouteUrl('voicemail-transcription',sourceParam));
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Please leave your name, your callback number, and a brief message after the tone. Please don\'t share medical details in your message. We will return your call as soon as possible.',config)}\n  <Record action="${recordAction}" method="POST" transcribe="true" transcribeCallback="${transcribeCallback}" recordingStatusCallback="${transcribeCallback}" recordingStatusCallbackMethod="POST" maxLength="120" playBeep="true" />\n</Response>`;
 }
+const SELF_SERVE_BOOKING_URL='https://nexusmt.com/booking-app.html';
+const SELF_SERVE_BOOKING_SMS=`Nexus Medical Transit: Sorry we missed your call. You can book your trip anytime at ${SELF_SERVE_BOOKING_URL} and you'll get a confirmation by text and email. Questions? Call (888) 639-5766. Msg & data rates may apply. Reply HELP for help. Reply STOP to opt out.`;
+const SELF_SERVE_MENU_PROMPT='Before you go, here are two quicker options. Press 1, and I will text the booking link to this phone, so you can book your trip online anytime. Press 2 to hear how booking works. Or press 3 to leave a voicemail, and we will return your call.';
+const SELF_SERVE_INFO_LINES=[
+ 'You can book a trip anytime on our website. The address is n-e-x-u-s-m-t dot com. Tap Book a Ride to start.',
+ 'Have these ready: the pickup address, where you are going, the date and time, and the kind of ride you need — ambulatory, wheelchair, stretcher, or bariatric.',
+ 'When you finish, you will get a confirmation by text and email. Please note that a trip is not confirmed until a Nexus representative confirms availability, pickup details, and pricing.',
+ 'For non-urgent questions, you can also email us at contact at nexusmt dot com.',
+ 'And remember, if this is an emergency, hang up and dial 9 1 1.'
+];
+function selfServeSource(value){
+ return clean(value)==='after-hours'?'after-hours':'dispatch-fallback';
+}
+function voiceSelfServeTwiml(config,source='dispatch-fallback',retryCount=0){
+ const resolvedSource=selfServeSource(source);
+ const query=new URLSearchParams({source:resolvedSource});
+ if(retryCount>0)query.set('retry',String(retryCount));
+ const actionUrl=xmlEscape(voiceRouteUrl('self-serve-handle',query.toString()));
+ const voicemailUrl=xmlEscape(voiceRouteUrl('voicemail',`source=${encodeURIComponent(resolvedSource)}`));
+ const gatherTimeout=Math.max(4,Number(config?.voiceMenuGatherTimeout||10));
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather input="dtmf" numDigits="1" timeout="${gatherTimeout}" action="${actionUrl}" method="POST">\n    ${sayTag(SELF_SERVE_MENU_PROMPT,config)}\n  </Gather>\n  <Redirect method="POST">${voicemailUrl}</Redirect>\n</Response>`;
+}
+function voiceSelfServeFollowupTwiml(config,source='dispatch-fallback',lines=[],optionsPrompt=''){
+ const resolvedSource=selfServeSource(source);
+ const actionUrl=xmlEscape(voiceRouteUrl('self-serve-handle',`source=${encodeURIComponent(resolvedSource)}`));
+ const gatherTimeout=Math.max(4,Number(config?.voiceMenuGatherTimeout||10));
+ const lineBlock=lines.map((line)=>`${sayTag(line,config)}\n  <Pause length="1" />\n  `).join('');
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${lineBlock}<Gather input="dtmf" numDigits="1" timeout="${gatherTimeout}" action="${actionUrl}" method="POST">\n    ${sayTag(optionsPrompt,config)}\n  </Gather>\n  ${sayTag('Thank you for calling Nexus Medical Transit. Goodbye.',config)}\n  <Hangup />\n</Response>`;
+}
 function getCallerAreaCode(value){
  const digits=String(value||'').replace(/\D/g,'');
  const normalized=digits.length===11&&digits.startsWith('1')?digits.slice(1):digits;
@@ -2514,7 +2543,7 @@ async function handler(event){
     VALUES(NULLIF($1,''),'INBOUND',$2,$3,'RECEIVED') ON CONFLICT(twilio_call_sid) DO UPDATE SET call_status='RECEIVED',updated_at=now()`,[callSid,toE164(callerFrom),toE164(calledNumber)]).catch(error=>console.error('Unable to record inbound voice call',error.message));
    const openNow=isBusinessHoursOpen(config);
    if(!openNow&&config.afterHoursVoicemail){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. You\'ve reached Tony, the Nexus Medical Transit Virtual Assistant. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('voicemail','source=after-hours'))}</Redirect>\n</Response>`;
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. You\'ve reached Tony, the Nexus Medical Transit Virtual Assistant. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('self-serve','source=after-hours'))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
   const opening=voiceOpeningScript(config);
@@ -2649,8 +2678,50 @@ async function handler(event){
     });
     return xmlResponse(200,body);
    }
-   const voicemailBody=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('We were unable to reach dispatch. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('voicemail','source=dispatch-fallback'))}</Redirect>\n</Response>`;
-   return xmlResponse(200,voicemailBody);
+   const selfServeBody=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('We were unable to reach dispatch. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('self-serve','source=dispatch-fallback'))}</Redirect>\n</Response>`;
+   return xmlResponse(200,selfServeBody);
+  }
+  if(p[0]==='voice'&&p[1]==='self-serve'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   const source=selfServeSource(event.queryStringParameters?.source||'');
+   const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
+   return xmlResponse(200,voiceSelfServeTwiml(config,source,retry));
+  }
+  if(p[0]==='voice'&&p[1]==='self-serve-handle'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   const params=parseWebhookBody(event);
+   const source=selfServeSource(event.queryStringParameters?.source||params.source||'');
+   const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
+   const digits=clean(params.Digits||params.digits||'');
+   const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
+   const voicemailUrl=xmlEscape(voiceRouteUrl('voicemail',`source=${encodeURIComponent(source)}`));
+   if(digits==='3'){
+    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${voicemailUrl}</Redirect>\n</Response>`);
+   }
+   if(digits==='1'){
+    const target=toE164(callerFrom);
+    let sent=false;
+    if(/^\+1\d{10}$/.test(target)){
+     try{
+      const result=await sendSms(target,SELF_SERVE_BOOKING_SMS);
+      sent=result?.status==='sent';
+     }catch(error){
+      console.error('Unable to send self-serve booking link SMS',error.message);
+     }
+    }
+    const lines=[sent
+     ?'I have sent the booking link to this phone by text message. Tap the link anytime to book your trip online.'
+     :'I could not text a link to this number. You can still book anytime at n-e-x-u-s-m-t dot com, or press 3 to leave a voicemail.'];
+    return xmlResponse(200,voiceSelfServeFollowupTwiml(config,source,lines,'Press 2 to hear how booking works, or press 3 to leave a voicemail. Or simply hang up.'));
+   }
+   if(digits==='2'){
+    return xmlResponse(200,voiceSelfServeFollowupTwiml(config,source,SELF_SERVE_INFO_LINES,'Press 1, and I will text the booking link to this phone. Or press 3 to leave a voicemail. Or simply hang up.'));
+   }
+   if(retry>=1){
+    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${voicemailUrl}</Redirect>\n</Response>`);
+   }
+   const retryUrl=xmlEscape(voiceRouteUrl('self-serve',`source=${encodeURIComponent(source)}&retry=${retry+1}`));
+   return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Sorry, I did not catch that.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${retryUrl}</Redirect>\n</Response>`);
   }
   if(p[0]==='voice'&&p[1]==='voicemail'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();
