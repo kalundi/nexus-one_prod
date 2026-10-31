@@ -25,18 +25,19 @@ test('voicemail prompt asks for callback details and discourages medical details
   assert.ok(api.includes('We will return your call as soon as possible.'), 'prompt promises a callback');
 });
 
-test('dispatch fallback failure redirects to the voicemail route instead of a dead end', () => {
-  assert.ok(api.includes("source=dispatch-fallback"), 'dispatch fallback carries its source into the voicemail flow');
+test('dispatch fallback failure redirects to the self-serve route instead of a dead end', () => {
+  assert.ok(api.includes("source=dispatch-fallback"), 'dispatch fallback carries its source through the self-serve flow');
+  assert.ok(api.includes("voiceRouteUrl('self-serve','source=dispatch-fallback')"), 'dispatch fallback redirects to self-serve, which still defaults to voicemail');
   assert.doesNotMatch(api, /We were unable to connect to dispatch\. Please call us back at/, 'dead-end call-back ending is gone from dispatch fallback');
   assert.ok(api.includes('We were unable to reach dispatch. Please leave a voicemail and we will return your call.'), 'unavailable wording is kept before the redirect');
 });
 
-test('after-hours branch redirects to the voicemail route instead of dialing the transfer number', () => {
+test('after-hours branch redirects to the self-serve route instead of dialing the transfer number', () => {
   const start = api.indexOf('if(!openNow&&config.afterHoursVoicemail){');
   assert.notEqual(start, -1, 'after-hours branch exists');
   const block = api.slice(start, start + 700);
   assert.ok(block.includes('Redirect'), 'after-hours branch redirects');
-  assert.ok(block.includes('voicemail'), 'after-hours branch goes to voicemail');
+  assert.ok(block.includes("voiceRouteUrl('self-serve','source=after-hours')"), 'after-hours branch goes to self-serve, which still defaults to voicemail');
   assert.ok(!block.includes('<Dial'), 'after-hours branch no longer dials the transfer number');
   assert.ok(block.includes('reached Tony, the Nexus Medical Transit Virtual Assistant'), 'Tony after-hours message is kept');
 });
