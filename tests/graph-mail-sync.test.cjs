@@ -1,7 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildFilter, syncConfig, senderMatches } = require('../netlify/functions/graph-mail-sync.cjs');
+const fs = require('node:fs');
+const path = require('node:path');
+const { buildFilter, syncConfig, senderMatches, MAX_MESSAGES_PER_RUN, MAX_MESSAGE_ATTEMPTS } = require('../netlify/functions/graph-mail-sync.cjs');
 const { buildPickupTimestamp } = require('../netlify/functions/broker-email-webhook.cjs');
 
 test('syncConfig honors configured mailbox filters', () => {
@@ -32,6 +34,21 @@ test('buildFilter supports a broker-domain sender restriction', () => {
   assert.doesNotMatch(filter, /from\/emailAddress\/address eq/);
   assert.equal(senderMatches({ from: { emailAddress: { address: 'dispatch@gotandt.com' } } }, '*@gotandt.com'), true);
   assert.equal(senderMatches({ from: { emailAddress: { address: 'alerts@example.com' } } }, '*@gotandt.com'), false);
+});
+
+test('a failing message no longer pins the sync watermark', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'netlify', 'functions', 'graph-mail-sync.cjs'), 'utf8');
+  assert.doesNotMatch(source, /savedSince=failed\.length\?since:newestSince/);
+  assert.match(source, /failedMessages/);
+  assert.match(source, /deadLetterMessageIds/);
+  assert.ok(MAX_MESSAGES_PER_RUN > 0 && MAX_MESSAGES_PER_RUN <= 1000);
+  assert.equal(MAX_MESSAGE_ATTEMPTS, 3);
+});
+
+test('graph access tokens are cached instead of requested per call', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'netlify', 'functions', '_shared', 'ms-graph.cjs'), 'utf8');
+  assert.match(source, /cachedGraphToken/);
+  assert.match(source, /clearGraphTokenCache/);
 });
 
 test('broker pickup time is combined with its trip date for timestamptz columns', () => {

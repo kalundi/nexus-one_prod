@@ -1,7 +1,19 @@
 const {query}=require('./_shared/db.cjs');
 const {simpleParser}=require('mailparser');
-const {listMessages,getMessageAttachments,getMessageMime,toBrokerAttachment,isFileAttachment,requireGraphConfig,graphFetchUrl}=require('./_shared/ms-graph.cjs');
+const {listMessages,getMessage,getMessageAttachments,getMessageMime,toBrokerAttachment,isFileAttachment,requireGraphConfig,graphFetchUrl}=require('./_shared/ms-graph.cjs');
 const brokerWebhook=require('./broker-email-webhook.cjs');
+
+// Runaway-window guard: previously one permanently failing message pinned
+// the saved `since` watermark at the window start, so every 10-minute run
+// re-listed and re-processed the whole mailbox window back to the default
+// start date, serially downloading attachments/MIME per message — runs
+// stretched past 20 s and overlapped. Now the watermark always advances
+// past processed mail, failures are carried in the sync state and retried
+// individually by message id, and each run processes a bounded number of
+// messages.
+const MAX_MESSAGES_PER_RUN=200;
+const MAX_MESSAGE_ATTEMPTS=3;
+const MAX_RETRIES_PER_RUN=50;
 
 const DEFAULT_SINCE='2026-07-31T00:00:00Z';
 const DEFAULT_SENDER='driverdeveloper@gotandt.com';
@@ -101,6 +113,10 @@ async function processMessage(message,folder=DEFAULT_FOLDER){
  return invokeBrokerWebhook(payload);
 }
 
+function outcomeFailed(outcome){
+ return outcome?.status==='failed'||Number(outcome?.statusCode||200)>=400;
+}
+
 exports.handler=async(event)=>{
  try{
   requireGraphConfig();
@@ -112,37 +128,92 @@ exports.handler=async(event)=>{
   if(method!=='GET'&&method!=='POST'){
    return jsonResponse(405,{error:'Method not allowed'});
   }
+  // Failure carry-over from previous runs: retry these individually by id
+  // instead of re-processing the whole window. Entries that exhaust
+  // MAX_MESSAGE_ATTEMPTS move to deadLetterMessageIds in the saved state
+  // (kept visible for manual follow-up, never silently dropped on sight).
+  const failedMessages={...(syncState.failedMessages||{})};
+  const deadLetterMessageIds=[...(syncState.deadLetterMessageIds||[])];
+  let retried=0,retryRecovered=0;
+  for(const [messageId,record] of Object.entries(failedMessages)){
+   if(retried>=MAX_RETRIES_PER_RUN)break;
+   if(Number(record?.attempts||0)>=MAX_MESSAGE_ATTEMPTS){
+    delete failedMessages[messageId];
+    if(!deadLetterMessageIds.includes(messageId))deadLetterMessageIds.push(messageId);
+    continue;
+   }
+   retried+=1;
+   try{
+    const message=await getMessage({messageId,folder:config.folder});
+    if(!senderMatches(message,config.sender)){
+     delete failedMessages[messageId];
+     continue;
+    }
+    const outcome=await processMessage(message,config.folder);
+    if(outcomeFailed(outcome))throw new Error(outcome.error||`Broker webhook returned ${outcome.statusCode||'an error'}`);
+    delete failedMessages[messageId];
+    retryRecovered+=1;
+   }catch(error){
+    if(/Graph request failed \(404\)/.test(error.message)){
+     // Message no longer exists in the mailbox; nothing left to retry.
+     delete failedMessages[messageId];
+     continue;
+    }
+    const attempts=Number(record?.attempts||0)+1;
+    if(attempts>=MAX_MESSAGE_ATTEMPTS){
+     delete failedMessages[messageId];
+     if(!deadLetterMessageIds.includes(messageId))deadLetterMessageIds.push(messageId);
+    }else{
+     failedMessages[messageId]={attempts,error:String(error.message||'failed').slice(0,300),lastTriedAt:new Date().toISOString()};
+    }
+   }
+  }
   const filter=buildFilter({since,subjectContains:config.subjectContains,sender:config.sender});
   let page=await listMessages({since,folder:config.folder,top:Number(queryParams.top||50),filter});
   const results=[];
   let newestSince=since;
+  let lastProcessedAt=null;
   let total=0;
-  while(page?.value?.length){
+  let capped=false;
+  while(page?.value?.length&&!capped){
    for(const message of page.value){
+    if(total>=MAX_MESSAGES_PER_RUN){capped=true;break;}
     if(message.receivedDateTime&&new Date(message.receivedDateTime)>new Date(newestSince)){
      newestSince=message.receivedDateTime;
     }
     if(!senderMatches(message,config.sender))continue;
     total+=1;
     try{
-     results.push(await processMessage(message,config.folder));
+     const outcome=await processMessage(message,config.folder);
+     results.push(outcome);
+     if(outcomeFailed(outcome)){
+      failedMessages[message.id]={attempts:1,error:String(outcome.error||`Broker webhook returned ${outcome.statusCode||'an error'}`).slice(0,300),lastTriedAt:new Date().toISOString()};
+     }
     }catch(error){
      results.push({status:'failed',error:error.message,messageId:message.internetMessageId||message.id});
+     if(message.id)failedMessages[message.id]={attempts:1,error:String(error.message||'failed').slice(0,300),lastTriedAt:new Date().toISOString()};
     }
+    if(message.receivedDateTime)lastProcessedAt=message.receivedDateTime;
    }
-   if(!page['@odata.nextLink'])break;
+   if(capped||!page['@odata.nextLink'])break;
     page=await graphFetchUrl(page['@odata.nextLink']);
   }
-  const failed=results.filter((result)=>result?.status==='failed'||Number(result?.statusCode||200)>=400);
-  const savedSince=failed.length?since:newestSince;
-  await setSyncState({since:savedSince,updatedAt:new Date().toISOString(),lastFailureCount:failed.length});
-  return jsonResponse(200,{since,processed:results.length,totalMessages:total,latestSince:newestSince,savedSince,failed:failed.length,results});
+  const failed=results.filter(outcomeFailed);
+  // The watermark advances past everything this run actually processed —
+  // a failing message no longer pins it (it is retried from state instead).
+  // When the per-run cap cut a page short, only advance to the last
+  // processed message so the remainder is listed again next run.
+  const savedSince=capped?(lastProcessedAt||since):newestSince;
+  await setSyncState({since:savedSince,updatedAt:new Date().toISOString(),lastFailureCount:failed.length,failedMessages,deadLetterMessageIds});
+  return jsonResponse(200,{since,processed:results.length,totalMessages:total,latestSince:newestSince,savedSince,failed:failed.length,retried,retryRecovered,deadLettered:deadLetterMessageIds.length,results});
  }catch(error){
   console.error('[GRAPH_MAIL_SYNC]',error.message);
   return jsonResponse(500,{error:error.message});
  }
 };
 
+exports.MAX_MESSAGES_PER_RUN=MAX_MESSAGES_PER_RUN;
+exports.MAX_MESSAGE_ATTEMPTS=MAX_MESSAGE_ATTEMPTS;
 exports.buildFilter=buildFilter;
 exports.syncConfig=syncConfig;
 exports.senderMatches=senderMatches;
