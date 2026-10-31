@@ -397,6 +397,11 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 .footer.footerUnified .footerBottom{border-top:1px solid rgba(255,255,255,.14);padding:8px 0 12px !important;color:#9fb8cc;font-size:12px;overflow-wrap:anywhere;word-break:break-word;}
 .footer.footerUnified .footerCompactNav{display:grid;gap:3px;}
 .footer.footerUnified .footerCompactNav a{display:block;}
+.footer.footerUnified .footerServices{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.14);padding-top:10px;}
+.footer.footerUnified .footerServicesNav{columns:4;column-gap:28px;margin-top:2px;}
+.footer.footerUnified .footerServicesNav a{display:block;break-inside:avoid;}
+@media (max-width:980px){.footer.footerUnified .footerServicesNav{columns:3;}}
+@media (max-width:620px){.footer.footerUnified .footerServicesNav{columns:2;}}
 .footer.footerUnified .footerContactList{display:grid;gap:3px;margin:0;padding:0;list-style:none;}
 .footer.footerUnified .footerContactItem{display:grid;grid-template-columns:18px minmax(0,1fr);align-items:start;gap:5px;color:#cce0ef;font-size:13px;line-height:1.18;}
 .footer.footerUnified .footerContactBody{display:grid;gap:1px;min-width:0;}
@@ -503,6 +508,23 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 			+     '<span>24/7 Operations - After Hour Rides</span>'
 			+     '<div class="footerFollowMetaRow"><span class="footerFollowMetaIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"></path><path d="m22 6-10 7L2 6"></path></svg></span><a href="mailto:contact@nexusmt.com">contact@nexusmt.com</a></div>'
 			+   '</div>'
+			+ '</div>'
+			+ '<div class="footerServices">'
+			+   '<strong>Services &amp; Areas</strong>'
+			+   '<nav class="footerServicesNav" aria-label="Services and service areas">'
+			+     '<a href="/wheelchair-transportation.html">Wheelchair transportation</a>'
+			+     '<a href="/stretcher-transportation.html">Stretcher transportation</a>'
+			+     '<a href="/dialysis-transportation.html">Dialysis transportation</a>'
+			+     '<a href="/hospital-discharge-transportation.html">Hospital discharge transportation</a>'
+			+     '<a href="/non-emergency-medical-transportation.html">Non-emergency medical transportation (NEMT)</a>'
+			+     '<a href="/ambulance-transportation.html">Ambulance transportation</a>'
+			+     '<a href="/bariatric-transportation.html">Bariatric transportation</a>'
+			+     '<a href="/medical-transportation-montgomery-county.html">Montgomery County medical transportation</a>'
+			+     '<a href="/medical-transportation-annapolis.html">Annapolis &amp; Anne Arundel medical transportation</a>'
+			+     '<a href="/maryland-medical-transportation.html">Maryland medical transportation</a>'
+			+     '<a href="/washington-dc-medical-transportation.html">Washington, DC medical transportation</a>'
+			+     '<a href="/northern-virginia-medical-transportation.html">Northern Virginia medical transportation</a>'
+			+   '</nav>'
 			+ '</div>';
 		configureFooterAccordion(grid);
 		return true;
