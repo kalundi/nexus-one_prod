@@ -15,7 +15,18 @@ function mapFhirAppointment(resource,{sourceSystem='FHIR',patient={}}={}){
 }
 function parseHl7(raw){const text=String(raw||'').replace(/\r?\n/g,'\r');const segments=text.split('\r').filter(Boolean).map(line=>line.split('|'));const byName=name=>segments.filter(s=>s[0]===name);const first=name=>byName(name)[0]||[];const msh=first('MSH'),sch=first('SCH'),pid=first('PID'),ais=first('AIS'),ail=first('AIL');if(msh[8]&&!/^SIU\^S1[2-6]/i.test(msh[8]))throw Object.assign(new Error('KeyMark accepts HL7 v2 SIU S12-S16 scheduling messages'),{statusCode:400});const ts=clean(sch[11]||ais[4]);const iso=ts?`${ts.slice(0,4)}-${ts.slice(4,6)}-${ts.slice(6,8)}T${ts.slice(8,10)||'00'}:${ts.slice(10,12)||'00'}:${ts.slice(12,14)||'00'}${ts.length>14?ts.slice(14):''}`:'';const name=clean(pid[5]).split('^');return {messageControlId:clean(msh[9]),eventType:clean(msh[8]),externalAppointmentId:clean(sch[1]||sch[2]||msh[9]),patientExternalId:clean(pid[3]).split('^')[0]||null,patientName:[name[1],name[0]].filter(Boolean).join(' ')||'Patient unresolved',patientPhone:clean(pid[13]).split('^')[0]||null,appointmentAt:iso,department:clean(ail[3]).split('^')[1]||clean(ail[3])||null,appointmentType:clean(ais[3]).split('^')[1]||clean(ais[3])||null,integrationPayload:{hl7Version:clean(msh[11]),eventType:clean(msh[8]),messageControlId:clean(msh[9])}};
 }
+function calculateArrivalRisk(input={}){
+ const barriers=Array.isArray(input.barrierCodes)?input.barrierCodes.map(v=>clean(v).toUpperCase()).filter(Boolean):[];
+ let score=0;
+ if(input.eligibilityStatus==='PENDING'||input.eligibilityStatus==='INELIGIBLE')score+=20;
+ if(input.consentStatus!=='GRANTED')score+=10;
+ if(input.transportationRequired===true&&(!input.transportationMode||['NOT_ASSESSED','NEEDS_RIDE'].includes(clean(input.transportationStatus).toUpperCase()||'NOT_ASSESSED')))score+=30;
+ score+=Math.min(30,barriers.length*10);
+ const hours=(new Date(input.appointmentAt).getTime()-Date.now())/3600000;
+ if(Number.isFinite(hours)&&hours<=24)score+=10;
+ return Math.max(0,Math.min(100,score));
+}
 function secureEqual(a,b){const left=Buffer.from(String(a||'')),right=Buffer.from(String(b||''));return left.length===right.length&&left.length>0&&crypto.timingSafeEqual(left,right)}
 function verifyIntegrationRequest(event){const expected=process.env.KEYMARK_INTEGRATION_API_KEY;if(!expected)throw Object.assign(new Error('KeyMark integration gateway is not configured'),{statusCode:503});const supplied=event.headers?.['x-keymark-api-key']||event.headers?.['X-Keymark-Api-Key'];if(!secureEqual(supplied,expected))throw Object.assign(new Error('Invalid KeyMark integration credential'),{statusCode:401})}
 function payloadDigest(value){return crypto.createHash('sha256').update(typeof value==='string'?value:JSON.stringify(value)).digest('hex')}
-module.exports={mapFhirAppointment,parseHl7,verifyIntegrationRequest,payloadDigest};
+module.exports={mapFhirAppointment,parseHl7,verifyIntegrationRequest,payloadDigest,calculateArrivalRisk};
