@@ -123,6 +123,12 @@
   force = true
 
 [[redirects]]
+  from = "/.well-known/keymark-jwks-nonprod.json"
+  to = "/.netlify/functions/keymark-jwks"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
