@@ -30,7 +30,7 @@ test('ES384 OAuth assertion uses the compact JOSE signature format',()=>{
 test('connection activation requires Appointment in the CapabilityStatement',async()=>{
  const previousFetch=global.fetch,previousSecret=process.env.KEYMARK_TEST_CLIENT_SECRET;process.env.KEYMARK_TEST_CLIENT_SECRET='sandbox-secret';let call=0;
  global.fetch=async()=>{call++;return call===1?{ok:true,json:async()=>({access_token:'sandbox-token'})}:{ok:true,json:async()=>({resourceType:'CapabilityStatement',fhirVersion:'4.0.1',software:{name:'Sandbox EHR'},rest:[{resource:[{type:'Patient'},{type:'Appointment'}]}]})}};
- try{const result=await testConnection({base_url:'https://ehr.example.com/fhir/r4',auth_type:'CLIENT_SECRET',configuration:{tokenUrl:'https://ehr.example.com/oauth2/token',clientId:'keymark',clientSecretEnvVar:'KEYMARK_TEST_CLIENT_SECRET'}});assert.deepEqual(result,{fhirVersion:'4.0.1',software:'Sandbox EHR',appointmentSupported:true});assert.equal(call,2)}finally{global.fetch=previousFetch;if(previousSecret===undefined)delete process.env.KEYMARK_TEST_CLIENT_SECRET;else process.env.KEYMARK_TEST_CLIENT_SECRET=previousSecret}
+ try{const result=await testConnection({base_url:'https://ehr.example.com/fhir/r4',auth_type:'CLIENT_SECRET',configuration:{tokenUrl:'https://ehr.example.com/oauth2/token',clientId:'keymark',clientSecretEnvVar:'KEYMARK_TEST_CLIENT_SECRET'}});assert.deepEqual(result,{fhirVersion:'4.0.1',software:'Sandbox EHR',appointmentSupported:true,grantedScope:null});assert.equal(call,2)}finally{global.fetch=previousFetch;if(previousSecret===undefined)delete process.env.KEYMARK_TEST_CLIENT_SECRET;else process.env.KEYMARK_TEST_CLIENT_SECRET=previousSecret}
 });
 
 test('appointment polling resolves referenced Patient contact details',async()=>{
@@ -67,4 +67,74 @@ test('a failed Patient lookup never fails the appointment poll',async()=>{
   assert.equal(result.resources.length,1);
   assert.equal(result.patients.size,0);
  }finally{global.fetch=previousFetch;if(previousSecret===undefined)delete process.env.KEYMARK_TEST_CLIENT_SECRET;else process.env.KEYMARK_TEST_CLIENT_SECRET=previousSecret}
+});
+
+test('a token granted without Appointment.read fails before any Appointment request is sent',async()=>{
+ const previousFetch=global.fetch,previousSecret=process.env.KEYMARK_TEST_CLIENT_SECRET;process.env.KEYMARK_TEST_CLIENT_SECRET='simulated-secret';
+ let appointmentCalls=0;
+ global.fetch=async url=>{
+  const target=String(url);
+  if(target.includes('/oauth2/token'))return {ok:true,text:async()=>JSON.stringify({access_token:'sandbox-token',scope:'system/Patient.read system/Location.read'})};
+  if(target.includes('/Appointment')){appointmentCalls++;return {ok:true,text:async()=>JSON.stringify({resourceType:'Bundle',entry:[],link:[]})}};
+  throw new Error(`unexpected fetch ${target}`);
+ };
+ try{
+  const {fetchAppointments}=require('../netlify/functions/_shared/keymark-fhir-client.cjs');
+  await assert.rejects(fetchAppointments({base_url:'https://ehr.example.com/fhir/r4',auth_type:'CLIENT_SECRET',configuration:{tokenUrl:'https://ehr.example.com/oauth2/token',clientId:'keymark',clientSecretEnvVar:'KEYMARK_TEST_CLIENT_SECRET'}},{from:'2026-08-13T00:00:00Z',to:'2026-09-13T00:00:00Z'}),/granted without system\/Appointment\.read/);
+  assert.equal(appointmentCalls,0);
+ }finally{global.fetch=previousFetch;if(previousSecret===undefined)delete process.env.KEYMARK_TEST_CLIENT_SECRET;else process.env.KEYMARK_TEST_CLIENT_SECRET=previousSecret}
+});
+
+test('a wildcard system grant still authorizes the appointment search',async()=>{
+ const previousFetch=global.fetch,previousSecret=process.env.KEYMARK_TEST_CLIENT_SECRET;process.env.KEYMARK_TEST_CLIENT_SECRET='simulated-secret';
+ global.fetch=async url=>{
+  const target=String(url);
+  if(target.includes('/oauth2/token'))return {ok:true,text:async()=>JSON.stringify({access_token:'sandbox-token',scope:'system/*.read'})};
+  if(target.includes('/Appointment'))return {ok:true,text:async()=>JSON.stringify({resourceType:'Bundle',entry:[],link:[]})};
+  throw new Error(`unexpected fetch ${target}`);
+ };
+ try{
+  const {fetchAppointments}=require('../netlify/functions/_shared/keymark-fhir-client.cjs');
+  const result=await fetchAppointments({base_url:'https://ehr.example.com/fhir/r4',auth_type:'CLIENT_SECRET',configuration:{tokenUrl:'https://ehr.example.com/oauth2/token',clientId:'keymark',clientSecretEnvVar:'KEYMARK_TEST_CLIENT_SECRET'}},{from:'2026-08-13T00:00:00Z',to:'2026-09-13T00:00:00Z'});
+  assert.equal(result.resources.length,0);
+ }finally{global.fetch=previousFetch;if(previousSecret===undefined)delete process.env.KEYMARK_TEST_CLIENT_SECRET;else process.env.KEYMARK_TEST_CLIENT_SECRET=previousSecret}
+});
+
+test('appointment search failure surfaces the server OperationOutcome diagnostics',async()=>{
+ const previousFetch=global.fetch,previousSecret=process.env.KEYMARK_TEST_CLIENT_SECRET;process.env.KEYMARK_TEST_CLIENT_SECRET='simulated-secret';
+ const outcome={resourceType:'OperationOutcome',issue:[{severity:'error',code:'forbidden',diagnostics:'The access token provided is valid, but is not authorized for this service.'}]};
+ global.fetch=async url=>{
+  const target=String(url);
+  if(target.includes('/oauth2/token'))return {ok:true,text:async()=>JSON.stringify({access_token:'sandbox-token'})};
+  if(target.includes('/Appointment'))return {ok:false,status:403,text:async()=>JSON.stringify(outcome)};
+  throw new Error(`unexpected fetch ${target}`);
+ };
+ try{
+  const {fetchAppointments}=require('../netlify/functions/_shared/keymark-fhir-client.cjs');
+  await assert.rejects(fetchAppointments({base_url:'https://ehr.example.com/fhir/r4',auth_type:'CLIENT_SECRET',configuration:{tokenUrl:'https://ehr.example.com/oauth2/token',clientId:'keymark',clientSecretEnvVar:'KEYMARK_TEST_CLIENT_SECRET'}},{from:'2026-08-13T00:00:00Z',to:'2026-09-13T00:00:00Z'}),/FHIR Appointment request failed \(403\): The access token provided is valid, but is not authorized for this service\./);
+ }finally{global.fetch=previousFetch;if(previousSecret===undefined)delete process.env.KEYMARK_TEST_CLIENT_SECRET;else process.env.KEYMARK_TEST_CLIENT_SECRET=previousSecret}
+});
+
+test('appointment search failure with a non-JSON body still names the status and body',async()=>{
+ const previousFetch=global.fetch,previousSecret=process.env.KEYMARK_TEST_CLIENT_SECRET;process.env.KEYMARK_TEST_CLIENT_SECRET='simulated-secret';
+ global.fetch=async url=>{
+  const target=String(url);
+  if(target.includes('/oauth2/token'))return {ok:true,text:async()=>JSON.stringify({access_token:'sandbox-token'})};
+  if(target.includes('/Appointment'))return {ok:false,status:403,text:async()=>'<html><body>403 Forbidden</body></html>'};
+  throw new Error(`unexpected fetch ${target}`);
+ };
+ try{
+  const {fetchAppointments}=require('../netlify/functions/_shared/keymark-fhir-client.cjs');
+  await assert.rejects(fetchAppointments({base_url:'https://ehr.example.com/fhir/r4',auth_type:'CLIENT_SECRET',configuration:{tokenUrl:'https://ehr.example.com/oauth2/token',clientId:'keymark',clientSecretEnvVar:'KEYMARK_TEST_CLIENT_SECRET'}},{from:'2026-08-13T00:00:00Z',to:'2026-09-13T00:00:00Z'}),/FHIR Appointment request failed \(403\): <html><body>403 Forbidden<\/body><\/html>/);
+ }finally{global.fetch=previousFetch;if(previousSecret===undefined)delete process.env.KEYMARK_TEST_CLIENT_SECRET;else process.env.KEYMARK_TEST_CLIENT_SECRET=previousSecret}
+});
+
+test('scopeGrants distinguishes granted, denied, and unreported scope lists',()=>{
+ const {scopeGrants}=require('../netlify/functions/_shared/keymark-fhir-client.cjs');
+ assert.equal(scopeGrants('system/Appointment.read system/Patient.read','Appointment'),true);
+ assert.equal(scopeGrants('system/*.read','Appointment'),true);
+ assert.equal(scopeGrants('system/Appointment.rs','Appointment'),true);
+ assert.equal(scopeGrants('system/Patient.read system/Location.read','Appointment'),false);
+ assert.equal(scopeGrants('','Appointment'),null);
+ assert.equal(scopeGrants(null,'Appointment'),null);
 });
