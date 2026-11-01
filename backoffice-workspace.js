@@ -144,6 +144,7 @@
       try{initial=localStorage.getItem(key)||'';}catch{}
     }
     if(initial&&modules.some((m)=>m.id===initial)) focusSection(initial,{persist:false,scroll:false});
+    else if(document.body.getAttribute('data-bo-default-open')==='first') focusSection(modules[0].id,{persist:false,scroll:false});
     else showDashboard();
   }
 

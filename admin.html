@@ -1,17 +1,17 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#082f49"><meta name="description" content="Manage users, roles, services, coverage, security settings and organization-wide audit records."><meta name="robots" content="noindex,nofollow"><title>Administration | NEXUS ONE</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet"><style>html{visibility:hidden}body{visibility:hidden}
 .adminHero{position:relative;overflow:hidden;background:linear-gradient(126deg,#071f37 0%,#0d365b 56%,#0e5c8c 100%);color:#fff;padding:0}
-.adminHeroInner{display:grid;grid-template-columns:1fr 1fr;min-height:420px;gap:0}
-.adminStoryPanel{padding:48px 40px 48px 0;display:flex;flex-direction:column;gap:24px;position:relative;z-index:1}
+.adminHeroInner{display:grid;grid-template-columns:1fr 1fr;min-height:0;gap:0}
+.adminStoryPanel{padding:22px 40px 22px 0;display:flex;flex-direction:column;gap:24px;position:relative;z-index:1}
 .adminStoryPanel:before{content:"";position:absolute;width:540px;height:540px;right:-180px;top:-280px;border-radius:50%;background:radial-gradient(circle,rgba(69,213,223,.25),transparent 66%);pointer-events:none;z-index:0}
 .adminStoryPanel>*{position:relative;z-index:1}
-.adminStoryPanel h1{font-size:clamp(34px,4vw,56px);line-height:1.05;letter-spacing:-.04em;margin:8px 0;font-family:Manrope,sans-serif;font-weight:800}
+.adminStoryPanel h1{font-size:clamp(28px,3vw,36px);line-height:1.05;letter-spacing:-.04em;margin:8px 0;font-family:Manrope,sans-serif;font-weight:800}
 .adminStoryPanel p{color:#d5e7f0;font-size:18px;margin:0;max-width:580px}
 .adminShortcuts{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
 .adminShortcut{min-height:44px;padding:10px 16px;border:1px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.1);color:#fff;font-weight:800;font-family:Manrope,sans-serif;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px;font-size:14px;transition:background .15s,border-color .15s}
 .adminShortcut:hover,.adminShortcut:focus-visible{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.6)}
 .adminShortcut.primary{background:linear-gradient(135deg,#db2839,#b91c2c);border-color:transparent;box-shadow:0 8px 20px rgba(219,40,57,.3)}
 .adminShortcut.primary:hover{background:linear-gradient(135deg,#c12030,#a0161e)}
-.adminStatPanel{background:rgba(255,255,255,.07);border-left:1px solid rgba(255,255,255,.12);padding:36px;display:flex;flex-direction:column;gap:14px}
+.adminStatPanel{background:rgba(255,255,255,.07);border-left:1px solid rgba(255,255,255,.12);padding:22px;display:flex;flex-direction:column;gap:14px}
 .adminStatPanel h2{margin:0 0 6px;font-size:14px;text-transform:uppercase;letter-spacing:.12em;color:#9de7ec;font-family:Manrope,sans-serif;font-weight:900}
 .adminStatGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1}
 .adminStat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px}
@@ -138,9 +138,9 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
   <script src="/trustedsite.js?v=2" defer></script>
   <script src="/i18n.js" defer></script>
 <script src="./auth-guard.js"></script><script src="./nexus-data.js"></script>
-<link rel="stylesheet" href="/responsive.css?v=5"></head><body>
+<link rel="stylesheet" href="/responsive.css?v=5"></head><body class="nexusStaff">
 <a class="skip" href="#main">Skip to main content</a>
-<header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="adminNav" class="links globalLinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/livecare.html">Livecare</a><a href="/dispatch.html">Dispatch</a><a aria-current="page" href="/admin.html">Admin</a></nav><div class="globalActions"><label class="nexusLanguageControl headerLanguageGlobal"><span class="sr">Language</span><select data-nexus-language aria-label="Select language"><option value="en-US">EN-US</option><option value="en-GB">EN-UK</option><option value="fr">FR</option><option value="es">ES</option></select></label><a class="globalPhone" href="tel:+18886395766"><small>Call Nexus</small><strong>(888) 639-5766</strong></a><a class="navCta" href="/booking-app.html">Book a Ride <span aria-hidden="true">-></span></a></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="adminNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header>
+<header class="top globalTop"><div class="shell nav globalNav"><a class="globalBrand" href="/" aria-label="Nexus Medical Transit home"><img class="logo" src="./nexus-logo.png" alt="Nexus Medical Transit"></a><nav id="adminNav" class="links globalLinks" aria-label="Primary navigation"><a href="/dispatch.html">Dispatch</a><a href="/operations.html">Operations</a><a href="/fleet.html">Fleet</a><a href="/billing.html">Billing</a><a aria-current="page" href="/admin.html">Admin</a><a href="/executive.html">Executive</a><a href="/ai-operations.html">AI Ops</a><a href="/qa.html">QA</a><a href="/facility.html">Facility</a><a href="/livecare.html">LiveCare</a></nav><div class="globalActions"></div><button class="mobileNavToggle" type="button" aria-expanded="false" aria-controls="adminNav" aria-label="Open navigation"><span></span><span></span><span></span></button></div></header>
 
 <section class="adminHero"><div class="shell adminHeroInner"><div class="adminStoryPanel">
   <div><div class="eyebrow"><span class="liveDot" aria-hidden="true"></span>NEXUS Administration</div>

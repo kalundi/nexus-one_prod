@@ -1,7 +1,7 @@
-#tripTableWrap{container-type:inline-size;container-name:trip-table;border:1px solid #dce6ed;border-radius:12px;overflow:hidden}
-#tripTableWrap .table{width:100%;min-width:0;table-layout:fixed;margin:0;font-size:13px;line-height:1.4}
-#tripTableWrap .table th{padding:12px 9px;background:#f3f7fa;color:#52677c;font-size:11px;font-weight:700;white-space:nowrap;letter-spacing:0;text-transform:none;border-bottom:1px solid #dce6ed}
-#tripTableWrap .tripSummaryRow>td{padding:14px 9px;vertical-align:middle;border-bottom:1px solid #e5edf2;color:#22384c;overflow:hidden}
+#tripTableWrap{container-type:inline-size;container-name:trip-table;border:1px solid #dce6ed;border-radius:12px;overflow:hidden;overflow:clip}
+#tripTableWrap .table{width:100%;min-width:0;table-layout:fixed;margin:0;font-size:14.5px;line-height:1.45}
+#tripTableWrap .table th{padding:13px 10px;background:#f3f7fa;color:#52677c;font-size:12px;font-weight:700;white-space:nowrap;letter-spacing:0;text-transform:none;border-bottom:1px solid #dce6ed;position:sticky;top:0;z-index:3}
+#tripTableWrap .tripSummaryRow>td{padding:16px 10px;vertical-align:middle;border-bottom:1px solid #e5edf2;color:#22384c;overflow:hidden}
 #tripTableWrap .tripSummaryRow:hover>td{background:#f8fbfd}
 #tripTableWrap .tripSummaryRow.selected>td{background:#edf6fc}
 #tripTableWrap .tripSummaryRow:has([aria-expanded="true"])>td{background:#f3f8fc;border-bottom-color:transparent}
@@ -20,7 +20,7 @@
 #tripTableWrap .tripReference{display:flex;align-items:center;gap:8px;margin:0;min-width:0;cursor:pointer;font-weight:400}
 #tripTableWrap .dispatch-bulk-select{width:15px;height:15px;min-height:0;margin:0;flex:0 0 15px;accent-color:#056c9c}
 #tripTableWrap .tripReferenceText{display:grid;gap:5px;min-width:0;font-size:12px}
-#tripTableWrap .tripSourceBadge{justify-self:start;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:800;letter-spacing:.03em;white-space:nowrap}
+#tripTableWrap .tripSourceBadge{justify-self:start;padding:3px 7px;border-radius:4px;font-size:11px;font-weight:800;letter-spacing:.03em;white-space:nowrap}
 #tripTableWrap .tripSourceBadge.real{background:#e6f5ef;color:#09764e}
 #tripTableWrap .tripSourceBadge.mock{background:#fff1d6;color:#8a4b06}
 #tripTableWrap .tripPatientButton{width:100%;padding:0;border:0;border-radius:3px;background:transparent;color:#172e42;font:inherit;font-weight:650;text-align:left;cursor:pointer}
@@ -28,9 +28,9 @@
 #tripTableWrap button:focus-visible,#tripTableWrap input:focus-visible{outline:2px solid #056c9c;outline-offset:3px}
 #tripTableWrap .tripDate,#tripTableWrap .tripTime{display:block;white-space:nowrap;overflow-wrap:normal}
 #tripTableWrap .tripDate{font-weight:600}
-#tripTableWrap .tripTime{margin-top:3px;font-size:11px;color:#52677c}
-#tripTableWrap .tripTimeBasis{margin-left:5px;font-size:9px;color:#6c8090}
-#tripTableWrap .tripSummaryRow .status{display:inline-block;max-width:100%;box-sizing:border-box;padding:4px 7px;font-size:10px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;vertical-align:middle}
+#tripTableWrap .tripTime{margin-top:3px;font-size:12px;color:#52677c}
+#tripTableWrap .tripTimeBasis{margin-left:5px;font-size:11px;color:#6c8090}
+#tripTableWrap .tripSummaryRow .status{display:inline-block;max-width:100%;box-sizing:border-box;padding:5px 8px;font-size:11px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;vertical-align:middle}
 #tripTableWrap .tripMoney{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 #tripTableWrap .tripColEstimate .tripMoney{font-weight:700;color:#143c55}
 #tripTableWrap .tripTableButton{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:34px;padding:7px 10px;border:1px solid #ccdce7;border-radius:7px;background:#fff;color:#234f6a;font:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
@@ -56,7 +56,7 @@
 #tripTableWrap .tripDetailFields dt{font-size:11px;color:#627787}
 #tripTableWrap .tripDetailFields dd{margin:3px 0 0;font-size:12px;font-weight:600;color:#22384c}
 #tripTableWrap .tripRiskDetails{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin-top:16px;padding-top:12px;border-top:1px solid #e5edf2}
-#tripTableWrap .tripRiskDetails .status{padding:4px 8px;font-size:10px;white-space:nowrap}
+#tripTableWrap .tripRiskDetails .status{padding:5px 8px;font-size:11px;white-space:nowrap}
 #tripTableWrap .tripRiskLabel{font-size:11px;font-weight:700;color:#52677c}
 #tripTableWrap .tripRiskDetails ul{display:flex;flex-wrap:wrap;gap:4px 18px;width:100%;padding-left:16px;margin:4px 0 0;color:#52677c;font-size:12px}
 #tripTableWrap .tripDetailsNotes{display:grid;gap:4px;margin:14px 0 0;font-size:12px;color:#52677c}
