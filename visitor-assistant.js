@@ -26,9 +26,11 @@
  * .bookRideSign style to any booking-bound link it sees, including
  * links rendered inside this panel. The styles below deliberately
  * neutralize that treatment within the panel only — in-bubble booking
- * links render as compact inline links and the panel's own buttons
- * keep their compact design. Page-level sign styling outside the
- * widget is untouched.
+ * links render as compact inline links, and every booking BUTTON in
+ * the panel (bottom CTA, estimate answer action, any future one)
+ * shares ONE class (.nvaBookBtn) styled as the compact scale of the
+ * sign look, so all booking buttons in the panel always match each
+ * other. Page-level sign styling outside the widget is untouched.
  */
 (function () {
   'use strict';
@@ -79,12 +81,20 @@
     /* Bottom CTA row: compact, sized for the panel. The Call label
        never wraps; the Book button stays narrower than the Call one. */
     '.nvaCtas{display:flex;gap:8px;padding:8px 14px;background:#fff;border-top:1px solid #e3edf3}',
-    '.nvaBook,.nvaCall{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;min-height:42px;padding:8px 8px;border-radius:11px;font:800 14px Manrope,sans-serif}',
-    '.nvaBook{flex:1;background:linear-gradient(135deg,#db2839,#b91c2c);color:#fff!important;box-shadow:0 6px 16px rgba(219,40,57,.22)}',
+    '.nvaCall{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;min-height:42px;padding:8px 8px;border-radius:11px;font:800 14px Manrope,sans-serif}',
+    '.nvaBook{flex:1}',
     '.nvaCall{flex:1.3;background:#fff;color:#082f49!important;border:1px solid #b9cfdd;white-space:nowrap}',
-    /* Estimate result action: a compact in-chat Book a Ride button. */
+    /* Estimate result action row (holds the shared booking button). */
     '.nvaEstActions{align-self:flex-start;display:flex;gap:8px}',
-    '.nvaEstBook{display:inline-flex;align-items:center;min-height:40px;padding:8px 16px;border-radius:11px;background:linear-gradient(135deg,#db2839,#b91c2c);color:#fff!important;text-decoration:none;font:800 13.5px Manrope,sans-serif;box-shadow:0 6px 16px rgba(219,40,57,.22)}',
+    /* ONE shared style for every booking-app button inside the panel:
+       the compact scale of the platform .bookRideSign look (dark red
+       radial sign, 2px #cf1f1f border, Manrope 900 uppercase, 20px
+       radius, ~42px tall). The bottom CTA (.nvaBook) and the estimate
+       answer button (.nvaEstBook) both carry .nvaBookBtn, and any
+       future booking button in the panel must use the same class so
+       they can never drift apart again. */
+    '.nvaPanel .nvaBookBtn{position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;gap:0;min-height:42px;padding:8px 18px;border:2px solid #cf1f1f;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 33%),radial-gradient(130% 95% at 50% 0,#9f0f0f 0,#7f0707 52%,#690505 100%);color:#fff!important;text-align:center;text-decoration:none;text-transform:uppercase;letter-spacing:.02em;font-family:Manrope,sans-serif;font-size:14px;font-weight:900;line-height:1.05;box-shadow:0 20px 38px rgba(70,0,0,.32),inset 0 1px 0 rgba(255,255,255,.25),inset 0 -7px 14px rgba(18,0,0,.34);overflow:hidden;white-space:nowrap}',
+    '.nvaPanel .nvaBookBtn:before{content:"";position:absolute;inset:4px;border-radius:16px;border:1px solid rgba(255,74,74,.48);pointer-events:none}',
     /* The page-level .bookRideSign treatment (added by platform.js to
        booking-bound links anywhere in the DOM) must not balloon links
        inside the chat panel: reset it to a plain inline link here. */
@@ -92,10 +102,14 @@
     '.nvaPanel a.bookRideSign:before{content:none!important;display:none!important}',
     '.nvaPanel a.bookRideSign:hover,.nvaPanel a.bookRideSign:focus-visible{transform:none!important;filter:none!important}',
     '.nvaPanel .nvaMsg.user a.bookRideSign{color:#9de7ec!important}',
-    /* …while the panel's own two buttons keep their compact design
-       even when platform.js tags them with the sign class. */
-    '.nvaPanel .nvaCtas a.nvaBook.bookRideSign{display:flex!important;align-items:center;justify-content:center;min-height:42px!important;padding:8px 8px!important;border:0!important;border-radius:11px!important;background:linear-gradient(135deg,#db2839,#b91c2c)!important;box-shadow:0 6px 16px rgba(219,40,57,.22)!important;color:#fff!important;text-decoration:none!important;text-transform:none!important;letter-spacing:normal!important;font:800 14px Manrope,sans-serif!important;white-space:normal!important;overflow:visible!important}',
-    '.nvaPanel a.nvaEstBook.bookRideSign{display:inline-flex!important;align-items:center;min-height:40px!important;padding:8px 16px!important;border:0!important;border-radius:11px!important;background:linear-gradient(135deg,#db2839,#b91c2c)!important;box-shadow:0 6px 16px rgba(219,40,57,.22)!important;color:#fff!important;text-decoration:none!important;text-transform:none!important;letter-spacing:normal!important;font:800 13.5px Manrope,sans-serif!important;white-space:nowrap!important;overflow:visible!important}',
+    /* …while the panel's booking buttons keep the ONE shared sign
+       style above even when platform.js tags them with the sign
+       class: the same declarations, restated with !important so the
+       platform stylesheet cannot pull them back to full size or a
+       different look. One rule covers every .nvaBookBtn, present
+       and future, in any part of the panel. */
+    '.nvaPanel a.nvaBookBtn.bookRideSign{display:inline-flex!important;position:relative!important;isolation:isolate!important;align-items:center!important;justify-content:center!important;gap:0!important;min-height:42px!important;height:auto!important;padding:8px 18px!important;border:2px solid #cf1f1f!important;border-radius:20px!important;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 33%),radial-gradient(130% 95% at 50% 0,#9f0f0f 0,#7f0707 52%,#690505 100%)!important;box-shadow:0 20px 38px rgba(70,0,0,.32),inset 0 1px 0 rgba(255,255,255,.25),inset 0 -7px 14px rgba(18,0,0,.34)!important;color:#fff!important;text-align:center!important;text-decoration:none!important;text-transform:uppercase!important;letter-spacing:.02em!important;font-family:Manrope,sans-serif!important;font-size:14px!important;font-weight:900!important;line-height:1.05!important;white-space:nowrap!important;overflow:hidden!important}',
+    '.nvaPanel a.nvaBookBtn.bookRideSign:before{content:""!important;display:block!important;position:absolute!important;inset:4px!important;border-radius:16px!important;border:1px solid rgba(255,74,74,.48)!important;pointer-events:none!important}',
     '.nvaForm{display:flex;gap:8px;padding:10px 14px 14px;background:#fff}',
     '.nvaInput{flex:1;min-width:0;min-height:48px;border:1px solid #aebfcb;border-radius:11px;padding:11px 13px;font:inherit}',
     '.nvaSend{flex:none;min-height:48px;min-width:76px;border:0;border-radius:11px;padding:11px 17px;background:#082f49;color:#fff;font:800 15.5px Manrope,sans-serif;cursor:pointer}',
@@ -132,7 +146,7 @@
     '<button type="button" class="nvaClose" aria-label="Close chat">&times;</button></div>' +
     '<div class="nvaLog" id="nvaLog" aria-live="polite"></div>' +
     '<div class="nvaChips" id="nvaChips"></div>' +
-    '<div class="nvaCtas"><a class="nvaBook" href="' + BOOKING_URL + '">Book a Ride</a>' +
+    '<div class="nvaCtas"><a class="nvaBook nvaBookBtn" href="' + BOOKING_URL + '">Book a Ride</a>' +
     '<a class="nvaCall" href="' + MAIN_PHONE_HREF + '">Call ' + MAIN_PHONE + '</a></div>' +
     '<form class="nvaForm" id="nvaForm"><label class="sr" for="nvaInput" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Type your question</label>' +
     '<input class="nvaInput" id="nvaInput" type="text" autocomplete="off" maxlength="500" placeholder="' + DEFAULT_PLACEHOLDER + '">' +
@@ -604,7 +618,7 @@
           fillPending(pending, out.data.answer);
           var actions = document.createElement('div');
           actions.className = 'nvaEstActions';
-          actions.innerHTML = '<a class="nvaEstBook" href="' + BOOKING_URL + '" target="_blank" rel="noopener">Book a Ride \u2014 exact quote</a>';
+          actions.innerHTML = '<a class="nvaEstBook nvaBookBtn" href="' + BOOKING_URL + '" target="_blank" rel="noopener">Book a Ride \u2014 exact quote</a>';
           log.appendChild(actions);
           log.scrollTop = log.scrollHeight;
           endFlow();

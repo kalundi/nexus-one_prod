@@ -1,6 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { createAssistant, guardrailOk } = require('../netlify/functions/_shared/visitor-assistant-core.cjs');
 
 const noFetch = async () => { throw new Error('network disabled in tests'); };
@@ -150,4 +152,31 @@ test('model phrasing is used when configured, guardrail falls back when it misbe
   const r2 = await a2.ask('Do you offer wheelchair transport in Annapolis?', '10.0.0.3');
   assert.equal(r2.body.mode, 'composed');
   assert.ok(!/\$\s?\d/.test(r2.body.answer));
+});
+
+test('panel booking buttons share ONE sign style (bottom CTA and estimate action)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  // Both booking-app buttons carry the shared class.
+  assert.match(src, /class="nvaBook nvaBookBtn"/, 'bottom CTA must use the shared .nvaBookBtn class');
+  assert.match(src, /class="nvaEstBook nvaBookBtn"/, 'estimate action must use the shared .nvaBookBtn class');
+  // The old divergent bright-red gradient is gone entirely.
+  assert.ok(!src.includes('#db2839') && !src.includes('#b91c2c'), 'divergent bright gradient must not remain');
+  // No per-button sign overrides remain that could drift apart again.
+  assert.ok(!src.includes('.nvaCtas a.nvaBook.bookRideSign'), 'per-button CTA sign override must be gone');
+  assert.ok(!src.includes('a.nvaEstBook.bookRideSign'), 'per-button estimate sign override must be gone');
+  // Exactly one shared base rule and one shared sign-tagged override,
+  // both carrying the identical compact sign values.
+  const baseRules = src.match(/\.nvaPanel \.nvaBookBtn\{[^']*/g) || [];
+  const signRules = src.match(/\.nvaPanel a\.nvaBookBtn\.bookRideSign\{[^']*/g) || [];
+  assert.equal(baseRules.length, 1, 'exactly one shared .nvaBookBtn base rule');
+  assert.equal(signRules.length, 1, 'exactly one shared .nvaBookBtn sign override');
+  for (const rule of [baseRules[0], signRules[0]]) {
+    assert.match(rule, /radial-gradient\(130% 95% at 50% 0,#9f0f0f 0,#7f0707 52%,#690505 100%\)/, 'sign radial gradient');
+    assert.match(rule, /border:2px solid #cf1f1f/, 'sign border');
+    assert.match(rule, /border-radius:20px/, 'sign radius');
+    assert.match(rule, /min-height:42px/, 'compact height');
+    assert.match(rule, /text-transform:uppercase/, 'uppercase');
+    assert.match(rule, /font-weight:900/, 'Manrope 900 weight');
+    assert.match(rule, /letter-spacing:\.02em/, 'sign letter spacing');
+  }
 });
