@@ -106,3 +106,58 @@ Until this design is approved, payer requests remain queued and the KeyMark heal
 - inbound messages are deduplicated by source system and SHA-256 payload digest.
 - raw inbound payloads are not stored in `keymark_integration_messages`.
 - all appointment ingestion, outreach, payer requests, and care-team updates produce audit records.
+
+## Troubleshooting: FHIR poll fails 403 while the connection Test passes
+
+Observed live on the Epic sandbox connection, 2026-11-01: the connection
+**Test** succeeded at 10:47 AM (token issued, `GET /metadata` returned the
+CapabilityStatement, Appointment advertised), but the first scheduled poll
+three minutes later failed with `FHIR Appointment request failed (403)` and
+no appointment ever synced.
+
+Why the Test cannot see this failure: the Test only exercises the OAuth
+token request and `/metadata`, neither of which requires a resource API.
+The poll's `GET /Appointment?date=ge…&date=lt…` search is the first call
+that does. On Epic, granted access is the intersection of the OAuth scopes
+you request and the **Incoming APIs registered on the app**, and Read and
+Search are separate registerable APIs — `Appointment.Read (Appointments)
+(R4)` does **not** authorize a search; `Appointment.Search (Appointments)
+(R4)` must also be selected. When it is not, Epic issues the token and
+answers the search with 403 ("The access token provided is valid, but is
+not authorized for this service").
+
+What the code now does about it:
+
+- The token response's granted `scope` list is captured. If it affirmatively
+  lacks `system/Appointment.read`, the poll stops before sending any
+  Appointment request and records exactly that in the connection's
+  last-error (granted vs requested scopes included).
+- FHIR error bodies are no longer discarded: an `OperationOutcome`'s
+  diagnostics (or the raw body, when the server answers with plain text)
+  is included in the recorded error, so a 403 explains itself.
+- The Test result now reports the granted scope list alongside the
+  CapabilityStatement summary.
+- The poll retries connections in `ERROR` status, not just `ACTIVE` ones.
+  Previously a single failed poll flipped the connection to `ERROR` and no
+  later poll ever selected it again — the connection could not recover on
+  its own even after the far side was fixed. A successful poll restores
+  `ACTIVE` and clears the error.
+
+### Epic developer-portal fix (app owner action)
+
+1. Sign in at <https://fhir.epic.com> and open the **nexus_mt** app.
+2. In the app's API list, confirm these are selected for the app:
+   `Appointment.Search (Appointments) (R4)`, `Appointment.Read
+   (Appointments) (R4)`, `Patient.Read (Demographics) (R4)` (or the
+   Patient search/read APIs), and `Location.Read (R4)` — with the
+   **Backend Systems** audience. If `Appointment.Search (Appointments)
+   (R4)` is missing, add it and **Save** the app.
+3. Wait for propagation: per Epic, API selection changes can take **up to
+   one hour** to reach the sandbox.
+4. No KeyMark-side action is then needed: within ~10 minutes the scheduled
+   poll retries the connection on its own. It is fixed when the KeyMark
+   connections table shows the Epic Sandbox connection back to **Active**
+   with a fresh "Last success", the recorded error names the real cause no
+   longer, and sandbox appointments begin appearing in the queue. (Pressing
+   **Test** on the connection also works immediately and shows the granted
+   scope list in its result.)

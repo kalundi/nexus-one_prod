@@ -14,7 +14,7 @@ function createFakeDb(){
  let apptSeq=0;
  async function query(sql,params=[]){
   const s=String(sql).replace(/\s+/g,' ');
-  if(s.includes("FROM keymark_connections WHERE status='ACTIVE'")){const rows=state.connections.filter(c=>c.status==='ACTIVE'&&c.protocol==='FHIR');return {rows,rowCount:rows.length}}
+  if(s.includes('FROM keymark_connections')){const rows=state.connections.filter(c=>['ACTIVE','ERROR'].includes(c.status)&&c.protocol==='FHIR');return {rows,rowCount:rows.length}}
   if(s.startsWith('INSERT INTO keymark_appointments')){
    const key=`${params[3]}|${params[2]}`,prior=state.appointments.get(key),inserted=!prior,id=prior?prior.id:`appt-${++apptSeq}`;
    const row={...(prior||{}),id,organization_id:params[0],facility_id:params[1],external_appointment_id:params[2],source_system:params[3],patient_external_id:params[4],patient_name:params[5],patient_phone:params[6],patient_email:params[7],appointment_at:params[8],department:params[9],appointment_type:params[10],notes:params[11],arrival_risk_score:params[12],consent_status:prior?.consent_status||'UNKNOWN',outreach_status:prior?.outreach_status||'NOT_STARTED',transportation_status:prior?.transportation_status||'NOT_ASSESSED',barrier_codes:prior?.barrier_codes||[]};
@@ -27,7 +27,7 @@ function createFakeDb(){
    return {rows:[],rowCount:1};
   }
   if(s.startsWith('INSERT INTO keymark_events')){const type=(s.match(/'(INTEGRATION_INGESTED|OUTREACH_SENT)'/)||[])[1]||'EVENT';state.events.push({appointment_id:params[0],event_type:type});return {rows:[],rowCount:1}}
-  if(s.startsWith('UPDATE keymark_connections SET last_success_at')){const c=state.connections.find(x=>x.id===params[0]);if(c){c.last_success_at=new Date().toISOString();c.last_error=null}return {rows:[],rowCount:1}}
+  if(s.startsWith('UPDATE keymark_connections SET last_success_at')){const c=state.connections.find(x=>x.id===params[0]);if(c){c.last_success_at=new Date().toISOString();c.last_error=null;c.status='ACTIVE'}return {rows:[],rowCount:1}}
   if(s.startsWith('UPDATE keymark_connections SET last_error')){const c=state.connections.find(x=>x.id===params[0]);if(c){c.status='ERROR';c.last_error=params[1]}return {rows:[],rowCount:1}}
   if(s.includes('FROM keymark_communications c JOIN keymark_appointments a')){const byId=new Map([...state.appointments.values()].map(a=>[a.id,a]));const rows=state.communications.filter(c=>['QUEUED','RETRY'].includes(c.status)&&c.attempt_count<4).map(c=>({...c,consent_status:byId.get(c.appointment_id)?.consent_status||'UNKNOWN'}));return {rows,rowCount:rows.length}}
   if(s.startsWith("UPDATE keymark_communications SET status='BLOCKED_CONSENT'")){const c=state.communications.find(x=>x.id===params[0]);if(c)c.status='BLOCKED_CONSENT';return {rows:[],rowCount:1}}
@@ -98,4 +98,29 @@ test('outreach processor blocks unconsented sends and marks consented appointmen
   assert.equal(twilioCalls,1);
   assert.equal(fake.state.events.filter(e=>e.event_type==='OUTREACH_SENT').length,1);
  }finally{global.fetch=previousFetch;for(const [key,value] of Object.entries({TWILIO_ACCOUNT_SID:previousEnv.sid,TWILIO_AUTH_TOKEN:previousEnv.token,TWILIO_PHONE_NUMBER:previousEnv.phone})){if(value===undefined)delete process.env[key];else process.env[key]=value}}
+});
+
+test('a connection stuck in ERROR is retried by the poll and recovers to ACTIVE',async()=>{
+ const fake=createFakeDb();installFakeDb(fake);
+ // Mirrors the live Epic Sandbox state on 2026-11-01: the first poll failed
+ // with a 403, the handler flipped the connection to ERROR, and (before this
+ // fix) no later poll ever selected it again.
+ fake.state.connections.push({id:'conn-err',organization_id:'org-1',facility_id:null,name:'Epic Sandbox',vendor:'EPIC',protocol:'FHIR',status:'ERROR',base_url:'https://ehr.example.com/fhir/r4',auth_type:'CLIENT_SECRET',last_success_at:new Date(Date.now()-3600000).toISOString(),last_error:'FHIR Appointment request failed (403)',configuration:{tokenUrl:'https://ehr.example.com/oauth2/token',clientId:'keymark',clientSecretEnvVar:'KEYMARK_PIPELINE_SECRET',lookaheadDays:30}});
+ const previousFetch=global.fetch,previousSecret=process.env.KEYMARK_PIPELINE_SECRET;process.env.KEYMARK_PIPELINE_SECRET='simulated-secret';
+ const start=new Date(Date.now()+72*3600000).toISOString();
+ const appointment={resourceType:'Appointment',id:'appt-err-1',status:'booked',start,participant:[{actor:{reference:'Patient/pat-9'}},{actor:{reference:'Location/loc-1',display:'Cardiology'}}]};
+ global.fetch=async url=>{
+  const target=String(url);
+  if(target.includes('/oauth2/token'))return {ok:true,json:async()=>({access_token:'sandbox-token'})};
+  if(target.includes('/Patient/pat-9'))return {ok:true,json:async()=>({resourceType:'Patient',id:'pat-9',name:[{text:'Maria Example'}],telecom:[]})};
+  if(target.includes('/Appointment'))return {ok:true,json:async()=>({resourceType:'Bundle',entry:[{resource:appointment}],link:[]})};
+  throw new Error(`unexpected fetch ${target}`);
+ };
+ try{
+  const {handler}=require(path.join(functionsDir,'keymark-fhir-sync.cjs'));
+  const res=await handler(),body=JSON.parse(res.body);
+  assert.equal(res.statusCode,200);assert.equal(body.processed,1);assert.equal(body.ingested,1);
+  const conn=fake.state.connections.find(c=>c.id==='conn-err');
+  assert.equal(conn.status,'ACTIVE');assert.equal(conn.last_error,null);
+ }finally{global.fetch=previousFetch;if(previousSecret===undefined)delete process.env.KEYMARK_PIPELINE_SECRET;else process.env.KEYMARK_PIPELINE_SECRET=previousSecret}
 });
