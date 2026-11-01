@@ -38,12 +38,67 @@ test('emergency language short-circuits to 911', async () => {
   assert.equal(body.mode, 'safety');
 });
 
-test('unknown area gets an honest no, never an invented yes', async () => {
+test('out-of-area Alaska gets an honest no, never an invented yes', async () => {
   const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
-  const { body } = await assistant.ask('Do you serve Wyoming?', '10.0.0.1');
-  assert.match(body.answer, /doesn\u2019t serve Wyoming/i);
-  assert.match(body.answer, /Maryland, Washington, DC, and Northern Virginia/);
+  const { body } = await assistant.ask('Do you serve Alaska?', '10.0.0.1');
+  assert.match(body.answer, /Alaska is outside the area Nexus covers/);
+  assert.match(body.answer, /48 contiguous states/);
   assert.ok(!/^yes/i.test(body.answer.trim()));
+  assert.ok(!/mynexusride\.com/.test(body.answer), 'a no must not imply the trip is bookable online');
+  assert.ok(body.sources.includes('area-outside'));
+});
+
+test('Hawaii gets the same honest no', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('Do you go to Hawaii?', '10.0.0.1');
+  assert.match(body.answer, /Hawaii is outside the area Nexus covers/);
+  assert.ok(body.sources.includes('area-outside'));
+});
+
+test('"can I book a ride to Kansas" gets a yes — inter-state coverage, answered in chat', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('can I book a ride to Kansas', '10.0.0.5');
+  assert.notEqual(body.mode, 'fallback');
+  assert.ok(body.sources.includes('long-distance'));
+  assert.match(body.answer, /^Yes — Kansas is within Nexus\u2019s coverage\./);
+  assert.match(body.answer, /inter-state/i);
+  assert.match(body.answer, /48 contiguous states/);
+  assert.match(body.answer, /scheduled in advance/);
+  // The booking step is the closing actualization, not the answer itself.
+  assert.ok(body.answer.trimEnd().endsWith('You can book online at https://mynexusride.com or call (888) 639-5766.'));
+  assert.ok(!/\$\s?\d/.test(body.answer), 'must not contain a dollar figure');
+});
+
+test('a Maryland to Florida ride gets the inter-state yes', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('Can I get a ride from Maryland to Florida?', '10.0.0.5');
+  assert.notEqual(body.mode, 'fallback');
+  assert.ok(body.sources.includes('long-distance'));
+  assert.match(body.answer, /^Yes — Florida is within Nexus\u2019s coverage\./);
+  assert.match(body.answer, /inter-state/i);
+});
+
+test('coverage answer is two-tier: local region first, then the other 46 states', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('What areas do you serve?', '10.0.0.5');
+  assert.ok(body.sources.includes('areas-overview'));
+  const localAt = body.answer.indexOf('Maryland, Washington, DC, and Northern Virginia');
+  const restAt = body.answer.indexOf('rest of the 48 contiguous states');
+  assert.ok(localAt >= 0, 'local region is named');
+  assert.ok(restAt > localAt, 'the rest of the 48 states is stated after the local region');
+  assert.match(body.answer, /inter-state/);
+  assert.match(body.answer, /Alaska, Hawaii/);
+});
+
+test('early-morning procedure pickup gets a yes with advance booking', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('my surgery check-in is at 5:30 AM, can you pick me up early?', '10.0.0.6');
+  assert.notEqual(body.mode, 'fallback');
+  assert.ok(body.sources.includes('early-morning'));
+  assert.match(body.answer, /^Yes/);
+  assert.match(body.answer, /scheduled in advance/);
+  assert.match(body.answer, /7 AM\u20137 PM/);
+  assert.ok(!/\$\s?\d/.test(body.answer), 'must not contain a dollar figure');
 });
 
 test('only public phone numbers ever appear in composed answers', async () => {
@@ -132,6 +187,44 @@ test('guardrail rejects prices and foreign phone numbers from model output', () 
   assert.equal(guardrailOk('Call us at 301-555-0134 for details.'), false);
   assert.equal(guardrailOk('Call us at (888) 639-5766 for details.'), true);
   assert.equal(guardrailOk('Yes, we serve Montgomery County.'), true);
+});
+
+test('no knowledge entry is a bare redirect — substance comes before any booking/call closing', () => {
+  const { ENTRIES, CONTACT } = require('../netlify/functions/_shared/visitor-knowledge.cjs');
+  for (const entry of ENTRIES) {
+    const a = entry.answer;
+    assert.ok(a.length >= 160, `${entry.id}: answer too short to be substantive (${a.length} chars)`);
+    assert.ok(!/^(book online|call \(|you can book online)/i.test(a.trim()), `${entry.id}: opens with a redirect`);
+    const sentences = a.split(/(?<=\.)\s+/);
+    assert.ok(!sentences[0].includes(CONTACT.bookingUrl), `${entry.id}: first sentence is a booking redirect`);
+    const urlAt = a.indexOf(CONTACT.bookingUrl);
+    if (urlAt >= 0) {
+      assert.ok(urlAt > a.length * 0.55, `${entry.id}: booking link arrives before the substance (${urlAt}/${a.length})`);
+    }
+    // Remove a trailing actualization sentence (booking link or call
+    // invitation); what remains must still be a substantive answer.
+    const body = [...sentences];
+    while (body.length > 1) {
+      const last = body[body.length - 1];
+      if (last.includes(CONTACT.bookingUrl) || /call \(888\)/.test(last)) body.pop();
+      else break;
+    }
+    assert.ok(body.join(' ').length >= 100, `${entry.id}: body too thin once the closing is removed`);
+  }
+});
+
+test('widget shows a thinking state and hides suggestion chips once a question is asked', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  // Thinking beat: typing avatar + "Nex is thinking…", skipped for
+  // reduced-motion visitors.
+  assert.match(src, /Nex is thinking/);
+  assert.match(src, /matchMedia\('\(prefers-reduced-motion: reduce\)'\)/);
+  // Chips hide after a question; a "What else can I ask?" affordance
+  // brings them back.
+  assert.match(src, /suggestionsHidden/);
+  assert.match(src, /What else can I ask\?/);
 });
 
 test('model phrasing is used when configured, guardrail falls back when it misbehaves', async () => {

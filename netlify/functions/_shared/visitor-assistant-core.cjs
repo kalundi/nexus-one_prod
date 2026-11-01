@@ -81,20 +81,58 @@ const PLACE_ALIASES = [
   { entry: 'area-northern-virginia', label: 'Northern Virginia', names: ['northern virginia', 'arlington', 'alexandria', 'fairfax', 'virginia'] }
 ];
 
-// US states outside the Maryland / Washington, DC / Northern Virginia
-// coverage. A "do you serve X?" question naming one gets an explicit,
-// honest no (built from the areas-overview entry) instead of a vague reply.
-const NON_COVERAGE_STATES = [
-  'alabama', 'alaska', 'arizona', 'arkansas', 'california', 'colorado',
-  'connecticut', 'delaware', 'florida', 'georgia', 'hawaii', 'idaho',
+// Coverage (owner directive, 2026-11-01) has two tiers: the local
+// region — Maryland, Washington, DC, and Northern Virginia — for
+// day-to-day service, and the rest of the 48 contiguous states for
+// inter-state and long-distance requests planned in advance. Only
+// Alaska, Hawaii, and places outside the United States are out of
+// area; naming one with travel intent gets an explicit, honest no.
+// Naming any other US state with travel intent gets the inter-state
+// yes (built from the long-distance entry). Maryland and Virginia are
+// not in the state list below because PLACE_ALIASES already routes
+// them to their local entries.
+const NON_COVERAGE_PLACES = [
+  { name: 'alaska', label: 'Alaska' },
+  { name: 'hawaii', label: 'Hawaii' },
+  { name: 'canada', label: 'Canada' },
+  { name: 'mexico', label: 'Mexico' },
+  { name: 'united kingdom', label: 'the United Kingdom' },
+  { name: 'england', label: 'England' },
+  { name: 'scotland', label: 'Scotland' },
+  { name: 'wales', label: 'Wales' },
+  { name: 'ireland', label: 'Ireland' },
+  { name: 'france', label: 'France' },
+  { name: 'germany', label: 'Germany' },
+  { name: 'spain', label: 'Spain' },
+  { name: 'italy', label: 'Italy' },
+  { name: 'portugal', label: 'Portugal' },
+  { name: 'netherlands', label: 'the Netherlands' },
+  { name: 'switzerland', label: 'Switzerland' },
+  { name: 'australia', label: 'Australia' },
+  { name: 'japan', label: 'Japan' },
+  { name: 'china', label: 'China' },
+  { name: 'india', label: 'India' },
+  { name: 'brazil', label: 'Brazil' },
+  { name: 'south korea', label: 'South Korea' },
+  { name: 'south africa', label: 'South Africa' }
+];
+
+const COVERED_STATES = [
+  'alabama', 'arizona', 'arkansas', 'california', 'colorado',
+  'connecticut', 'delaware', 'florida', 'georgia', 'idaho',
   'illinois', 'indiana', 'iowa', 'kansas', 'kentucky', 'louisiana', 'maine',
   'massachusetts', 'michigan', 'minnesota', 'mississippi', 'missouri',
   'montana', 'nebraska', 'nevada', 'new hampshire', 'new jersey', 'new mexico',
   'new york', 'north carolina', 'north dakota', 'ohio', 'oklahoma', 'oregon',
   'pennsylvania', 'rhode island', 'south carolina', 'south dakota',
-  'tennessee', 'texas', 'utah', 'vermont', 'west virginia', 'wisconsin',
-  'wyoming'
+  'tennessee', 'texas', 'utah', 'vermont', 'washington', 'west virginia',
+  'wisconsin', 'wyoming'
 ];
+
+// Any phrasing that treats the named place as a trip endpoint or a
+// service question — used to route named places to the coverage answers
+// instead of letting a bare place name drift into a generic booking reply.
+const TRAVEL_INTENT_RE = /(book|ride|trip|take|go|travel|drive|serve|serving|cover|operate|pick ?up|pickup|headed|going|get to|come to|transport|bring|visit)/;
 
 const SERVICE_ENTRY_IDS = [
   'wheelchair', 'stretcher', 'bariatric', 'ambulance', 'dialysis',
@@ -155,10 +193,29 @@ function detectPlace(question) {
   return null;
 }
 
-function detectNonCoverageState(question) {
+function mentionsPlace(text, name) {
+  return text.includes(' ' + name + ' ') || text.includes(' ' + name + '?') || text.includes(' ' + name + ',');
+}
+
+// Places Nexus cannot cover at all: Alaska, Hawaii, and anywhere
+// outside the United States. "New Mexico" is scrubbed before the
+// country check so the covered state can never read as Mexico.
+function detectNonCoveragePlace(question) {
+  let text = ' ' + normalize(question) + ' ';
+  const scrubbed = text.replace(/new mexico/g, ' nm ');
+  for (const place of NON_COVERAGE_PLACES) {
+    if (mentionsPlace(scrubbed, place.name)) return place.label;
+  }
+  if (/(outside the (us|united states)|another country|overseas|international)/.test(scrubbed)) {
+    return 'outside the United States';
+  }
+  return null;
+}
+
+function detectCoveredState(question) {
   const text = ' ' + normalize(question) + ' ';
-  for (const state of NON_COVERAGE_STATES) {
-    if (text.includes(' ' + state + ' ') || text.includes(' ' + state + '?')) return state;
+  for (const state of COVERED_STATES) {
+    if (mentionsPlace(text, state)) return state.replace(/\b\w/g, c => c.toUpperCase());
   }
   return null;
 }
@@ -180,14 +237,29 @@ function composeAnswer(question) {
     return { answer: pricing.answer + ' ' + BOOKING_CTA, sources: ['pricing'], mode: 'composed' };
   }
 
-  // Place outside coverage: an explicit, honest no.
-  const outsideState = detectNonCoverageState(question);
-  if (outsideState && /(serve|cover|go to|travel to|operate)/.test(text)) {
-    const name = outsideState.replace(/\b\w/g, c => c.toUpperCase());
+  // Place outside coverage entirely (Alaska, Hawaii, outside the US):
+  // a warm, explicit, honest no — and no booking call to action, so the
+  // answer never implies the booking app can take the trip.
+  const outsidePlace = detectNonCoveragePlace(question);
+  if (outsidePlace && TRAVEL_INTENT_RE.test(text)) {
     const answer =
-      `No — Nexus doesn\u2019t serve ${name}. Our coverage is Maryland, Washington, DC, and Northern Virginia. ` +
-      entryById('areas-overview').answer.split('. ').slice(1).join('. ') + ' ' + BOOKING_CTA;
-    return { answer, sources: ['areas-overview'], mode: 'composed' };
+      `I\u2019m sorry — ${outsidePlace} is outside the area Nexus covers. ` +
+      entryById('area-outside').answer;
+    return { answer, sources: ['area-outside'], mode: 'composed' };
+  }
+
+  // Any other named US state is inside the 48-state inter-state
+  // coverage: a yes, answered with the long-distance facts, with the
+  // booking step as the closing actualization only.
+  const coveredState = detectCoveredState(question);
+  // "Washington" beside a DC place signal means the District, which the
+  // place composition below answers with DC specifics — not the state.
+  const washingtonDc = coveredState === 'Washington' && Boolean(detectPlace(question));
+  if (coveredState && !washingtonDc && TRAVEL_INTENT_RE.test(text)) {
+    const answer =
+      `Yes — ${coveredState} is within Nexus\u2019s coverage. ` +
+      entryById('long-distance').answer + ' ' + BOOKING_CTA;
+    return { answer, sources: ['long-distance', 'areas-overview'], mode: 'composed' };
   }
 
   const hits = retrieve(question);

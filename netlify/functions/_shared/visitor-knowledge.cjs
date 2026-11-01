@@ -14,6 +14,17 @@
  *  - Phone numbers: only the two public lines below. Never add any other
  *    number (in particular no 240- or 202- area-code numbers).
  *  - No street address: listings use "Clarksburg, MD" only.
+ *  - Coverage (owner directive, 2026-11-01 — supersedes the service-area
+ *    framing in the website page copy for the assistant's answers; the
+ *    pages themselves are unchanged): TWO TIERS. Tier 1, the local
+ *    region, is Maryland, Washington, DC, and Northern Virginia —
+ *    regular day-to-day service. Tier 2: Nexus also covers the rest of
+ *    the 48 contiguous states for inter-state and long-distance
+ *    requests, planned in advance. Only Alaska, Hawaii, and anywhere
+ *    outside the United States are out of area.
+ *  - Answer style: answer the question first, in the chat, with the
+ *    facts. A booking link or phone number belongs only in the closing
+ *    sentence, as the way to act on the answer — never as the answer.
  */
 
 const CONTACT = {
@@ -39,7 +50,7 @@ const ENTRIES = [
     ],
     keywords: ['services', 'offer', 'provide', 'nemt', 'non-emergency medical transportation', 'types of rides', 'transportation options'],
     answer:
-      'Nexus Medical Transit provides planned, non-emergency medical transportation (NEMT) across Maryland, Washington, DC, and Northern Virginia. Services include ambulatory rides, wheelchair transportation, stretcher transportation, bariatric transportation, ambulance transportation (BLS/ALS), dialysis and recurring rides, hospital discharge rides, and medical shuttle support. Drivers provide door-through-door support — help from inside the pickup location, secure boarding, and an accompanied arrival at check-in.',
+      'Nexus Medical Transit provides planned, non-emergency medical transportation (NEMT). Day-to-day service is local to Maryland, Washington, DC, and Northern Virginia, and Nexus also covers the rest of the 48 contiguous states for inter-state and long-distance trips planned in advance. Services include ambulatory rides, wheelchair transportation, stretcher transportation, bariatric transportation, ambulance transportation (BLS/ALS), dialysis and recurring rides, hospital discharge rides, and medical shuttle support. Drivers provide door-through-door support — help from inside the pickup location, secure boarding, and an accompanied arrival at check-in.',
     source: 'non-emergency-medical-transportation.html'
   },
   {
@@ -48,7 +59,7 @@ const ENTRIES = [
     questions: ['Do you offer rides for people who can walk?', 'What is ambulatory transportation?'],
     keywords: ['ambulatory', 'walking passenger', 'walk', 'assisted ride'],
     answer:
-      'Ambulatory transportation is for walking passengers who need reliable, assisted rides to appointments. It is one of the ride types Nexus coordinates across Maryland, Washington, DC, and Northern Virginia.',
+      'Ambulatory transportation is for walking passengers who need reliable, assisted rides to appointments. It is one of the ride types Nexus coordinates day to day across Maryland, Washington, DC, and Northern Virginia, and across the rest of the 48 contiguous states for inter-state trips planned in advance.',
     source: 'non-emergency-medical-transportation.html'
   },
   {
@@ -119,7 +130,7 @@ const ENTRIES = [
     questions: ['Do you offer medical shuttle service?', 'Can you run a shuttle for a facility or program?'],
     keywords: ['shuttle', 'facility shuttle', 'program shuttle', 'group transportation'],
     answer:
-      'Nexus offers medical shuttle support — scheduled shuttle service for facilities and programs — as part of its transportation services across Maryland, Washington, DC, and Northern Virginia. Call (888) 639-5766 to discuss a shuttle arrangement.',
+      'Nexus offers medical shuttle support — scheduled shuttle service for facilities and programs — as part of its transportation services. A shuttle arrangement is planned around the facility or program: the schedule it runs on, the passengers it serves, and the vehicle capacity needed, coordinated in advance the same way as Nexus\u2019s other planned trips across Maryland, Washington, DC, and Northern Virginia. Call (888) 639-5766 to discuss a shuttle arrangement.',
     source: 'non-emergency-medical-transportation.html'
   },
   {
@@ -139,8 +150,23 @@ const ENTRIES = [
     questions: ['What areas do you serve?', 'Where do you operate?', 'What is your coverage area?'],
     keywords: ['areas', 'serve', 'coverage', 'operate', 'locations', 'region'],
     answer:
-      'Nexus serves Maryland, Washington, DC, and Northern Virginia. In Maryland, coordination commonly includes Montgomery County, Prince George\u2019s County, Howard County, Frederick County, and Anne Arundel County (including Annapolis). In Northern Virginia, trips often involve Arlington, Alexandria, Fairfax, and surrounding communities. Coverage for a specific trip depends on the trip details, destination, and availability — call (888) 639-5766 with your pickup and destination and we will confirm.',
+      'Nexus\u2019s local region is Maryland, Washington, DC, and Northern Virginia — that is where day-to-day service runs. In Maryland, coordination commonly includes Montgomery County, Prince George\u2019s County, Howard County, Frederick County, and Anne Arundel County (including Annapolis). In Northern Virginia, trips often involve Arlington, Alexandria, Fairfax, and surrounding communities. And we cover the rest of the 48 contiguous states for inter-state and long-distance trips when you need one — a pickup in the local region to a hospital in another state, or a trip that starts farther out — planned in advance so the vehicle, crew, and timing are matched to the trip. The only places outside coverage are Alaska, Hawaii, and anywhere outside the United States.',
     source: 'contact-service-areas.html; wheelchair-transportation.html; maryland-medical-transportation.html'
+  },
+  {
+    id: 'long-distance',
+    topic: 'Service areas',
+    questions: [
+      'Do you do long-distance trips?',
+      'Do you do inter-state trips?',
+      'Can you take a passenger to another state?',
+      'Do you travel out of state?',
+      'Can I book a ride to another state?'
+    ],
+    keywords: ['long distance', 'long-distance', 'interstate', 'inter-state', 'another state', 'other state', 'out of state', 'cross country', 'state to state', 'far away'],
+    answer:
+      'Inter-state requests are something Nexus handles. Day-to-day service runs locally in Maryland, Washington, DC, and Northern Virginia, and Nexus also covers the rest of the 48 contiguous states when a trip crosses state lines or runs long — a pickup in Maryland to a hospital in DC, a discharge from the region to family in another state, or a trip that starts and ends outside the local region entirely. Because of the distance, long trips are scheduled in advance: the pickup and destination, the appointment timing, and any mobility or equipment needs are planned up front so the right vehicle and crew are matched to the trip, and booked trips can be followed in LiveCare. I can work out a rough estimate for a long trip right here in this chat if you\u2019d like.',
+    source: 'Owner directive 2026-11-01 (48-state inter-state coverage); contact-service-areas.html'
   },
   {
     id: 'area-montgomery-county',
@@ -148,7 +174,7 @@ const ENTRIES = [
     questions: ['Do you serve Montgomery County?', 'Are you based in Montgomery County?', 'Do you serve Clarksburg, Rockville, Bethesda, or Gaithersburg?'],
     keywords: ['montgomery county', 'clarksburg', 'rockville', 'bethesda', 'gaithersburg', 'germantown', 'silver spring'],
     answer:
-      'Yes. Nexus operates from Clarksburg, MD, and serves all of Montgomery County as part of its Maryland, Washington, DC, and Northern Virginia coverage. Recurring dialysis and other standing schedules can be arranged in Montgomery County — call (888) 639-5766.',
+      'Yes. Nexus operates from Clarksburg, MD, and serves all of Montgomery County as part of its local Maryland, Washington, DC, and Northern Virginia region. Recurring dialysis and other standing schedules can be arranged in Montgomery County — call (888) 639-5766.',
     source: 'medical-transportation-montgomery-county.html'
   },
   {
@@ -175,17 +201,17 @@ const ENTRIES = [
     questions: ['Do you serve Northern Virginia?', 'Do you serve Arlington, Alexandria, or Fairfax?'],
     keywords: ['northern virginia', 'arlington', 'alexandria', 'fairfax', 'virginia'],
     answer:
-      'Yes. Nexus supports planned healthcare travel across Northern Virginia, including Arlington, Alexandria, Fairfax, and nearby communities — routine appointments, discharge support, dialysis trips, and other planned medical transportation. Trips into DC and Maryland are also part of regular coverage.',
+      'Yes. Nexus supports planned healthcare travel across Northern Virginia, including Arlington, Alexandria, Fairfax, and nearby communities — routine appointments, discharge support, dialysis trips, and other planned medical transportation. Trips into DC and Maryland are also part of regular local coverage, and longer inter-state trips across the 48 contiguous states can be arranged in advance.',
     source: 'northern-virginia-medical-transportation.html'
   },
   {
     id: 'area-outside',
     topic: 'Service areas',
-    questions: ['Do you serve addresses outside your area?', 'Can you travel outside Maryland, DC, and Virginia?'],
-    keywords: ['outside', 'out of area', 'another state', 'long distance', 'far'],
+    questions: ['Do you serve Alaska or Hawaii?', 'Can you travel outside the United States?', 'Do you offer international trips?'],
+    keywords: ['alaska', 'hawaii', 'international', 'another country', 'outside the united states', 'outside the us', 'abroad', 'canada'],
     answer:
-      'Nexus coverage is Maryland, Washington, DC, and Northern Virginia, and trips between those areas — for example from Annapolis to DC or Baltimore hospitals — are part of regular coverage. For a pickup or destination outside that region, call (888) 639-5766 and the team will confirm what can be scheduled for your specific trip.',
-    source: 'medical-transportation-montgomery-county.html; medical-transportation-annapolis.html'
+      'Nexus\u2019s day-to-day service is local to Maryland, Washington, DC, and Northern Virginia, and its inter-state and long-distance trips cover the rest of the 48 contiguous states — but Alaska, Hawaii, and anywhere outside the United States are out of area. If part of a trip sits inside the 48 contiguous states, Nexus can help with that part; for a trip that is entirely outside them, a medical transport provider local to that area is the right call.',
+    source: 'Owner directive 2026-11-01 (48-state coverage; AK/HI/international out of area)'
   },
 
   // ------------------------------------------------------------- visiting info
@@ -195,8 +221,21 @@ const ENTRIES = [
     questions: ['What are your hours?', 'When are you open?', 'What time do you close?'],
     keywords: ['hours', 'open', 'close', 'when', 'schedule', 'weekend'],
     answer:
-      'Nexus normal hours are Monday\u2013Friday, 7 AM\u20137 PM. Transportation itself is scheduled in advance around appointment and treatment times. To arrange a trip, book online at https://mynexusride.com or call (888) 639-5766 during normal hours.',
+      'Nexus\u2019s normal hours are Monday\u2013Friday, 7 AM\u20137 PM. Transportation itself is scheduled in advance around appointment and treatment times, so trips are planned against those hours rather than requested on the spot. When you\u2019re ready to arrange a trip, you can book online at https://mynexusride.com or call (888) 639-5766 during normal hours.',
     source: 'platform.js (site footer: "Normal Hours: Mon-Friday, 7 AM-7 PM")'
+  },
+  {
+    id: 'early-morning',
+    topic: 'Hours',
+    questions: [
+      'Can you pick me up early in the morning?',
+      'My surgery check-in is at 5:30 AM — can you pick me up before that?',
+      'Do you do early morning pickups for early appointments?'
+    ],
+    keywords: ['early morning', 'early pickup', 'early appointment', 'early procedure', 'surgery check-in', 'check-in', 'check in', 'before 7 am', '5 am', 'pre-dawn', 'early'],
+    answer:
+      'Yes — early-morning pickups are something Nexus plans for. Regular hours are Monday\u2013Friday, 7 AM\u20137 PM, but a patient with an early procedure — a surgery check-in, dialysis, or another early appointment — can be picked up before 7 AM when the trip is scheduled in advance. The way it works: book the trip ahead of time with the check-in time, and the pickup is timed back from it, so the passenger arrives when the facility needs them and the trip is matched to the right vehicle and crew. The one thing an early pickup can\u2019t be is last-minute — it has to be arranged ahead. When you\u2019re ready, you can book online at https://mynexusride.com or call (888) 639-5766.',
+    source: 'Owner directive 2026-11-01 (early-morning procedure pickups, scheduled in advance)'
   },
   {
     id: 'booking-how',
@@ -204,7 +243,7 @@ const ENTRIES = [
     questions: ['How do I book a ride?', 'How do I schedule transportation?', 'How far in advance should I book?'],
     keywords: ['book', 'schedule a ride', 'reserve', 'request transportation', 'in advance', 'appointment'],
     answer:
-      'You can book online at https://mynexusride.com or call (888) 639-5766. Book as early as you can — planned trips let us match the right vehicle and crew. When you book, have the passenger\u2019s pickup and destination addresses, appointment time, and mobility or equipment needs ready.',
+      'Booking a ride with Nexus is a planned-trip process, and here is how it works. You give us the passenger\u2019s pickup and destination addresses, the appointment date and time, and any mobility or equipment needs — a wheelchair, a stretcher, extra room, and so on. With those details, availability is confirmed for that specific trip and it is matched to the right vehicle and crew. Book as early as you can: planning ahead is what lets us match the vehicle and crew properly, and once a trip is booked it can be followed in LiveCare. When you\u2019re ready, you can book online at https://mynexusride.com or call (888) 639-5766.',
     source: 'non-emergency-medical-transportation.html (FAQPage JSON-LD); contact-service-areas.html'
   },
   {
@@ -213,7 +252,7 @@ const ENTRIES = [
     questions: ['How much does a ride cost?', 'What are your prices?', 'Can I get a quote?', 'What is the fare?'],
     keywords: ['cost', 'price', 'pricing', 'how much', 'fare', 'rate', 'charge', 'quote', 'estimate', 'expensive', 'fee'],
     answer:
-      'Nexus does not publish set fares on the website, because the price of a trip depends on the trip itself — distance, service level, required personnel and equipment, and timing. You can get an estimate for your specific trip in the online booking at https://mynexusride.com, or call (888) 639-5766 and the team will quote it with your trip details. I can\u2019t quote a price here without those details.',
+      'Nexus does not publish set fares on the website, because the price of a trip depends on the trip itself — distance, service level, required personnel and equipment, and timing. I can\u2019t quote a price here without those details — but if you give me the pickup, drop-off, ride type, and pickup time, I can work out a rough estimate right here in this chat. You can also get an estimate for your specific trip in the online booking at https://mynexusride.com, or call (888) 639-5766 and the team will quote it with your trip details.',
     source: 'legal.html (Terms of Use, "Quotes, payment and benefits"); booking-app.html'
   },
   {
@@ -230,7 +269,7 @@ const ENTRIES = [
     ],
     keywords: ['available', 'availability', 'openings', 'opening', 'same day', 'short notice', 'last minute', 'book ahead', 'fit me in', 'reserve', 'reservation'],
     answer:
-      'Availability depends on the date, time, and trip, and I can\u2019t check live availability here \u2014 but it is confirmed for your specific trip as soon as you book online at https://mynexusride.com or call (888) 639-5766. Nexus\u2019s normal hours are Monday\u2013Friday, 7 AM\u20137 PM, and rides are scheduled in advance around appointment and treatment times, so booking ahead is the best way to secure your time. When you book, have the pickup and destination addresses, the appointment time, and any mobility or equipment needs ready \u2014 the trip is then matched to the right vehicle and crew, and booked trips can be followed in LiveCare.',
+      'Availability depends on the date, time, and trip, and I can\u2019t check live availability here. What I can tell you: Nexus\u2019s normal hours are Monday\u2013Friday, 7 AM\u20137 PM, and rides are scheduled in advance around appointment and treatment times, so booking ahead is the best way to secure your time. When you book, have the pickup and destination addresses, the appointment time, and any mobility or equipment needs ready \u2014 the trip is then matched to the right vehicle and crew, availability is confirmed for your specific trip, and booked trips can be followed in LiveCare. To check a specific trip, book online at https://mynexusride.com or call (888) 639-5766.',
     source: 'booking-app.html; contact-service-areas.html (coverage depends on trip details and availability); non-emergency-medical-transportation.html (FAQPage JSON-LD: how far in advance to book); platform.js (site footer hours)'
   },
   {
@@ -275,7 +314,7 @@ const ENTRIES = [
     questions: ['How do I contact you?', 'What is your phone number?', 'What is your email?'],
     keywords: ['contact', 'phone', 'number', 'email', 'call', 'reach'],
     answer:
-      'You can reach Nexus Medical Transit on the main line at (888) 639-5766, on the Ambulance Services line at (888) 760-4990, or by email at contact@nexusmt.com. Nexus operates from Clarksburg, MD, serving Maryland, Washington, DC, and Northern Virginia.',
+      'You can reach Nexus Medical Transit on the main line at (888) 639-5766, on the Ambulance Services line at (888) 760-4990, or by email at contact@nexusmt.com. Nexus operates from Clarksburg, MD: day-to-day service is local to Maryland, Washington, DC, and Northern Virginia, and inter-state trips are covered across the rest of the 48 contiguous states.',
     source: 'contact-service-areas.html'
   },
   {

@@ -125,11 +125,12 @@ test('implausible road distance against geocoded points is rejected, never adjus
   assert.equal(plausible.status, 200);
 });
 
-test('out-of-area states get an honest no-estimate answer with the phone number', async () => {
-  const { status, body } = await estimator.estimate({ ...baseInput, pickupState: 'PA', dropoffState: 'MD' }, '10.1.0.10');
+test('out-of-area states (AK/HI) get an honest no-estimate answer with the phone number', async () => {
+  const { status, body } = await estimator.estimate({ ...baseInput, pickupState: 'AK', dropoffState: 'MD' }, '10.1.0.10');
   assert.equal(status, 200);
   assert.equal(body.mode, 'out_of_area');
-  assert.match(body.answer, /Maryland, Washington, DC, and Northern Virginia/);
+  assert.match(body.answer, /48 contiguous states/);
+  assert.match(body.answer, /Alaska and Hawaii are out of area/);
   assert.match(body.answer, /\(888\) 639-5766/);
   assert.ok(!/about \$\d/.test(body.answer), 'must not quote an estimate figure');
 });
@@ -138,6 +139,33 @@ test('in-area states MD/DC/VA pass the area check', async () => {
   const { status, body } = await estimator.estimate({ ...baseInput, pickupState: 'MD', dropoffState: 'VA' }, '10.1.0.11');
   assert.equal(status, 200);
   assert.equal(body.mode, 'estimate');
+});
+
+test('other contiguous states (PA) now pass the area check too', async () => {
+  const { status, body } = await estimator.estimate({ ...baseInput, pickupState: 'PA', dropoffState: 'MD' }, '10.1.0.12');
+  assert.equal(status, 200);
+  assert.equal(body.mode, 'estimate');
+});
+
+test('a long-distance inter-state estimate (MD to Kansas) is priced, not refused', async () => {
+  // Clarksburg MD (39.24, -77.28) to Topeka KS (39.05, -95.68):
+  // straight line ~1,015 mi, so 1,100 road miles is plausible.
+  const input = {
+    ...baseInput,
+    dropoff: 'Topeka, KS',
+    pickupState: 'MD',
+    dropoffState: 'KS',
+    loadedMiles: 1100,
+    durationMinutes: 1020,
+    pickupLat: 39.24, pickupLng: -77.28,
+    dropoffLat: 39.05, dropoffLng: -95.68
+  };
+  const { status, body } = await estimator.estimate(input, '10.1.0.13');
+  assert.equal(status, 200);
+  assert.equal(body.mode, 'estimate');
+  assert.equal(body.estimate.loadedMiles, 1100);
+  assert.equal(body.estimate.deadheadMiles, 550);
+  assert.match(body.answer, /about \$\d/);
 });
 
 test('estimate requests are rate limited per IP', async () => {
