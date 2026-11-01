@@ -67,3 +67,12 @@ button.brandLockup{border:0;padding:0;background:none;cursor:pointer;text-align:
 .demoMapEndpoint{color:#15374c;max-width:210px;font:12px/1.4 system-ui,sans-serif}.demoMapEndpoint strong{display:block;font-size:14px}.demoMapEndpoint p{margin:5px 0 2px}
 #mapItinerary .patientMapAddress p{font-size:14px;font-weight:650;line-height:1.5}#mapItinerary .routeAddressSource{font-size:10px;color:#5b7081;display:block;margin-top:5px}
 @media(max-width:380px){.topLogo{width:100px}.topBarInner{gap:8px;padding:10px}.topAction{padding:0 10px;font-size:11px}.heroActions{flex-direction:row}.historySplit{grid-template-columns:1fr}.patientScreenHead h2{font-size:16px}}
+
+/* Book a Ride sign design — identical to the .bookRideSign rules in platform.css, so booking-bound buttons match the navigation bar button on pages that do not load platform.js. */
+.bookRideSign{position:relative;isolation:isolate;display:inline-flex!important;align-items:center;justify-content:center;gap:0;min-height:54px;padding:12px 28px!important;border-radius:20px!important;border:2px solid #cf1f1f!important;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 33%),radial-gradient(130% 95% at 50% 0,#9f0f0f 0,#7f0707 52%,#690505 100%)!important;color:#fff!important;text-decoration:none!important;text-transform:uppercase;letter-spacing:.02em;font-family:Manrope,sans-serif!important;font-weight:900!important;line-height:1.05;box-shadow:0 20px 38px rgba(70,0,0,.32),inset 0 1px 0 rgba(255,255,255,.25),inset 0 -7px 14px rgba(18,0,0,.34)!important;overflow:hidden;white-space:nowrap}
+.bookRideSign:before{content:"";position:absolute;pointer-events:none}
+.bookRideSign:before{inset:4px;border-radius:16px;border:1px solid rgba(255,74,74,.48)}
+.bookRideSign:hover,.bookRideSign:focus-visible{transform:translateY(-1px);filter:brightness(1.05)}
+.bookRideSign:active{transform:translateY(0);filter:brightness(.98)}
+.bookRideSign span[aria-hidden="true"]{display:none!important}
+@media(max-width:620px){.bookRideSign{min-height:50px;padding:11px 17px!important;border-radius:16px!important;font-size:13px}}
