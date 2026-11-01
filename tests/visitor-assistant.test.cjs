@@ -273,3 +273,64 @@ test('panel booking buttons share ONE sign style (bottom CTA and estimate action
     assert.match(rule, /letter-spacing:\.02em/, 'sign letter spacing');
   }
 });
+
+test('estimate flow resolves place names with Places before measuring', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  // The Maps loader pulls in the Places library on the same key.
+  assert.match(src, /libraries=places/, 'maps loader must request the places library');
+  // Resolution goes through a Places text search biased to the region.
+  assert.match(src, /maps\.places\.PlacesService/, 'place resolution must use PlacesService');
+  assert.match(src, /\.textSearch\(/, 'place resolution must use a Places text search');
+  assert.match(src, /REGION_BIAS/, 'the search must be biased to the MD/DC/VA region');
+  // The prompts invite place names, not only street addresses.
+  assert.match(src, /Costco in Germantown/, 'pickup prompt must invite place names');
+});
+
+test('place resolution branches: single match echoes, several become chips, none re-asks', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  // Single confident match: accepted and echoed back by name.
+  assert.match(src, /function acceptPlace\(/, 'a resolved place is accepted through one path');
+  assert.match(src, /Got it \\u2014 /, 'the resolved place is echoed back to the visitor');
+  assert.match(src, /placeDisplay/, 'the echo uses the place name + locality');
+  // Several plausible matches: a choice step with tappable chips.
+  assert.match(src, /placePickup/, 'pickup matches get a choice step');
+  assert.match(src, /placeDropoff/, 'drop-off matches get a choice step');
+  assert.match(src, /I found a few places matching/, 'the visitor is told why chips appeared');
+  assert.match(src, /flow\.placeOptions/, 'choice chips render from the stored matches');
+  // No match: re-ask for a street address or a more specific name.
+  assert.match(src, /couldn\\u2019t find a place matching/, 'no match re-asks');
+  assert.match(src, /more specific place name/, 'the re-ask suggests a more specific name');
+});
+
+test('street addresses skip Places and keep the raw-entry path', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  assert.match(src, /function looksLikeStreetAddress\(/, 'an address detector gates Places');
+  assert.match(src, /function acceptRawAddress\(/, 'raw entries keep the original accept path');
+  assert.match(src, /if \(looksLikeStreetAddress\(q\)\) \{ acceptRawAddress\(which, q\); return; \}/,
+    'the pickup/drop-off steps route street addresses around Places');
+});
+
+test('a successful estimate renders a route map with the live traffic layer', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  // The route request asks for a leave-now drive time in traffic.
+  assert.match(src, /drivingOptions/, 'directions must request traffic-aware timing');
+  assert.match(src, /duration_in_traffic/, 'the traffic drive time is read from the route');
+  // After the estimate, a map block renders route + traffic + label.
+  assert.match(src, /renderRouteMap\(flow && flow\.route\)/, 'the estimate success path renders the map');
+  assert.match(src, /new maps\.DirectionsRenderer\(/, 'the route is drawn with DirectionsRenderer');
+  assert.match(src, /maps\.TrafficLayer/, 'the live traffic layer is enabled');
+  assert.match(src, /in current traffic/, 'the drive-time line is labeled in plain language');
+  assert.match(src, /\.nvaMap\{width:100%;height:210px/, 'the map block is compact and panel-wide');
+  assert.match(src, /\.nvaMapWrap\{flex:none/, 'the map block must not be flex-shrunk inside the scrolling log');
+  // Degradation is silent: a failed map leaves the text estimate.
+  assert.match(src, /the text-only estimate stands/, 'map failure must not surface an error state');
+});
+
+test('the panel is a full-height drawer, not a floating card', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  const panelRule = (src.match(/\.nvaPanel\{[^']*/) || [''])[0];
+  assert.match(panelRule, /top:0/, 'panel anchors to the top of the viewport');
+  assert.match(panelRule, /height:100dvh/, 'panel spans the full viewable height');
+  assert.ok(!src.includes('height:min(640px'), 'the old floating-card height cap is gone');
+  assert.match(src, /\.nvaPanel\.open\{transform:translate\(0,0\)/, 'the open state no longer centers vertically');
+});

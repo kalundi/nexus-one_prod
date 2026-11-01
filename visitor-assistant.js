@@ -22,6 +22,25 @@
  * computed server-side by the visitor-estimate function with the
  * platform's own fare engine and Pricing Manager rates.
  *
+ * Place names: pickup and drop-off entries that are not street
+ * addresses ("the monument", "Costco in Germantown") are resolved
+ * with the Google Places library (same browser key, biased to the
+ * MD/DC/VA region) before measuring: one confident match is
+ * confirmed back to the visitor ("the Washington Monument,
+ * Washington, DC"), several plausible matches are offered as
+ * tap-to-pick chips, and no match re-asks for a street address or a
+ * more specific name. Street addresses skip Places entirely and
+ * behave exactly as before. Once an estimate lands, the panel also
+ * shows the route on a small map with the live traffic layer and
+ * the drive time in current traffic; if Maps or traffic data is
+ * unavailable, the estimate simply stays text-only.
+ *
+ * Panel shape: the drawer is full height — it spans the whole
+ * viewable height of the page (top:0, height:100dvh) with no
+ * floating-card margins above or below. The header stays at the
+ * top, the message list scrolls in the middle, and the CTA row and
+ * input sit at the bottom edge.
+ *
  * Conversation focus: the quick-action suggestion chips show when the
  * panel opens, but as soon as the visitor asks something they hide, so
  * the answer owns the panel; a slim "What else can I ask?" button
@@ -70,8 +89,8 @@
     '.nvaTabAvatar{width:36px;height:36px;border-radius:50%;object-fit:cover;background:#fff;flex:none}',
     '.nvaTabLabel{text-align:center;letter-spacing:.02em}',
     /* Panel: slides in from the left; message list scrolls inside. */
-    '.nvaPanel{position:fixed;left:0;top:50%;z-index:140;width:var(--nvaW);height:min(640px,calc(100dvh - 32px));display:flex;flex-direction:column;background:#fff;border:1px solid #d7e2e9;border-left:0;border-radius:0 22px 22px 0;overflow:hidden;box-shadow:24px 30px 80px rgba(8,47,73,.30);font:16px/1.5 "Source Sans 3","Segoe UI",sans-serif;color:#12212e;transform:translate(-112%,-50%);visibility:hidden;pointer-events:none;transition:transform .34s cubic-bezier(.32,.72,.28,1),visibility 0s linear .34s}',
-    '.nvaPanel.open{transform:translate(0,-50%);visibility:visible;pointer-events:auto;transition:transform .34s cubic-bezier(.32,.72,.28,1)}',
+    '.nvaPanel{position:fixed;left:0;top:0;z-index:140;width:var(--nvaW);height:100dvh;display:flex;flex-direction:column;background:#fff;border:1px solid #d7e2e9;border-left:0;border-top:0;border-bottom:0;border-radius:0 22px 22px 0;overflow:hidden;box-shadow:24px 30px 80px rgba(8,47,73,.30);font:16px/1.5 "Source Sans 3","Segoe UI",sans-serif;color:#12212e;transform:translate(-112%,0);visibility:hidden;pointer-events:none;transition:transform .34s cubic-bezier(.32,.72,.28,1),visibility 0s linear .34s}',
+    '.nvaPanel.open{transform:translate(0,0);visibility:visible;pointer-events:auto;transition:transform .34s cubic-bezier(.32,.72,.28,1)}',
     '.nvaHead{position:relative;display:flex;align-items:center;gap:11px;background:linear-gradient(126deg,#071f37 0%,#0d365b 56%,#0e5c8c 100%);color:#fff;padding:14px 56px 13px 16px}',
     '.nvaAvatar{width:46px;height:46px;border-radius:50%;object-fit:cover;background:#fff;border:2px solid rgba(255,255,255,.55);flex:none}',
     '.nvaHeadText{min-width:0}',
@@ -102,6 +121,12 @@
     '.nvaCall{flex:1.3;background:#fff;color:#082f49!important;border:1px solid #b9cfdd;white-space:nowrap}',
     /* Estimate result action row (holds the shared booking button). */
     '.nvaEstActions{align-self:flex-start;display:flex;gap:8px}',
+    /* Route map block under an estimate: map + drive-time line.
+       flex:none is load-bearing: the log is a column flexbox and an
+       overflow:hidden flex item may be shrunk to zero height. */
+    '.nvaMapWrap{flex:none;align-self:stretch;background:#fff;border:1px solid #d7e6f0;border-radius:15px;overflow:hidden}',
+    '.nvaMap{width:100%;height:210px;background:#e8eef2}',
+    '.nvaMapMeta{padding:8px 12px;font:600 13.5px/1.4 "Source Sans 3",sans-serif;color:#12212e}',
     /* ONE shared style for every booking-app button inside the panel:
        the compact scale of the platform .bookRideSign look (dark red
        radial sign, 2px #cf1f1f border, Manrope 900 uppercase, 20px
@@ -131,7 +156,7 @@
     '.nvaSend{flex:none;min-height:48px;min-width:76px;border:0;border-radius:11px;padding:11px 17px;background:#082f49;color:#fff;font:800 15.5px Manrope,sans-serif;cursor:pointer}',
     '.nvaSend:disabled{opacity:.55;cursor:wait}',
     '.nvaNote{padding:0 14px 12px;background:#fff;color:#52677a;font-size:12.5px}',
-    '@media (max-width:640px){.nvaPanel{height:min(640px,calc(100dvh - 24px))}}',
+    '/* Full height at every width: the drawer always spans 100dvh. */',
     '@media (prefers-reduced-motion:reduce){.nvaPanel,.nvaTab{transition:none!important}}'
   ].join('\n');
 
@@ -320,8 +345,8 @@
   ];
 
   var STEP_PROMPTS = {
-    pickup: 'Where should we pick you up? A street address with city and state helps me get the distance right.',
-    dropoff: 'Got it. And where are you headed \u2014 the drop-off address?',
+    pickup: 'Where should we pick you up? A street address with city and state works, or a place name \u2014 like \u201cthe Washington Monument\u201d or \u201cCostco in Germantown\u201d.',
+    dropoff: 'Got it. And where are you headed? The drop-off address, or a place name the same way.',
     service: 'What type of ride is it? Tap one below, or type it.',
     tripType: 'One way, or round trip?',
     datetime: 'Last detail: what date and time should we pick you up? For example, \u201cFriday at 10:30 AM\u201d, \u201ctomorrow at 9 AM\u201d, or \u201cNov 8 at 2 PM\u201d.',
@@ -341,6 +366,15 @@
     } else if (!flow) {
       defs = [COST_PROMPT, 'What services do you offer?', 'What areas do you serve?', 'What are your hours?', 'How does booking work?']
         .map(function (q) { return { label: q, action: function () { handleUserText(q); } }; });
+    } else if (flow.step === 'placePickup' || flow.step === 'placeDropoff') {
+      var placeWhich = flow.step === 'placePickup' ? 'pickup' : 'dropoff';
+      defs = (flow.placeOptions || []).map(function (p) {
+        return {
+          label: placeDisplay(p),
+          action: function () { if (!busy) { addMessage(placeDisplay(p), 'user'); acceptPlace(placeWhich, p, null); } }
+        };
+      });
+      defs.push({ label: 'Cancel estimate', action: cancelFlow });
     } else if (flow.step === 'service') {
       defs = SERVICE_CHIPS.map(function (s) {
         return { label: s.label, action: function () { if (!busy) { addMessage(s.label, 'user'); setService(s.key); } } };
@@ -380,7 +414,7 @@
   }
 
   function startEstimateFlow() {
-    flow = { step: 'pickup', pickup: '', dropoff: '', service: '', tripType: '', date: '', time: '', pendingDate: '', geoFails: { pickup: 0, dropoff: 0 } };
+    flow = { step: 'pickup', pickup: '', dropoff: '', service: '', tripType: '', date: '', time: '', pendingDate: '', geoFails: { pickup: 0, dropoff: 0 }, pickupPlace: null, dropoffPlace: null, placeOptions: null, route: null };
     renderChips();
     addMessage('I can work out a rough estimate right here \u2014 no need to open the booking app first. I just need a few details. (Availability itself is confirmed when you book.)\n\n' + STEP_PROMPTS.pickup, 'bot');
     setPlaceholder('Pickup address\u2026');
@@ -506,7 +540,7 @@
         return new Promise(function (resolve, reject) {
           var timer = setTimeout(function () { reject({ code: 'maps-unavailable' }); }, 15000);
           var script = document.createElement('script');
-          script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(cfg.googleMapsBrowserKey) + '&v=weekly';
+          script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(cfg.googleMapsBrowserKey) + '&v=weekly&libraries=places';
           script.onload = function () { clearTimeout(timer); resolve(window.google.maps); };
           script.onerror = function () { clearTimeout(timer); reject({ code: 'maps-unavailable' }); };
           document.head.appendChild(script);
@@ -537,14 +571,250 @@
 
   function directionsMiles(maps, origin, destination) {
     return new Promise(function (resolve, reject) {
-      new maps.DirectionsService().route({ origin: origin, destination: destination, travelMode: maps.TravelMode.DRIVING }, function (result, status) {
+      // "Leave now" with traffic, so the result carries the drive
+      // time in current traffic (duration_in_traffic) alongside the
+      // plain duration, plus the raw result for the route map.
+      var request = {
+        origin: origin, destination: destination, travelMode: maps.TravelMode.DRIVING,
+        drivingOptions: { departureTime: new Date(), trafficModel: 'bestguess' }
+      };
+      new maps.DirectionsService().route(request, function (result, status) {
         var legs = result && result.routes && result.routes[0] && result.routes[0].legs;
         if (status !== 'OK' || !legs || !legs.length) { reject({ code: 'directions' }); return; }
-        var meters = 0, seconds = 0;
-        legs.forEach(function (leg) { meters += leg.distance.value; seconds += leg.duration.value; });
-        resolve({ miles: meters / 1609.344, minutes: seconds / 60 });
+        var meters = 0, seconds = 0, trafficSeconds = 0, hasTraffic = false;
+        legs.forEach(function (leg) {
+          meters += leg.distance.value;
+          seconds += leg.duration.value;
+          if (leg.duration_in_traffic && leg.duration_in_traffic.value) {
+            trafficSeconds += leg.duration_in_traffic.value;
+            hasTraffic = true;
+          }
+        });
+        resolve({
+          miles: meters / 1609.344,
+          minutes: seconds / 60,
+          trafficMinutes: hasTraffic ? trafficSeconds / 60 : null,
+          result: result
+        });
       });
     });
+  }
+
+  // -------- place-name resolution (Google Places, browser-side)
+  // Search is biased to the local region so "Costco" leans to the
+  // nearby Costcos; it is a bias, not a fence — coverage is 48
+  // states, and the query text itself ("Costco in Germantown")
+  // carries the place. Resolved places feed the same geocode +
+  // Directions measuring as typed addresses; nothing is sent to or
+  // stored on the server beyond the formatted address the flow
+  // already used.
+  var REGION_BIAS = { lat: 38.98, lng: -77.10, radiusMeters: 160000 };
+  var PLACE_STOPWORDS = { the: 1, a: 1, an: 1, in: 1, at: 1, near: 1, to: 1, of: 1 };
+
+  // Street addresses keep the exact pre-Places behavior: house
+  // number first, a ZIP anywhere, or a street suffix plus a comma.
+  function looksLikeStreetAddress(q) {
+    var t = String(q || '');
+    if (/^\s*\d{1,6}\s+\S/.test(t)) return true;
+    if (/\b\d{5}(?:-\d{4})?\b/.test(t)) return true;
+    if (/\b(street|st|avenue|ave|boulevard|blvd|road|rd|drive|dr|lane|ln|court|ct|way|highway|hwy|parkway|pkwy|place|pl|circle|cir|terrace|ter|trail|trl|square|sq|alley|aly)\b/i.test(t) && /,/.test(t)) return true;
+    return false;
+  }
+
+  function queryTokens(query) {
+    return String(query || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+      .filter(function (t) { return t && !PLACE_STOPWORDS[t]; });
+  }
+
+  function normalizePlace(r) {
+    return {
+      name: r.name || '',
+      formatted: r.formatted_address || r.name || '',
+      lat: r.geometry.location.lat(),
+      lng: r.geometry.location.lng()
+    };
+  }
+
+  // Relevant: every meaningful query token shows up in the place's
+  // name or address ("monument" in "Washington Monument, …").
+  function placeRelevant(p, query) {
+    var toks = queryTokens(query);
+    if (!toks.length) return false;
+    var hay = (p.name + ' ' + p.formatted).toLowerCase();
+    return toks.every(function (t) { return hay.indexOf(t) !== -1; });
+  }
+
+  // Name-covering: every meaningful query token is in the NAME
+  // itself — a stronger signal than relevance alone.
+  function placeNameCovers(p, query) {
+    var toks = queryTokens(query);
+    if (!toks.length) return false;
+    var name = p.name.toLowerCase();
+    return toks.every(function (t) { return name.indexOf(t) !== -1; });
+  }
+
+  function placeLocality(p) {
+    var m = String(p.formatted).replace(/,?\s*USA\s*$/, '')
+      .match(/,\s*([^,]+,\s*[A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?$/);
+    return m ? m[1] : '';
+  }
+
+  // "Washington Monument, Washington, DC" — name + locality, the
+  // way the resolution is echoed back and shown on choice chips.
+  function placeDisplay(p) {
+    var loc = placeLocality(p);
+    if (p.name && loc) return p.name + ', ' + loc;
+    return p.name || p.formatted;
+  }
+
+  // Today's behavior for a raw entry: store it and move on.
+  function acceptRawAddress(which, q) {
+    flow[which] = q;
+    flow[which + 'Place'] = null;
+    if (maybeResubmit()) return;
+    if (which === 'pickup') {
+      flow.step = 'dropoff';
+      renderChips();
+      addMessage(STEP_PROMPTS.dropoff, 'bot');
+      setPlaceholder('Drop-off address\u2026');
+    } else {
+      flow.step = 'service';
+      renderChips();
+      addMessage(STEP_PROMPTS.service, 'bot');
+      setPlaceholder('Or type the ride type\u2026');
+    }
+  }
+
+  function acceptPlace(which, place, pending) {
+    flow[which] = place.formatted;
+    flow[which + 'Place'] = place;
+    var echo = 'Got it \u2014 ' + (which === 'pickup' ? 'pickup' : 'drop-off') + ': ' + placeDisplay(place) + '.';
+    if (maybeResubmit()) {
+      if (pending) fillPending(pending, echo); else addMessage(echo, 'bot');
+      return;
+    }
+    if (which === 'pickup') {
+      flow.step = 'dropoff';
+      renderChips();
+      if (pending) fillPending(pending, echo + '\n\n' + STEP_PROMPTS.dropoff);
+      else addMessage(echo + '\n\n' + STEP_PROMPTS.dropoff, 'bot');
+      setPlaceholder('Drop-off address\u2026');
+    } else {
+      flow.step = 'service';
+      renderChips();
+      if (pending) fillPending(pending, echo + '\n\n' + STEP_PROMPTS.service);
+      else addMessage(echo + '\n\n' + STEP_PROMPTS.service, 'bot');
+      setPlaceholder('Or type the ride type\u2026');
+    }
+  }
+
+  function resolvePlace(which, query) {
+    busy = true;
+    send.disabled = true;
+    var pending = showTyping();
+    function finish(fn) {
+      busy = false;
+      send.disabled = false;
+      headAvatar.src = WAITING_GIF;
+      fn();
+      input.focus();
+    }
+    loadMaps()
+      .then(function (maps) {
+        if (!maps.places || !maps.places.PlacesService) throw { code: 'no-places' };
+        return new Promise(function (resolve, reject) {
+          var service = new maps.places.PlacesService(document.createElement('div'));
+          service.textSearch({
+            query: query,
+            location: new maps.LatLng(REGION_BIAS.lat, REGION_BIAS.lng),
+            radius: REGION_BIAS.radiusMeters
+          }, function (results, status) {
+            if (status !== maps.places.PlacesServiceStatus.OK || !results || !results.length) {
+              reject({ code: 'places-none' });
+              return;
+            }
+            resolve(results);
+          });
+        });
+      })
+      .then(function (results) {
+        var places = results
+          .filter(function (r) { return r && r.geometry && r.geometry.location; })
+          .map(normalizePlace);
+        var pool = places.filter(function (p) { return placeRelevant(p, query); });
+        if (!pool.length) throw { code: 'places-none' };
+        if (pool.length === 1) {
+          finish(function () { acceptPlace(which, pool[0], pending); });
+          return;
+        }
+        var full = pool.filter(function (p) { return placeNameCovers(p, query); });
+        if (full.length === 1) {
+          finish(function () { acceptPlace(which, full[0], pending); });
+          return;
+        }
+        finish(function () {
+          flow.step = which === 'pickup' ? 'placePickup' : 'placeDropoff';
+          flow.placeOptions = pool.slice(0, 4);
+          renderChips();
+          fillPending(pending, 'I found a few places matching \u201c' + query + '\u201d \u2014 tap the right one, or type a more specific name or a street address.');
+          setPlaceholder('Tap a place above, or type again\u2026');
+        });
+      })
+      .catch(function (err) {
+        finish(function () {
+          if (err && err.code === 'places-none') {
+            fillPending(pending, 'I couldn\u2019t find a place matching \u201c' + query + '\u201d. Could you give me the street address with city and state, or a more specific place name?');
+            flow.step = which;
+            renderChips();
+            setPlaceholder(which === 'pickup' ? 'Pickup address\u2026' : 'Drop-off address\u2026');
+            return;
+          }
+          // Maps/Places unavailable: fall back to the raw text,
+          // exactly as the flow behaved before place resolution.
+          pending.remove();
+          acceptRawAddress(which, query);
+        });
+      });
+  }
+
+  // Route map with the live traffic layer, shown under the estimate
+  // answer with the drive time in current traffic. Best-effort only:
+  // any Maps failure quietly leaves the text-only estimate as it was.
+  function renderRouteMap(route) {
+    if (!route || !route.result) return;
+    loadMaps().then(function (maps) {
+      if (!maps.Map || !maps.DirectionsRenderer) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'nvaMapWrap';
+      var mapEl = document.createElement('div');
+      mapEl.className = 'nvaMap';
+      mapEl.setAttribute('role', 'img');
+      mapEl.setAttribute('aria-label', 'Map of your trip route with current traffic');
+      var meta = document.createElement('div');
+      meta.className = 'nvaMapMeta';
+      var milesTxt = (Math.round(route.miles * 10) / 10).toFixed(1) + ' mi';
+      var mins = route.trafficMinutes != null ? route.trafficMinutes : route.minutes;
+      var label = route.trafficMinutes != null
+        ? 'About ' + Math.round(mins) + ' min in current traffic'
+        : 'About ' + Math.round(mins) + ' min drive';
+      meta.textContent = label + ' \u00b7 ' + milesTxt + (route.roundTrip ? ' each way' : '');
+      wrap.appendChild(mapEl);
+      wrap.appendChild(meta);
+      log.appendChild(wrap);
+      try {
+        var map = new maps.Map(mapEl, {
+          disableDefaultUI: true, zoomControl: true,
+          clickableIcons: false, gestureHandling: 'cooperative'
+        });
+        if (maps.TrafficLayer) new maps.TrafficLayer().setMap(map);
+        var renderer = new maps.DirectionsRenderer({ map: map, suppressInfoWindows: true });
+        renderer.setDirections(route.result);
+      } catch (e) {
+        wrap.remove();
+        return;
+      }
+      log.scrollTop = log.scrollHeight;
+    }).catch(function () { /* the text-only estimate stands */ });
   }
 
   function measureTrip() {
@@ -553,6 +823,12 @@
         .then(function (geo) {
           var from = geo[0], to = geo[1];
           return directionsMiles(maps, from.formatted, to.formatted).then(function (out) {
+            // Keep the outbound route for the traffic map shown
+            // under the estimate (raw Directions result + timings).
+            flow.route = {
+              result: out.result, miles: out.miles, minutes: out.minutes,
+              trafficMinutes: out.trafficMinutes, roundTrip: flow.tripType === 'ROUND_TRIP'
+            };
             var payload = {
               pickup: flow.pickup, dropoff: flow.dropoff,
               service: flow.service, tripType: flow.tripType,
@@ -586,23 +862,20 @@
   function advanceFlow(q) {
     var lower = q.toLowerCase();
     if (/^(cancel|stop|quit|exit|never ?mind)\b/.test(lower)) { cancelFlow(); return; }
-    if (flow.step === 'pickup') {
-      if (q.length < 6) { addMessage('That looks a bit short for an address \u2014 could you give me the street address, city and state?', 'bot'); return; }
-      flow.pickup = q;
-      if (maybeResubmit()) return;
-      flow.step = 'dropoff';
-      addMessage(STEP_PROMPTS.dropoff, 'bot');
-      setPlaceholder('Drop-off address\u2026');
+    if (flow.step === 'pickup' || flow.step === 'dropoff') {
+      var which = flow.step;
+      if (q.length < 6) { addMessage('That looks a bit short \u2014 could you give me a street address with city and state, or a place name like \u201cCostco in Germantown\u201d?', 'bot'); return; }
+      if (looksLikeStreetAddress(q)) { acceptRawAddress(which, q); return; }
+      resolvePlace(which, q);
       return;
     }
-    if (flow.step === 'dropoff') {
-      if (q.length < 6) { addMessage('That looks a bit short for an address \u2014 could you give me the street address, city and state?', 'bot'); return; }
-      flow.dropoff = q;
-      if (maybeResubmit()) return;
-      flow.step = 'service';
-      renderChips();
-      addMessage(STEP_PROMPTS.service, 'bot');
-      setPlaceholder('Or type the ride type\u2026');
+    if (flow.step === 'placePickup' || flow.step === 'placeDropoff') {
+      // A typed reply while place choices are showing is a fresh
+      // attempt at the same end of the trip: resolve it the same way.
+      var pwhich = flow.step === 'placePickup' ? 'pickup' : 'dropoff';
+      if (q.length < 6) { addMessage('Tap one of the places above, or type a street address or a more specific place name.', 'bot'); return; }
+      if (looksLikeStreetAddress(q)) { acceptRawAddress(pwhich, q); return; }
+      resolvePlace(pwhich, q);
       return;
     }
     if (flow.step === 'service') {
@@ -672,6 +945,7 @@
           actions.className = 'nvaEstActions';
           actions.innerHTML = '<a class="nvaEstBook nvaBookBtn" href="' + BOOKING_URL + '" target="_blank" rel="noopener">Book a Ride \u2014 exact quote</a>';
           log.appendChild(actions);
+          renderRouteMap(flow && flow.route);
           log.scrollTop = log.scrollHeight;
           endFlow();
           return;
@@ -695,6 +969,7 @@
           }
           fillPending(pending, 'I couldn\u2019t find the ' + (which === 'pickup' ? 'pickup' : 'drop-off') + ' address \u2014 could you check it and enter it again, with the city and state?');
           flow.step = which;
+          flow[which + 'Place'] = null;
           renderChips();
           setPlaceholder(which === 'pickup' ? 'Pickup address\u2026' : 'Drop-off address\u2026');
           return;
