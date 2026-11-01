@@ -334,3 +334,240 @@ test('the panel is a full-height drawer, not a floating card', () => {
   assert.ok(!src.includes('height:min(640px'), 'the old floating-card height cap is gone');
   assert.match(src, /\.nvaPanel\.open\{transform:translate\(0,0\)/, 'the open state no longer centers vertically');
 });
+
+// ---------------------------------------------------------------
+// Behavioral place-resolution tests: the widget script runs in a
+// vm against a fake DOM and a stubbed google.maps (loadMaps
+// short-circuits when window.google.maps already exists), so the
+// resolution branches execute end to end with no network/browser.
+const vm = require('node:vm');
+
+function stripTags(html) {
+  return String(html || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+}
+
+function makeFakeElement(tag) {
+  const el = {
+    tagName: String(tag || 'div').toUpperCase(),
+    children: [],
+    parent: null,
+    listeners: {},
+    attributes: {},
+    style: {},
+    value: '',
+    disabled: false,
+    type: '',
+    src: '',
+    id: '',
+    scrollTop: 0,
+    scrollHeight: 0,
+    _classes: new Set(),
+    _html: '',
+    _text: null,
+    _bySelector: {},
+  };
+  Object.defineProperty(el, 'className', {
+    get() { return Array.from(el._classes).join(' '); },
+    set(v) { el._classes = new Set(String(v).split(/\s+/).filter(Boolean)); },
+  });
+  Object.defineProperty(el, 'innerHTML', {
+    get() { return el._html; },
+    set(v) { el._html = String(v); el.children = []; el._bySelector = {}; },
+  });
+  Object.defineProperty(el, 'textContent', {
+    get() { return el._text != null ? el._text : stripTags(el._html); },
+    set(v) { el._text = String(v); },
+  });
+  el.classList = {
+    add(...cs) { cs.forEach((c) => el._classes.add(c)); },
+    remove(...cs) { cs.forEach((c) => el._classes.delete(c)); },
+    toggle(c, force) {
+      const on = force === undefined ? !el._classes.has(c) : Boolean(force);
+      if (on) el._classes.add(c); else el._classes.delete(c);
+      return on;
+    },
+    contains(c) { return el._classes.has(c); },
+  };
+  el.setAttribute = (k, v) => { el.attributes[k] = String(v); };
+  el.getAttribute = (k) => (k in el.attributes ? el.attributes[k] : null);
+  el.appendChild = (child) => { child.parent = el; el.children.push(child); return child; };
+  el.remove = () => {
+    if (el.parent) {
+      const i = el.parent.children.indexOf(el);
+      if (i !== -1) el.parent.children.splice(i, 1);
+      el.parent = null;
+    }
+  };
+  el.addEventListener = (type, fn) => { (el.listeners[type] = el.listeners[type] || []).push(fn); };
+  el.dispatch = (type, ev) => { (el.listeners[type] || []).slice().forEach((fn) => fn(ev || { preventDefault() {} })); };
+  el.click = () => el.dispatch('click', {});
+  el.focus = () => {};
+  el.querySelector = (sel) => {
+    if (el._bySelector[sel]) return el._bySelector[sel];
+    let found = null;
+    if (sel[0] === '#') {
+      if (el._html.includes('id="' + sel.slice(1) + '"')) found = makeFakeElement('div');
+    } else if (sel[0] === '.') {
+      if (new RegExp('class="[^"]*\\b' + sel.slice(1) + '\\b').test(el._html)) found = makeFakeElement('button');
+    }
+    if (found) el._bySelector[sel] = found;
+    return found;
+  };
+  return el;
+}
+
+function makeMapsStub(placesHandler, placesCalls) {
+  function PlacesService() {}
+  PlacesService.prototype.textSearch = function (req, cb) {
+    placesCalls.push(req.query);
+    placesHandler(req.query, cb);
+  };
+  function Geocoder() {}
+  Geocoder.prototype.geocode = function (req, cb) {
+    cb([{
+      formatted_address: req.address,
+      address_components: [{ types: ['administrative_area_level_1'], short_name: 'MD' }],
+      geometry: { location: { lat: () => 39.1, lng: () => -77.2 } },
+    }], 'OK');
+  };
+  function DirectionsService() {}
+  DirectionsService.prototype.route = function (req, cb) {
+    cb({ routes: [{ legs: [{ distance: { value: 16093.44 }, duration: { value: 1500 }, duration_in_traffic: { value: 1800 } }] }] }, 'OK');
+  };
+  function LatLng(lat, lng) { this.lat = lat; this.lng = lng; }
+  function MapCtor() {}
+  function DirectionsRenderer() {}
+  DirectionsRenderer.prototype.setDirections = function () {};
+  function TrafficLayer() {}
+  TrafficLayer.prototype.setMap = function () {};
+  return {
+    DirectionsService, Geocoder, LatLng,
+    TravelMode: { DRIVING: 'DRIVING' },
+    Map: MapCtor, DirectionsRenderer, TrafficLayer,
+    places: { PlacesService, PlacesServiceStatus: { OK: 'OK', ZERO_RESULTS: 'ZERO_RESULTS' } },
+  };
+}
+
+function loadWidget(placesHandler) {
+  const placesCalls = [];
+  const maps = makeMapsStub(placesHandler, placesCalls);
+  const documentStub = {
+    head: makeFakeElement('head'),
+    body: makeFakeElement('body'),
+    createElement: (tag) => makeFakeElement(tag),
+    addEventListener: () => {},
+  };
+  const windowStub = {
+    google: { maps },
+    matchMedia: () => ({ matches: true }), // reduced motion: no thinking-state delay
+  };
+  const estimateCalls = [];
+  const fetchStub = (url, opts) => {
+    if (String(url).includes('visitor-estimate')) {
+      estimateCalls.push(JSON.parse(opts.body));
+      return Promise.resolve({ ok: true, json: async () => ({ mode: 'estimate', answer: 'Your rough estimate is about $120.' }) });
+    }
+    return Promise.reject(new Error('unexpected fetch ' + url));
+  };
+  const sandbox = { window: windowStub, document: documentStub, fetch: fetchStub, setTimeout, clearTimeout, console };
+  vm.createContext(sandbox);
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  vm.runInContext(src, sandbox, { filename: 'visitor-assistant.js' });
+  const tab = documentStub.body.children.find((c) => c.classList.contains('nvaTab'));
+  const panel = documentStub.body.children.find((c) => c.classList.contains('nvaPanel'));
+  const log = panel.querySelector('#nvaLog');
+  const chips = panel.querySelector('#nvaChips');
+  const form = panel.querySelector('#nvaForm');
+  const input = panel.querySelector('#nvaInput');
+  const widget = {
+    placesCalls,
+    estimateCalls,
+    open() { tab.click(); },
+    send(text) { input.value = text; form.dispatch('submit'); },
+    logText() { return log.children.map((c) => stripTags(c.innerHTML)).join('\n'); },
+    chipLabels() { return chips.children.map((c) => c.textContent); },
+    clickChip(label) {
+      const chip = chips.children.find((c) => c.textContent === label);
+      assert.ok(chip, 'chip not found: ' + label + ' (have: ' + widget.chipLabels().join(' | ') + ')');
+      chip.click();
+    },
+  };
+  return widget;
+}
+
+async function flush(rounds = 16) {
+  for (let i = 0; i < rounds; i++) await new Promise((r) => setTimeout(r, 0));
+}
+
+test('place fallback: "Costco in Germantown" offers the Gaithersburg store as an honest choice, and picking it proceeds to measuring', async () => {
+  // The real-world case: the store locals call the Germantown
+  // Costco is in Gaithersburg, so "germantown" appears in neither
+  // its name nor its address and the strict every-token filter
+  // matches nothing — while Places itself returns the store.
+  const gaithersburg = {
+    name: 'Costco Wholesale',
+    formatted_address: '880 Russell Ave, Gaithersburg, MD 20879, USA',
+    geometry: { location: { lat: () => 39.161, lng: () => -77.226 } },
+  };
+  const w = loadWidget((query, cb) => {
+    if (/costco/i.test(query)) cb([gaithersburg], 'OK');
+    else cb([], 'ZERO_RESULTS');
+  });
+  w.open();
+  w.send('How much does a ride cost?');
+  w.send('100 Main Street, Clarksburg, MD'); // street address: raw path
+  w.send('Costco in Germantown');
+  await flush();
+  assert.ok(w.placesCalls.includes('Costco in Germantown'), 'the drop-off went through Places');
+  assert.match(w.logText(), /couldn\u2019t find a place with that exact name nearby \u2014 did you mean one of these\?/,
+    'the fallback line admits the exact name was not found');
+  assert.ok(!/Got it \u2014 drop-off/.test(w.logText()), 'a locality mismatch is never auto-accepted');
+  assert.ok(w.chipLabels().includes('Costco Wholesale, Gaithersburg, MD'),
+    'the Gaithersburg store is offered as a tappable chip');
+  w.clickChip('Costco Wholesale, Gaithersburg, MD');
+  assert.match(w.logText(), /Got it \u2014 drop-off: Costco Wholesale, Gaithersburg, MD\./,
+    'picking the chip accepts the place through the usual path');
+  // Finish the flow: the picked place feeds measuring unchanged.
+  w.clickChip('Ambulatory');
+  w.clickChip('One way');
+  w.send('tomorrow at 10 AM');
+  await flush();
+  assert.equal(w.estimateCalls.length, 1, 'the estimate endpoint is called once');
+  assert.equal(w.estimateCalls[0].dropoff, '880 Russell Ave, Gaithersburg, MD 20879, USA');
+  assert.equal(w.estimateCalls[0].pickup, '100 Main Street, Clarksburg, MD');
+  assert.ok(Math.abs(w.estimateCalls[0].loadedMiles - 10) < 0.01, 'road miles are measured for the picked place');
+  assert.match(w.logText(), /rough estimate is about \$120/, 'the estimate answer renders');
+});
+
+test('place resolution: zero Places results still re-asks for an address or a more specific name', async () => {
+  const w = loadWidget((query, cb) => cb([], 'ZERO_RESULTS'));
+  w.open();
+  w.send('How much does a ride cost?');
+  w.send('Zxqvville Community Hall');
+  await flush();
+  assert.match(w.logText(), /I couldn\u2019t find a place matching \u201cZxqvville Community Hall\u201d/);
+  assert.match(w.logText(), /more specific place name/);
+  assert.deepEqual(w.chipLabels(), ['Cancel estimate'], 'no place chips are offered when Places returns nothing');
+  // Still on the pickup step: a street address is accepted next.
+  w.send('100 Main Street, Clarksburg, MD');
+  assert.match(w.logText(), /And where are you headed\?/);
+});
+
+test('place resolution: a single confident match is still accepted and echoed by name', async () => {
+  const monument = {
+    name: 'Washington Monument',
+    formatted_address: '2 15th St NW, Washington, DC 20024, USA',
+    geometry: { location: { lat: () => 38.889, lng: () => -77.035 } },
+  };
+  const w = loadWidget((query, cb) => cb([monument], 'OK'));
+  w.open();
+  w.send('How much does a ride cost?');
+  w.send('the monument');
+  await flush();
+  assert.match(w.logText(), /Got it \u2014 pickup: Washington Monument, Washington, DC\./);
+  assert.ok(!/exact name nearby/.test(w.logText()), 'a confident match never shows the mismatch line');
+});
+
