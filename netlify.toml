@@ -64,6 +64,12 @@
 # (or OPENAI_API_KEY + OPENAI_MODEL) are set; retrieval answers work without.
 [functions.visitor-assistant]
 
+# Public visitor rough-estimate endpoint (Nex chat): HTTP-invoked only.
+# Prices with the platform fare engine (nexus-fare.js) and the live
+# Pricing Manager settings read by _shared/visitor-estimate.cjs; road
+# distance is measured in the visitor's browser, like the booking app.
+[functions.visitor-estimate]
+
 # Scheduled function: send a daily cost report to admin recipients and Teams
 # Set COST_ANALYZER_REPORT_DAYS to change the report window length.
 [functions.cost-analyzer-report]

@@ -2,7 +2,9 @@
  *
  * Public-page chat widget. Answers come from the visitor-assistant
  * Netlify function, which answers only from the website knowledge base.
- * The widget stores nothing: conversation lives in page memory only.
+ * The widget keeps nothing: conversation lives in page memory only,
+ * and addresses typed for a rough estimate are sent to the
+ * visitor-estimate function for that calculation alone — never stored.
  * Loaded on public pages by the delimited loader block at the end of
  * platform.js; never on staff/back-office surfaces.
  *
@@ -11,6 +13,22 @@
  * closing (X, Escape, or the tab again) slides it back out of the way.
  * The right side of the screen belongs to the site's accessibility
  * toggle and language control, so Nex stays clear of both.
+ *
+ * Rough estimates: a price question (or the cost chip) starts a short
+ * guided flow — pickup, drop-off, ride type, one way / round trip,
+ * pickup date and time. Road distance is measured in the browser with
+ * the Google Maps Directions service, the same way the booking app
+ * measures it (browser key from /api/integrations/config); pricing is
+ * computed server-side by the visitor-estimate function with the
+ * platform's own fare engine and Pricing Manager rates.
+ *
+ * CTA sizing inside the panel: platform.js adds the page-level
+ * .bookRideSign style to any booking-bound link it sees, including
+ * links rendered inside this panel. The styles below deliberately
+ * neutralize that treatment within the panel only — in-bubble booking
+ * links render as compact inline links and the panel's own buttons
+ * keep their compact design. Page-level sign styling outside the
+ * widget is untouched.
  */
 (function () {
   'use strict';
@@ -18,12 +36,14 @@
   window.__nexusVisitorAssistant = true;
 
   var ENDPOINT = '/.netlify/functions/visitor-assistant';
+  var ESTIMATE_ENDPOINT = '/.netlify/functions/visitor-estimate';
   var BOOKING_URL = 'https://mynexusride.com';
   var MAIN_PHONE = '(888) 639-5766';
   var MAIN_PHONE_HREF = 'tel:+18886395766';
   var WAITING_GIF = '/assets/nex-waiting.gif';
   var TYPING_GIF = '/assets/nex-typing.gif';
   var COST_PROMPT = 'Do you want to know what your ride would cost?';
+  var DEFAULT_PLACEHOLDER = 'Ask about services, areas, hours\u2026';
 
   var CSS = [
     '.nvaTab,.nvaPanel,.nvaPanel *{box-sizing:border-box}',
@@ -56,10 +76,26 @@
     '.nvaChips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px 4px;background:#f6fafc;max-height:136px;overflow-y:auto}',
     '.nvaChip{display:inline-flex;align-items:center;min-height:44px;border:1px solid #b9cfdd;background:#fff;color:#082f49;border-radius:999px;padding:8px 12px;font:700 13px Manrope,sans-serif;cursor:pointer}',
     '.nvaChip:hover{border-color:#082f49}',
-    '.nvaCtas{display:flex;gap:8px;padding:10px 14px;background:#fff;border-top:1px solid #e3edf3}',
-    '.nvaBook,.nvaCall{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;min-height:48px;padding:11px 10px;border-radius:12px;font:800 15.5px Manrope,sans-serif}',
-    '.nvaBook{background:linear-gradient(135deg,#db2839,#b91c2c);color:#fff!important;box-shadow:0 10px 24px rgba(219,40,57,.22)}',
-    '.nvaCall{background:#fff;color:#082f49!important;border:1px solid #b9cfdd}',
+    /* Bottom CTA row: compact, sized for the panel. The Call label
+       never wraps; the Book button stays narrower than the Call one. */
+    '.nvaCtas{display:flex;gap:8px;padding:8px 14px;background:#fff;border-top:1px solid #e3edf3}',
+    '.nvaBook,.nvaCall{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;min-height:42px;padding:8px 8px;border-radius:11px;font:800 14px Manrope,sans-serif}',
+    '.nvaBook{flex:1;background:linear-gradient(135deg,#db2839,#b91c2c);color:#fff!important;box-shadow:0 6px 16px rgba(219,40,57,.22)}',
+    '.nvaCall{flex:1.3;background:#fff;color:#082f49!important;border:1px solid #b9cfdd;white-space:nowrap}',
+    /* Estimate result action: a compact in-chat Book a Ride button. */
+    '.nvaEstActions{align-self:flex-start;display:flex;gap:8px}',
+    '.nvaEstBook{display:inline-flex;align-items:center;min-height:40px;padding:8px 16px;border-radius:11px;background:linear-gradient(135deg,#db2839,#b91c2c);color:#fff!important;text-decoration:none;font:800 13.5px Manrope,sans-serif;box-shadow:0 6px 16px rgba(219,40,57,.22)}',
+    /* The page-level .bookRideSign treatment (added by platform.js to
+       booking-bound links anywhere in the DOM) must not balloon links
+       inside the chat panel: reset it to a plain inline link here. */
+    '.nvaPanel a.bookRideSign{display:inline!important;position:static!important;min-height:0!important;height:auto!important;padding:0!important;border:0!important;border-radius:0!important;background:none!important;box-shadow:none!important;color:#0e5c8c!important;text-decoration:underline!important;text-transform:none!important;letter-spacing:normal!important;font-family:inherit!important;font-size:inherit!important;font-weight:700!important;line-height:inherit!important;white-space:normal!important;overflow:visible!important}',
+    '.nvaPanel a.bookRideSign:before{content:none!important;display:none!important}',
+    '.nvaPanel a.bookRideSign:hover,.nvaPanel a.bookRideSign:focus-visible{transform:none!important;filter:none!important}',
+    '.nvaPanel .nvaMsg.user a.bookRideSign{color:#9de7ec!important}',
+    /* …while the panel's own two buttons keep their compact design
+       even when platform.js tags them with the sign class. */
+    '.nvaPanel .nvaCtas a.nvaBook.bookRideSign{display:flex!important;align-items:center;justify-content:center;min-height:42px!important;padding:8px 8px!important;border:0!important;border-radius:11px!important;background:linear-gradient(135deg,#db2839,#b91c2c)!important;box-shadow:0 6px 16px rgba(219,40,57,.22)!important;color:#fff!important;text-decoration:none!important;text-transform:none!important;letter-spacing:normal!important;font:800 14px Manrope,sans-serif!important;white-space:normal!important;overflow:visible!important}',
+    '.nvaPanel a.nvaEstBook.bookRideSign{display:inline-flex!important;align-items:center;min-height:40px!important;padding:8px 16px!important;border:0!important;border-radius:11px!important;background:linear-gradient(135deg,#db2839,#b91c2c)!important;box-shadow:0 6px 16px rgba(219,40,57,.22)!important;color:#fff!important;text-decoration:none!important;text-transform:none!important;letter-spacing:normal!important;font:800 13.5px Manrope,sans-serif!important;white-space:nowrap!important;overflow:visible!important}',
     '.nvaForm{display:flex;gap:8px;padding:10px 14px 14px;background:#fff}',
     '.nvaInput{flex:1;min-width:0;min-height:48px;border:1px solid #aebfcb;border-radius:11px;padding:11px 13px;font:inherit}',
     '.nvaSend{flex:none;min-height:48px;min-width:76px;border:0;border-radius:11px;padding:11px 17px;background:#082f49;color:#fff;font:800 15.5px Manrope,sans-serif;cursor:pointer}',
@@ -95,21 +131,19 @@
     '<p>Answers from our website. Emergencies: <strong>call 911</strong>.</p></div>' +
     '<button type="button" class="nvaClose" aria-label="Close chat">&times;</button></div>' +
     '<div class="nvaLog" id="nvaLog" aria-live="polite"></div>' +
-    '<div class="nvaChips" id="nvaChips">' +
-    [COST_PROMPT, 'What services do you offer?', 'What areas do you serve?', 'What are your hours?', 'How does booking work?']
-      .map(function (q) { return '<button type="button" class="nvaChip">' + q + '</button>'; }).join('') +
-    '</div>' +
+    '<div class="nvaChips" id="nvaChips"></div>' +
     '<div class="nvaCtas"><a class="nvaBook" href="' + BOOKING_URL + '">Book a Ride</a>' +
     '<a class="nvaCall" href="' + MAIN_PHONE_HREF + '">Call ' + MAIN_PHONE + '</a></div>' +
     '<form class="nvaForm" id="nvaForm"><label class="sr" for="nvaInput" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Type your question</label>' +
-    '<input class="nvaInput" id="nvaInput" type="text" autocomplete="off" maxlength="500" placeholder="Ask about services, areas, hours\u2026">' +
+    '<input class="nvaInput" id="nvaInput" type="text" autocomplete="off" maxlength="500" placeholder="' + DEFAULT_PLACEHOLDER + '">' +
     '<button class="nvaSend" id="nvaSend" type="submit">Send</button></form>' +
-    '<div class="nvaNote">Nex answers from the Nexus website only and doesn\u2019t collect personal or medical details. For trip details, please book online or call.</div>';
+    '<div class="nvaNote">Nex answers from the Nexus website. Addresses you enter for a rough estimate are used only to work out the distance and are not stored. When you book, the booking form collects the full trip details.</div>';
 
   document.body.appendChild(tab);
   document.body.appendChild(panel);
 
   var log = panel.querySelector('#nvaLog');
+  var chipsBox = panel.querySelector('#nvaChips');
   var form = panel.querySelector('#nvaForm');
   var input = panel.querySelector('#nvaInput');
   var send = panel.querySelector('#nvaSend');
@@ -142,6 +176,21 @@
     return div;
   }
 
+  function showTyping() {
+    var pending = addMessage('', 'bot');
+    pending.classList.add('nvaTyping');
+    pending.innerHTML = '<img class="nvaTypingGif" src="' + TYPING_GIF + '" alt="" aria-hidden="true"><span>Nex is typing\u2026</span>';
+    headAvatar.src = TYPING_GIF;
+    log.scrollTop = log.scrollHeight;
+    return pending;
+  }
+
+  function fillPending(pending, text) {
+    pending.classList.remove('nvaTyping');
+    pending.innerHTML = renderText(text);
+    log.scrollTop = log.scrollHeight;
+  }
+
   function setOpen(open) {
     panel.classList.toggle('open', open);
     tab.classList.toggle('open', open);
@@ -164,10 +213,8 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && panel.classList.contains('open')) { setOpen(false); tab.focus(); }
   });
-  panel.querySelectorAll('.nvaChip').forEach(function (chip) {
-    chip.addEventListener('click', function () { ask(chip.textContent.trim()); });
-  });
 
+  // ------------------------------------------------------------- Q&A path
   function ask(question) {
     var q = String(question || '').trim();
     if (!q || busy) return;
@@ -175,11 +222,7 @@
     send.disabled = true;
     addMessage(q, 'user');
     input.value = '';
-    var pending = addMessage('', 'bot');
-    pending.classList.add('nvaTyping');
-    pending.innerHTML = '<img class="nvaTypingGif" src="' + TYPING_GIF + '" alt="" aria-hidden="true"><span>Nex is typing\u2026</span>';
-    headAvatar.src = TYPING_GIF;
-    log.scrollTop = log.scrollHeight;
+    var pending = showTyping();
     fetch(ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -187,18 +230,16 @@
     })
       .then(function (res) { return res.json().then(function (data) { return { res: res, data: data }; }); })
       .then(function (out) {
-        pending.classList.remove('nvaTyping');
         if (out.res.ok && out.data && out.data.answer) {
-          pending.innerHTML = renderText(out.data.answer);
+          fillPending(pending, out.data.answer);
         } else if (out.data && out.data.error) {
-          pending.innerHTML = renderText(out.data.error);
+          fillPending(pending, out.data.error);
         } else {
           throw new Error('bad response');
         }
       })
       .catch(function () {
-        pending.classList.remove('nvaTyping');
-        pending.innerHTML = renderText(
+        fillPending(pending,
           'I can\u2019t reach the assistant right now. Please call us at ' + MAIN_PHONE + ' and the team will help, or book online at ' + BOOKING_URL + '.'
         );
       })
@@ -211,8 +252,422 @@
       });
   }
 
+  // ------------------------------------------------- estimate flow (chat)
+  var flow = null;
+
+  var SERVICE_CHIPS = [
+    { label: 'Ambulatory', key: 'ambulatory' },
+    { label: 'Wheelchair', key: 'wheelchair' },
+    { label: 'Stretcher', key: 'stretcher' },
+    { label: 'Bariatric', key: 'bariatric' },
+    { label: 'Ambulance', key: 'bls' }
+  ];
+
+  var STEP_PROMPTS = {
+    pickup: 'Where should we pick you up? A street address with city and state helps me get the distance right.',
+    dropoff: 'Got it. And where are you headed \u2014 the drop-off address?',
+    service: 'What type of ride is it? Tap one below, or type it.',
+    tripType: 'One way, or round trip?',
+    datetime: 'Last detail: what date and time should we pick you up? For example, \u201cFriday at 10:30 AM\u201d, \u201ctomorrow at 9 AM\u201d, or \u201cNov 8 at 2 PM\u201d.',
+    timeOnly: 'And what time should we pick you up?'
+  };
+
+  function renderChips() {
+    chipsBox.innerHTML = '';
+    var defs = [];
+    if (!flow) {
+      defs = [COST_PROMPT, 'What services do you offer?', 'What areas do you serve?', 'What are your hours?', 'How does booking work?']
+        .map(function (q) { return { label: q, action: function () { handleUserText(q); } }; });
+    } else if (flow.step === 'service') {
+      defs = SERVICE_CHIPS.map(function (s) {
+        return { label: s.label, action: function () { if (!busy) { addMessage(s.label, 'user'); setService(s.key); } } };
+      });
+      defs.push({ label: 'Cancel estimate', action: cancelFlow });
+    } else if (flow.step === 'tripType') {
+      defs = [
+        { label: 'One way', action: function () { if (!busy) { addMessage('One way', 'user'); setTripType('ONE_WAY'); } } },
+        { label: 'Round trip', action: function () { if (!busy) { addMessage('Round trip', 'user'); setTripType('ROUND_TRIP'); } } },
+        { label: 'Cancel estimate', action: cancelFlow }
+      ];
+    } else {
+      defs = [{ label: 'Cancel estimate', action: cancelFlow }];
+    }
+    defs.forEach(function (def) {
+      var chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'nvaChip';
+      chip.textContent = def.label;
+      chip.addEventListener('click', def.action);
+      chipsBox.appendChild(chip);
+    });
+  }
+
+  function setPlaceholder(text) { input.setAttribute('placeholder', text); }
+
+  function endFlow() {
+    flow = null;
+    renderChips();
+    setPlaceholder(DEFAULT_PLACEHOLDER);
+  }
+
+  function cancelFlow() {
+    if (busy) return;
+    endFlow();
+    addMessage('No problem \u2014 the estimate is cancelled. Ask me anything else, or book online at ' + BOOKING_URL + ' when you\u2019re ready.', 'bot');
+  }
+
+  function startEstimateFlow() {
+    flow = { step: 'pickup', pickup: '', dropoff: '', service: '', tripType: '', date: '', time: '', pendingDate: '', geoFails: { pickup: 0, dropoff: 0 } };
+    renderChips();
+    addMessage('I can work out a rough estimate right here \u2014 no need to open the booking app first. I just need a few details. (Availability itself is confirmed when you book.)\n\n' + STEP_PROMPTS.pickup, 'bot');
+    setPlaceholder('Pickup address\u2026');
+  }
+
+  function setService(key) {
+    flow.service = key;
+    flow.step = 'tripType';
+    renderChips();
+    addMessage(STEP_PROMPTS.tripType, 'bot');
+    setPlaceholder('One way or round trip\u2026');
+  }
+
+  function setTripType(type) {
+    flow.tripType = type;
+    flow.step = 'datetime';
+    renderChips();
+    addMessage(STEP_PROMPTS.datetime, 'bot');
+    setPlaceholder('Date and time, e.g. Nov 8 at 2 PM\u2026');
+  }
+
+  function parseService(text) {
+    var t = text.toLowerCase();
+    if (t.includes('wheelchair')) return 'wheelchair';
+    if (t.includes('stretcher')) return 'stretcher';
+    if (t.includes('bariatric')) return 'bariatric';
+    if (t.includes('ambulance') || /\b(bls|als)\b/.test(t)) return 'bls';
+    if (t.includes('ambulatory') || t.includes('car') || t.includes('sedan') || t.includes('walk')) return 'ambulatory';
+    return null;
+  }
+
+  function parseTripType(text) {
+    var t = text.toLowerCase();
+    if (/round|return|\brt\b/.test(t)) return 'ROUND_TRIP';
+    if (/one ?way|single|just there|only there/.test(t)) return 'ONE_WAY';
+    return null;
+  }
+
+  // -------- pickup date/time parsing (visitor-friendly, America/New_York)
+  function etToday() {
+    var parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' })
+      .formatToParts(new Date());
+    var get = function (type) { return parts.find(function (p) { return p.type === type; }).value; };
+    var dow = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[get('weekday')];
+    return { date: get('year') + '-' + get('month') + '-' + get('day'), dow: dow };
+  }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function ymd(y, m, d) {
+    var dt = new Date(Date.UTC(y, m - 1, d));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+    return y + '-' + pad2(m) + '-' + pad2(d);
+  }
+  function addDays(dateStr, days) {
+    var p = dateStr.split('-').map(Number);
+    var dt = new Date(Date.UTC(p[0], p[1] - 1, p[2] + days));
+    return dt.getUTCFullYear() + '-' + pad2(dt.getUTCMonth() + 1) + '-' + pad2(dt.getUTCDate());
+  }
+  function extractTime(t) {
+    var m = t.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+    if (m) { var h = Number(m[1]) % 12; if (m[3] === 'pm') h += 12; return pad2(h) + ':' + pad2(Number(m[2] || 0)); }
+    m = t.match(/\b(\d{1,2}):(\d{2})\b/);
+    if (m && Number(m[1]) <= 23 && Number(m[2]) <= 59) return pad2(Number(m[1])) + ':' + pad2(Number(m[2]));
+    if (/\bnoon\b/.test(t)) return '12:00';
+    if (/\bmidnight\b/.test(t)) return '00:00';
+    return null;
+  }
+  var MONTH_NAMES = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, sept: 9, october: 10, november: 11, december: 12, jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  var WEEKDAY_NAMES = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sun: 0, mon: 1, tue: 2, tues: 2, wed: 3, thu: 4, thur: 4, thurs: 4, fri: 5, sat: 6 };
+
+  function parseDateTime(text) {
+    var t = ' ' + String(text || '').toLowerCase().replace(/[\u2019]/g, "'") + ' ';
+    var today = etToday();
+    var time = extractTime(t);
+    var date = null;
+    var m = t.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) date = ymd(Number(m[1]), Number(m[2]), Number(m[3]));
+    if (!date) {
+      m = t.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+      if (m) {
+        var year = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : Number(today.date.slice(0, 4));
+        date = ymd(year, Number(m[1]), Number(m[2]));
+        if (date && !m[3] && date < today.date) date = ymd(year + 1, Number(m[1]), Number(m[2]));
+      }
+    }
+    if (!date) {
+      m = t.match(/(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?/);
+      if (m) {
+        var month = MONTH_NAMES[m[1]];
+        var yr = m[3] ? Number(m[3]) : Number(today.date.slice(0, 4));
+        date = ymd(yr, month, Number(m[2]));
+        if (date && !m[3] && date < today.date) date = ymd(yr + 1, month, Number(m[2]));
+      }
+    }
+    if (!date) {
+      if (/\btoday\b/.test(t)) date = today.date;
+      else if (/\btomorrow\b/.test(t)) date = addDays(today.date, 1);
+      else {
+        var wd = t.match(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)\b/);
+        if (wd) {
+          var target = WEEKDAY_NAMES[wd[1]];
+          var diff = (target - today.dow + 7) % 7;
+          if (diff === 0 && /\bnext\b/.test(t)) diff = 7;
+          date = addDays(today.date, diff);
+        }
+      }
+    }
+    if (!date && !time) return null;
+    if (!date) return { timeOnly: true, time: time };
+    var past = date < today.date;
+    if (!time) return { dateOnly: true, date: date, past: past };
+    return { date: date, time: time, past: past };
+  }
+
+  // -------- measuring the trip (Google Maps in the browser, like booking)
+  var mapsPromise = null;
+  function loadMaps() {
+    if (window.google && window.google.maps && window.google.maps.DirectionsService) return Promise.resolve(window.google.maps);
+    if (mapsPromise) return mapsPromise;
+    mapsPromise = fetch('/api/integrations/config')
+      .then(function (r) { return r.json(); })
+      .then(function (cfg) {
+        if (!cfg || !cfg.googleMapsEnabled || !cfg.googleMapsBrowserKey) throw { code: 'maps-unavailable' };
+        return new Promise(function (resolve, reject) {
+          var timer = setTimeout(function () { reject({ code: 'maps-unavailable' }); }, 15000);
+          var script = document.createElement('script');
+          script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(cfg.googleMapsBrowserKey) + '&v=weekly';
+          script.onload = function () { clearTimeout(timer); resolve(window.google.maps); };
+          script.onerror = function () { clearTimeout(timer); reject({ code: 'maps-unavailable' }); };
+          document.head.appendChild(script);
+        });
+      })
+      .catch(function (err) { mapsPromise = null; throw err && err.code ? err : { code: 'maps-unavailable' }; });
+    return mapsPromise;
+  }
+
+  function geocode(maps, address, which) {
+    return new Promise(function (resolve, reject) {
+      new maps.Geocoder().geocode({ address: address }, function (results, status) {
+        if (status !== 'OK' || !results || !results[0]) { reject({ code: 'geocode', which: which }); return; }
+        var r = results[0];
+        var state = '';
+        (r.address_components || []).forEach(function (c) {
+          if (c.types && c.types.includes('administrative_area_level_1')) state = c.short_name;
+        });
+        resolve({
+          formatted: r.formatted_address,
+          lat: r.geometry.location.lat(),
+          lng: r.geometry.location.lng(),
+          state: state
+        });
+      });
+    });
+  }
+
+  function directionsMiles(maps, origin, destination) {
+    return new Promise(function (resolve, reject) {
+      new maps.DirectionsService().route({ origin: origin, destination: destination, travelMode: maps.TravelMode.DRIVING }, function (result, status) {
+        var legs = result && result.routes && result.routes[0] && result.routes[0].legs;
+        if (status !== 'OK' || !legs || !legs.length) { reject({ code: 'directions' }); return; }
+        var meters = 0, seconds = 0;
+        legs.forEach(function (leg) { meters += leg.distance.value; seconds += leg.duration.value; });
+        resolve({ miles: meters / 1609.344, minutes: seconds / 60 });
+      });
+    });
+  }
+
+  function measureTrip() {
+    return loadMaps().then(function (maps) {
+      return Promise.all([geocode(maps, flow.pickup, 'pickup'), geocode(maps, flow.dropoff, 'dropoff')])
+        .then(function (geo) {
+          var from = geo[0], to = geo[1];
+          return directionsMiles(maps, from.formatted, to.formatted).then(function (out) {
+            var payload = {
+              pickup: flow.pickup, dropoff: flow.dropoff,
+              service: flow.service, tripType: flow.tripType,
+              date: flow.date, time: flow.time,
+              loadedMiles: out.miles, durationMinutes: out.minutes,
+              pickupState: from.state, dropoffState: to.state,
+              pickupLat: from.lat, pickupLng: from.lng,
+              dropoffLat: to.lat, dropoffLng: to.lng
+            };
+            if (flow.tripType === 'ROUND_TRIP') {
+              return directionsMiles(maps, to.formatted, from.formatted).then(
+                function (back) { payload.returnMiles = back.miles; return payload; },
+                function () { return payload; }
+              );
+            }
+            return payload;
+          });
+        });
+    });
+  }
+
+  function maybeResubmit() {
+    // After a repaired address, everything else may already be collected.
+    if (flow.pickup && flow.dropoff && flow.service && flow.tripType && flow.date && flow.time) {
+      submitEstimate();
+      return true;
+    }
+    return false;
+  }
+
+  function advanceFlow(q) {
+    var lower = q.toLowerCase();
+    if (/^(cancel|stop|quit|exit|never ?mind)\b/.test(lower)) { cancelFlow(); return; }
+    if (flow.step === 'pickup') {
+      if (q.length < 6) { addMessage('That looks a bit short for an address \u2014 could you give me the street address, city and state?', 'bot'); return; }
+      flow.pickup = q;
+      if (maybeResubmit()) return;
+      flow.step = 'dropoff';
+      addMessage(STEP_PROMPTS.dropoff, 'bot');
+      setPlaceholder('Drop-off address\u2026');
+      return;
+    }
+    if (flow.step === 'dropoff') {
+      if (q.length < 6) { addMessage('That looks a bit short for an address \u2014 could you give me the street address, city and state?', 'bot'); return; }
+      flow.dropoff = q;
+      if (maybeResubmit()) return;
+      flow.step = 'service';
+      renderChips();
+      addMessage(STEP_PROMPTS.service, 'bot');
+      setPlaceholder('Or type the ride type\u2026');
+      return;
+    }
+    if (flow.step === 'service') {
+      var svc = parseService(q);
+      if (!svc) { addMessage('Please tap a ride type above, or type one: ambulatory, wheelchair, stretcher, bariatric, or ambulance.', 'bot'); return; }
+      setService(svc);
+      return;
+    }
+    if (flow.step === 'tripType') {
+      var tt = parseTripType(q);
+      if (!tt) { addMessage('Please tap One way or Round trip above, or type it.', 'bot'); return; }
+      setTripType(tt);
+      return;
+    }
+    if (flow.step === 'datetime') {
+      var dt = parseDateTime(q);
+      if (!dt || (dt.timeOnly && !flow.pendingDate)) {
+        addMessage('I couldn\u2019t read that date and time. Try something like \u201cFriday at 10:30 AM\u201d, \u201ctomorrow at 9 AM\u201d, or \u201cNov 8 at 2 PM\u201d.', 'bot');
+        return;
+      }
+      if (dt.past) { addMessage('That date is in the past \u2014 what day should we pick you up?', 'bot'); return; }
+      if (dt.dateOnly) {
+        flow.pendingDate = dt.date;
+        flow.step = 'timeOnly';
+        addMessage(STEP_PROMPTS.timeOnly, 'bot');
+        setPlaceholder('Pickup time, e.g. 10:30 AM\u2026');
+        return;
+      }
+      flow.date = dt.timeOnly ? flow.pendingDate : dt.date;
+      flow.time = dt.time;
+      submitEstimate();
+      return;
+    }
+    if (flow.step === 'timeOnly') {
+      var t = extractTime(' ' + q.toLowerCase() + ' ');
+      if (!t) { addMessage('What time should we pick you up? For example, \u201c10:30 AM\u201d or \u201c2 PM\u201d.', 'bot'); return; }
+      flow.date = flow.pendingDate;
+      flow.time = t;
+      submitEstimate();
+    }
+  }
+
+  function submitEstimate() {
+    busy = true;
+    send.disabled = true;
+    var pending = showTyping();
+    measureTrip()
+      .then(function (payload) {
+        return fetch(ESTIMATE_ENDPOINT, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function (res) { return res.json().then(function (data) { return { res: res, data: data }; }); });
+      })
+      .then(function (out) {
+        if (out.res.ok && out.data && out.data.mode === 'out_of_area') {
+          fillPending(pending, out.data.answer);
+          endFlow();
+          return;
+        }
+        if (out.res.ok && out.data && out.data.mode === 'estimate' && out.data.answer) {
+          fillPending(pending, out.data.answer);
+          var actions = document.createElement('div');
+          actions.className = 'nvaEstActions';
+          actions.innerHTML = '<a class="nvaEstBook" href="' + BOOKING_URL + '" target="_blank" rel="noopener">Book a Ride \u2014 exact quote</a>';
+          log.appendChild(actions);
+          log.scrollTop = log.scrollHeight;
+          endFlow();
+          return;
+        }
+        if (out.data && out.data.error) {
+          fillPending(pending, out.data.error + ' You can also get the exact quote in the booking app at ' + BOOKING_URL + ', or call ' + MAIN_PHONE + '.');
+          endFlow();
+          return;
+        }
+        throw { code: 'server' };
+      })
+      .catch(function (err) {
+        if (err && err.code === 'geocode') {
+          var which = err.which === 'dropoff' ? 'dropoff' : 'pickup';
+          flow.geoFails[which] += 1;
+          if (flow.geoFails[which] >= 2) {
+            fillPending(pending, 'I still can\u2019t find that address, so I can\u2019t work out the distance. Please call us at ' + MAIN_PHONE + ' and the team will quote the trip, or book online at ' + BOOKING_URL + '.');
+            endFlow();
+            return;
+          }
+          fillPending(pending, 'I couldn\u2019t find the ' + (which === 'pickup' ? 'pickup' : 'drop-off') + ' address \u2014 could you check it and enter it again, with the city and state?');
+          flow.step = which;
+          renderChips();
+          setPlaceholder(which === 'pickup' ? 'Pickup address\u2026' : 'Drop-off address\u2026');
+          return;
+        }
+        fillPending(pending, 'I couldn\u2019t finish the estimate just now. You can get the exact quote in the booking app at ' + BOOKING_URL + ', or call ' + MAIN_PHONE + ' and the team will quote it.');
+        endFlow();
+      })
+      .finally(function () {
+        busy = false;
+        send.disabled = false;
+        headAvatar.src = WAITING_GIF;
+        log.scrollTop = log.scrollHeight;
+        input.focus();
+      });
+  }
+
+  // ------------------------------------------------------------- dispatch
+  var EMERGENCY_RE = /\b(911|emergency|hurt|injur|unconscious|not breathing|chest pain|heart attack|stroke|bleed|accident|dying|overdose|choking|seizure|suicide|passed out|collapsed|unresponsive)\b/i;
+  var PRICE_RE = /(cost|price|pricing|how much|fare|rates?|charge|quote|fees?|expensive|afford|per mile)|\bestimates?\b/i;
+
+  function handleUserText(raw) {
+    var q = String(raw || '').trim();
+    if (!q || busy) return;
+    input.value = '';
+    if (EMERGENCY_RE.test(q)) {
+      // Emergencies always win; abandon any estimate in progress and
+      // let the server's safety path answer.
+      if (flow) endFlow();
+      ask(q);
+      return;
+    }
+    if (flow) { addMessage(q, 'user'); advanceFlow(q); return; }
+    if (PRICE_RE.test(q)) { addMessage(q, 'user'); startEstimateFlow(); return; }
+    ask(q);
+  }
+
+  renderChips();
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
-    ask(input.value);
+    handleUserText(input.value);
   });
 })();
