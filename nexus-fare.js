@@ -184,20 +184,45 @@
     const premiumAmount=passengerLegs.reduce((sum,leg)=>sum+leg.premiumAmount,0);
     const deadheadSegments = routeMetrics.deadheadSegments || [0,0];
     const deadheadRate = Math.max(0, Number(rate.perMile || 0)) * Number(fareRules.deadheadRatePct??50)/100;
-    // Return-to-yard deadhead rule (owner directive, 2026-11-01). On ONE-WAY
-    // trips the destination→yard leg (segment 1) is billed on half of its
-    // actual miles instead of the standard miles-beyond-included formula,
-    // still priced at the deadhead rate; for Ambulatory / Wheelchair trips
-    // under 20 loaded miles that leg is not billed at all. The yard→pickup
-    // leg (segment 0) and every round-trip leg keep the standard formula.
+    // Deadhead allowance rule (owner directive, 2026-11-01, v2 — supersedes
+    // the same-day return-to-yard rule for the covered services). For
+    // Ambulatory, Wheelchair, Bariatric, Stretcher, Broda and both IFT
+    // services, the trip's empty miles share one 25-mile allowance: the
+    // first 25 deadhead miles of the trip are free and only the miles over
+    // 25 are billed, at the standard deadhead rate, on one-way and round
+    // trips alike. The allowance replaces the per-segment included-miles
+    // deduction for these services and is consumed by the empty segments
+    // in order (the drive to the pickup first), so the per-segment rows
+    // still sum to the trip's billable deadhead miles. BLS / ALS services
+    // keep the earlier rule unchanged: on ONE-WAY trips the
+    // destination→yard leg (segment 1) is billed on half of its actual
+    // miles instead of the standard miles-beyond-included formula, still
+    // priced at the deadhead rate; for Ambulatory / Wheelchair trips
+    // under 20 loaded miles that leg is not billed at all (unreachable
+    // for those services now that the allowance covers them, kept so the
+    // legacy branch stays byte-for-byte the earlier rule). The yard→pickup
+    // leg (segment 0) and every round-trip leg of a non-covered service
+    // keep the standard formula.
+    const DEADHEAD_ALLOWANCE_MILES = 25;
+    const deadheadAllowanceServices = ['ambulatory','wheelchair','bariatric','stretcher','broda','facility_transfer','facility_transfer_critical'];
+    const deadheadAllowanceApplies = deadheadAllowanceServices.includes(normalizeService(service));
     const oneWayTrip = passengerLegCount === 1;
     const returnLegExempt = oneWayTrip && ['ambulatory','wheelchair'].includes(normalizeService(service)) && outbound.miles < 20;
+    let deadheadAllowanceRemaining = deadheadAllowanceApplies ? DEADHEAD_ALLOWANCE_MILES : 0;
     const deadheadDetails=deadheadSegments.map((segment,index)=>{
       const segmentMiles=Number(segment)||0;
-      const billableMiles=index===1&&oneWayTrip?(returnLegExempt?0:segmentMiles*0.5):Math.max(0,segmentMiles-includedMiles);
+      let billableMiles;
+      if(deadheadAllowanceApplies){
+        const allowanceUsed=Math.min(deadheadAllowanceRemaining,segmentMiles);
+        deadheadAllowanceRemaining-=allowanceUsed;
+        billableMiles=segmentMiles-allowanceUsed;
+      }else{
+        billableMiles=index===1&&oneWayTrip?(returnLegExempt?0:segmentMiles*0.5):Math.max(0,segmentMiles-includedMiles);
+      }
       return {...routeMetrics.deadheadRoutes?.[index],miles:segmentMiles,includedMiles,billableMiles,rate:deadheadRate,charge:billableMiles*deadheadRate};
     });
     const deadheadCharge=deadheadDetails.reduce((sum,segment)=>sum+segment.charge,0);
+    const deadheadBillableMiles=deadheadDetails.reduce((sum,segment)=>sum+segment.billableMiles,0);
     // Eligibility follows the current estimate time, never saved booking or
     // mock timestamps supplied with the trip's route inputs.
     const currentTime = Date.now();
@@ -213,7 +238,7 @@
     const taxAmount = normalizedSubtotal * (taxRatePct / 100);
     return {
       ...waiting,...fuel,drivingMinutes,transitionMinutes,journeyMinutes,timingPlan,
-      deadheadSegments, deadheadDetails, deadheadRate, deadheadCharge, shortNoticeCharge,
+      deadheadSegments, deadheadDetails, deadheadRate, deadheadCharge, deadheadBillableMiles, deadheadAllowanceMiles: deadheadAllowanceApplies ? DEADHEAD_ALLOWANCE_MILES : 0, shortNoticeCharge,
       includedMiles,
       passengerLegs,passengerLegCount,passengerMilesTotal:passengerLegs.reduce((sum,leg)=>sum+leg.miles,0),
       mileageCharge:passengerLegs.reduce((sum,leg)=>sum+leg.mileageCharge,0),

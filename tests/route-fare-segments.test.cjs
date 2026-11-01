@@ -47,7 +47,10 @@ test('cached address routes refresh legacy and newly imported trips with current
  const [routed]=await Cache.hydrate([booking],settings,async(sql,params)=>({rows:[{route_key:params[0][0],inputs}]}));
  assert.equal(routed.routeFareInputs,inputs);
  const updated={...settings,pricing:{ambulatory:{...settings.pricing.ambulatory,perMile:4}}};
- assert.equal(Fare.roundMoney(Fare.calculateEstimate(routed,updated).discountedTotal-Fare.calculateEstimate(routed,settings).discountedTotal),6.95);
+ // The per-mile rise moves only passenger mileage now: the trip's 20
+ // empty miles sit inside the 25-mile deadhead allowance (rule v2,
+ // 2026-11-01) at both rates, so deadhead contributes $0 either way.
+ assert.equal(Fare.roundMoney(Fare.calculateEstimate(routed,updated).discountedTotal-Fare.calculateEstimate(routed,settings).discountedTotal),4.63);
 });
 test('a broker total is never doubled again before verified routes are available',()=>{
  const result=Fare.calculateEstimate({...booking,intakePayload:{total_miles:27.46}},settings);

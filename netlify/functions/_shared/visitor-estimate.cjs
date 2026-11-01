@@ -20,13 +20,18 @@
  *    distance between the geocoded points; implausible figures are
  *    rejected, never adjusted silently.
  *  - Deadhead (empty) miles cannot be measured without the yard route,
- *    so the return-to-yard leg is modeled the way the platform bills it
- *    (owner directive, 2026-11-01): half of the return distance, with the
- *    loaded miles standing in for that distance, charged at the service's
- *    per-mile rate — and a one-way Ambulatory / Wheelchair trip under 20
- *    loaded miles models no return deadhead at all, matching the fare
- *    engine. Round trips keep the blended proxy (50% of total loaded
- *    miles) because the rule does not change round-trip deadhead. The
+ *    so total deadhead is modeled as 50% of the loaded miles and the
+ *    platform's billing rule is applied to that figure (owner directive,
+ *    2026-11-01, v2): for Ambulatory, Wheelchair, Stretcher and
+ *    Bariatric, the first 25 modeled empty miles are not billed and
+ *    only the miles over 25 are charged, at the service's per-mile
+ *    rate; at or under 25 modeled miles the answer makes no deadhead
+ *    claim at all. BLS keeps the earlier model — half the loaded miles
+ *    billed as the return-to-yard leg. Proxy limits, stated plainly:
+ *    the platform itself measures the real yard segments and applies
+ *    the same 25-mile allowance to that measured total, pricing the
+ *    billable miles at the deadhead percentage of the per-mile rate;
+ *    the chat proxy can do neither, so its figures stay rough. The
  *    answer says which treatment it used.
  *  - Premium timing (after-hours / weekend / holiday, +30% under the
  *    platform defaults) comes from the fare engine itself, which reads
@@ -119,6 +124,7 @@ const MAX_TRIP_MILES = 3000;
 const MAIN_PHONE = '(888) 639-5766';
 const BOOKING_URL = 'https://mynexusride.com';
 const DEADHEAD_FRACTION = 0.5; // modeled empty miles, as a share of loaded miles
+const DEADHEAD_ALLOWANCE_MILES = 25; // per-trip free empty miles for the covered services (deadhead rule v2)
 
 function num(value, fallback) {
   const n = Number(value);
@@ -319,13 +325,18 @@ function createEstimator({ fareEngine = Fare, loadSettings = loadPlatformSetting
     });
 
     const totalLoaded = tripType === 'ROUND_TRIP' ? loadedMiles + returnMiles : loadedMiles;
-    // The platform's return-to-yard rule, as closely as a yard-less proxy
-    // allows: one-way Ambulatory / Wheelchair under 20 loaded miles bills
-    // no return deadhead; other one-way trips bill half the return-to-yard
-    // miles (loaded miles stand in for the yard run). Round trips are
-    // unchanged by the rule, so their blended proxy is unchanged too.
-    const returnDeadheadExempt = tripType === 'ONE_WAY' && (serviceKey === 'ambulatory' || serviceKey === 'wheelchair') && loadedMiles < 20;
-    const deadheadMiles = returnDeadheadExempt ? 0 : DEADHEAD_FRACTION * totalLoaded;
+    // Modeled empty miles: half the loaded miles stand in for the trip's
+    // total deadhead, since no yard route can be measured in chat.
+    const modeledDeadheadMiles = DEADHEAD_FRACTION * totalLoaded;
+    // The platform's 25-mile deadhead allowance (owner directive,
+    // 2026-11-01, v2), as closely as the proxy allows: for the covered
+    // services the first 25 modeled empty miles are not billed and only
+    // the miles over 25 are figured in, priced on the proxy's existing
+    // basis (the service's per-mile rate). BLS — the only non-covered
+    // service the chat offers — keeps the earlier return-to-yard proxy
+    // exactly: the modeled miles are billed as they stand.
+    const deadheadAllowanceApplies = ['ambulatory', 'wheelchair', 'stretcher', 'bariatric'].includes(serviceKey);
+    const deadheadMiles = deadheadAllowanceApplies ? Math.max(0, modeledDeadheadMiles - DEADHEAD_ALLOWANCE_MILES) : modeledDeadheadMiles;
     const deadheadCharge = deadheadMiles * Number(rate.perMile || 0);
     const cardPct = Number(fare.taxRatePct ?? settings.fareRules.cardProcessingFeePct ?? 0);
     const total = (Number(fare.subtotal || 0) + deadheadCharge) * (1 + cardPct / 100);
@@ -351,11 +362,19 @@ function createEstimator({ fareEngine = Fare, loadSettings = loadPlatformSetting
       ? `mileage beyond the first ${rate.includedMiles} miles the base fare covers`
       : 'mileage for the full trip distance';
     const article = /^[aeiou]/i.test(service.label) ? 'an' : 'a';
-    const deadheadClause = returnDeadheadExempt
-      ? ''
-      : tripType === 'ROUND_TRIP'
+    let deadheadClause = '';
+    if (deadheadMiles > 0 && deadheadAllowanceApplies) {
+      // Covered services: name the modeled empty miles, the 25-mile
+      // allowance, and the over-25 miles actually figured in.
+      deadheadClause = tripType === 'ROUND_TRIP'
+        ? `, and estimated deadhead \u2014 the empty miles to reach you and return afterwards, figured at about ${fmtMiles(modeledDeadheadMiles)} miles; the first 25 empty miles aren\u2019t billed, so only the ${fmtMiles(deadheadMiles)} miles over 25 are figured in`
+        : `, and estimated deadhead \u2014 the trip\u2019s empty miles, figured at about ${fmtMiles(modeledDeadheadMiles)} miles; the first 25 empty miles aren\u2019t billed, so only the ${fmtMiles(deadheadMiles)} miles over 25 are figured in`;
+    } else if (deadheadMiles > 0) {
+      // BLS keeps the earlier return-to-yard wording.
+      deadheadClause = tripType === 'ROUND_TRIP'
         ? `, and estimated deadhead \u2014 the empty miles to reach you and return afterwards, figured at about ${fmtMiles(deadheadMiles)} miles (50% of the trip distance)`
         : `, and estimated deadhead \u2014 the empty miles back to the yard after drop-off, billed at half and figured at about ${fmtMiles(deadheadMiles)} miles`;
+    }
     const answer =
       `For ${article} ${service.label} ride, ${milesLine}, with pickup on ${formatDate(date)} at ${formatTime(time)}, your rough estimate is about $${displayTotal}.\n\n` +
       `How I got there: the ${service.label} base fare, plus ${includedLine}, fuel${deadheadClause}.${premiumSentence}${shortNoticeSentence}\n\n` +
