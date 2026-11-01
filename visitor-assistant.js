@@ -54,6 +54,18 @@
  * one-way/round-trip, cancel) are inputs, not suggestions, and always
  * show during the flow.
  *
+ * Conversation memory (smart Nex): the widget remembers the last
+ * completed estimate — its inputs (addresses as entered and as
+ * resolved, measured miles, ride type, trip type, date/time) and its
+ * result — plus recent turns, all in page memory only, and sends
+ * them with each question. Follow-ups about the same trip ("for the
+ * same, what would be the price for stretcher", "and round trip?",
+ * "what if it's Saturday") are answered by the assistant function,
+ * which re-prices the stored trip server-side; an address change
+ * re-enters this flow's own resolution path with every other detail
+ * kept, so only the changed end is asked for again. A re-price on
+ * the same route re-renders the same route map under the new answer.
+ *
  * Thinking state: before an answer renders, Nex shows a "Nex is
  * thinking…" state with the typing avatar for a realistic beat
  * (900ms, scaling slightly with answer length, capped at 1600ms) —
@@ -294,19 +306,99 @@
   });
 
   // ------------------------------------------------------------- Q&A path
+  // Conversation memory: the last completed estimate and the recent
+  // turns, in page memory only (see the header note). lastRoute keeps
+  // the measured route so a same-route re-price can redraw its map.
+  var lastEstimate = null;
+  var lastRoute = null;
+  var chatHistory = [];
+  var pendingAddressClarify = false;
+  var pendingFollowupAddress = null;
+
+  function recordTurn(role, text) {
+    var t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+    if (!t) return;
+    chatHistory.push({ role: role, text: t });
+    if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
+  }
+
+  // Snapshot the trip the flow just priced (payload = what was sent
+  // to the estimate function; flow carries the entered/resolved
+  // address forms) so follow-ups can re-price it unchanged.
+  function rememberEstimate(estimate) {
+    if (!flow || !flow.lastPayload) return;
+    var p = flow.lastPayload;
+    var inputs = {
+      pickup: flow.pickupEntered || p.pickup,
+      dropoff: flow.dropoffEntered || p.dropoff,
+      pickupResolved: p.pickup,
+      dropoffResolved: p.dropoff,
+      service: p.service,
+      tripType: p.tripType,
+      date: p.date,
+      time: p.time,
+      loadedMiles: p.loadedMiles,
+      durationMinutes: p.durationMinutes || 0
+    };
+    if (p.returnMiles) inputs.returnMiles = p.returnMiles;
+    ['pickupState', 'dropoffState', 'pickupLat', 'pickupLng', 'dropoffLat', 'dropoffLng'].forEach(function (k) {
+      if (p[k] != null && p[k] !== '') inputs[k] = p[k];
+    });
+    lastEstimate = { inputs: inputs, result: estimate || null };
+    if (flow.route) lastRoute = flow.route;
+  }
+
+  function addEstimateActions() {
+    var actions = document.createElement('div');
+    actions.className = 'nvaEstActions';
+    actions.innerHTML = '<a class="nvaEstBook nvaBookBtn" href="' + BOOKING_URL + '" target="_blank" rel="noopener">Book a Ride \u2014 exact quote</a>';
+    log.appendChild(actions);
+  }
+
+  // Act on the conversation fields of an assistant reply: adopt the
+  // (sanitized) state it echoes, redraw the map under a same-route
+  // re-price, re-enter the address path for an address change, or
+  // start fresh when the visitor asked to.
+  function handleAssistantData(data) {
+    if (data.answer) recordTurn('assistant', data.answer);
+    if (data.state && 'lastEstimate' in data.state) {
+      lastEstimate = data.state.lastEstimate;
+      if (!lastEstimate) lastRoute = null;
+    }
+    if (data.mode === 'followup-estimate' && data.estimate) {
+      addEstimateActions();
+      if (lastRoute) renderRouteMap(lastRoute);
+      log.scrollTop = log.scrollHeight;
+    } else if (data.mode === 'followup-reset') {
+      lastEstimate = null;
+      lastRoute = null;
+      startEstimateFlow();
+    } else if (data.mode === 'followup-address' && data.followup) {
+      // Deferred to ask()'s finally: seeding the flow can start an
+      // async resolution/estimate whose busy flag ask() must not clear.
+      if (data.followup.which) pendingFollowupAddress = data.followup;
+      else pendingAddressClarify = true;
+    }
+  }
+
   function ask(question) {
     var q = String(question || '').trim();
     if (!q || busy) return;
     busy = true;
     send.disabled = true;
     addMessage(q, 'user');
+    recordTurn('user', q);
     input.value = '';
     var pending = showTyping();
     var startedAt = Date.now();
     fetch(ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ question: q })
+      body: JSON.stringify({
+        question: q,
+        state: lastEstimate ? { lastEstimate: lastEstimate } : null,
+        history: chatHistory.slice(0, -1)
+      })
     })
       .then(function (res) { return res.json().then(function (data) { return { res: res, data: data }; }); })
       .then(function (out) {
@@ -314,6 +406,7 @@
           // Hold the thinking state for its beat before the answer lands.
           return afterThinking(startedAt, out.data.answer).then(function () {
             fillPending(pending, out.data.answer);
+            handleAssistantData(out.data);
           });
         }
         if (out.data && out.data.error) {
@@ -332,6 +425,11 @@
         send.disabled = false;
         headAvatar.src = WAITING_GIF;
         log.scrollTop = log.scrollHeight;
+        if (pendingFollowupAddress) {
+          var pf = pendingFollowupAddress;
+          pendingFollowupAddress = null;
+          startAddressChange(pf.which, pf.address);
+        }
         input.focus();
       });
   }
@@ -424,6 +522,31 @@
     renderChips();
     addMessage('I can work out a rough estimate right here \u2014 no need to open the booking app first. I just need a few details. (Availability itself is confirmed when you book.)\n\n' + STEP_PROMPTS.pickup, 'bot');
     setPlaceholder('Pickup address\u2026');
+  }
+
+  // Address change on the remembered trip: seed the flow with every
+  // detail of the stored estimate and clear only the changed end, so
+  // the visitor answers one question instead of starting over. An
+  // address given inline ("pickup from X instead") goes straight
+  // through the usual resolution path.
+  function startAddressChange(which, addressText) {
+    if (!lastEstimate) return;
+    var inp = lastEstimate.inputs;
+    flow = {
+      step: which,
+      pickup: inp.pickupResolved || inp.pickup, dropoff: inp.dropoffResolved || inp.dropoff,
+      service: inp.service, tripType: inp.tripType, date: inp.date, time: inp.time,
+      pendingDate: '', geoFails: { pickup: 0, dropoff: 0 },
+      pickupPlace: null, dropoffPlace: null, placeOptions: null, route: lastRoute,
+      pickupEntered: inp.pickup, dropoffEntered: inp.dropoff, addressChange: which
+    };
+    flow[which] = '';
+    renderChips();
+    setPlaceholder(which === 'pickup' ? 'New pickup address\u2026' : 'New drop-off address\u2026');
+    if (addressText) {
+      if (looksLikeStreetAddress(addressText)) acceptRawAddress(which, addressText);
+      else resolvePlace(which, addressText);
+    }
   }
 
   function setService(key) {
@@ -676,6 +799,7 @@
   // Today's behavior for a raw entry: store it and move on.
   function acceptRawAddress(which, q) {
     flow[which] = q;
+    flow[which + 'Entered'] = q;
     flow[which + 'Place'] = null;
     if (maybeResubmit()) return;
     if (which === 'pickup') {
@@ -715,6 +839,7 @@
   }
 
   function resolvePlace(which, query) {
+    if (flow) flow[which + 'Entered'] = query;
     busy = true;
     send.disabled = true;
     var pending = showTyping();
@@ -863,6 +988,9 @@
               pickupLat: from.lat, pickupLng: from.lng,
               dropoffLat: to.lat, dropoffLng: to.lng
             };
+            // Kept on the flow so a completed estimate can be
+            // remembered verbatim for follow-up re-prices.
+            flow.lastPayload = payload;
             if (flow.tripType === 'ROUND_TRIP') {
               return directionsMiles(maps, to.formatted, from.formatted).then(
                 function (back) { payload.returnMiles = back.miles; return payload; },
@@ -966,10 +1094,9 @@
         if (out.res.ok && out.data && out.data.mode === 'estimate' && out.data.answer) {
           return afterThinking(startedAt, out.data.answer).then(function () {
           fillPending(pending, out.data.answer);
-          var actions = document.createElement('div');
-          actions.className = 'nvaEstActions';
-          actions.innerHTML = '<a class="nvaEstBook nvaBookBtn" href="' + BOOKING_URL + '" target="_blank" rel="noopener">Book a Ride \u2014 exact quote</a>';
-          log.appendChild(actions);
+          rememberEstimate(out.data.estimate);
+          recordTurn('assistant', out.data.answer);
+          addEstimateActions();
           renderRouteMap(flow && flow.route);
           log.scrollTop = log.scrollHeight;
           endFlow();
@@ -1015,6 +1142,31 @@
   var EMERGENCY_RE = /\b(911|emergency|hurt|injur|unconscious|not breathing|chest pain|heart attack|stroke|bleed|accident|dying|overdose|choking|seizure|suicide|passed out|collapsed|unresponsive)\b/i;
   var PRICE_RE = /(cost|price|pricing|how much|fare|rates?|charge|quote|fees?|expensive|afford|per mile)|\bestimates?\b/i;
 
+  // Narrow client-side mirror of the server's follow-up detection
+  // (netlify/functions/_shared/visitor-conversation.cjs). With a
+  // priced trip in memory, a message that reads as a one-change
+  // follow-up goes to the assistant — which re-prices the stored
+  // trip — instead of restarting the wizard on the price keywords it
+  // happens to contain ("for the same, what would be the PRICE for
+  // stretcher"). The server detector is authoritative; this only
+  // routes, and anything it misses still reaches the assistant
+  // through the normal Q&A path below whenever it has no price words.
+  function looksLikeFollowUp(q) {
+    if (!lastEstimate) return false;
+    var t = ' ' + q.toLowerCase().replace(/[^a-z0-9\s']/g, ' ').replace(/\s+/g, ' ') + ' ';
+    var trimmed = t.trim();
+    if (/^(start over|start again|new estimate|another estimate|new trip|another trip|different trip|forget it|forget that)\b/.test(trimmed)) return true;
+    if (/\b(same|instead|switch|change|different|new)\b/.test(t) && /\b(pick ?up|drop ?off|dropoff|address|location)\b/.test(t)) return true;
+    var kb = /\b(do you|does|can i|can we|can you|how do|how does|what is|what are|tell me|is there|are there|are you)\b/.test(t);
+    var strong = /\b(same|instead|for the same)\b/.test(t);
+    if (/\b(wheelchair|stretcher|bariatric|ambulance|ambulatory|sedan|bls)\b/.test(t) &&
+        (strong || /\b(price|cost|quote|fare) for\b/.test(t) || /\bwhat (about|if)\b/.test(t) || /\bas an?\b/.test(t) || /\bin an?\b/.test(t))) return true;
+    if (/\bwhat if\b/.test(t)) return true;
+    if ((/\bround[ -]?trip\b/.test(t) || /\bone[ -]?way\b/.test(t)) && (!kb || strong || /\bback to\b/.test(t) || trimmed.length <= 60)) return true;
+    if (/\b(tomorrow|saturday|sunday|monday|tuesday|wednesday|thursday|friday)\b/.test(t) && (strong || /\bwhat (about|if)\b/.test(t))) return true;
+    return false;
+  }
+
   function handleUserText(raw) {
     var q = String(raw || '').trim();
     if (!q || busy) return;
@@ -1026,10 +1178,29 @@
       // Emergencies always win; abandon any estimate in progress and
       // let the server's safety path answer.
       if (flow) endFlow();
+      pendingAddressClarify = false;
       ask(q);
       return;
     }
     if (flow) { addMessage(q, 'user'); advanceFlow(q); return; }
+    if (pendingAddressClarify) {
+      // The assistant asked "pickup or drop-off?" for an address
+      // change; read the reply as "<end>, <address>" (address may
+      // come with it or follow as the seeded step's answer).
+      var m = q.match(/^(pick ?up|drop[ -]?off|dropoff)\b[:,]?\s*(.*)$/i);
+      pendingAddressClarify = false;
+      if (m && lastEstimate) {
+        addMessage(q, 'user');
+        var whichC = /drop/i.test(m[1]) ? 'dropoff' : 'pickup';
+        var addr = m[2] && m[2].trim().length >= 6 ? m[2].trim() : null;
+        startAddressChange(whichC, addr);
+        if (!addr) addMessage('Got it \u2014 what\u2019s the new ' + (whichC === 'pickup' ? 'pickup' : 'drop-off') + ' address? A street address with city and state works, or a place name like \u201cCostco in Germantown\u201d.', 'bot');
+        return;
+      }
+      ask(q);
+      return;
+    }
+    if (looksLikeFollowUp(q)) { ask(q); return; }
     if (PRICE_RE.test(q)) { addMessage(q, 'user'); startEstimateFlow(); return; }
     ask(q);
   }

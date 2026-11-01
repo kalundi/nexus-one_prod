@@ -3,16 +3,32 @@
  * Nexus Medical Transit — visitor assistant core.
  *
  * Answers visitor questions ONLY from the website knowledge base
- * (visitor-knowledge.cjs). Two modes:
- *  - Default (no credentials): retrieval + composed answers. Fully
- *    functional; nothing here pretends to be an AI model.
- *  - Optional upgrade: when an OpenAI-compatible key/model are present in
- *    the environment (VISITOR_ASSISTANT_API_KEY / VISITOR_ASSISTANT_MODEL,
- *    falling back to the platform's OPENAI_API_KEY / OPENAI_MODEL, the same
- *    pattern as _shared/maintenance.cjs), the retrieved entries are handed
- *    to the model to phrase the reply. The model output is discarded if it
- *    states a price or a phone number that is not in the knowledge base,
- *    and any provider failure falls back to the composed answer.
+ * (visitor-knowledge.cjs), and — since the smart-Nex build — follows
+ * the conversation: the widget sends the page-session state (the
+ * last estimate's inputs and result) and recent turns with each
+ * message (see visitor-conversation.cjs; per-request only, never
+ * stored or logged). Three layers answer, in order:
+ *  1. Deterministic follow-ups over the stored trip — a one-change
+ *     re-price ("for the same, what would be the price for
+ *     stretcher", "and round trip?", "what if it's Saturday") runs
+ *     the same visitor-estimate engine on the stored road miles; an
+ *     address change or a fresh start is handed back to the widget,
+ *     which re-enters its address-resolution path with every other
+ *     detail kept. Works with no model configured.
+ *  2. Retrieval + composed answers from the knowledge base.
+ *  3. Optional model layer: when an OpenAI-compatible key/model are
+ *     present in the environment (VISITOR_ASSISTANT_API_KEY /
+ *     VISITOR_ASSISTANT_MODEL, falling back to the platform's
+ *     OPENAI_API_KEY / OPENAI_MODEL, the same pattern as
+ *     _shared/maintenance.cjs), the model gets the conversation
+ *     history, the stored trip, the retrieved entries, and one tool —
+ *     the estimate engine — and phrases the reply. The model may
+ *     only state a price the estimate tool returned in this
+ *     conversation; the output filter discards anything else with a
+ *     dollar figure, a discount percentage, or a non-public phone
+ *     number, and any provider failure falls back silently to the
+ *     deterministic/composed answer. Nothing here pretends to be an
+ *     AI model when no credentials are configured.
  *
  * Safety rules enforced here, before any retrieval or phrasing:
  *  - Emergency signals -> "call 911" immediately.
@@ -22,6 +38,10 @@
  */
 
 const { CONTACT, ENTRIES } = require('./visitor-knowledge.cjs');
+const { SERVICE_TYPES } = require('./visitor-estimate.cjs');
+const {
+  sanitizeState, sanitizeHistory, allowedFigures, detectFollowUp, describeChanges
+} = require('./visitor-conversation.cjs');
 
 const BOOKING_CTA = `You can book online at ${CONTACT.bookingUrl} or call ${CONTACT.mainPhoneDisplay}.`;
 const FALLBACK_ANSWER =
@@ -142,7 +162,7 @@ const SERVICE_ENTRY_IDS = [
 function normalize(text) {
   return String(text || '')
     .toLowerCase()
-    .replace(/[\u2019]/g, "'")
+    .replace(/[’]/g, "'")
     .replace(/[^a-z0-9\s']/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -304,10 +324,26 @@ function aiConfig(env) {
 }
 
 const ALLOWED_NUMBERS = ['8886395766', '8887604990', '911'];
-function guardrailOk(text) {
+// Output filter for model text. With no `allowed` figures (the
+// original contract), ANY dollar figure or percentage is rejected —
+// the site publishes none. In the conversation layer the caller
+// passes the figures the estimate tool returned in this conversation
+// (visitor-conversation.allowedFigures); exactly those amounts — and
+// a tool-returned premium percentage — may be stated, nothing else.
+function guardrailOk(text, allowed) {
   if (!text) return false;
-  // Reject any dollar figure or percentage discount — the site publishes none.
-  if (/\$\s?\d|\d\s?%/.test(text)) return false;
+  const amounts = allowed && allowed.amounts instanceof Set ? allowed.amounts : new Set();
+  const pcts = allowed && allowed.pcts instanceof Set ? allowed.pcts : new Set();
+  const dollarFigures = text.match(/\$\s?\d[\d,]*(?:\.\d{1,2})?/g) || [];
+  for (const figure of dollarFigures) {
+    const value = Number(figure.replace(/[$,\s]/g, ''));
+    if (![...amounts].some(a => Math.abs(a - value) < 0.005)) return false;
+  }
+  const pctFigures = text.match(/\d+(?:\.\d+)?\s?%/g) || [];
+  for (const figure of pctFigures) {
+    const value = Number(figure.replace(/[%\s]/g, ''));
+    if (![...pcts].some(p => Math.abs(p - value) < 0.005)) return false;
+  }
   // Reject any phone-shaped digit sequence that is not a public number.
   const phoneLike = text.match(/(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}|\d{7,}/g) || [];
   for (const candidate of phoneLike) {
@@ -317,39 +353,155 @@ function guardrailOk(text) {
   return true;
 }
 
-async function phraseWithModel({ fetchImpl, env, question, composed }) {
+// ---------------------------------------------------------------------
+// Model conversation layer (layer 3)
+// ---------------------------------------------------------------------
+
+const ESTIMATE_TOOL = {
+  type: 'function',
+  name: 'estimate_ride',
+  description:
+    'Re-price the trip the visitor already has an estimate for, changing only the fields provided. ' +
+    'Use it when the visitor asks what the same trip would cost with a different ride type, a round trip instead of one way (or back), ' +
+    'or a different pickup date/time. The route and road miles are already known and never change here. ' +
+    'Returns the rough estimate for the changed trip; quote ONLY the displayTotal it returns.',
+  parameters: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      service: { type: 'string', enum: ['ambulatory', 'wheelchair', 'stretcher', 'bariatric', 'bls'], description: 'Ride type. bls is the ambulance choice.' },
+      tripType: { type: 'string', enum: ['ONE_WAY', 'ROUND_TRIP'] },
+      date: { type: 'string', description: 'Pickup date, YYYY-MM-DD.' },
+      time: { type: 'string', description: 'Pickup time, 24-hour HH:MM.' }
+    }
+  }
+};
+
+function modelInstructions() {
+  return (
+    'You are Nex, the Nexus Medical Transit Virtual Assistant on the company website, continuing a conversation with a visitor. ' +
+    'Answer using ONLY the website information provided below and the results of the estimate_ride tool. ' +
+    'Rules: never state or estimate a price, fare, rate, or discount except a displayTotal the estimate_ride tool returned in this conversation (or the stored estimate summarized below) — quote it exactly as a rough estimate, never as a final quote; ' +
+    'never give a phone number other than (888) 639-5766, (888) 760-4990, or 911; ' +
+    'never ask for or repeat personal or medical details; if the provided information does not answer the question, say so and direct the visitor to call (888) 639-5766 or book at https://mynexusride.com; ' +
+    'for any medical emergency, tell them to call 911. Keep the reply under 120 words, plain and helpful.'
+  );
+}
+
+function stateSummary(state) {
+  if (!state || !state.lastEstimate) return '';
+  const { inputs, result } = state.lastEstimate;
+  const label = result.serviceLabel || inputs.service;
+  return (
+    `The visitor already has a rough estimate in this conversation: ${label} ride, ` +
+    `${inputs.tripType === 'ROUND_TRIP' ? 'round trip' : 'one way'}, pickup at "${inputs.pickupResolved}", drop-off at "${inputs.dropoffResolved}", ` +
+    `about ${inputs.loadedMiles} road miles, pickup on ${inputs.date} at ${inputs.time}. ` +
+    `The estimate tool priced it at about $${result.displayTotal} (a rough estimate, not a final quote).`
+  );
+}
+
+function extractModelText(data) {
+  return (data.output || []).filter(i => i.type === 'message')
+    .flatMap(i => i.content || []).filter(c => c.type === 'output_text')
+    .map(c => c.text).join('\n').trim().slice(0, 1600);
+}
+
+// One model round-trip conversation. Returns { answer, estimateBody,
+// newInputs } on success (estimateBody/newInputs set when the model
+// used the tool), or null on any failure or guardrail rejection —
+// the caller then keeps its deterministic/composed answer.
+async function converseWithModel({ fetchImpl, env, question, history, state, composed, runEstimate }) {
   const config = aiConfig(env);
   if (!config.key || !config.model) return null;
   const context = composed.sources.map(id => entryById(id)).filter(Boolean)
     .map(e => `## ${e.topic} — ${e.id}\n${e.answer}`).join('\n\n');
-  if (!context) return null;
-  const instructions =
-    'You are the Nexus Medical Transit Virtual Assistant on the company website. Answer the visitor\u2019s question using ONLY the website information provided below. ' +
-    'Rules: never state or estimate a price, fare, rate, or discount; never give a phone number other than (888) 639-5766, (888) 760-4990, or 911; ' +
-    'never ask for or repeat personal or medical details; if the provided information does not answer the question, say so and direct the visitor to call (888) 639-5766 or book at https://mynexusride.com; ' +
-    'for any medical emergency, tell them to call 911. Keep the reply under 120 words, plain and helpful.';
-  const response = await fetchImpl('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    signal: AbortSignal.timeout(12000),
-    headers: { authorization: `Bearer ${config.key}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model: config.model, store: false, max_output_tokens: 400,
-      instructions,
-      input: `Website information:\n${context}\n\nVisitor question: ${question}`
-    })
+  const summary = stateSummary(state);
+  if (!context && !summary) return null;
+
+  const input = [];
+  for (const turn of history) input.push({ role: turn.role, content: turn.text });
+  input.push({
+    role: 'user',
+    content:
+      (context ? `Website information:\n${context}\n\n` : '') +
+      (summary ? `Conversation state:\n${summary}\n\n` : '') +
+      `Visitor question: ${question}`
   });
-  if (!response.ok) return null;
-  const data = await response.json();
-  const text = (data.output || []).filter(i => i.type === 'message')
-    .flatMap(i => i.content || []).filter(c => c.type === 'output_text')
-    .map(c => c.text).join('\n').trim().slice(0, 1600);
-  return guardrailOk(text) ? text : null;
+  const post = async (payload) => {
+    const response = await fetchImpl('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      signal: AbortSignal.timeout(9000),
+      headers: { authorization: `Bearer ${config.key}`, 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) return null;
+    return response.json();
+  };
+
+  const hasTrip = Boolean(state && state.lastEstimate);
+  const first = await post({
+    model: config.model, store: false, max_output_tokens: 400,
+    instructions: modelInstructions(),
+    input,
+    ...(hasTrip ? { tools: [ESTIMATE_TOOL] } : {})
+  });
+  if (!first) return null;
+
+  const call = (first.output || []).find(i => i.type === 'function_call' && i.name === 'estimate_ride');
+  if (!call) {
+    const text = extractModelText(first);
+    return guardrailOk(text, allowedFigures(state)) ? { answer: text } : null;
+  }
+  if (!hasTrip || typeof runEstimate !== 'function') return null;
+
+  let args = {};
+  try { args = JSON.parse(call.arguments || '{}'); } catch { return null; }
+  const toolResult = await runEstimate(args);
+  if (!toolResult || toolResult.status !== 200 || !toolResult.body || toolResult.body.mode !== 'estimate') {
+    // The tool could not price that change (e.g. out of area): let
+    // the model explain with the tool's own words, no figures.
+    const toolText = toolResult && toolResult.body && typeof toolResult.body.answer === 'string' ? toolResult.body.answer : '';
+    if (!toolText) return null;
+    const second = await post({
+      model: config.model, store: false, max_output_tokens: 400,
+      instructions: modelInstructions(),
+      input: [...input,
+        { type: 'function_call', name: 'estimate_ride', call_id: call.call_id, arguments: call.arguments || '{}' },
+        { type: 'function_call_output', call_id: call.call_id, output: JSON.stringify({ note: toolText }) }]
+    });
+    if (!second) return null;
+    const text = extractModelText(second);
+    return guardrailOk(text, allowedFigures(state)) ? { answer: text } : null;
+  }
+
+  const fresh = toolResult.body.estimate;
+  const second = await post({
+    model: config.model, store: false, max_output_tokens: 400,
+    instructions: modelInstructions(),
+    input: [...input,
+      { type: 'function_call', name: 'estimate_ride', call_id: call.call_id, arguments: call.arguments || '{}' },
+      { type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(toolResult.body.estimate) }]
+  });
+  if (!second) return null;
+  const text = extractModelText(second);
+  if (!guardrailOk(text, allowedFigures(state, [fresh]))) return null;
+  return { answer: text, estimateBody: toolResult.body, newInputs: toolResult.newInputs };
 }
 
-function createAssistant({ fetchImpl = fetch, env = process.env, now = Date.now } = {}) {
+// Default estimate runner: the platform's own visitor-estimate
+// service (live Pricing Manager settings via its settings loader).
+// Lazy-required so tests can inject a stub and the module loads even
+// if the fare engine moves.
+function defaultEstimator() {
+  const { createEstimator } = require('./visitor-estimate.cjs');
+  return createEstimator({});
+}
+
+function createAssistant({ fetchImpl = fetch, env = process.env, now = Date.now, estimator = null } = {}) {
   const buckets = new Map(); // ip -> array of timestamps (ms)
   const WINDOW_MS = 10 * 60 * 1000;
   const MAX_PER_WINDOW = 20;
+  let estimateService = estimator;
 
   function rateLimited(ip) {
     const key = String(ip || 'unknown');
@@ -361,32 +513,160 @@ function createAssistant({ fetchImpl = fetch, env = process.env, now = Date.now 
     return false;
   }
 
-  async function ask(question, ip) {
+  // Price the stored trip with some fields changed, reusing the
+  // stored road miles — no new measuring is needed or done.
+  async function runEstimateOnStored(state, changes, ip) {
+    if (!estimateService) estimateService = defaultEstimator();
+    const inputs = { ...state.lastEstimate.inputs, ...changes };
+    const result = await estimateService.estimate({
+      pickup: inputs.pickup,
+      dropoff: inputs.dropoff,
+      service: inputs.service,
+      tripType: inputs.tripType,
+      date: inputs.date,
+      time: inputs.time,
+      loadedMiles: inputs.loadedMiles,
+      returnMiles: inputs.returnMiles,
+      durationMinutes: inputs.durationMinutes,
+      pickupState: inputs.pickupState,
+      dropoffState: inputs.dropoffState,
+      pickupLat: inputs.pickupLat,
+      pickupLng: inputs.pickupLng,
+      dropoffLat: inputs.dropoffLat,
+      dropoffLng: inputs.dropoffLng
+    }, ip);
+    return { result, inputs };
+  }
+
+  // Layer 1: deterministic follow-ups over the stored trip.
+  async function followUpAnswer(followUp, state, ip) {
+    const stored = state.lastEstimate;
+    if (followUp.kind === 'reset') {
+      return {
+        status: 200,
+        body: {
+          answer: 'Of course — let\u2019s start fresh. Tell me the pickup and drop-off for the new trip and I\u2019ll work out a rough estimate, or ask me anything about our services.',
+          sources: [], mode: 'followup-reset', state: { lastEstimate: null }
+        }
+      };
+    }
+    if (followUp.kind === 'address') {
+      const whichLabel = followUp.which === 'pickup' ? 'pickup' : followUp.which === 'dropoff' ? 'drop-off' : null;
+      const answer = followUp.address
+        ? `Sure — I\u2019ll use ${followUp.address} as the new ${whichLabel || 'address'} and re-price the same trip with everything else unchanged. One moment\u2026`
+        : whichLabel
+          ? `Sure — what\u2019s the new ${whichLabel} address? A street address with city and state works, or a place name like \u201cCostco in Germantown\u201d. Everything else about the trip stays the same.`
+          : 'Sure — is the new address the pickup or the drop-off? Tell me which one, with the address — for example, \u201cpickup, 123 Main Street, Clarksburg, MD\u201d — and I\u2019ll re-price the same trip with everything else unchanged.';
+      return {
+        status: 200,
+        body: {
+          answer, sources: [], mode: 'followup-address',
+          followup: { kind: 'address', which: followUp.which || null, address: followUp.address || null },
+          state
+        }
+      };
+    }
+    // kind === 'reprice'
+    const changes = followUp.changes;
+    const noop = Object.entries(changes).every(([k, v]) => stored.inputs[k] === v);
+    if (noop) {
+      const label = stored.result.serviceLabel || stored.inputs.service;
+      const tripWord = stored.inputs.tripType === 'ROUND_TRIP' ? 'round trip' : 'one way';
+      return {
+        status: 200,
+        body: {
+          answer: `That\u2019s the trip I already priced — the same ${label} ride, ${tripWord} — and the rough estimate is unchanged at about $${stored.result.displayTotal}. For the exact quote, book at ${CONTACT.bookingUrl} or call ${CONTACT.mainPhoneDisplay}.`,
+          sources: [], mode: 'followup-estimate', estimate: stored.result, state
+        }
+      };
+    }
+    const { result, inputs } = await runEstimateOnStored(state, changes, ip);
+    if (result.status === 429) return result;
+    if (result.status !== 200 || !result.body || result.body.mode !== 'estimate') {
+      if (result.body && result.body.mode === 'out_of_area') {
+        return { status: 200, body: { answer: result.body.answer, sources: [], mode: 'followup-estimate', state } };
+      }
+      return {
+        status: 200,
+        body: {
+          answer: `I couldn\u2019t re-price that change just now. Your earlier estimate still stands — or call ${CONTACT.mainPhoneDisplay} and the team will quote the change exactly.`,
+          sources: [], mode: 'followup-estimate', state
+        }
+      };
+    }
+    const lead = describeChanges(changes, (key) => (SERVICE_TYPES[key] && SERVICE_TYPES[key].label) || key);
+    const newState = { lastEstimate: { inputs, result: result.body.estimate } };
+    return {
+      status: 200,
+      body: {
+        answer: lead + '\n\n' + result.body.answer,
+        sources: [], mode: 'followup-estimate', estimate: result.body.estimate, state: newState
+      }
+    };
+  }
+
+  async function ask(question, ip, context = {}) {
     if (rateLimited(ip)) {
       return { status: 429, body: { error: 'Too many questions in a short time. Please wait a moment, or call us at ' + CONTACT.mainPhoneDisplay + '.' } };
     }
     const clean = String(question || '').replace(/\s+/g, ' ').trim().slice(0, 500);
     if (!clean) return { status: 400, body: { error: 'Please type a question.' } };
 
+    const state = sanitizeState(context && context.state);
+    const history = sanitizeHistory(context && context.history);
+
     const lowered = ' ' + normalize(clean) + ' ';
     if (EMERGENCY_SIGNALS.some(s => lowered.includes(' ' + s) || lowered.includes(s + ' ') || lowered.includes(s + '?'))) {
-      return { status: 200, body: { answer: EMERGENCY_ANSWER, sources: ['emergency'], mode: 'safety' } };
+      return { status: 200, body: { answer: EMERGENCY_ANSWER, sources: ['emergency'], mode: 'safety', state } };
+    }
+
+    // Layer 1 — deterministic follow-ups over the stored trip.
+    const followUp = detectFollowUp(clean, state, now());
+    if (followUp) {
+      try {
+        return await followUpAnswer(followUp, state, ip);
+      } catch { /* fall through to the composed answer */ }
     }
 
     const composed = composeAnswer(clean);
     let answer = composed.answer;
     let mode = composed.mode;
-    // Only phrase confident retrieval hits with the model; fallbacks and
-    // safety answers always stay in our own words.
-    if (mode === 'composed' && composed.sources.length) {
+    let estimateBody = null;
+    let modelInputs = null;
+    // Only phrase confident retrieval hits (or any question with a
+    // trip in context) with the model; fallbacks and safety answers
+    // always stay in our own words when there is nothing to ground on.
+    if ((mode === 'composed' && composed.sources.length) || state.lastEstimate) {
       try {
-        const phrased = await phraseWithModel({ fetchImpl, env, question: clean, composed });
-        if (phrased) { answer = phrased; mode = 'model'; }
+        const out = await converseWithModel({
+          fetchImpl, env, question: clean, history, state, composed,
+          runEstimate: async (args) => {
+            const changes = {};
+            const svc = SERVICE_TYPES[args && args.service] ? args.service : null;
+            if (svc) changes.service = svc;
+            if (args && (args.tripType === 'ONE_WAY' || args.tripType === 'ROUND_TRIP')) changes.tripType = args.tripType;
+            if (args && typeof args.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(args.date)) changes.date = args.date;
+            if (args && typeof args.time === 'string' && /^\d{2}:\d{2}$/.test(args.time)) changes.time = args.time;
+            if (!Object.keys(changes).length) return { status: 400, body: { mode: 'needs_input' } };
+            const { result, inputs } = await runEstimateOnStored(state, changes, ip);
+            return { ...result, newInputs: inputs };
+          }
+        });
+        if (out && out.answer) {
+          answer = out.answer;
+          mode = out.estimateBody ? 'model-estimate' : 'model';
+          if (out.estimateBody) { estimateBody = out.estimateBody; modelInputs = out.newInputs; }
+        }
       } catch { /* provider failure -> composed answer stands */ }
     }
     const asksForDetails = /(my name|i am|i'm|my phone|my address|book me|pick me up)/i.test(clean);
     if (asksForDetails) answer += '\n\n' + PRIVACY_NOTE;
-    return { status: 200, body: { answer, sources: composed.sources, mode } };
+    const body = { answer, sources: composed.sources, mode, state };
+    if (estimateBody) {
+      body.estimate = estimateBody.estimate;
+      body.state = { lastEstimate: { inputs: modelInputs, result: estimateBody.estimate } };
+    }
+    return { status: 200, body };
   }
 
   return { ask, aiConnected: Boolean(aiConfig(env).key && aiConfig(env).model) };

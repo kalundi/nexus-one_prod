@@ -571,3 +571,177 @@ test('place resolution: a single confident match is still accepted and echoed by
   assert.ok(!/exact name nearby/.test(w.logText()), 'a confident match never shows the mismatch line');
 });
 
+// ---------------------------------------------------------------
+// Smart Nex: conversation memory + follow-ups, end to end in the
+// widget. The fetch stub routes to the REAL assistant core and the
+// REAL estimate service (platform default settings), so the whole
+// loop — wizard, stored state, server-side re-price — executes.
+// The maps stub measures 10.0 road miles / 25 minutes each way.
+const { createAssistant: createAssistantCore } = require('../netlify/functions/_shared/visitor-assistant-core.cjs');
+const { createEstimator: createEstimatorSvc, mergeSettings: mergeSettingsSvc } = require('../netlify/functions/_shared/visitor-estimate.cjs');
+
+function loadSmartWidget() {
+  const placesCalls = [];
+  const maps = makeMapsStub((query, cb) => cb([], 'ZERO_RESULTS'), placesCalls);
+  let routeCalls = 0;
+  const BaseDS = maps.DirectionsService;
+  maps.DirectionsService = function () {
+    const inst = new BaseDS();
+    const orig = inst.route.bind(inst);
+    inst.route = (req, cb) => { routeCalls++; orig(req, cb); };
+    return inst;
+  };
+  const documentStub = {
+    head: makeFakeElement('head'),
+    body: makeFakeElement('body'),
+    createElement: (tag) => makeFakeElement(tag),
+    addEventListener: () => {},
+  };
+  const windowStub = {
+    google: { maps },
+    matchMedia: () => ({ matches: true }), // reduced motion: no thinking-state delay
+  };
+  const widgetEstimator = createEstimatorSvc({ loadSettings: async () => mergeSettingsSvc(null) });
+  const assistantCore = createAssistantCore({
+    fetchImpl: noFetch, env: {},
+    estimator: createEstimatorSvc({ loadSettings: async () => mergeSettingsSvc(null) })
+  });
+  const estimateCalls = [];
+  const assistantCalls = [];
+  const fetchStub = async (url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (String(url).includes('visitor-estimate')) {
+      estimateCalls.push(body);
+      const res = await widgetEstimator.estimate(body, '10.7.0.1');
+      return { ok: res.status === 200, json: async () => res.body };
+    }
+    if (String(url).includes('visitor-assistant')) {
+      assistantCalls.push(body);
+      const res = await assistantCore.ask(body.question, '10.7.0.2', { state: body.state, history: body.history });
+      return { ok: res.status === 200, json: async () => res.body };
+    }
+    throw new Error('unexpected fetch ' + url);
+  };
+  const sandbox = { window: windowStub, document: documentStub, fetch: fetchStub, setTimeout, clearTimeout, console };
+  vm.createContext(sandbox);
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  vm.runInContext(src, sandbox, { filename: 'visitor-assistant.js' });
+  const tab = documentStub.body.children.find((c) => c.classList.contains('nvaTab'));
+  const panel = documentStub.body.children.find((c) => c.classList.contains('nvaPanel'));
+  const log = panel.querySelector('#nvaLog');
+  const chips = panel.querySelector('#nvaChips');
+  const form = panel.querySelector('#nvaForm');
+  const input = panel.querySelector('#nvaInput');
+  const widget = {
+    estimateCalls,
+    assistantCalls,
+    routeCalls: () => routeCalls,
+    open() { tab.click(); },
+    send(text) { input.value = text; form.dispatch('submit'); },
+    logText() { return log.children.map((c) => stripTags(c.innerHTML)).join('\n'); },
+    chipLabels() { return chips.children.map((c) => c.textContent); },
+    clickChip(label) {
+      const chip = chips.children.find((c) => c.textContent === label);
+      assert.ok(chip, 'chip not found: ' + label + ' (have: ' + widget.chipLabels().join(' | ') + ')');
+      chip.click();
+    },
+  };
+  return widget;
+}
+
+const SMART_TRIP = {
+  pickup: '100 Main Street, Clarksburg, MD',
+  dropoff: '200 Elm Street, Rockville, MD',
+  date: '2027-01-06', // a Wednesday
+  time: '10:00',
+  loadedMiles: 10,
+  durationMinutes: 25,
+  pickupState: 'MD', dropoffState: 'MD',
+  pickupLat: 39.1, pickupLng: -77.2, dropoffLat: 39.1, dropoffLng: -77.2
+};
+
+async function expectedTotal(overrides) {
+  const est = createEstimatorSvc({ loadSettings: async () => mergeSettingsSvc(null) });
+  const res = await est.estimate({ ...SMART_TRIP, service: 'ambulatory', tripType: 'ONE_WAY', ...overrides }, '10.7.0.9');
+  assert.equal(res.status, 200);
+  return res.body.estimate.displayTotal;
+}
+
+async function completeFirstEstimate(w) {
+  w.open();
+  w.send('How much does a ride cost?');
+  w.send(SMART_TRIP.pickup);
+  w.send(SMART_TRIP.dropoff);
+  w.clickChip('Ambulatory');
+  w.clickChip('One way');
+  w.send('January 6, 2027 at 10 AM');
+  await flush(24);
+  assert.equal(w.estimateCalls.length, 1, 'the wizard priced the trip once');
+}
+
+test('smart Nex: follow-ups re-price the same trip without restarting the wizard or re-measuring', async () => {
+  const w = loadSmartWidget();
+  await completeFirstEstimate(w);
+  const ambTotal = await expectedTotal({});
+  assert.match(w.logText(), new RegExp('about \\$' + ambTotal + '\\b'), 'the first estimate renders');
+  assert.equal(w.routeCalls(), 1, 'one Directions measurement for the one-way trip');
+
+  // Anthony's scenario, verbatim: change only the ride type.
+  w.send('for the same what would be the price for stretcher');
+  await flush(24);
+  const stretcherTotal = await expectedTotal({ service: 'stretcher' });
+  assert.match(w.logText(), /Same trip as a stretcher ride \u2014 everything else unchanged\./);
+  assert.match(w.logText(), new RegExp('about \\$' + stretcherTotal + '\\b'));
+  assert.equal(w.estimateCalls.length, 1, 'the follow-up did NOT restart the wizard estimate path');
+  assert.equal(w.routeCalls(), 1, 'the follow-up reuses the stored miles — no new Directions call');
+  const swapCall = w.assistantCalls[w.assistantCalls.length - 1];
+  assert.equal(swapCall.state.lastEstimate.inputs.service, 'ambulatory', 'the widget sent the stored trip with the question');
+  assert.equal(swapCall.state.lastEstimate.inputs.loadedMiles, 10);
+
+  // Flip to round trip.
+  w.send('and round trip?');
+  await flush(24);
+  const rtTotal = await expectedTotal({ service: 'stretcher', tripType: 'ROUND_TRIP', returnMiles: 10 });
+  assert.match(w.logText(), /Same trip as a round trip \u2014 everything else unchanged\./);
+  assert.match(w.logText(), new RegExp('about \\$' + rtTotal + '\\b'));
+  assert.equal(w.routeCalls(), 1, 'still no re-measuring');
+
+  // A knowledge question mid-conversation answers normally.
+  w.send('What are your hours?');
+  await flush(24);
+  assert.match(w.logText(), /7 AM/);
+  assert.match(w.logText(), /7 PM/);
+
+  // And back to one way — the stretcher price returns.
+  w.send('OK back to one way');
+  await flush(24);
+  assert.match(w.logText(), /Same trip as a one-way trip \u2014 everything else unchanged\./);
+  const totals = w.logText().match(new RegExp('about \\$' + stretcherTotal + '\\b', 'g')) || [];
+  assert.ok(totals.length >= 2, 'the one-way stretcher figure is quoted again after flipping back');
+  assert.equal(w.estimateCalls.length, 1, 'the wizard never restarted');
+});
+
+test('smart Nex: an address change re-enters the flow with every other detail kept', async () => {
+  const w = loadSmartWidget();
+  await completeFirstEstimate(w);
+  w.send('change the pickup to 300 Pine Street, Bethesda, MD');
+  await flush(30);
+  assert.equal(w.estimateCalls.length, 2, 'the changed trip is re-measured and re-priced');
+  assert.equal(w.estimateCalls[1].pickup, '300 Pine Street, Bethesda, MD');
+  assert.equal(w.estimateCalls[1].dropoff, SMART_TRIP.dropoff, 'the untouched end carries over');
+  assert.equal(w.estimateCalls[1].service, 'ambulatory', 'the ride type carries over');
+  assert.equal(w.estimateCalls[1].date, SMART_TRIP.date, 'the date carries over');
+  assert.equal(w.routeCalls(), 2, 'only the address change re-measures');
+});
+
+test('smart Nex: with no estimate yet, a follow-up-shaped message behaves as before', async () => {
+  const w = loadSmartWidget();
+  w.open();
+  w.send('What are your hours?');
+  await flush(24);
+  assert.match(w.logText(), /7 AM/);
+  assert.equal(w.assistantCalls.length, 1);
+  assert.equal(w.assistantCalls[0].state, null, 'no state is sent before any estimate exists');
+});
+
+
