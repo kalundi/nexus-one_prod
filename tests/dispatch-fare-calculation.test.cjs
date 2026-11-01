@@ -7,17 +7,23 @@ const inputs={miles:20,durationMinutes:30,trafficDurationMinutes:30,stopWaitMinu
 test('current pricing and current time determine the estimate',t=>{
  t.mock.method(Date,'now',()=>Date.parse('2030-08-14T20:00:00Z'));
  const fare=Fare.calculateBooking(booking,inputs,settings);
- assert.equal(fare.discountedTotal,194.57);
+ assert.equal(fare.discountedTotal,200.9);
  assert.equal(fare.shortNoticeCharge,29.4);
- assert.ok(Math.abs(fare.deadheadCharge-12.3)<1e-8);
+ // Deadhead: pickup leg (12 - 8) x $2.05 = $8.20, plus the one-way
+ // return-to-yard leg billed on half its 10 actual miles (2026-11-01
+ // rule; this trip is at the 20-mile threshold, so no exemption):
+ // 5 x $2.05 = $10.25. Total $18.45.
+ assert.ok(Math.abs(fare.deadheadCharge-18.45)<1e-8);
  const updated=Fare.calculateBooking(booking,inputs,{...settings,pricing:{wheelchair:{...settings.pricing.wheelchair,base:120}}});
- assert.equal(updated.discountedTotal,224.03);
+ // Base $120: subtotal 120 + 49.2 + 18.45 deadhead + 36 short notice
+ // = 223.65, x 1.03 = 230.36.
+ assert.equal(updated.discountedTotal,230.36);
 });
 test('a pickup more than 24 hours from now stays nonurgent on review',t=>{
  t.mock.method(Date,'now',()=>Date.parse('2030-08-12T20:00:00Z'));
  const fare=Fare.calculateBooking({...booking,createdAt:'2030-08-12T20:00:00Z'},inputs,settings);
  assert.equal(fare.shortNoticeCharge,0);
- assert.equal(fare.discountedTotal,164.29);
+ assert.equal(fare.discountedTotal,170.62);
 });
 test('round trip includes each leg, calculated return waiting and selected savings',()=>{
  const fare=Fare.calculateBooking({...booking,createdAt:'2030-08-12T20:00:00Z',tripType:'ROUND_TRIP',returnTripDate:'2030-08-15',returnTripTime:'12:00'}, {...inputs,discountPct:10},settings);
@@ -59,7 +65,7 @@ test('API computes the fare from current settings and ignores a submitted dollar
  const end=source.indexOf('   const statusValue=',start);
  const context=vm.createContext({hasTripSchedule:false,b:{fareInputs:inputs,estimatedFare:1},u:{role:'DISPATCHER'},before:{rows:[booking]},mapBooking:b=>b,readPlatformSettings:async()=>settings,NexusFare:Fare,json:(status,body)=>({status,body})});
  const result=await vm.runInContext(`(async()=>{${source.slice(start,end)};return {estimatedFareRaw};})()`,context);
- assert.equal(result.estimatedFareRaw,194.57);
+ assert.equal(result.estimatedFareRaw,200.9);
  context.b={estimatedFare:1};
  const manual=await vm.runInContext(`(async()=>{${source.slice(start,end)};return {estimatedFareRaw};})()`,context);
  assert.equal(manual.status,403);

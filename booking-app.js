@@ -747,7 +747,7 @@
     if($('estShortNoticeCharge')) $('estShortNoticeCharge').textContent = `$${Number(breakdown.shortNoticeCharge || 0).toFixed(2)}`;
     ['fareSummaryOperational','fareConfirmOperational'].forEach(id=>{
       if($(id)){
-        $(id).textContent = `Deadhead mileage: $${Number(breakdown.deadheadCharge || 0).toFixed(2)}. Each empty segment includes ${Number(breakdown.includedMiles || 0)} miles; excess miles cost $${Number(breakdown.deadheadRate || 0).toFixed(2)} each.`+(breakdown.shortNoticeCharge>0?` Pickup within the next ${Number(fareRules.shortNoticeHours??24)} hours: $${Number(breakdown.shortNoticeCharge).toFixed(2)} (${Number(fareRules.shortNoticeSurchargePct??30)}% of the base fare for each qualifying leg).`:'');
+        $(id).textContent = `Deadhead mileage: $${Number(breakdown.deadheadCharge || 0).toFixed(2)}. `+(breakdown.passengerLegCount===1?`The empty run to the pickup includes ${Number(breakdown.includedMiles || 0)} miles; excess miles cost $${Number(breakdown.deadheadRate || 0).toFixed(2)} each. The empty return to the yard is billed on half its miles at the same rate — and is not billed at all on ambulatory or wheelchair trips under 20 miles.`:`Each empty segment includes ${Number(breakdown.includedMiles || 0)} miles; excess miles cost $${Number(breakdown.deadheadRate || 0).toFixed(2)} each.`)+(breakdown.shortNoticeCharge>0?` Pickup within the next ${Number(fareRules.shortNoticeHours??24)} hours: $${Number(breakdown.shortNoticeCharge).toFixed(2)} (${Number(fareRules.shortNoticeSurchargePct??30)}% of the base fare for each qualifying leg).`:'');
         $(id).hidden = !(breakdown.deadheadCharge > 0 || breakdown.shortNoticeCharge > 0);
       }
     });

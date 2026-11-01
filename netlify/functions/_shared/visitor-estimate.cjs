@@ -20,8 +20,14 @@
  *    distance between the geocoded points; implausible figures are
  *    rejected, never adjusted silently.
  *  - Deadhead (empty) miles cannot be measured without the yard route,
- *    so they are modeled at 50% of the loaded miles, charged at the
- *    service's per-mile rate, and the answer says so.
+ *    so the return-to-yard leg is modeled the way the platform bills it
+ *    (owner directive, 2026-11-01): half of the return distance, with the
+ *    loaded miles standing in for that distance, charged at the service's
+ *    per-mile rate — and a one-way Ambulatory / Wheelchair trip under 20
+ *    loaded miles models no return deadhead at all, matching the fare
+ *    engine. Round trips keep the blended proxy (50% of total loaded
+ *    miles) because the rule does not change round-trip deadhead. The
+ *    answer says which treatment it used.
  *  - Premium timing (after-hours / weekend / holiday, +30% under the
  *    platform defaults) comes from the fare engine itself, which reads
  *    the pickup date/time in America/New_York against the platform's
@@ -313,7 +319,13 @@ function createEstimator({ fareEngine = Fare, loadSettings = loadPlatformSetting
     });
 
     const totalLoaded = tripType === 'ROUND_TRIP' ? loadedMiles + returnMiles : loadedMiles;
-    const deadheadMiles = DEADHEAD_FRACTION * totalLoaded;
+    // The platform's return-to-yard rule, as closely as a yard-less proxy
+    // allows: one-way Ambulatory / Wheelchair under 20 loaded miles bills
+    // no return deadhead; other one-way trips bill half the return-to-yard
+    // miles (loaded miles stand in for the yard run). Round trips are
+    // unchanged by the rule, so their blended proxy is unchanged too.
+    const returnDeadheadExempt = tripType === 'ONE_WAY' && (serviceKey === 'ambulatory' || serviceKey === 'wheelchair') && loadedMiles < 20;
+    const deadheadMiles = returnDeadheadExempt ? 0 : DEADHEAD_FRACTION * totalLoaded;
     const deadheadCharge = deadheadMiles * Number(rate.perMile || 0);
     const cardPct = Number(fare.taxRatePct ?? settings.fareRules.cardProcessingFeePct ?? 0);
     const total = (Number(fare.subtotal || 0) + deadheadCharge) * (1 + cardPct / 100);
@@ -339,9 +351,14 @@ function createEstimator({ fareEngine = Fare, loadSettings = loadPlatformSetting
       ? `mileage beyond the first ${rate.includedMiles} miles the base fare covers`
       : 'mileage for the full trip distance';
     const article = /^[aeiou]/i.test(service.label) ? 'an' : 'a';
+    const deadheadClause = returnDeadheadExempt
+      ? ''
+      : tripType === 'ROUND_TRIP'
+        ? `, and estimated deadhead \u2014 the empty miles to reach you and return afterwards, figured at about ${fmtMiles(deadheadMiles)} miles (50% of the trip distance)`
+        : `, and estimated deadhead \u2014 the empty miles back to the yard after drop-off, billed at half and figured at about ${fmtMiles(deadheadMiles)} miles`;
     const answer =
       `For ${article} ${service.label} ride, ${milesLine}, with pickup on ${formatDate(date)} at ${formatTime(time)}, your rough estimate is about $${displayTotal}.\n\n` +
-      `How I got there: the ${service.label} base fare, plus ${includedLine}, fuel, and estimated deadhead \u2014 the empty miles to reach you and return afterwards, figured at about ${fmtMiles(deadheadMiles)} miles (50% of the trip distance).${premiumSentence}${shortNoticeSentence}\n\n` +
+      `How I got there: the ${service.label} base fare, plus ${includedLine}, fuel${deadheadClause}.${premiumSentence}${shortNoticeSentence}\n\n` +
       `That is a rough estimate, not a final quote. For the exact quote, your reservation and booking, use the booking app at ${BOOKING_URL} \u2014 or call ${MAIN_PHONE} and the team will set it up.`;
 
     return {

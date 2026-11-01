@@ -82,6 +82,41 @@ test('wheelchair pricing uses its own base, included miles and per-mile rate', a
   assert.equal(body.estimate.displayTotal, 205);
 });
 
+test('one-way ambulatory under 20 loaded miles models no return deadhead at all', async () => {
+  const { status, body } = await estimator.estimate({ ...baseInput, loadedMiles: 15 }, '10.1.0.14');
+  assert.equal(status, 200);
+  // Engine: base 75 + (15-5) x 3.55 = 35.50 + fuel 15 x 0.2842 = 4.263
+  //   -> 114.763. The platform rule bills no return-to-yard deadhead on a
+  //   one-way Ambulatory trip under 20 loaded miles, so the model adds
+  //   none: total = 114.763 x 1.03 = 118.21 -> displayed 120.
+  assert.equal(body.estimate.deadheadMiles, 0);
+  assert.ok(Math.abs(body.estimate.total - 118.21) < 0.02, `total was ${body.estimate.total}`);
+  assert.equal(body.estimate.displayTotal, 120);
+  assert.ok(!/deadhead/i.test(body.answer), 'answer must not claim a deadhead charge');
+});
+
+test('one-way wheelchair under 20 loaded miles models no return deadhead at all', async () => {
+  const { body } = await estimator.estimate({ ...baseInput, service: 'wheelchair', loadedMiles: 15 }, '10.1.0.15');
+  // Base 98 + (15-8) x 4.10 = 28.70 + fuel (bus) 15 x 0.5595 = 8.3925
+  //   -> 135.0925. No modeled deadhead: x 1.03 = 139.15 -> displayed 140.
+  assert.equal(body.estimate.deadheadMiles, 0);
+  assert.ok(Math.abs(body.estimate.total - 139.15) < 0.02, `total was ${body.estimate.total}`);
+  assert.equal(body.estimate.displayTotal, 140);
+  assert.ok(!/deadhead/i.test(body.answer), 'answer must not claim a deadhead charge');
+});
+
+test('one-way stretcher under 20 loaded miles still models half the return-to-yard miles', async () => {
+  const { body } = await estimator.estimate({ ...baseInput, service: 'stretcher', loadedMiles: 10 }, '10.1.0.16');
+  // Base 455 + (10-8) x 7.95 = 15.90 + fuel (bus) 10 x 0.5595 = 5.595
+  //   -> 476.495. Stretcher has no exemption: deadhead = half the loaded
+  //   miles (the yard-run stand-in) 5 mi x 7.95 = 39.75. Total 516.245
+  //   x 1.03 = 531.73 -> displayed 530.
+  assert.equal(body.estimate.deadheadMiles, 5);
+  assert.ok(Math.abs(body.estimate.total - 531.73) < 0.02, `total was ${body.estimate.total}`);
+  assert.equal(body.estimate.displayTotal, 530);
+  assert.match(body.answer, /empty miles back to the yard/i);
+});
+
 test('stored Pricing Manager settings override the coded defaults', async () => {
   // Live settings pulled 2026-10-29 carry stretcher with 15 included
   // miles (the coded default says 8); the stored row must win.
