@@ -39,7 +39,7 @@ const {ensureDefaultTestUsers, ensureDefaultUserForEmail}=require('./_shared/def
 const {buildDriverEmployeeLookupSql, buildDriverAvailabilitySql,buildDriverScopeSql}=require('./_shared/employee-driver-lookup.cjs');
 const {getFallbackUser, createFallbackSession, getFallbackSession, revokeFallbackSession, getFallbackAssignments, acceptFallbackAssignment, updateFallbackAssignmentStatus}=require('./_shared/fallback-auth.cjs');
 const {parseChannels,isDryRunValue,previewSocialSelection,runSocialPublish}=require('./_shared/social-engine.cjs');
-const {mapFhirAppointment,parseHl7,verifyIntegrationRequest,payloadDigest}=require('./_shared/keymark-connectors.cjs');
+const {mapFhirAppointment,parseHl7,verifyIntegrationRequest,payloadDigest,calculateArrivalRisk}=require('./_shared/keymark-connectors.cjs');
 const {testConnection:testKeymarkFhirConnection}=require('./_shared/keymark-fhir-client.cjs');
 const {bookingPaymentPolicy,requiresFullPaymentBeforeBoarding}=require('./_shared/payment-policy.cjs');
 const {resolveBookingFacility}=require('./_shared/booking-facility.cjs');
@@ -2374,9 +2374,10 @@ async function handler(event){
   if(p[0]==='keymark'){
    const upsertIntegratedAppointment=async(mapped,facilityId=null,organizationId=null)=>{
     const source=clean(mapped.sourceSystem).toUpperCase()||'FHIR';
+    const risk=calculateArrivalRisk({eligibilityStatus:'PENDING',consentStatus:'UNKNOWN',transportationStatus:'NOT_ASSESSED',barrierCodes:[],appointmentAt:mapped.appointmentAt});
     const r=await query(`INSERT INTO keymark_appointments(organization_id,facility_id,external_appointment_id,source_system,patient_external_id,patient_name,patient_phone,patient_email,appointment_at,department,appointment_type,arrival_risk_score,notes,integration_payload)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,0,$12,$13)
-     ON CONFLICT(source_system,external_appointment_id) DO UPDATE SET patient_external_id=EXCLUDED.patient_external_id,patient_name=EXCLUDED.patient_name,patient_phone=EXCLUDED.patient_phone,patient_email=EXCLUDED.patient_email,appointment_at=EXCLUDED.appointment_at,department=EXCLUDED.department,appointment_type=EXCLUDED.appointment_type,notes=EXCLUDED.notes,integration_payload=EXCLUDED.integration_payload,updated_at=now() RETURNING *`,[organizationId,facilityId,clean(mapped.externalAppointmentId),source,clean(mapped.patientExternalId)||null,clean(mapped.patientName),clean(mapped.patientPhone)||null,clean(mapped.patientEmail)||null,mapped.appointmentAt,clean(mapped.department)||null,clean(mapped.appointmentType)||null,clean(mapped.notes)||null,JSON.stringify(mapped.integrationPayload||{})]);
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$14,$12,$13)
+     ON CONFLICT(source_system,external_appointment_id) DO UPDATE SET patient_external_id=EXCLUDED.patient_external_id,patient_name=EXCLUDED.patient_name,patient_phone=EXCLUDED.patient_phone,patient_email=EXCLUDED.patient_email,appointment_at=EXCLUDED.appointment_at,department=EXCLUDED.department,appointment_type=EXCLUDED.appointment_type,notes=EXCLUDED.notes,arrival_risk_score=EXCLUDED.arrival_risk_score,integration_payload=EXCLUDED.integration_payload,updated_at=now() RETURNING *`,[organizationId,facilityId,clean(mapped.externalAppointmentId),source,clean(mapped.patientExternalId)||null,clean(mapped.patientName),clean(mapped.patientPhone)||null,clean(mapped.patientEmail)||null,mapped.appointmentAt,clean(mapped.department)||null,clean(mapped.appointmentType)||null,clean(mapped.notes)||null,JSON.stringify(mapped.integrationPayload||{}),risk]);
     return r.rows[0];
    };
    if(p[1]==='integrations'&&['fhir','hl7'].includes(p[2])&&method==='POST'){
@@ -2429,6 +2430,14 @@ async function handler(event){
     arrivalStatus:row.arrival_status,outcomeReasonCode:row.outcome_reason_code,notes:row.notes,
     createdAt:row.created_at,updatedAt:row.updated_at
    });
+   const queueInitialOutreach=async(row,u)=>{
+    if(!row||row.consent_status!=='GRANTED'||!clean(row.patient_phone))return false;
+    const existing=await query(`SELECT id FROM keymark_communications WHERE appointment_id=$1 AND template_key='APPOINTMENT_CONFIRMATION' AND status IN ('QUEUED','RETRY','SENT') LIMIT 1`,[row.id]);
+    if(existing.rows[0])return false;
+    const r=await query(`INSERT INTO keymark_communications(appointment_id,channel,template_key,destination,consent_verified,status,scheduled_at,created_by) VALUES($1,'SMS','APPOINTMENT_CONFIRMATION',$2,true,'QUEUED',now(),$3) RETURNING id`,[row.id,row.patient_phone,u?.id||null]);
+    await query('INSERT INTO keymark_events(appointment_id,event_type,event_status,channel,actor_id,actor_role,details) VALUES($1,$2,$3,$4,$5,$6,$7)',[row.id,'OUTREACH_QUEUED','QUEUED','SMS',u?.id||null,u?.role||'SYSTEM',JSON.stringify({templateKey:'APPOINTMENT_CONFIRMATION',communicationId:r.rows[0].id,trigger:'CONSENT_GRANTED'})]);
+    return true;
+   };
    if(p[1]==='appointments'&&!p[2]&&method==='GET'){
     const scope=scopedWhere('a');
     const r=await query(`SELECT a.* FROM keymark_appointments a${scope.sql} ORDER BY a.appointment_at ASC LIMIT 500`,scope.params);
@@ -2452,7 +2461,8 @@ async function handler(event){
     const row=r.rows[0];
     await query('INSERT INTO keymark_events(appointment_id,event_type,event_status,actor_id,actor_role,details) VALUES($1,$2,$3,$4,$5,$6)',[row.id,'APPOINTMENT_INGESTED','ACCEPTED',u.id,u.role,JSON.stringify({sourceSystem,risk})]);
     await audit('KEYMARK_APPOINTMENT',String(row.id),'UPSERTED',{sourceSystem,externalAppointmentId:b.externalAppointmentId,risk,role:u.role});
-    return json(201,{appointment:mapAppointment(row)});
+    const outreachQueued=await queueInitialOutreach(row,u);
+    return json(201,{appointment:mapAppointment(row),outreachQueued});
    }
    if(p[1]==='appointments'&&p[2]&&method==='PATCH'){
     if(u.role==='EXECUTIVE'||u.role==='QA')return json(403,{error:'This role has read-only KeyMark access'});
@@ -2466,11 +2476,12 @@ async function handler(event){
     const changed=Object.keys(b||{});
     await query('INSERT INTO keymark_events(appointment_id,event_type,event_status,channel,actor_id,actor_role,details) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,clean(b.eventType).toUpperCase()||'APPOINTMENT_UPDATED',clean(b.eventStatus).toUpperCase()||next.arrivalStatus,clean(b.channel).toUpperCase()||null,u.id,u.role,JSON.stringify({changed,risk})]);
     await audit('KEYMARK_APPOINTMENT',id,'UPDATED',{changed,risk,role:u.role});
-    return json(200,{appointment:mapAppointment(r.rows[0])});
+    const outreachQueued=await queueInitialOutreach(r.rows[0],u);
+    return json(200,{appointment:mapAppointment(r.rows[0]),outreachQueued});
    }
    if(p[1]==='analytics'&&method==='GET'){
     const scope=scopedWhere('a');
-    const r=await query(`SELECT count(*)::int AS monitored,count(*) FILTER (WHERE outreach_status IN ('CONFIRMED','COMPLETED'))::int AS contacted,count(*) FILTER (WHERE array_length(barrier_codes,1)>0)::int AS barriers_found,count(*) FILTER (WHERE transportation_status IN ('ARRANGED','SCHEDULED','DISPATCHED','ARRIVING','PICKED_UP','DELIVERED'))::int AS rides_arranged,count(*) FILTER (WHERE arrival_status='ARRIVED')::int AS arrived,count(*) FILTER (WHERE arrival_status='NO_SHOW')::int AS no_shows,round(avg(arrival_risk_score),1) AS average_risk FROM keymark_appointments a${scope.sql}`,scope.params);
+    const r=await query(`SELECT count(*)::int AS monitored,count(*) FILTER (WHERE outreach_status IN ('CONTACTED','CONFIRMED','COMPLETED'))::int AS contacted,count(*) FILTER (WHERE array_length(barrier_codes,1)>0)::int AS barriers_found,count(*) FILTER (WHERE transportation_status IN ('ARRANGED','SCHEDULED','DISPATCHED','ARRIVING','PICKED_UP','DELIVERED'))::int AS rides_arranged,count(*) FILTER (WHERE arrival_status='ARRIVED')::int AS arrived,count(*) FILTER (WHERE arrival_status='NO_SHOW')::int AS no_shows,round(avg(arrival_risk_score),1) AS average_risk FROM keymark_appointments a${scope.sql}`,scope.params);
     const reasons=await query(`SELECT COALESCE(outcome_reason_code,'UNSPECIFIED') AS reason,count(*)::int AS count FROM keymark_appointments a${scope.sql}${scope.sql?' AND':' WHERE'} arrival_status IN ('NO_SHOW','CANCELLED','LATE','TRANSPORT_FAILED') GROUP BY 1 ORDER BY 2 DESC LIMIT 10`,scope.params);
     return json(200,{summary:r.rows[0]||{},failureReasons:reasons.rows});
    }

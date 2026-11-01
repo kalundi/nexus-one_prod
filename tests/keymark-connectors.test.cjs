@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {mapFhirAppointment,parseHl7,payloadDigest}=require('../netlify/functions/_shared/keymark-connectors.cjs');
+const {mapFhirAppointment,parseHl7,payloadDigest,calculateArrivalRisk}=require('../netlify/functions/_shared/keymark-connectors.cjs');
 
 test('maps a FHIR R4 Appointment into the KeyMark canonical model',()=>{
  const mapped=mapFhirAppointment({resourceType:'Appointment',id:'appt-42',status:'booked',start:'2026-08-20T14:00:00-04:00',appointmentType:{coding:[{code:'FOLLOWUP',display:'Follow-up'}]},participant:[{actor:{reference:'Patient/p-7',display:'Jamie Rivera'}},{actor:{reference:'Location/loc-2',display:'Cardiology'}}]},{sourceSystem:'EPIC',patient:{phone:'+12025550199'}});
@@ -13,3 +13,17 @@ test('maps an HL7 v2 SIU message into the KeyMark canonical model',()=>{
 });
 
 test('payload digests are deterministic without retaining PHI',()=>{assert.equal(payloadDigest('same'),payloadDigest('same'));assert.notEqual(payloadDigest('same'),payloadDigest('different'))});
+
+test('arrival risk scores an unassessed integrated appointment at 30',()=>{
+ const future=new Date(Date.now()+72*3600000).toISOString();
+ assert.equal(calculateArrivalRisk({eligibilityStatus:'PENDING',consentStatus:'UNKNOWN',transportationStatus:'NOT_ASSESSED',barrierCodes:[],appointmentAt:future}),30);
+ assert.equal(calculateArrivalRisk({eligibilityStatus:'ELIGIBLE',consentStatus:'GRANTED',transportationStatus:'NOT_ASSESSED',barrierCodes:[],appointmentAt:future}),0);
+});
+
+test('arrival risk adds transport need, capped barriers, and imminent timing',()=>{
+ const future=new Date(Date.now()+72*3600000).toISOString();
+ assert.equal(calculateArrivalRisk({eligibilityStatus:'PENDING',consentStatus:'UNKNOWN',transportationRequired:true,transportationStatus:'NOT_ASSESSED',barrierCodes:[],appointmentAt:future}),60);
+ assert.equal(calculateArrivalRisk({eligibilityStatus:'PENDING',consentStatus:'UNKNOWN',transportationStatus:'NOT_ASSESSED',barrierCodes:['A','B','C','D','E'],appointmentAt:future}),60);
+ const soon=new Date(Date.now()+2*3600000).toISOString();
+ assert.equal(calculateArrivalRisk({eligibilityStatus:'ELIGIBLE',consentStatus:'GRANTED',transportationStatus:'NOT_ASSESSED',barrierCodes:[],appointmentAt:soon}),10);
+});

@@ -32,3 +32,39 @@ test('connection activation requires Appointment in the CapabilityStatement',asy
  global.fetch=async()=>{call++;return call===1?{ok:true,json:async()=>({access_token:'sandbox-token'})}:{ok:true,json:async()=>({resourceType:'CapabilityStatement',fhirVersion:'4.0.1',software:{name:'Sandbox EHR'},rest:[{resource:[{type:'Patient'},{type:'Appointment'}]}]})}};
  try{const result=await testConnection({base_url:'https://ehr.example.com/fhir/r4',auth_type:'CLIENT_SECRET',configuration:{tokenUrl:'https://ehr.example.com/oauth2/token',clientId:'keymark',clientSecretEnvVar:'KEYMARK_TEST_CLIENT_SECRET'}});assert.deepEqual(result,{fhirVersion:'4.0.1',software:'Sandbox EHR',appointmentSupported:true});assert.equal(call,2)}finally{global.fetch=previousFetch;if(previousSecret===undefined)delete process.env.KEYMARK_TEST_CLIENT_SECRET;else process.env.KEYMARK_TEST_CLIENT_SECRET=previousSecret}
 });
+
+test('appointment polling resolves referenced Patient contact details',async()=>{
+ const previousFetch=global.fetch,previousSecret=process.env.KEYMARK_TEST_CLIENT_SECRET;process.env.KEYMARK_TEST_CLIENT_SECRET='simulated-secret';
+ const appointment={resourceType:'Appointment',id:'appt-900',status:'booked',start:'2026-08-20T14:00:00-04:00',participant:[{actor:{reference:'Patient/pat-9'}},{actor:{reference:'Location/loc-1',display:'Cardiology'}}]};
+ global.fetch=async url=>{
+  const target=String(url);
+  if(target.includes('/oauth2/token'))return {ok:true,json:async()=>({access_token:'sandbox-token'})};
+  if(target.includes('/Patient/pat-9'))return {ok:true,json:async()=>({resourceType:'Patient',id:'pat-9',name:[{text:'Maria Example'}],telecom:[{system:'phone',value:'+13015550142'},{system:'email',value:'maria@example.com'}]})};
+  if(target.includes('/Appointment'))return {ok:true,json:async()=>({resourceType:'Bundle',entry:[{resource:appointment}],link:[]})};
+  throw new Error(`unexpected fetch ${target}`);
+ };
+ try{
+  const {fetchAppointments}=require('../netlify/functions/_shared/keymark-fhir-client.cjs');
+  const result=await fetchAppointments({base_url:'https://ehr.example.com/fhir/r4',auth_type:'CLIENT_SECRET',configuration:{tokenUrl:'https://ehr.example.com/oauth2/token',clientId:'keymark',clientSecretEnvVar:'KEYMARK_TEST_CLIENT_SECRET'}},{from:'2026-08-13T00:00:00Z',to:'2026-09-13T00:00:00Z'});
+  assert.equal(result.resources.length,1);
+  assert.deepEqual(result.patients.get('pat-9'),{id:'pat-9',name:'Maria Example',phone:'+13015550142',email:'maria@example.com'});
+ }finally{global.fetch=previousFetch;if(previousSecret===undefined)delete process.env.KEYMARK_TEST_CLIENT_SECRET;else process.env.KEYMARK_TEST_CLIENT_SECRET=previousSecret}
+});
+
+test('a failed Patient lookup never fails the appointment poll',async()=>{
+ const previousFetch=global.fetch,previousSecret=process.env.KEYMARK_TEST_CLIENT_SECRET;process.env.KEYMARK_TEST_CLIENT_SECRET='simulated-secret';
+ const appointment={resourceType:'Appointment',id:'appt-901',status:'booked',start:'2026-08-20T14:00:00-04:00',participant:[{actor:{reference:'Patient/pat-404',display:'Jamie Rivera'}}]};
+ global.fetch=async url=>{
+  const target=String(url);
+  if(target.includes('/oauth2/token'))return {ok:true,json:async()=>({access_token:'sandbox-token'})};
+  if(target.includes('/Patient/pat-404'))return {ok:false,json:async()=>({})};
+  if(target.includes('/Appointment'))return {ok:true,json:async()=>({resourceType:'Bundle',entry:[{resource:appointment}],link:[]})};
+  throw new Error(`unexpected fetch ${target}`);
+ };
+ try{
+  const {fetchAppointments}=require('../netlify/functions/_shared/keymark-fhir-client.cjs');
+  const result=await fetchAppointments({base_url:'https://ehr.example.com/fhir/r4',auth_type:'CLIENT_SECRET',configuration:{tokenUrl:'https://ehr.example.com/oauth2/token',clientId:'keymark',clientSecretEnvVar:'KEYMARK_TEST_CLIENT_SECRET'}},{from:'2026-08-13T00:00:00Z',to:'2026-09-13T00:00:00Z'});
+  assert.equal(result.resources.length,1);
+  assert.equal(result.patients.size,0);
+ }finally{global.fetch=previousFetch;if(previousSecret===undefined)delete process.env.KEYMARK_TEST_CLIENT_SECRET;else process.env.KEYMARK_TEST_CLIENT_SECRET=previousSecret}
+});
