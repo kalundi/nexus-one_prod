@@ -4211,8 +4211,8 @@ async function handler(event){
    const r=await query(`
     UPDATE bookings
     SET status=COALESCE($2,status),
-        driver_name=COALESCE($3,driver_name),
-        vehicle_unit=COALESCE($4,vehicle_unit),
+        driver_name=CASE WHEN $41 THEN $3 ELSE driver_name END,
+        vehicle_unit=CASE WHEN $42 THEN $4 ELSE vehicle_unit END,
         estimated_fare=CASE WHEN $5 THEN $6 ELSE estimated_fare END,
         service=CASE WHEN $7 THEN $8 ELSE service END,
         pickup=CASE WHEN $9 THEN $10 ELSE pickup END,
@@ -4237,8 +4237,8 @@ async function handler(event){
     RETURNING *`,[
       ref,
       statusValue,
-      b.driverName||null,
-      b.vehicleUnit||null,
+      clean(b.driverName)||null,
+      clean(b.vehicleUnit)||null,
       hasEstimatedFare,
       hasEstimatedFare?estimatedFareRaw:null,
       hasService,
@@ -4271,7 +4271,8 @@ async function handler(event){
       hasBrokerCompanyName?clean(brokerCompanyNameInput)||null:null,
       hasBrokerAcceptedRate,
       hasBrokerAcceptedRate?brokerAcceptedRateValue:null,
-      hasTripSchedule,tripTypeValue,returnDateValue,returnTimeValue
+      hasTripSchedule,tripTypeValue,returnDateValue,returnTimeValue,
+      hasDriverName,hasVehicleUnit
     ]);
 
   if(!r.rows[0])return json(404,{error:'Booking not found'});
