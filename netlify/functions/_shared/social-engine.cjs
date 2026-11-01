@@ -22,7 +22,18 @@ function getRunDate(){
 }
 
 function siteBase(){
- return String(process.env.SITE_URL||process.env.URL||'https://nexusmt.com').replace(/\/$/,'');
+ const fallback='https://nexusmt.com';
+ const raw=String(process.env.SITE_URL||process.env.URL||fallback).replace(/\/$/,'');
+ try{
+  const host=new URL(raw).hostname.toLowerCase().replace(/^www\./,'');
+  // The alias domains 301-redirect every path (including /assets/*) to the
+  // booking page, so media URLs built on them can never be fetched by the
+  // social platforms. Always build asset/video URLs on the canonical domain.
+  if(host==='mynexusride.com'||host==='nexusmedicaltransit.com')return fallback;
+ }catch{
+  return fallback;
+ }
+ return raw;
 }
 
 async function ensureTables(){
@@ -131,4 +142,4 @@ async function runSocialPublish({channels=[],dryRun=true,forcedPostId=''}={}){
  return {runDate,dryRun,channels,results};
 }
 
-module.exports={parseChannels,isDryRunValue,previewSocialSelection,runSocialPublish};
+module.exports={parseChannels,isDryRunValue,previewSocialSelection,runSocialPublish,siteBase};

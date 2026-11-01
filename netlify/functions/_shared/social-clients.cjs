@@ -125,20 +125,49 @@ async function diagnoseFacebook(){
  return diagnostic;
 }
 
+function sleep(ms){
+ return new Promise(resolve=>setTimeout(resolve,ms));
+}
+
+// Instagram's container is not always ready the moment it is created; publishing
+// against an IN_PROGRESS container fails with "Media ID is not available".
+// Poll the container status (bounded) until Meta reports FINISHED.
+async function waitForInstagramContainer(creationId,accessToken){
+ let lastStatus='';
+ for(let attempt=0;attempt<12;attempt++){
+  if(attempt>0)await sleep(1500);
+  const statusRes=await fetch(`${META_GRAPH_API}/${encodeURIComponent(creationId)}?fields=status_code&access_token=${encodeURIComponent(accessToken)}`);
+  const statusBody=await statusRes.json().catch(()=>({}));
+  lastStatus=String(statusBody.status_code||'');
+  if(lastStatus==='FINISHED')return {ready:true,status:lastStatus};
+  if(lastStatus==='ERROR'||lastStatus==='EXPIRED')return {ready:false,status:lastStatus,error:JSON.stringify(statusBody).slice(0,400)};
+ }
+ return {ready:false,status:lastStatus||'UNKNOWN',error:'instagram_container_not_finished'};
+}
+
 async function postToInstagram(payload){
  const igUserId=env('INSTAGRAM_BUSINESS_ACCOUNT_ID');
  const accessToken=env('INSTAGRAM_PAGE_ACCESS_TOKEN')||env('FACEBOOK_PAGE_ACCESS_TOKEN');
  if(!igUserId||!accessToken)return {status:'skipped',reason:'missing_instagram_credentials'};
- if(!payload.assetUrl||!/^https?:\/\//i.test(String(payload.assetUrl||'')))return {status:'skipped',reason:'missing_instagram_asset_url'};
+ const imageUrl=String(payload.instagramAssetUrl||payload.assetUrl||'');
+ if(!imageUrl||!/^https?:\/\//i.test(imageUrl))return {status:'skipped',reason:'missing_instagram_asset_url'};
+ // Instagram image publishing accepts JPEG/PNG only. A WebP (or other) asset is
+ // rejected by Meta at container creation, so fail here with the real reason
+ // instead of an opaque API error. Posts can set instagramAsset to a JPEG/PNG.
+ const imageExt=(imageUrl.split('?')[0].split('.').pop()||'').toLowerCase();
+ if(!['jpg','jpeg','png'].includes(imageExt))return {status:'failed',step:'validate_media',error:`instagram_unsupported_image_format:${imageExt||'unknown'}`};
 
  const createParams=new URLSearchParams({
-  image_url:String(payload.assetUrl),
+  image_url:imageUrl,
   caption:String(payload.text||'').slice(0,2200),
   access_token:accessToken
  });
  const createRes=await fetch(`${META_GRAPH_API}/${encodeURIComponent(igUserId)}/media`,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:createParams});
  const createBody=await createRes.json().catch(()=>({}));
  if(!createRes.ok||!createBody.id)return {status:'failed',step:'create_media',code:createRes.status,error:JSON.stringify(createBody).slice(0,400)};
+
+ const container=await waitForInstagramContainer(String(createBody.id),accessToken);
+ if(!container.ready)return {status:'failed',step:'media_status',error:container.error||`instagram_container_${String(container.status||'not_ready').toLowerCase()}`};
 
  const publishParams=new URLSearchParams({creation_id:String(createBody.id),access_token:accessToken});
  const publishRes=await fetch(`${META_GRAPH_API}/${encodeURIComponent(igUserId)}/media_publish`,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:publishParams});
@@ -203,6 +232,11 @@ async function postToYouTube(payload){
  if(!videoRes.ok)return {status:'failed',step:'fetch_video',code:videoRes.status,error:'Unable to fetch video asset'};
  const contentType=videoRes.headers.get('content-type')||'video/mp4';
  if(!contentType.startsWith('video/'))return {status:'skipped',reason:'youtube_asset_is_not_video'};
+ // Buffer the video instead of streaming the fetch response into the upload:
+ // the source response's content-length describes the served (possibly
+ // re-encoded) stream, and a mismatch makes Google reject the resumable PUT.
+ const videoBuffer=Buffer.from(await videoRes.arrayBuffer());
+ if(!videoBuffer.byteLength)return {status:'failed',step:'fetch_video',error:'Downloaded video asset was empty'};
  const metadata={
   snippet:{title:String(payload.title||'Nexus Medical Transit').slice(0,100),description:String(payload.text||'').slice(0,5000),categoryId:env('YOUTUBE_CATEGORY_ID')||'22'},
   status:{privacyStatus:env('YOUTUBE_DEFAULT_PRIVACY')||'private',selfDeclaredMadeForKids:false}
@@ -218,10 +252,8 @@ async function postToYouTube(payload){
  }
  const uploadUrl=initRes.headers.get('location');
  if(!uploadUrl)return {status:'failed',step:'initialize_upload',error:'Missing resumable upload URL'};
- const uploadHeaders={'content-type':contentType};
- const contentLength=videoRes.headers.get('content-length');
- if(contentLength)uploadHeaders['content-length']=contentLength;
- const uploadRes=await fetch(uploadUrl,{method:'PUT',headers:uploadHeaders,body:videoRes.body,duplex:'half'});
+ const uploadHeaders={'content-type':contentType,'content-length':String(videoBuffer.byteLength)};
+ const uploadRes=await fetch(uploadUrl,{method:'PUT',headers:uploadHeaders,body:videoBuffer});
  const body=await uploadRes.json().catch(()=>({}));
  if(!uploadRes.ok)return {status:'failed',step:'upload_video',code:uploadRes.status,error:JSON.stringify(body).slice(0,400)};
  return {status:'published',id:body.id||null,privacyStatus:body.status?.privacyStatus||metadata.status.privacyStatus};
