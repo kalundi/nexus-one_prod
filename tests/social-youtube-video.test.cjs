@@ -17,5 +17,5 @@ test('default YouTube short also resolves the deployed video',async()=>{
  const feed=await loadEvergreenFeed();
  const post=feed.posts.find(item=>item.id==='shorts-hook-001');
  const payload=buildPublishPayload(post,feed,'youtube','https://nexusmt.com');
- assert.equal(payload.videoUrl,'https://nexusmt.com/assets/nexus-booking-app-walkthrough-v5-narrated.mp4');
+ assert.equal(payload.videoUrl,'https://nexusmt.com/assets/nexus-booking-app-walkthrough-v6-narrated.mp4');
 });

@@ -59,6 +59,7 @@ function buildPublishPayload(post,feed,channel,baseUrl='https://nexusmt.com'){
   pillar:post.pillar,
   asset:String(post.asset||''),
     assetUrl:toAbsoluteAssetUrl(post.asset,baseUrl),
+  instagramAssetUrl:toAbsoluteAssetUrl(post.instagramAsset||post.asset,baseUrl),
   altText:String(post.altText||''),
   title:String(post.youtubeTitle||post.headline||'Nexus Medical Transit').slice(0,100),
   videoUrl:toAbsoluteAssetUrl(post.videoAsset||'',baseUrl),
