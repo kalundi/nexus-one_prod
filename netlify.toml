@@ -58,6 +58,12 @@
 [functions.social-publisher]
   schedule = "0 14 * * *"
 
+# Public visitor Q&A assistant (visitor-qa-bot): HTTP-invoked only, no schedule.
+# Answers from netlify/functions/_shared/visitor-knowledge.cjs. Optional model
+# phrasing activates when VISITOR_ASSISTANT_API_KEY + VISITOR_ASSISTANT_MODEL
+# (or OPENAI_API_KEY + OPENAI_MODEL) are set; retrieval answers work without.
+[functions.visitor-assistant]
+
 # Scheduled function: send a daily cost report to admin recipients and Teams
 # Set COST_ANALYZER_REPORT_DAYS to change the report window length.
 [functions.cost-analyzer-report]

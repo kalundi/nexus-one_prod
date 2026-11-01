@@ -751,3 +751,19 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
     }
   }, CHECK_MS);
 }());
+
+/* BEGIN Nexus visitor assistant loader (visitor-qa-bot) — public pages only.
+   Loads /visitor-assistant.js (the visitor Q&A chat widget) unless this is a
+   staff/back-office or app surface. Keep this block intact and self-contained
+   so it can be reconciled independently of header/navigation changes. */
+(function(){
+	if(document.body && document.body.hasAttribute('data-backoffice-workspace')) return;
+	if(document.getElementById('bookingForm')) return;
+	var staffOrApp=/\/(admin|dispatch|operations|billing|fleet|executive|ai-operations|qa|facility|facility-demo|driver-app|patient|caretaker|apps|training|secure-documents|set-password|career-application|booking-app|test-payment)(\.html)?$/i;
+	if(staffOrApp.test(location.pathname)) return;
+	var script=document.createElement('script');
+	script.src='/visitor-assistant.js';
+	script.defer=true;
+	document.head.appendChild(script);
+})();
+/* END Nexus visitor assistant loader */
