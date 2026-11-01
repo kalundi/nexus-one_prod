@@ -217,6 +217,23 @@ const ENTRIES = [
     source: 'legal.html (Terms of Use, "Quotes, payment and benefits"); booking-app.html'
   },
   {
+    id: 'availability',
+    topic: 'Availability',
+    questions: [
+      'Are you available?',
+      'Are you available this week?',
+      'Do you have availability?',
+      'Can I check availability for my ride?',
+      'Do you have any openings?',
+      'Can you fit me in this week?',
+      'Can I reserve a ride?'
+    ],
+    keywords: ['available', 'availability', 'openings', 'opening', 'same day', 'short notice', 'last minute', 'book ahead', 'fit me in', 'reserve', 'reservation'],
+    answer:
+      'Availability depends on the date, time, and trip, and I can\u2019t check live availability here \u2014 but it is confirmed for your specific trip as soon as you book online at https://mynexusride.com or call (888) 639-5766. Nexus\u2019s normal hours are Monday\u2013Friday, 7 AM\u20137 PM, and rides are scheduled in advance around appointment and treatment times, so booking ahead is the best way to secure your time. When you book, have the pickup and destination addresses, the appointment time, and any mobility or equipment needs ready \u2014 the trip is then matched to the right vehicle and crew, and booked trips can be followed in LiveCare.',
+    source: 'booking-app.html; contact-service-areas.html (coverage depends on trip details and availability); non-emergency-medical-transportation.html (FAQPage JSON-LD: how far in advance to book); platform.js (site footer hours)'
+  },
+  {
     id: 'insurance-payer',
     topic: 'Payment and coverage',
     questions: ['Do you accept insurance?', 'Does Medicaid cover this?', 'Do you work with health plans or brokers?'],

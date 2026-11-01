@@ -52,6 +52,72 @@ test('only public phone numbers ever appear in composed answers', async () => {
   }
 });
 
+test('estimate + availability question answers both halves, with no figure', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('Can I get an estimate and check availability?', '10.0.0.4');
+  assert.notEqual(body.mode, 'fallback');
+  assert.ok(body.sources.includes('pricing'));
+  assert.ok(body.sources.includes('availability'));
+  assert.match(body.answer, /depends on the trip/);
+  assert.match(body.answer, /estimate for your specific trip/);
+  assert.match(body.answer, /confirmed for your specific trip/);
+  assert.ok(!/\$\s?\d/.test(body.answer), 'must not contain a dollar figure');
+});
+
+test('"are you available" gets the substantive availability answer, never a live claim', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('are you available', '10.0.0.4');
+  assert.notEqual(body.mode, 'fallback');
+  assert.ok(body.sources.includes('availability'));
+  assert.match(body.answer, /can\u2019t check live availability/);
+  assert.match(body.answer, /Monday\u2013Friday, 7 AM\u20137 PM/);
+  assert.match(body.answer, /mynexusride\.com/);
+  assert.match(body.answer, /\(888\) 639-5766/);
+});
+
+test('combined cost + availability question answers both parts', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('How much does a ride cost and are you available this Friday?', '10.0.0.4');
+  assert.notEqual(body.mode, 'fallback');
+  assert.ok(body.sources.includes('pricing'));
+  assert.ok(body.sources.includes('availability'));
+  assert.match(body.answer, /price of a trip depends on the trip itself/);
+  assert.match(body.answer, /confirmed for your specific trip/);
+  assert.ok(!/\$\s?\d/.test(body.answer), 'must not contain a dollar figure');
+});
+
+test('openings question routes to availability', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('Do you have any openings this weekend?', '10.0.0.4');
+  assert.notEqual(body.mode, 'fallback');
+  assert.ok(body.sources.includes('availability'));
+});
+
+test("Anthony's cost prompt chip is treated as pricing intent and closes with the booking CTA", async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('Do you want to know what your ride would cost?', '10.0.0.4');
+  assert.notEqual(body.mode, 'fallback');
+  assert.ok(body.sources.includes('pricing'));
+  assert.match(body.answer, /depends on the trip itself/);
+  assert.ok(body.answer.trimEnd().endsWith('You can book online at https://mynexusride.com or call (888) 639-5766.'));
+  assert.ok(!/\$\s?\d/.test(body.answer), 'must not contain a dollar figure');
+});
+
+test('opening hours stays an hours answer, not availability', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('What are your opening hours?', '10.0.0.4');
+  assert.ok(body.sources.includes('hours'));
+  assert.ok(!body.sources.includes('availability'));
+  assert.match(body.answer, /7 AM/);
+});
+
+test('Annapolis coverage answer is unchanged', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('Do you serve Annapolis?', '10.0.0.4');
+  assert.ok(body.sources.includes('area-annapolis'));
+  assert.match(body.answer, /serves Annapolis and Anne Arundel County/);
+});
+
 test('rate limit trips after 20 questions per IP per window', async () => {
   const assistant = createAssistant({ fetchImpl: noFetch, env: {}, now: () => 1000000 });
   let last;

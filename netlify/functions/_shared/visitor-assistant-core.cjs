@@ -47,6 +47,25 @@ const PRICE_SIGNALS = [
   'quote', 'fee', 'fees', 'expensive', 'afford', 'per mile', 'payment cost'
 ];
 
+// "Estimate" is a pricing word on this site (the pricing entry answers it),
+// matched on a word boundary so "estimated arrival" (a tracking question)
+// does not get pinned to pricing.
+function hasPriceIntent(text) {
+  return PRICE_SIGNALS.some(s => text.includes(s)) || /\bestimates?\b/.test(text);
+}
+
+// Availability intent: the visitor wants to know whether a ride can be
+// had at a time. "Opening hours" is an hours question, not availability,
+// so bare "opening(s)" only counts when "hours" is not attached to it.
+function hasAvailabilityIntent(text) {
+  if (text.includes('availab')) return true;
+  if (/\bopenings?\b/.test(text) && !text.includes('opening hours')) return true;
+  if (/\breserv/.test(text)) return true;
+  return ['book ahead', 'book in advance', 'same day', 'same-day',
+    'short notice', 'last minute', 'fit me in', 'fit us in']
+    .some(s => text.includes(s));
+}
+
 const STOPWORDS = new Set((
   'a an the do does did you your yours we our ours i me my is are was were can could ' +
   'should would will shall have has had to of in on at for with and or if then than ' +
@@ -148,9 +167,17 @@ function composeAnswer(question) {
   const text = normalize(question);
 
   // Price questions are pinned to the pricing entry: no retrieval drift,
-  // never a figure.
-  if (PRICE_SIGNALS.some(s => text.includes(s))) {
-    return { answer: entryById('pricing').answer, sources: ['pricing'], mode: 'composed' };
+  // never a figure. A question that also asks about availability gets
+  // both halves answered, and estimate answers close with the booking
+  // call to action.
+  if (hasPriceIntent(text)) {
+    const pricing = entryById('pricing');
+    if (hasAvailabilityIntent(text)) {
+      const availability = entryById('availability');
+      const answer = pricing.answer + '\n\n' + availability.answer + ' ' + BOOKING_CTA;
+      return { answer, sources: ['pricing', 'availability'], mode: 'composed' };
+    }
+    return { answer: pricing.answer + ' ' + BOOKING_CTA, sources: ['pricing'], mode: 'composed' };
   }
 
   // Place outside coverage: an explicit, honest no.
