@@ -22,17 +22,6 @@
  * computed server-side by the visitor-estimate function with the
  * platform's own fare engine and Pricing Manager rates.
  *
- * CTA sizing inside the panel: platform.js adds the page-level
- * .bookRideSign style to any booking-bound link it sees, including
- * links rendered inside this panel. The styles below deliberately
- * neutralize that treatment within the panel only — in-bubble booking
- * links render as compact inline links, and every booking BUTTON in
- * the panel (bottom CTA, estimate answer action, any future one)
- * shares ONE class (.nvaBookBtn) styled as the compact scale of the
- * sign look, so all booking buttons in the panel always match each
- * other and keep their compact design. Page-level sign styling
- * outside the widget is untouched.
- *
  * Conversation focus: the quick-action suggestion chips show when the
  * panel opens, but as soon as the visitor asks something they hide, so
  * the answer owns the panel; a slim "What else can I ask?" button
@@ -45,6 +34,16 @@
  * (900ms, scaling slightly with answer length, capped at 1600ms) —
  * long enough to read as thought, short enough to stay snappy. The
  * beat is skipped entirely when the visitor prefers reduced motion.
+ *
+ * CTA sizing inside the panel: platform.js adds the page-level
+ * .bookRideSign style to any booking-bound link it sees, including
+ * links rendered inside this panel. The styles below deliberately
+ * neutralize that treatment within the panel only — in-bubble booking
+ * links render as compact inline links, and every booking BUTTON in
+ * the panel (bottom CTA, estimate answer action, any future one)
+ * shares ONE class (.nvaBookBtn) styled as the compact scale of the
+ * sign look, so all booking buttons in the panel always match each
+ * other. Page-level sign styling outside the widget is untouched.
  */
 (function () {
   'use strict';
@@ -668,13 +667,14 @@
         }
         if (out.res.ok && out.data && out.data.mode === 'estimate' && out.data.answer) {
           return afterThinking(startedAt, out.data.answer).then(function () {
-            fillPending(pending, out.data.answer);
-            var actions = document.createElement('div');
-            actions.className = 'nvaEstActions';
-            actions.innerHTML = '<a class="nvaEstBook nvaBookBtn" href="' + BOOKING_URL + '" target="_blank" rel="noopener">Book a Ride \u2014 exact quote</a>';
-            log.appendChild(actions);
-            log.scrollTop = log.scrollHeight;
-            endFlow();
+          fillPending(pending, out.data.answer);
+          var actions = document.createElement('div');
+          actions.className = 'nvaEstActions';
+          actions.innerHTML = '<a class="nvaEstBook nvaBookBtn" href="' + BOOKING_URL + '" target="_blank" rel="noopener">Book a Ride \u2014 exact quote</a>';
+          log.appendChild(actions);
+          log.scrollTop = log.scrollHeight;
+          endFlow();
+          return;
           });
         }
         if (out.data && out.data.error) {
