@@ -1,6 +1,3 @@
-// Mobile nav toggle
-(function(){const t=document.querySelector('.mobileNavToggle'),l=document.querySelector('.globalLinks');if(t)t.addEventListener('click',()=>{const e=t.getAttribute('aria-expanded')==='true';t.setAttribute('aria-expanded',!e);l.classList.toggle('open')})})();
-
 const token=()=>sessionStorage.getItem('nexusAccessToken');
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
 const userRole=()=>{
