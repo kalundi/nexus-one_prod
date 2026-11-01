@@ -28,8 +28,14 @@
  * MD/DC/VA region) before measuring: one confident match is
  * confirmed back to the visitor ("the Washington Monument,
  * Washington, DC"), several plausible matches are offered as
- * tap-to-pick chips, and no match re-asks for a street address or a
- * more specific name. Street addresses skip Places entirely and
+ * tap-to-pick chips, and if Places finds real places but none
+ * matches every word of the query — a store locals name for the
+ * neighboring town, like the "Germantown" Costco that is actually
+ * in Gaithersburg — those results are offered as chips under a
+ * line saying the exact name was not found, never accepted
+ * silently. Only a Places search with no results at all re-asks
+ * for a street address or a more specific name. Street addresses
+ * skip Places entirely and
  * behave exactly as before. Once an estimate lands, the panel also
  * shows the route on a small map with the live traffic layer and
  * the drive time in current traffic; if Maps or traffic data is
@@ -741,8 +747,27 @@
         var places = results
           .filter(function (r) { return r && r.geometry && r.geometry.location; })
           .map(normalizePlace);
+        if (!places.length) throw { code: 'places-none' };
         var pool = places.filter(function (p) { return placeRelevant(p, query); });
-        if (!pool.length) throw { code: 'places-none' };
+        if (!pool.length) {
+          // Places answered, but no result carries every word of
+          // the query — the usual case is a place locals name for
+          // the next town over ("Costco in Germantown" is actually
+          // in Gaithersburg, so "germantown" matches nothing and
+          // the strict filter empties out). Offer what Places
+          // returned, in its own order, as choices under a line
+          // that says the exact name was not found; a mismatch is
+          // never accepted silently — the visitor picks, exactly
+          // as in the several-matches branch below.
+          finish(function () {
+            flow.step = which === 'pickup' ? 'placePickup' : 'placeDropoff';
+            flow.placeOptions = places.slice(0, 4);
+            renderChips();
+            fillPending(pending, 'I couldn\u2019t find a place with that exact name nearby \u2014 did you mean one of these? Tap the right one, or type a more specific name or a street address.');
+            setPlaceholder('Tap a place above, or type again\u2026');
+          });
+          return;
+        }
         if (pool.length === 1) {
           finish(function () { acceptPlace(which, pool[0], pending); });
           return;
