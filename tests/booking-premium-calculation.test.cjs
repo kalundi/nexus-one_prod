@@ -44,30 +44,34 @@ for (const scenario of [
   assert.equal(result.total,scenario.premium?133.9:103);
 });
 
-test('approved wheelchair example: pickup leg keeps its allowance, one-way return leg bills half its actual miles, urgency applies only to base',t=>{
+test('approved wheelchair example: 22 empty miles fall inside the 25-mile trip allowance, urgency applies only to base',t=>{
   t.mock.method(Date,'now',()=>require('../nexus-fare.js').scheduledEpoch('2030-08-14','16:00'));
   const calc=calculator({rate:{base:98,includedMiles:8,perMile:4.1}});
   const result=calc.calculateFareBreakdown('wheelchair',20,'2030-08-15','10:00',{
     deadheadSegments:[12,10],bookingTime:new Date('2030-08-14T16:00:00').getTime()
   });
-  // Pickup leg (12 - 8) x $2.05 = $8.20; return leg per the 2026-11-01
-  // rule (20 loaded miles is not under the exemption): half of 10 actual
-  // miles x $2.05 = $10.25. Total deadhead $18.45.
-  assert.ok(Math.abs(result.deadheadCharge-18.45)<.00001);
+  // Deadhead rule v2 (2026-11-01): the trip's empty miles are 12 + 10 =
+  // 22, inside the covered services' 25-mile allowance, so deadhead is
+  // $0 and the subtotal is 98 + 49.2 mileage + 29.4 short notice.
+  assert.ok(Math.abs(result.deadheadCharge-0)<.00001);
   assert.ok(Math.abs(result.shortNoticeCharge-29.4)<.00001);
-  assert.ok(Math.abs(result.subtotal-195.05)<.00001);
-  assert.ok(Math.abs(result.total-200.9015)<.00001);
+  assert.ok(Math.abs(result.subtotal-176.6)<.00001);
+  assert.ok(Math.abs(result.total-181.898)<.00001);
 });
-test('unused allowance on the pickup leg does not reduce the return leg billed on half its actual miles',()=>{
+test('the trip-level deadhead allowance carries from the pickup leg to the return leg',()=>{
   const calc=calculator({rate:{base:98,includedMiles:8,perMile:4.1}});
   const result=calc.calculateFareBreakdown('wheelchair',20,'2030-08-15','10:00',{deadheadSegments:[2,12],bookingTime:new Date('2030-08-13T10:00:00').getTime()});
-  // Pickup leg 2 mi is fully inside the 8-mile allowance ($0); the return
-  // leg bills half of its 12 actual miles regardless: 6 x $2.05 = $12.30.
-  assert.ok(Math.abs(result.deadheadCharge-12.3)<.00001);
+  // Rule v2 (2026-11-01): the 25-mile allowance is per trip, not per
+  // segment — the pickup leg uses 2 of the 25 miles and the remaining
+  // 23 cover all 12 return miles, so deadhead is $0. (Under the earlier
+  // per-segment rules this trip billed $12.30 of return-leg deadhead.)
+  assert.ok(Math.abs(result.deadheadCharge-0)<.00001);
   assert.equal(result.shortNoticeCharge,0);
 });
 for(const [service,rate,segments,charge,urgent] of [
-  ['ambulatory',{base:75,includedMiles:5,perMile:3.55},[8,4],5.325,22.5],
+  // Ambulatory: 8 + 4 = 12 empty miles, inside the 25-mile allowance
+  // (rule v2), so deadhead is $0; urgency is still 30% of the $75 base.
+  ['ambulatory',{base:75,includedMiles:5,perMile:3.55},[8,4],0,22.5],
   // BLS: pickup leg 1 mi x $9.25 = $9.25; one-way return leg has no
   // under-20 exemption, so half of its 2 actual miles x $9.25 = $9.25.
   ['bls',{base:1125,includedMiles:0,perMile:18.5},[1,2],18.5,337.5]

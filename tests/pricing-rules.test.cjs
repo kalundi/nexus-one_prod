@@ -24,10 +24,13 @@ test('configured fuel, traffic, schedule premium, waiting, deadhead, urgency and
  assert.equal(result.trafficChargePerLeg,10);
  assert.equal(result.premiumRatePct,10);
  assert.equal(result.waitCharge,40);
- assert.equal(result.deadheadCharge,4);
+ // Deadhead rule v2 (2026-11-01): wheelchair is a covered service, so
+ // the trip's 12 + 2 = 14 empty miles fall inside the 25-mile allowance
+ // and bill $0 (the 25% deadhead percentage now applies only past 25).
+ assert.equal(result.deadheadCharge,0);
  assert.equal(result.shortNoticeCharge,40);
- assert.ok(Math.abs(result.subtotal-219.3)<1e-8);
- assert.equal(result.discountedTotal,228.07);
+ assert.ok(Math.abs(result.subtotal-215.3)<1e-8);
+ assert.equal(result.discountedTotal,223.91);
 });
 test('service schedule premiums and zero fees override global percentages without stacking',()=>{
  const rules={weekendSurchargePct:10,holidaySurchargePct:15,servicePolicies:{wheelchair:{weekendSurchargePct:25,afterHoursSurchargePct:0}}};

@@ -27,16 +27,18 @@ test('ambulatory 20 loaded miles, one way, weekday daytime: deterministic estima
   assert.equal(status, 200);
   assert.equal(body.mode, 'estimate');
   // Engine: base 75 + (20-5) x 3.55 = 53.25 + fuel 20 x 0.2842 = 5.684
-  //   -> subtotal 133.934. Modeled deadhead: 50% of 20 mi = 10 mi x 3.55
-  //   = 35.50. Total = (133.934 + 35.50) x 1.03 card fee = 174.52,
+  //   -> subtotal 133.934. Modeled deadhead: 50% of 20 mi = 10 mi, which
+  //   falls inside the platform's 25-mile deadhead allowance (rule v2,
+  //   2026-11-01), so no deadhead is billed and the answer makes no
+  //   deadhead claim. Total = 133.934 x 1.03 card fee = 137.95,
   //   displayed rounded to the nearest $5.
-  assert.ok(Math.abs(body.estimate.total - 174.52) < 0.02, `total was ${body.estimate.total}`);
-  assert.equal(body.estimate.displayTotal, 175);
-  assert.equal(body.estimate.deadheadMiles, 10);
+  assert.ok(Math.abs(body.estimate.total - 137.95) < 0.02, `total was ${body.estimate.total}`);
+  assert.equal(body.estimate.displayTotal, 140);
+  assert.equal(body.estimate.deadheadMiles, 0);
   assert.equal(body.estimate.premiumReason, null);
   assert.equal(body.estimate.shortNotice, false);
-  assert.match(body.answer, /about \$175/);
-  assert.match(body.answer, /estimated deadhead/i);
+  assert.match(body.answer, /about \$140/);
+  assert.ok(!/deadhead/i.test(body.answer), 'answer must not claim a deadhead charge');
   assert.match(body.answer, /rough estimate, not a final quote/i);
   assert.match(body.answer, /mynexusride\.com/);
   assert.match(body.answer, /\(888\) 639-5766/);
@@ -45,22 +47,23 @@ test('ambulatory 20 loaded miles, one way, weekday daytime: deterministic estima
 test('round trip doubles the passenger legs and the modeled deadhead follows total miles', async () => {
   const { status, body } = await estimator.estimate({ ...baseInput, tripType: 'ROUND_TRIP' }, '10.1.0.2');
   assert.equal(status, 200);
-  // Legs: 2 x 133.934 = 267.868. Deadhead: 50% of 40 mi = 20 mi x 3.55
-  // = 71.00. Total = 338.868 x 1.03 = 349.03 -> displayed 350.
-  assert.ok(Math.abs(body.estimate.total - 349.03) < 0.02, `total was ${body.estimate.total}`);
-  assert.equal(body.estimate.displayTotal, 350);
+  // Legs: 2 x 133.934 = 267.868. Modeled deadhead: 50% of 40 mi = 20
+  // mi, inside the 25-mile allowance, so $0. Total = 267.868 x 1.03 =
+  // 275.90 -> displayed 275.
+  assert.ok(Math.abs(body.estimate.total - 275.9) < 0.02, `total was ${body.estimate.total}`);
+  assert.equal(body.estimate.displayTotal, 275);
   assert.equal(body.estimate.loadedMiles, 40);
-  assert.equal(body.estimate.deadheadMiles, 20);
+  assert.equal(body.estimate.deadheadMiles, 0);
   assert.match(body.answer, /round trip/);
 });
 
 test('after-hours pickup applies the +30% uplift and labels it', async () => {
   const { status, body } = await estimator.estimate({ ...baseInput, time: '20:30' }, '10.1.0.3');
   assert.equal(status, 200);
-  // Leg subtotal 133.934 x 1.3 = 174.1142; + deadhead 35.50 = 209.6142;
-  // x 1.03 = 215.90 -> displayed 215.
-  assert.ok(Math.abs(body.estimate.total - 215.90) < 0.02, `total was ${body.estimate.total}`);
-  assert.equal(body.estimate.displayTotal, 215);
+  // Leg subtotal 133.934 x 1.3 = 174.1142; modeled deadhead (10 mi) is
+  // inside the 25-mile allowance, so + 0; x 1.03 = 179.34 -> displayed 180.
+  assert.ok(Math.abs(body.estimate.total - 179.34) < 0.02, `total was ${body.estimate.total}`);
+  assert.equal(body.estimate.displayTotal, 180);
   assert.equal(body.estimate.premiumReason, 'after-hours');
   assert.equal(body.estimate.premiumPct, 30);
   assert.match(body.answer, /after-hours uplift is included/);
@@ -70,51 +73,67 @@ test('weekend pickup applies the +30% weekend uplift', async () => {
   const { body } = await estimator.estimate({ ...baseInput, date: '2027-01-02' }, '10.1.0.4');
   assert.equal(body.estimate.premiumReason, 'weekend');
   assert.equal(body.estimate.premiumPct, 30);
-  assert.equal(body.estimate.displayTotal, 215);
+  assert.equal(body.estimate.displayTotal, 180);
   assert.match(body.answer, /weekend uplift is included/);
 });
 
 test('wheelchair pricing uses its own base, included miles and per-mile rate', async () => {
   const { body } = await estimator.estimate({ ...baseInput, service: 'wheelchair' }, '10.1.0.5');
   // Base 98 + (20-8) x 4.10 = 49.20 + fuel (bus) 20 x 0.5595 = 11.19
-  //   -> 158.39. Deadhead 10 mi x 4.10 = 41.00. Total 199.39 x 1.03 = 205.37.
-  assert.ok(Math.abs(body.estimate.total - 205.37) < 0.02, `total was ${body.estimate.total}`);
-  assert.equal(body.estimate.displayTotal, 205);
+  //   -> 158.39. Modeled deadhead 10 mi is inside the 25-mile
+  //   allowance, so $0. Total 158.39 x 1.03 = 163.14 -> displayed 165.
+  assert.ok(Math.abs(body.estimate.total - 163.14) < 0.02, `total was ${body.estimate.total}`);
+  assert.equal(body.estimate.displayTotal, 165);
 });
 
-test('one-way ambulatory under 20 loaded miles models no return deadhead at all', async () => {
+test('one-way ambulatory with modeled deadhead inside the 25-mile allowance bills no deadhead', async () => {
   const { status, body } = await estimator.estimate({ ...baseInput, loadedMiles: 15 }, '10.1.0.14');
   assert.equal(status, 200);
   // Engine: base 75 + (15-5) x 3.55 = 35.50 + fuel 15 x 0.2842 = 4.263
-  //   -> 114.763. The platform rule bills no return-to-yard deadhead on a
-  //   one-way Ambulatory trip under 20 loaded miles, so the model adds
-  //   none: total = 114.763 x 1.03 = 118.21 -> displayed 120.
+  //   -> 114.763. Modeled deadhead is 50% of 15 mi = 7.5 mi, inside the
+  //   25-mile allowance (rule v2), so the model adds none:
+  //   total = 114.763 x 1.03 = 118.21 -> displayed 120.
   assert.equal(body.estimate.deadheadMiles, 0);
   assert.ok(Math.abs(body.estimate.total - 118.21) < 0.02, `total was ${body.estimate.total}`);
   assert.equal(body.estimate.displayTotal, 120);
   assert.ok(!/deadhead/i.test(body.answer), 'answer must not claim a deadhead charge');
 });
 
-test('one-way wheelchair under 20 loaded miles models no return deadhead at all', async () => {
+test('one-way wheelchair with modeled deadhead inside the 25-mile allowance bills no deadhead', async () => {
   const { body } = await estimator.estimate({ ...baseInput, service: 'wheelchair', loadedMiles: 15 }, '10.1.0.15');
   // Base 98 + (15-8) x 4.10 = 28.70 + fuel (bus) 15 x 0.5595 = 8.3925
-  //   -> 135.0925. No modeled deadhead: x 1.03 = 139.15 -> displayed 140.
+  //   -> 135.0925. Modeled deadhead 7.5 mi is inside the allowance:
+  //   x 1.03 = 139.15 -> displayed 140.
   assert.equal(body.estimate.deadheadMiles, 0);
   assert.ok(Math.abs(body.estimate.total - 139.15) < 0.02, `total was ${body.estimate.total}`);
   assert.equal(body.estimate.displayTotal, 140);
   assert.ok(!/deadhead/i.test(body.answer), 'answer must not claim a deadhead charge');
 });
 
-test('one-way stretcher under 20 loaded miles still models half the return-to-yard miles', async () => {
+test('one-way stretcher with modeled deadhead inside the 25-mile allowance bills no deadhead', async () => {
   const { body } = await estimator.estimate({ ...baseInput, service: 'stretcher', loadedMiles: 10 }, '10.1.0.16');
   // Base 455 + (10-8) x 7.95 = 15.90 + fuel (bus) 10 x 0.5595 = 5.595
-  //   -> 476.495. Stretcher has no exemption: deadhead = half the loaded
-  //   miles (the yard-run stand-in) 5 mi x 7.95 = 39.75. Total 516.245
-  //   x 1.03 = 531.73 -> displayed 530.
+  //   -> 476.495. Stretcher is a covered service under rule v2: modeled
+  //   deadhead is half the loaded miles = 5 mi, inside the 25-mile
+  //   allowance, so $0. Total 476.495 x 1.03 = 490.79 -> displayed 490.
+  assert.equal(body.estimate.deadheadMiles, 0);
+  assert.ok(Math.abs(body.estimate.total - 490.79) < 0.02, `total was ${body.estimate.total}`);
+  assert.equal(body.estimate.displayTotal, 490);
+  assert.ok(!/deadhead/i.test(body.answer), 'answer must not claim a deadhead charge');
+});
+
+test('modeled deadhead over 25 miles bills only the excess and says so', async () => {
+  const { body } = await estimator.estimate({ ...baseInput, loadedMiles: 60 }, '10.1.0.17');
+  // Engine: base 75 + (60-5) x 3.55 = 195.25 + fuel 60 x 0.2842 =
+  //   17.052 -> 287.302. Modeled deadhead 50% of 60 = 30 mi; the first
+  //   25 are free, so 5 billable miles x 3.55 = 17.75. Total =
+  //   (287.302 + 17.75) x 1.03 = 314.20 -> displayed 315.
   assert.equal(body.estimate.deadheadMiles, 5);
-  assert.ok(Math.abs(body.estimate.total - 531.73) < 0.02, `total was ${body.estimate.total}`);
-  assert.equal(body.estimate.displayTotal, 530);
-  assert.match(body.answer, /empty miles back to the yard/i);
+  assert.ok(Math.abs(body.estimate.total - 314.2) < 0.02, `total was ${body.estimate.total}`);
+  assert.equal(body.estimate.displayTotal, 315);
+  assert.match(body.answer, /figured at about 30\.0 miles/);
+  assert.match(body.answer, /first 25 empty miles/);
+  assert.match(body.answer, /only the 5\.0 miles over 25 are figured in/);
 });
 
 test('stored Pricing Manager settings override the coded defaults', async () => {
@@ -125,9 +144,10 @@ test('stored Pricing Manager settings override the coded defaults', async () => 
   });
   const { body } = await live.estimate({ ...baseInput, service: 'stretcher', loadedMiles: 30 }, '10.1.0.6');
   // Base 455 + (30-15) x 7.95 = 119.25 + fuel 30 x 0.5595 = 16.785
-  //   -> 591.035. Deadhead 15 mi x 7.95 = 119.25. Total 710.285 x 1.03 = 731.59.
-  assert.ok(Math.abs(body.estimate.total - 731.59) < 0.02, `total was ${body.estimate.total}`);
-  assert.equal(body.estimate.displayTotal, 730);
+  //   -> 591.035. Modeled deadhead 15 mi is inside the 25-mile
+  //   allowance, so $0. Total 591.035 x 1.03 = 608.77 -> displayed 610.
+  assert.ok(Math.abs(body.estimate.total - 608.77) < 0.02, `total was ${body.estimate.total}`);
+  assert.equal(body.estimate.displayTotal, 610);
   assert.match(body.answer, /first 15 miles/);
 });
 
@@ -199,7 +219,9 @@ test('a long-distance inter-state estimate (MD to Kansas) is priced, not refused
   assert.equal(status, 200);
   assert.equal(body.mode, 'estimate');
   assert.equal(body.estimate.loadedMiles, 1100);
-  assert.equal(body.estimate.deadheadMiles, 550);
+  // Modeled deadhead 550 mi less the 25-mile allowance = 525 billable.
+  assert.equal(body.estimate.deadheadMiles, 525);
+  assert.match(body.answer, /first 25 empty miles/);
   assert.match(body.answer, /about \$\d/);
 });
 
