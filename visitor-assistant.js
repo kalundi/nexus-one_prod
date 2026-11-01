@@ -29,6 +29,19 @@
  * links render as compact inline links and the panel's own buttons
  * keep their compact design. Page-level sign styling outside the
  * widget is untouched.
+ *
+ * Conversation focus: the quick-action suggestion chips show when the
+ * panel opens, but as soon as the visitor asks something they hide, so
+ * the answer owns the panel; a slim "What else can I ask?" button
+ * brings them back. The estimate flow's step chips (ride type,
+ * one-way/round-trip, cancel) are inputs, not suggestions, and always
+ * show during the flow.
+ *
+ * Thinking state: before an answer renders, Nex shows a "Nex is
+ * thinking…" state with the typing avatar for a realistic beat
+ * (900ms, scaling slightly with answer length, capped at 1600ms) —
+ * long enough to read as thought, short enough to stay snappy. The
+ * beat is skipped entirely when the visitor prefers reduced motion.
  */
 (function () {
   'use strict';
@@ -76,6 +89,9 @@
     '.nvaChips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px 4px;background:#f6fafc;max-height:136px;overflow-y:auto}',
     '.nvaChip{display:inline-flex;align-items:center;min-height:44px;border:1px solid #b9cfdd;background:#fff;color:#082f49;border-radius:999px;padding:8px 12px;font:700 13px Manrope,sans-serif;cursor:pointer}',
     '.nvaChip:hover{border-color:#082f49}',
+    /* Slim affordance that replaces the hidden suggestion chips once a
+       question has been asked; tapping it brings the suggestions back. */
+    '.nvaAskMore{min-height:36px;border-style:dashed;background:transparent;color:#3d5a70;font-weight:600}',
     /* Bottom CTA row: compact, sized for the panel. The Call label
        never wraps; the Book button stays narrower than the Call one. */
     '.nvaCtas{display:flex;gap:8px;padding:8px 14px;background:#fff;border-top:1px solid #e3edf3}',
@@ -176,13 +192,31 @@
     return div;
   }
 
+  var REDUCED_MOTION = Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
   function showTyping() {
     var pending = addMessage('', 'bot');
     pending.classList.add('nvaTyping');
-    pending.innerHTML = '<img class="nvaTypingGif" src="' + TYPING_GIF + '" alt="" aria-hidden="true"><span>Nex is typing\u2026</span>';
+    pending.innerHTML = '<img class="nvaTypingGif" src="' + TYPING_GIF + '" alt="" aria-hidden="true"><span>Nex is thinking\u2026</span>';
     headAvatar.src = TYPING_GIF;
     log.scrollTop = log.scrollHeight;
     return pending;
+  }
+
+  // How long the thinking state should stay up for an answer of this
+  // length: a 900ms floor, growing gently with length, capped at
+  // 1600ms. Time already spent waiting on the server counts toward it,
+  // so a slow response never gets a second artificial delay stacked on
+  // top — and reduced-motion visitors skip the beat entirely.
+  function thinkingMs(answerText) {
+    if (REDUCED_MOTION) return 0;
+    return Math.min(1600, 900 + Math.round(String(answerText || '').length * 0.7));
+  }
+
+  function afterThinking(startedAt, answerText) {
+    var remaining = thinkingMs(answerText) - (Date.now() - startedAt);
+    if (remaining <= 0) return Promise.resolve();
+    return new Promise(function (resolve) { setTimeout(resolve, remaining); });
   }
 
   function fillPending(pending, text) {
@@ -223,6 +257,7 @@
     addMessage(q, 'user');
     input.value = '';
     var pending = showTyping();
+    var startedAt = Date.now();
     fetch(ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -231,12 +266,16 @@
       .then(function (res) { return res.json().then(function (data) { return { res: res, data: data }; }); })
       .then(function (out) {
         if (out.res.ok && out.data && out.data.answer) {
-          fillPending(pending, out.data.answer);
-        } else if (out.data && out.data.error) {
-          fillPending(pending, out.data.error);
-        } else {
-          throw new Error('bad response');
+          // Hold the thinking state for its beat before the answer lands.
+          return afterThinking(startedAt, out.data.answer).then(function () {
+            fillPending(pending, out.data.answer);
+          });
         }
+        if (out.data && out.data.error) {
+          fillPending(pending, out.data.error);
+          return null;
+        }
+        throw new Error('bad response');
       })
       .catch(function () {
         fillPending(pending,
@@ -254,6 +293,9 @@
 
   // ------------------------------------------------- estimate flow (chat)
   var flow = null;
+  // Suggestion chips show on open; once the visitor asks anything they
+  // hide so the answer owns the panel (see renderChips).
+  var suggestionsHidden = false;
 
   var SERVICE_CHIPS = [
     { label: 'Ambulatory', key: 'ambulatory' },
@@ -275,7 +317,14 @@
   function renderChips() {
     chipsBox.innerHTML = '';
     var defs = [];
-    if (!flow) {
+    if (!flow && suggestionsHidden) {
+      // Asked-and-answered state: one slim way back to the suggestions.
+      defs = [{
+        label: 'What else can I ask?',
+        className: 'nvaChip nvaAskMore',
+        action: function () { suggestionsHidden = false; renderChips(); }
+      }];
+    } else if (!flow) {
       defs = [COST_PROMPT, 'What services do you offer?', 'What areas do you serve?', 'What are your hours?', 'How does booking work?']
         .map(function (q) { return { label: q, action: function () { handleUserText(q); } }; });
     } else if (flow.step === 'service') {
@@ -295,7 +344,7 @@
     defs.forEach(function (def) {
       var chip = document.createElement('button');
       chip.type = 'button';
-      chip.className = 'nvaChip';
+      chip.className = def.className || 'nvaChip';
       chip.textContent = def.label;
       chip.addEventListener('click', def.action);
       chipsBox.appendChild(chip);
@@ -586,6 +635,7 @@
     busy = true;
     send.disabled = true;
     var pending = showTyping();
+    var startedAt = Date.now();
     measureTrip()
       .then(function (payload) {
         return fetch(ESTIMATE_ENDPOINT, {
@@ -596,19 +646,21 @@
       })
       .then(function (out) {
         if (out.res.ok && out.data && out.data.mode === 'out_of_area') {
-          fillPending(pending, out.data.answer);
-          endFlow();
-          return;
+          return afterThinking(startedAt, out.data.answer).then(function () {
+            fillPending(pending, out.data.answer);
+            endFlow();
+          });
         }
         if (out.res.ok && out.data && out.data.mode === 'estimate' && out.data.answer) {
-          fillPending(pending, out.data.answer);
-          var actions = document.createElement('div');
-          actions.className = 'nvaEstActions';
-          actions.innerHTML = '<a class="nvaEstBook" href="' + BOOKING_URL + '" target="_blank" rel="noopener">Book a Ride \u2014 exact quote</a>';
-          log.appendChild(actions);
-          log.scrollTop = log.scrollHeight;
-          endFlow();
-          return;
+          return afterThinking(startedAt, out.data.answer).then(function () {
+            fillPending(pending, out.data.answer);
+            var actions = document.createElement('div');
+            actions.className = 'nvaEstActions';
+            actions.innerHTML = '<a class="nvaEstBook" href="' + BOOKING_URL + '" target="_blank" rel="noopener">Book a Ride \u2014 exact quote</a>';
+            log.appendChild(actions);
+            log.scrollTop = log.scrollHeight;
+            endFlow();
+          });
         }
         if (out.data && out.data.error) {
           fillPending(pending, out.data.error + ' You can also get the exact quote in the booking app at ' + BOOKING_URL + ', or call ' + MAIN_PHONE + '.');
@@ -652,6 +704,9 @@
     var q = String(raw || '').trim();
     if (!q || busy) return;
     input.value = '';
+    // The visitor has asked something: clear the suggestion chips out
+    // of the way so the answer is fully visible when it lands.
+    if (!suggestionsHidden) { suggestionsHidden = true; renderChips(); }
     if (EMERGENCY_RE.test(q)) {
       // Emergencies always win; abandon any estimate in progress and
       // let the server's safety path answer.

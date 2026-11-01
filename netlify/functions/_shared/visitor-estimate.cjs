@@ -101,7 +101,15 @@ const SERVICE_TYPES = {
 };
 const SERVICE_ALIASES = { ambulance: 'bls', amb: 'bls', car: 'ambulatory', sedan: 'ambulatory', walking: 'ambulatory' };
 
-const SERVICE_AREA_STATES = new Set(['MD', 'DC', 'VA']);
+// Coverage (owner directive, 2026-11-01): Nexus's local region is
+// MD/DC/VA, and it also covers the rest of the 48 contiguous states for
+// inter-state and long-distance requests. Only AK and HI are out of
+// area for estimates, matching the assistant's coverage answers.
+const OUT_OF_AREA_STATES = new Set(['AK', 'HI']);
+// Longest plausible contiguous-US road trips run under ~3,000 miles;
+// the straight-line plausibility cross-check below still guards the
+// figure, so the cap only rejects nonsense distances.
+const MAX_TRIP_MILES = 3000;
 const MAIN_PHONE = '(888) 639-5766';
 const BOOKING_URL = 'https://mynexusride.com';
 const DEADHEAD_FRACTION = 0.5; // modeled empty miles, as a share of loaded miles
@@ -252,24 +260,24 @@ function createEstimator({ fareEngine = Fare, loadSettings = loadPlatformSetting
       return { status: 400, body: { mode: 'needs_input', error: 'I need the pickup date and time to judge regular hours versus after-hours pricing.' } };
     }
     const loadedMiles = Number(body.loadedMiles);
-    if (!Number.isFinite(loadedMiles) || loadedMiles <= 0 || loadedMiles > 500) {
+    if (!Number.isFinite(loadedMiles) || loadedMiles <= 0 || loadedMiles > MAX_TRIP_MILES) {
       return { status: 400, body: { mode: 'needs_input', error: 'I could not get a road distance for that trip, so I can\u2019t work out an estimate. Please check the addresses and try again.' } };
     }
     const returnMilesInput = Number(body.returnMiles);
-    const returnMiles = tripType === 'ROUND_TRIP' && Number.isFinite(returnMilesInput) && returnMilesInput > 0 && returnMilesInput <= 500
+    const returnMiles = tripType === 'ROUND_TRIP' && Number.isFinite(returnMilesInput) && returnMilesInput > 0 && returnMilesInput <= MAX_TRIP_MILES
       ? returnMilesInput : loadedMiles;
 
-    // Service area: geocoded state components, when provided, must be in
-    // Maryland / Washington, DC / Virginia.
+    // Service area: geocoded state components, when provided, must be
+    // inside the 48 contiguous states — only AK and HI are out of area.
     const pickupState = String(body.pickupState || '').trim().toUpperCase();
     const dropoffState = String(body.dropoffState || '').trim().toUpperCase();
     for (const state of [pickupState, dropoffState]) {
-      if (state && !SERVICE_AREA_STATES.has(state)) {
+      if (state && OUT_OF_AREA_STATES.has(state)) {
         return {
           status: 200,
           body: {
             mode: 'out_of_area',
-            answer: `That trip is outside the area I can estimate for — Nexus serves Maryland, Washington, DC, and Northern Virginia. For trips that touch our coverage area, please call ${MAIN_PHONE} and the team will help, or book online at ${BOOKING_URL}.`
+            answer: `That trip is outside the area I can estimate for — Nexus covers the 48 contiguous states for inter-state trips, so Alaska and Hawaii are out of area. If part of the trip is inside the 48 contiguous states, please call ${MAIN_PHONE} and the team will help, or book online at ${BOOKING_URL}.`
           }
         };
       }
