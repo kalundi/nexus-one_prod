@@ -184,7 +184,19 @@
     const premiumAmount=passengerLegs.reduce((sum,leg)=>sum+leg.premiumAmount,0);
     const deadheadSegments = routeMetrics.deadheadSegments || [0,0];
     const deadheadRate = Math.max(0, Number(rate.perMile || 0)) * Number(fareRules.deadheadRatePct??50)/100;
-    const deadheadDetails=deadheadSegments.map((segment,index)=>({...routeMetrics.deadheadRoutes?.[index],miles:Number(segment)||0,includedMiles,billableMiles:Math.max(0,Number(segment||0)-includedMiles),rate:deadheadRate,charge:Math.max(0,Number(segment||0)-includedMiles)*deadheadRate}));
+    // Return-to-yard deadhead rule (owner directive, 2026-11-01). On ONE-WAY
+    // trips the destination→yard leg (segment 1) is billed on half of its
+    // actual miles instead of the standard miles-beyond-included formula,
+    // still priced at the deadhead rate; for Ambulatory / Wheelchair trips
+    // under 20 loaded miles that leg is not billed at all. The yard→pickup
+    // leg (segment 0) and every round-trip leg keep the standard formula.
+    const oneWayTrip = passengerLegCount === 1;
+    const returnLegExempt = oneWayTrip && ['ambulatory','wheelchair'].includes(normalizeService(service)) && outbound.miles < 20;
+    const deadheadDetails=deadheadSegments.map((segment,index)=>{
+      const segmentMiles=Number(segment)||0;
+      const billableMiles=index===1&&oneWayTrip?(returnLegExempt?0:segmentMiles*0.5):Math.max(0,segmentMiles-includedMiles);
+      return {...routeMetrics.deadheadRoutes?.[index],miles:segmentMiles,includedMiles,billableMiles,rate:deadheadRate,charge:billableMiles*deadheadRate};
+    });
     const deadheadCharge=deadheadDetails.reduce((sum,segment)=>sum+segment.charge,0);
     // Eligibility follows the current estimate time, never saved booking or
     // mock timestamps supplied with the trip's route inputs.

@@ -44,26 +44,33 @@ for (const scenario of [
   assert.equal(result.total,scenario.premium?133.9:103);
 });
 
-test('approved wheelchair example applies allowance to each empty segment and urgency only to base',t=>{
+test('approved wheelchair example: pickup leg keeps its allowance, one-way return leg bills half its actual miles, urgency applies only to base',t=>{
   t.mock.method(Date,'now',()=>require('../nexus-fare.js').scheduledEpoch('2030-08-14','16:00'));
   const calc=calculator({rate:{base:98,includedMiles:8,perMile:4.1}});
   const result=calc.calculateFareBreakdown('wheelchair',20,'2030-08-15','10:00',{
     deadheadSegments:[12,10],bookingTime:new Date('2030-08-14T16:00:00').getTime()
   });
-  assert.ok(Math.abs(result.deadheadCharge-12.3)<.00001);
+  // Pickup leg (12 - 8) x $2.05 = $8.20; return leg per the 2026-11-01
+  // rule (20 loaded miles is not under the exemption): half of 10 actual
+  // miles x $2.05 = $10.25. Total deadhead $18.45.
+  assert.ok(Math.abs(result.deadheadCharge-18.45)<.00001);
   assert.ok(Math.abs(result.shortNoticeCharge-29.4)<.00001);
-  assert.ok(Math.abs(result.subtotal-188.9)<.00001);
-  assert.ok(Math.abs(result.total-194.567)<.00001);
+  assert.ok(Math.abs(result.subtotal-195.05)<.00001);
+  assert.ok(Math.abs(result.total-200.9015)<.00001);
 });
-test('unused allowance on one deadhead segment does not offset another segment',()=>{
+test('unused allowance on the pickup leg does not reduce the return leg billed on half its actual miles',()=>{
   const calc=calculator({rate:{base:98,includedMiles:8,perMile:4.1}});
-  const result=calc.calculateFareBreakdown('wheelchair',8,'2030-08-15','10:00',{deadheadSegments:[2,12],bookingTime:new Date('2030-08-13T10:00:00').getTime()});
-  assert.ok(Math.abs(result.deadheadCharge-8.2)<.00001);
+  const result=calc.calculateFareBreakdown('wheelchair',20,'2030-08-15','10:00',{deadheadSegments:[2,12],bookingTime:new Date('2030-08-13T10:00:00').getTime()});
+  // Pickup leg 2 mi is fully inside the 8-mile allowance ($0); the return
+  // leg bills half of its 12 actual miles regardless: 6 x $2.05 = $12.30.
+  assert.ok(Math.abs(result.deadheadCharge-12.3)<.00001);
   assert.equal(result.shortNoticeCharge,0);
 });
 for(const [service,rate,segments,charge,urgent] of [
   ['ambulatory',{base:75,includedMiles:5,perMile:3.55},[8,4],5.325,22.5],
-  ['bls',{base:1125,includedMiles:0,perMile:18.5},[1,2],27.75,337.5]
+  // BLS: pickup leg 1 mi x $9.25 = $9.25; one-way return leg has no
+  // under-20 exemption, so half of its 2 actual miles x $9.25 = $9.25.
+  ['bls',{base:1125,includedMiles:0,perMile:18.5},[1,2],18.5,337.5]
 ]) test(`${service} uses its own included mileage, half rate, and base surcharge`,t=>{
   t.mock.method(Date,'now',()=>require('../nexus-fare.js').scheduledEpoch('2030-08-14','16:00'));
   const result=calculator({rate}).calculateFareBreakdown(service,5,'2030-08-15','10:00',{deadheadSegments:segments,bookingTime:new Date('2030-08-14T16:00:00').getTime()});

@@ -11,10 +11,13 @@ test('legacy trip with only booking variables yields a current dollar estimate',
 });
 test('legacy booking notes recover empty miles, waits and member savings',()=>{
  const result=Fare.calculateEstimate({...legacy,notes:'Expected stop times: Stop 1: 16 min | Deadhead mileage charge: $12.30; empty segments: 12.00 mi; 10.00 mi | Member savings: 5%'},settings);
- assert.ok(Math.abs(result.deadheadCharge-12.3)<1e-8);
+ // Recovered segments [12, 10] reprice under the current rules: pickup
+ // leg (12 - 8) x $2.05 = $8.20 plus the one-way return leg at half its
+ // 10 actual miles (25.28 loaded miles, no exemption) = $10.25.
+ assert.ok(Math.abs(result.deadheadCharge-18.45)<1e-8);
  assert.equal(result.waitCharge,18.75);
  assert.equal(result.discountPct,5);
- assert.equal(result.discountedTotal,195.60);
+ assert.equal(result.discountedTotal,201.62);
 });
 test('round-trip waiting is recovered from the existing appointment and return schedule',()=>{
  const result=Fare.calculateEstimate({...legacy,tripType:'ROUND_TRIP',appointmentTime:'10:45',returnTripDate:'2030-08-15',returnTripTime:'12:00'},settings);
@@ -36,7 +39,8 @@ test('stored mileage takes precedence over obsolete fare metadata',()=>{
 test('legacy mock breakdowns recover fare inputs while ignoring simulated booking clocks',t=>{
  t.mock.method(Date,'now',()=>Date.parse('2026-10-11T16:00:00Z'));
  const result=Fare.calculateEstimate({...legacy,bookingSource:'MOCK',notes:'Fare breakdown: {"deadheadSegments":[12,10]}. Member savings: 5%. Pricing booking timestamp: 2030-08-14T20:00:00Z (simulated test clock).'},settings);
- assert.ok(Math.abs(result.deadheadCharge-12.3)<1e-8);
+ // Same repricing as the notes case above: $8.20 + $10.25 = $18.45.
+ assert.ok(Math.abs(result.deadheadCharge-18.45)<1e-8);
  assert.equal(result.shortNoticeCharge,0);
  assert.equal(result.discountPct,5);
 });
