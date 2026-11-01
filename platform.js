@@ -117,7 +117,8 @@ if((location.pathname||'').toLowerCase().includes('livecare')&&!document.querySe
   window.addEventListener('resize',setActive,{passive:true});setActive();
  }
  if(!document.documentElement.dataset.nexusMenuDismiss){document.documentElement.dataset.nexusMenuDismiss='1';document.addEventListener('click',event=>{document.querySelectorAll('.nexusHomeGroup[open]').forEach(group=>{if(!group.contains(event.target))group.removeAttribute('open')})});document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelectorAll('.nexusHomeGroup[open]').forEach(group=>group.removeAttribute('open'))})}
- let tries=0;function sync(){if(document.getElementById('bookingForm')||/\/booking-app(?:\.html)?$/i.test(location.pathname))return;lockHomeMenuStyles();normalizeNav();ensureSharedHeaderActions();arrangeAdaptiveMobileHeader();addSectionReturns();ensureCarouselRotation();if(tries++<50)setTimeout(sync,120)}window.addEventListener('resize',arrangeAdaptiveMobileHeader,{passive:true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
+ const nexusStaffPage=/\/(dispatch|admin|operations|billing|fleet|executive|ai-operations|qa|facility)\.html$/i.test(location.pathname);
+ let tries=0;function sync(){if(document.getElementById('bookingForm')||/\/booking-app(?:\.html)?$/i.test(location.pathname))return;if(nexusStaffPage)return;lockHomeMenuStyles();normalizeNav();ensureSharedHeaderActions();arrangeAdaptiveMobileHeader();addSectionReturns();ensureCarouselRotation();if(tries++<50)setTimeout(sync,120)}window.addEventListener('resize',arrangeAdaptiveMobileHeader,{passive:true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
 })();
 
 // Shared international phone handling for every current and dynamically-added phone field.

@@ -1572,3 +1572,38 @@ body.livecare-focus-mode .livecareMapHero .mapOnlyShell .liveFleetMap{
  header.nexusAdaptiveMobileHeader .nexusMobileMenuAccount .nexusAccountText{display:block!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;text-align:left!important}
  header.nexusAdaptiveMobileHeader .nexusMobileMenuAccount .nexusAccountText small{display:none!important}
 }
+
+/* ===== Phase 1 back-office cleanup: slim staff chrome (body.nexusStaff pages only; public pages unchanged) ===== */
+/* 1.1 Slim staff top bar: module nav + account control, no patient CTAs */
+body.nexusStaff .globalNav{min-height:60px;gap:14px}
+body.nexusStaff .globalBrand .logo{width:148px}
+body.nexusStaff .globalLinks{margin-left:0;gap:15px;overflow-x:auto;scrollbar-width:none}
+body.nexusStaff .globalLinks::-webkit-scrollbar{display:none}
+body.nexusStaff .globalLinks a{flex:0 0 auto}
+body.nexusStaff .globalActions{margin-left:auto}
+/* 1.1 508 accessibility badge: bottom-left corner, off the work surface (the toggle is pinned by a runtime !important style, so the override must be !important too) */
+body.nexusStaff .access{top:auto;bottom:16px;left:16px;right:auto;transform:none}
+body.nexusStaff #accessToggle{left:16px!important;right:auto!important;top:auto!important;bottom:16px!important;transform:none!important}
+body.nexusStaff #accessPanel{left:88px!important;right:auto!important;top:auto!important;bottom:16px!important;transform:none!important}
+/* 1.1 The i18n-injected language control (a div, distinct from static header labels) does not belong on staff pages */
+body.nexusStaff div.nexusLanguageControl{display:none!important}
+/* 1.2 Marketing heroes collapse to a one-line title bar */
+body.nexusStaff .heroGrid{grid-template-columns:1fr;gap:8px;padding:20px 0 22px;align-items:start}
+body.nexusStaff .hero h1{font-size:clamp(26px,3vw,32px);margin:6px 0}
+body.nexusStaff .hero p{font-size:15px;margin:0}
+body.nexusStaff .heroPanel{display:none}
+body.nexusStaff .compactHero{padding-block:0}
+body.nexusStaff .moduleMain{padding-top:28px}
+/* 1.2 Map heroes (dispatch/fleet): compact story panel, map at working height */
+body.nexusStaff .livecareMapHero{padding:14px 0 0}
+body.nexusStaff .livecareExperience{min-height:0;max-height:none}
+body.nexusStaff .livecareStoryPanel{padding:18px 22px;gap:12px}
+body.nexusStaff .livecareStoryPanel h1{font-size:30px;margin:8px 0 10px}
+body.nexusStaff .livecareStoryPanel>div>p{font-size:15px}
+body.nexusStaff .livecareCompactMetrics span{padding:10px 6px}
+body.nexusStaff .livecareCompactMetrics strong{font-size:20px}
+body.nexusStaff .mapOnlyShell{min-height:260px}
+body.nexusStaff .mapOnlyShell .liveFleetMap{height:260px;min-height:260px}
+body.nexusStaff .mapServiceStrip{margin:0 16px 14px}
+body.nexusStaff .mapServiceStrip span{padding:12px 8px}
+@media(max-width:560px){body.nexusStaff .mapOnlyShell,body.nexusStaff .mapOnlyShell .liveFleetMap{min-height:260px!important}}
