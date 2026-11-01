@@ -331,7 +331,7 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 		normalizeService
 	};
 
-	function isBookRideControl(el){
+	function isLegacyBookRideControl(el){
 		if(!el) return false;
 		const text=(el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
 		const href=(el.getAttribute('href')||'').toLowerCase();
@@ -340,14 +340,39 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 			el.classList.contains('bookRideCta') ||
 			el.classList.contains('facilityBookRide') ||
 			el.getAttribute('data-book-ride') !== null ||
+			el.getAttribute('data-nexus-unified-booking') !== null ||
 			(el.classList.contains('navCta') && (href.includes('booking-app') || href.includes('mynexusride.com')));
+	}
+
+	// Anthony's rule: any button that goes to the booking app carries the
+	// navigation bar's Book a Ride sign design, whatever its label says.
+	// Detection is by destination (booking-app / mynexusride.com), not label.
+	// Nav links and footer link lists stay text links, inline text links and
+	// app-launcher tiles keep their own look, and controls inside the
+	// booking app itself are left alone.
+	function isBookingBoundControl(el){
+		if(!el || el.tagName!=='A') return false;
+		if(/\/booking-app(?:\.html)?$/i.test(location.pathname)) return false;
+		const href=(el.getAttribute('href')||'').toLowerCase();
+		if(!href.includes('booking-app') && !href.includes('mynexusride.com')) return false;
+		if(el.classList.contains('textLink')) return false;
+		if(el.closest('footer, nav, #appGrid')) return false;
+		return true;
+	}
+
+	function isBookRideControl(el){
+		return isLegacyBookRideControl(el) || isBookingBoundControl(el);
 	}
 
 	function applyBookRideSign(root){
 		(root || document).querySelectorAll(SELECTOR).forEach(el=>{
 			if(!isBookRideControl(el)) return;
 			el.classList.add(CLASS_NAME);
-			if(el.tagName==='A'){
+			// Only controls matched by the original label/class signals get
+			// their href normalized to the shared booking URL. Controls
+			// matched by destination keep their exact href, so facility,
+			// payment-return and staff-trip parameters are never dropped.
+			if(el.tagName==='A' && isLegacyBookRideControl(el)){
 				el.setAttribute('href',buildBookingUrl(el));
 			}
 		});
