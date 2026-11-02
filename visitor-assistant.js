@@ -2,11 +2,29 @@
  *
  * Public-page chat widget. Answers come from the visitor-assistant
  * Netlify function, which answers only from the website knowledge base.
- * The widget keeps nothing: conversation lives in page memory only,
- * and addresses typed for a rough estimate are sent to the
- * visitor-estimate function for that calculation alone — never stored.
- * Loaded on public pages by the delimited loader block at the end of
- * platform.js; never on staff/back-office surfaces.
+ * Apart from the session-only welcome flag described below, the widget
+ * keeps nothing: conversation lives in page memory only, and addresses
+ * typed for a rough estimate are sent to the visitor-estimate function
+ * for that calculation alone — never stored. Loaded on public pages by
+ * the delimited loader block at the end of platform.js; never on
+ * staff/back-office surfaces.
+ *
+ * Entry welcome: on the first page view of a browser session, after a
+ * short beat (1.5s, once the page is usable), a welcome bubble appears
+ * beside the edge tab with Nex's waiting avatar and a short invitation
+ * to chat. Tapping it opens the drawer with that same welcome text as
+ * the first chat message and the usual suggestion chips. A session-only
+ * sessionStorage flag records only that the welcome has been handled —
+ * never anything about the visitor or the conversation — so later page
+ * views in the session do not pop again, and opening Nex first also
+ * suppresses it. The bubble never takes keyboard focus; it is announced
+ * through a separate polite live region, can be dismissed with its
+ * 44px close button or Escape while a bubble control has focus, and
+ * gently collapses after 30 seconds if ignored (the tab remains). If a
+ * native dialog or an aria-modal dialog is already open, the welcome
+ * waits and polls for it to close; if blocking UI stays open for the
+ * whole polling window it skips that page view without setting the
+ * session flag, so a later page view may still welcome the visitor.
  *
  * Placement: a slim edge tab on the LEFT side of the screen (Nex's
  * waiting avatar). Clicking it slides the chat panel in from the left;
@@ -108,6 +126,8 @@
   var WAITING_GIF = '/assets/nex-waiting.gif';
   var TYPING_GIF = '/assets/nex-typing.gif';
   var COST_PROMPT = 'Do you want to know what your ride would cost?';
+  var WELCOME_TEXT = 'Hi, I\u2019m Nex \u2014 the Nexus Medical Transit Virtual Assistant. I can answer questions about our rides and work out what a ride would cost. ' + COST_PROMPT;
+  var WELCOME_SEEN_KEY = 'nvaWelcomeSeen';
   var DEFAULT_PLACEHOLDER = 'Ask about services, areas, hours\u2026';
 
   var CSS = [
@@ -119,6 +139,21 @@
     '.nvaTab.open{transform:translate(var(--nvaW),-50%)}',
     '.nvaTabAvatar{width:36px;height:36px;border-radius:50%;object-fit:cover;background:#fff;flex:none}',
     '.nvaTabLabel{text-align:center;letter-spacing:.02em}',
+    /* Entry welcome bubble: sits immediately beside the edge tab,
+       vertically centered with it. Its width is capped and always
+       leaves room for the tab plus a right-hand margin, so on narrow
+       screens it stays clear of the top navigation and page actions. */
+    '.nvaBubble{position:fixed;left:64px;top:50%;z-index:142;width:min(300px,calc(100vw - 78px));background:#fff;border:1px solid #6e8ca3;border-radius:16px;box-shadow:12px 18px 38px rgba(8,47,73,.28);font:15px/1.45 "Source Sans 3","Segoe UI",sans-serif;color:#12212e;opacity:0;visibility:hidden;pointer-events:none;transform:translate(-8px,-50%);transition:opacity .3s ease,transform .3s ease,visibility 0s linear .3s}',
+    '.nvaBubble.show{opacity:1;visibility:visible;pointer-events:auto;transform:translate(0,-50%);transition:opacity .3s ease,transform .3s ease}',
+    '.nvaBubble:before{content:"";position:absolute;left:-7px;top:50%;width:13px;height:13px;background:#fff;border-left:1px solid #6e8ca3;border-bottom:1px solid #6e8ca3;transform:translateY(-50%) rotate(45deg)}',
+    '.nvaBubbleMain{position:relative;display:flex;align-items:flex-start;gap:10px;width:100%;min-height:44px;border:0;border-radius:16px;background:transparent;color:inherit;font:inherit;text-align:left;padding:13px 48px 13px 12px;cursor:pointer}',
+    '.nvaBubbleAvatar{width:40px;height:40px;border-radius:50%;object-fit:cover;background:#fff;flex:none}',
+    '.nvaBubbleContent{display:flex;flex-direction:column;gap:3px;min-width:0}',
+    '.nvaBubbleCta{font:800 13px/1.3 Manrope,sans-serif;color:#0e5c8c}',
+    '.nvaBubbleClose{position:absolute;top:2px;right:2px;width:44px;height:44px;border:0;border-radius:50%;background:transparent;color:#3d5a70;font-size:20px;line-height:1;cursor:pointer}',
+    '.nvaBubbleClose:hover{background:#eef6fb}',
+    '.nvaBubbleMain:focus-visible,.nvaBubbleClose:focus-visible{outline:3px solid #0e5c8c;outline-offset:2px}',
+    '.nvaSrOnly{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}',
     /* Panel: slides in from the left; message list scrolls inside. */
     '.nvaPanel{position:fixed;left:0;top:0;z-index:140;width:var(--nvaW);height:100dvh;display:flex;flex-direction:column;background:#fff;border:1px solid #d7e2e9;border-left:0;border-top:0;border-bottom:0;border-radius:0 22px 22px 0;overflow:hidden;box-shadow:24px 30px 80px rgba(8,47,73,.30);font:16px/1.5 "Source Sans 3","Segoe UI",sans-serif;color:#12212e;transform:translate(-112%,0);visibility:hidden;pointer-events:none;transition:transform .34s cubic-bezier(.32,.72,.28,1),visibility 0s linear .34s}',
     '.nvaPanel.open{transform:translate(0,0);visibility:visible;pointer-events:auto;transition:transform .34s cubic-bezier(.32,.72,.28,1)}',
@@ -203,7 +238,7 @@
     '.nvaChip:focus-visible,.nvaCall:focus-visible,.nvaInput:focus-visible,.nvaMsg a:focus-visible,.nvaEstActions a:focus-visible,.nvaPanel .nvaBookBtn:focus-visible{outline:3px solid #0e5c8c;outline-offset:2px}',
     '.nvaTab:focus-visible,.nvaClose:focus-visible,.nvaSend:focus-visible{outline:3px solid #ffffff;outline-offset:2px;box-shadow:0 0 0 6px #0e5c8c}',
     '/* Full height at every width: the drawer always spans 100dvh. */',
-    '@media (prefers-reduced-motion:reduce){.nvaPanel,.nvaTab{transition:none!important}.nvaTypingGif{display:none}}'
+    '@media (prefers-reduced-motion:reduce){.nvaPanel,.nvaTab,.nvaBubble{transition:none!important}.nvaTypingGif{display:none}.nvaBubbleAvatar{display:none}}'
   ].join('\n');
 
   var style = document.createElement('style');
@@ -243,6 +278,32 @@
   document.body.appendChild(tab);
   document.body.appendChild(panel);
 
+  var bubble = document.createElement('div');
+  bubble.className = 'nvaBubble';
+  bubble.id = 'nvaBubble';
+  bubble.setAttribute('role', 'group');
+  bubble.setAttribute('aria-label', 'Welcome from Nex');
+  bubble.innerHTML =
+    '<button type="button" class="nvaBubbleMain" id="nvaBubbleMain" aria-label="Open chat with Nex, the Nexus visitor assistant">' +
+    '<img class="nvaBubbleAvatar" src="' + WAITING_GIF + '" alt="" width="40" height="40">' +
+    '<span class="nvaBubbleContent"><span class="nvaBubbleText">' + WELCOME_TEXT + '</span>' +
+    '<span class="nvaBubbleCta">Tap to chat</span></span></button>' +
+    '<button type="button" class="nvaBubbleClose" id="nvaBubbleClose" aria-label="Dismiss Nex\u2019s welcome message">&times;</button>';
+  document.body.appendChild(bubble);
+
+  // Separate polite announcer for the welcome: the bubble appearing
+  // must not steal focus, so its text is announced here instead.
+  var welcomeLive = document.createElement('div');
+  welcomeLive.className = 'nvaSrOnly';
+  welcomeLive.id = 'nvaWelcomeLive';
+  welcomeLive.setAttribute('role', 'status');
+  welcomeLive.setAttribute('aria-live', 'polite');
+  welcomeLive.setAttribute('aria-atomic', 'true');
+  document.body.appendChild(welcomeLive);
+
+  var bubbleMain = bubble.querySelector('.nvaBubbleMain');
+  var bubbleClose = bubble.querySelector('.nvaBubbleClose');
+
   var log = panel.querySelector('#nvaLog');
   var chipsBox = panel.querySelector('#nvaChips');
   var form = panel.querySelector('#nvaForm');
@@ -251,6 +312,7 @@
   var headAvatar = panel.querySelector('#nvaAvatar');
   var inputLabel = panel.querySelector('#nvaInputLabel');
   var greeted = false;
+  var greetingOverride = null;
   var busy = false;
 
   function escapeHtml(text) {
@@ -405,12 +467,16 @@
     tab.classList.toggle('open', open);
     tab.setAttribute('aria-expanded', String(open));
     if (open) {
+      // Opening Nex — by tab, bubble, or keyboard — settles the entry
+      // welcome for the session, so it never pops over the chat.
+      settleWelcome(true);
       if (!greeted) {
         greeted = true;
         addMessage(
-          'Hi, I\u2019m Nex \u2014 the Nexus Medical Transit Virtual Assistant. I answer questions using the information on this website: our services, service areas, hours, booking, pricing estimates and availability, and LiveCare tracking. ' + COST_PROMPT,
+          greetingOverride || ('Hi, I\u2019m Nex \u2014 the Nexus Medical Transit Virtual Assistant. I answer questions using the information on this website: our services, service areas, hours, booking, pricing estimates and availability, and LiveCare tracking. ' + COST_PROMPT),
           'bot'
         );
+        greetingOverride = null;
         log.scrollTop = 0; // greet from the top; later messages scroll down
       }
       setTimeout(function () { input.focus(); }, 60);
@@ -420,8 +486,122 @@
   tab.addEventListener('click', function () { setOpen(!panel.classList.contains('open')); });
   panel.querySelector('.nvaClose').addEventListener('click', function () { setOpen(false); tab.focus(); });
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && panel.classList.contains('open')) { setOpen(false); tab.focus(); }
+    if (e.key !== 'Escape') return;
+    if (panel.classList.contains('open')) { setOpen(false); tab.focus(); return; }
+    // Escape dismisses the welcome only while one of its own controls
+    // has keyboard focus; it never hijacks Escape elsewhere on the page.
+    if (welcomeVisible && (document.activeElement === bubbleMain || document.activeElement === bubbleClose)) {
+      dismissWelcome();
+    }
   });
+
+  // ------------------------------------------------------- entry welcome
+  // State for the once-per-session welcome bubble (see the header
+  // note). welcomeSettled covers every end state for this page view:
+  // shown, dismissed, auto-collapsed, suppressed because Nex opened
+  // first, or skipped because blocking UI never cleared.
+  var welcomeSettled = false;
+  var welcomeVisible = false;
+  var welcomeTimer = null;
+  var welcomePoll = null;
+  var welcomeCollapse = null;
+  var welcomePollAttempts = 0;
+
+  function welcomeSeenBefore() {
+    try {
+      var store = window.sessionStorage;
+      return Boolean(store && store.getItem(WELCOME_SEEN_KEY) === '1');
+    } catch (err) {
+      return false; // storage unavailable: fall back to page memory only
+    }
+  }
+
+  function markWelcomeSeen() {
+    try {
+      var store = window.sessionStorage;
+      if (store) store.setItem(WELCOME_SEEN_KEY, '1');
+    } catch (err) { /* page-memory state still settles this page view */ }
+  }
+
+  function clearWelcomeTimers() {
+    if (welcomeTimer !== null) { clearTimeout(welcomeTimer); welcomeTimer = null; }
+    if (welcomePoll !== null) { clearTimeout(welcomePoll); welcomePoll = null; }
+    if (welcomeCollapse !== null) { clearTimeout(welcomeCollapse); welcomeCollapse = null; }
+  }
+
+  function hideWelcome() {
+    if (welcomeCollapse !== null) { clearTimeout(welcomeCollapse); welcomeCollapse = null; }
+    bubble.classList.remove('show');
+    welcomeVisible = false;
+  }
+
+  function settleWelcome(markSeen) {
+    if (markSeen) markWelcomeSeen();
+    welcomeSettled = true;
+    clearWelcomeTimers();
+    hideWelcome();
+  }
+
+  function dismissWelcome() {
+    var focusWasInBubble = false;
+    try {
+      focusWasInBubble = document.activeElement === bubbleMain || document.activeElement === bubbleClose;
+    } catch (err) { focusWasInBubble = false; }
+    settleWelcome(true);
+    if (focusWasInBubble) tab.focus();
+  }
+
+  // Blocking UI: a native <dialog> that is open, or any element the
+  // page has marked aria-modal (the widget's own panel carries
+  // role="dialog" without aria-modal, so it never matches itself).
+  function blockingUiOpen() {
+    try {
+      if (!document.querySelector) return false;
+      if (document.querySelector('dialog[open]')) return true;
+      var modal = document.querySelector('[aria-modal="true"]');
+      return Boolean(modal && modal !== panel);
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function showWelcome() {
+    welcomeTimer = null;
+    if (welcomeSettled) return;
+    if (panel.classList.contains('open')) { settleWelcome(true); return; }
+    if (blockingUiOpen()) {
+      // Wait for the blocking UI to close, polling once a second for
+      // up to 30 seconds; if it never clears, skip this page view
+      // WITHOUT setting the session flag.
+      welcomePollAttempts += 1;
+      if (welcomePollAttempts > 30) { settleWelcome(false); return; }
+      welcomePoll = setTimeout(showWelcome, 1000);
+      return;
+    }
+    welcomeSettled = true;
+    markWelcomeSeen();
+    bubble.classList.add('show');
+    welcomeVisible = true;
+    welcomeLive.textContent = WELCOME_TEXT;
+    // Ignored, the bubble gently collapses after 30 seconds; the
+    // session flag stays set and the plain tab remains available.
+    welcomeCollapse = setTimeout(function () { hideWelcome(); }, 30000);
+  }
+
+  bubbleMain.addEventListener('click', function () {
+    // The bubble's own text becomes the first message in the chat log,
+    // followed by the usual suggestion chips.
+    greetingOverride = WELCOME_TEXT;
+    settleWelcome(true);
+    setOpen(true);
+  });
+  bubbleClose.addEventListener('click', dismissWelcome);
+
+  if (welcomeSeenBefore()) {
+    welcomeSettled = true;
+  } else {
+    welcomeTimer = setTimeout(showWelcome, 1500);
+  }
 
   // ------------------------------------------------------------- Q&A path
   // Conversation memory: the last completed estimate and the recent

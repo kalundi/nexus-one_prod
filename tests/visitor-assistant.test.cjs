@@ -826,3 +826,255 @@ test('508 contract: live region, focus visibility, contrast borders, target size
   assert.match(src, /\.nvaEstTotal\{[^}]*font:800 27px/, 'the estimate total renders large and heavy');
   assert.match(src, /\.nvaEstLabel\{[^}]*text-transform:uppercase/, 'the estimate block carries a text label');
 });
+
+// ---------------------------------------------------------------
+// Entry welcome bubble: once per session, after a short beat, the
+// widget pops a welcome beside the edge tab. These tests run the
+// widget in the fake DOM with a manual timer queue (so the beat,
+// the modal polling and the 30s auto-collapse are deterministic),
+// a Map-backed sessionStorage shared across loads (two loads = two
+// page views in one session), captured document listeners (for
+// Escape) and focus tracking (to prove the pop never steals focus).
+
+const EXPECTED_WELCOME = 'Hi, I\u2019m Nex \u2014 the Nexus Medical Transit Virtual Assistant. I can answer questions about our rides and work out what a ride would cost. Do you want to know what your ride would cost?';
+
+function loadWelcomeWidget(options) {
+  const opts = options || {};
+  const storageData = opts.storageData || new Map();
+  const sessionStorageStub = {
+    getItem: (k) => (storageData.has(k) ? storageData.get(k) : null),
+    setItem: (k, v) => { storageData.set(k, String(v)); },
+    removeItem: (k) => { storageData.delete(k); },
+  };
+  let now = 0;
+  let nextTimer = 1;
+  const timers = new Map();
+  const fakeSetTimeout = (fn, delay) => {
+    const id = nextTimer++;
+    timers.set(id, { fn, at: now + (Number(delay) || 0) });
+    return id;
+  };
+  const fakeClearTimeout = (id) => { timers.delete(id); };
+  function advance(ms) {
+    const target = now + ms;
+    for (;;) {
+      let dueId = null;
+      let dueAt = Infinity;
+      for (const [id, t] of timers) {
+        if (t.at <= target && (t.at < dueAt || (t.at === dueAt && id < dueId))) { dueId = id; dueAt = t.at; }
+      }
+      if (dueId === null) break;
+      const t = timers.get(dueId);
+      timers.delete(dueId);
+      now = t.at;
+      t.fn();
+    }
+    now = target;
+  }
+  const docListeners = {};
+  const documentStub = {
+    head: makeFakeElement('head'),
+    body: makeFakeElement('body'),
+    activeElement: null,
+    createElement: (tag) => makeFakeElement(tag),
+    addEventListener: (type, fn) => { (docListeners[type] = docListeners[type] || []).push(fn); },
+    querySelector: (sel) => {
+      if (sel === 'dialog[open]' || sel === '[aria-modal="true"]') {
+        return opts.isModalOpen && opts.isModalOpen() ? makeFakeElement('div') : null;
+      }
+      return null;
+    },
+  };
+  const windowStub = {
+    google: { maps: makeMapsStub((query, cb) => cb([], 'ZERO_RESULTS'), []) },
+    matchMedia: () => ({ matches: opts.reducedMotion !== false }),
+    sessionStorage: sessionStorageStub,
+  };
+  const sandbox = {
+    window: windowStub, document: documentStub,
+    fetch: async () => { throw new Error('network disabled in welcome tests'); },
+    setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout, console,
+  };
+  vm.createContext(sandbox);
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  vm.runInContext(src, sandbox, { filename: 'visitor-assistant.js' });
+  const tab = documentStub.body.children.find((c) => c.classList.contains('nvaTab'));
+  const panel = documentStub.body.children.find((c) => c.classList.contains('nvaPanel'));
+  const bubble = documentStub.body.children.find((c) => c.classList.contains('nvaBubble'));
+  const live = documentStub.body.children.find((c) => c.classList.contains('nvaSrOnly'));
+  const bubbleMain = bubble.querySelector('.nvaBubbleMain');
+  const bubbleClose = bubble.querySelector('.nvaBubbleClose');
+  const log = panel.querySelector('#nvaLog');
+  const chips = panel.querySelector('#nvaChips');
+  for (const el of [tab, bubbleMain, bubbleClose]) {
+    el.focus = () => { documentStub.activeElement = el; };
+  }
+  return {
+    storageData,
+    advance,
+    tab, panel, bubble, live, bubbleMain, bubbleClose,
+    bubbleShown: () => bubble.classList.contains('show'),
+    panelOpen: () => panel.classList.contains('open'),
+    activeElement: () => documentStub.activeElement,
+    logText: () => log.children.map((c) => stripTags(c.innerHTML)).join('\n'),
+    chipLabels: () => chips.children.map((c) => c.textContent),
+    pressEscape: () => (docListeners.keydown || []).forEach((fn) => fn({ key: 'Escape', preventDefault() {} })),
+  };
+}
+
+test('welcome bubble: 508 and placement contract in the widget source', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  // The bubble text reuses Anthony's cost-prompt line as its invitation.
+  assert.match(src, /var WELCOME_TEXT = 'Hi, I\\u2019m Nex[\s\S]{0,200}\+ COST_PROMPT;/, 'welcome text is built on the established cost prompt');
+  // Placement: beside the 56px tab, width capped with room to spare.
+  assert.match(src, /\.nvaBubble\{[^}]*left:64px/, 'bubble sits beside the edge tab');
+  assert.match(src, /\.nvaBubble\{[^}]*width:min\(300px,calc\(100vw - 78px\)\)/, 'bubble width is constrained on narrow screens');
+  // It never steals focus: announcement goes through a polite region.
+  assert.match(src, /welcomeLive\.setAttribute\('aria-live', 'polite'\)/, 'welcome is announced politely');
+  assert.match(src, /welcomeLive\.setAttribute\('role', 'status'\)/, 'welcome announcer is a status region');
+  // Both bubble controls are keyboard-operable with visible focus;
+  // the dismiss control is a labeled 44px target.
+  assert.match(src, /\.nvaBubbleMain:focus-visible,\.nvaBubbleClose:focus-visible\{outline:3px solid #0e5c8c/, 'bubble controls have a visible focus ring');
+  assert.match(src, /\.nvaBubbleClose\{[^}]*width:44px;height:44px/, 'dismiss control is 44x44px');
+  assert.match(src, /aria-label="Dismiss Nex\\u2019s welcome message"/, 'dismiss control is labeled');
+  // Reduced motion: no bubble transition, and the avatar GIF is
+  // stilled exactly like the typing indicator.
+  assert.match(src, /prefers-reduced-motion:reduce\)\{[^}]*\.nvaBubble\{transition:none!important\}/, 'reduced motion stills the bubble transition');
+  assert.match(src, /prefers-reduced-motion:reduce\)\{[\s\S]{0,160}\.nvaBubbleAvatar\{display:none\}/, 'reduced motion stills the bubble avatar');
+  // Blocking UI is checked before popping; the session flag is the
+  // only thing stored.
+  assert.match(src, /document\.querySelector\('dialog\[open\]'\)/, 'an open native dialog blocks the pop');
+  assert.match(src, /document\.querySelector\('\[aria-modal="true"\]'\)/, 'an aria-modal dialog blocks the pop');
+  assert.match(src, /WELCOME_SEEN_KEY = 'nvaWelcomeSeen'/, 'the session flag key is namespaced');
+  assert.match(src, /setTimeout\(showWelcome, 1500\)/, 'the pop waits for the 1.5s beat');
+  assert.match(src, /hideWelcome\(\); \}, 30000\)/, 'an ignored bubble gently collapses after 30s');
+});
+
+test('welcome bubble: pops once after the beat, announces politely, and never steals focus', () => {
+  const shared = new Map();
+  const w = loadWelcomeWidget({ storageData: shared });
+  assert.equal(w.bubbleShown(), false, 'no bubble before the beat');
+  w.advance(1499);
+  assert.equal(w.bubbleShown(), false, 'still no bubble just before 1.5s');
+  w.advance(1);
+  assert.equal(w.bubbleShown(), true, 'the bubble pops at 1.5s');
+  assert.equal(w.live.textContent, EXPECTED_WELCOME, 'the polite live region announces the welcome text');
+  assert.ok(w.bubble.innerHTML.includes(EXPECTED_WELCOME), 'the bubble shows the welcome text');
+  assert.equal(w.activeElement(), null, 'showing the bubble does not move keyboard focus');
+  assert.equal(shared.get('nvaWelcomeSeen'), '1', 'the session flag is set when the bubble shows');
+
+  // Second page view in the same session: no re-pop.
+  const w2 = loadWelcomeWidget({ storageData: shared });
+  w2.advance(10000);
+  assert.equal(w2.bubbleShown(), false, 'a later page view in the session does not re-pop');
+});
+
+test('welcome bubble: dismiss persists for the rest of the session', () => {
+  const shared = new Map();
+  const w = loadWelcomeWidget({ storageData: shared });
+  w.advance(1500);
+  assert.equal(w.bubbleShown(), true);
+  w.bubbleClose.click();
+  assert.equal(w.bubbleShown(), false, 'the close control dismisses the bubble');
+  assert.equal(shared.get('nvaWelcomeSeen'), '1', 'dismissal is recorded for the session');
+  const w2 = loadWelcomeWidget({ storageData: shared });
+  w2.advance(10000);
+  assert.equal(w2.bubbleShown(), false, 'the dismissed welcome stays dismissed on later page views');
+});
+
+test('welcome bubble: opening Nex first suppresses the pop-up', () => {
+  const shared = new Map();
+  const w = loadWelcomeWidget({ storageData: shared });
+  w.tab.click();
+  assert.equal(w.panelOpen(), true, 'the drawer opens from the tab');
+  w.advance(10000);
+  assert.equal(w.bubbleShown(), false, 'no pop once Nex has been opened');
+  assert.equal(shared.get('nvaWelcomeSeen'), '1', 'opening Nex settles the welcome for the session');
+  assert.match(w.logText(), /I answer questions using the information on this website/, 'the tab path keeps the established full greeting');
+});
+
+test('welcome bubble: tapping it opens the drawer with the welcome as the first message and the usual chips', () => {
+  const w = loadWelcomeWidget({});
+  w.advance(1500);
+  w.bubbleMain.click();
+  assert.equal(w.panelOpen(), true, 'tapping the bubble opens the drawer');
+  assert.equal(w.bubbleShown(), false, 'the bubble hides once the drawer opens');
+  const firstMessage = w.logText().split('\n')[0];
+  assert.equal(firstMessage, EXPECTED_WELCOME, 'the welcome text is the first message in the chat log');
+  assert.deepEqual(w.chipLabels(), [
+    'Do you want to know what your ride would cost?',
+    'What services do you offer?',
+    'What areas do you serve?',
+    'What are your hours?',
+    'How does booking work?',
+  ], 'the usual suggestion chips are present');
+});
+
+test('welcome bubble: reduced-motion visitors still get the pop, without animation', () => {
+  const w = loadWelcomeWidget({ reducedMotion: true });
+  w.advance(1500);
+  assert.equal(w.bubbleShown(), true, 'the bubble still appears for reduced-motion visitors');
+  assert.equal(w.live.textContent, EXPECTED_WELCOME, 'the announcement still fires');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  assert.match(src, /@media \(prefers-reduced-motion:reduce\)\{\.nvaPanel,\.nvaTab,\.nvaBubble\{transition:none!important\}\.nvaTypingGif\{display:none\}\.nvaBubbleAvatar\{display:none\}\}/,
+    'the reduced-motion rule covers the bubble and its avatar');
+});
+
+test('welcome bubble: Escape dismisses it only while a bubble control has focus, and returns focus to the tab', () => {
+  const w = loadWelcomeWidget({});
+  w.advance(1500);
+  assert.equal(w.bubbleShown(), true);
+  // Focus elsewhere on the page: Escape is not hijacked.
+  w.pressEscape();
+  assert.equal(w.bubbleShown(), true, 'Escape with focus elsewhere leaves the bubble alone');
+  // Focus on the bubble itself: Escape dismisses and focus lands on the tab.
+  w.bubbleMain.focus();
+  assert.equal(w.activeElement(), w.bubbleMain);
+  w.pressEscape();
+  assert.equal(w.bubbleShown(), false, 'Escape dismisses the bubble when it has focus');
+  assert.equal(w.activeElement(), w.tab, 'focus returns to the Nex tab');
+});
+
+test('welcome bubble: an open modal delays the pop until it closes', () => {
+  let modalOpen = true;
+  const shared = new Map();
+  const w = loadWelcomeWidget({ storageData: shared, isModalOpen: () => modalOpen });
+  w.advance(1500);
+  assert.equal(w.bubbleShown(), false, 'no pop over an open modal');
+  w.advance(3000);
+  assert.equal(w.bubbleShown(), false, 'the welcome keeps waiting while the modal is open');
+  assert.equal(shared.has('nvaWelcomeSeen'), false, 'the session flag is not set while waiting');
+  modalOpen = false;
+  w.advance(1000);
+  assert.equal(w.bubbleShown(), true, 'the welcome pops once the modal closes');
+  assert.equal(shared.get('nvaWelcomeSeen'), '1');
+});
+
+test('welcome bubble: blocking UI that never closes skips the page view without setting the session flag', () => {
+  let modalOpen = true;
+  const shared = new Map();
+  const w = loadWelcomeWidget({ storageData: shared, isModalOpen: () => modalOpen });
+  w.advance(40000);
+  assert.equal(w.bubbleShown(), false, 'the welcome gives up on this page view');
+  assert.equal(shared.has('nvaWelcomeSeen'), false, 'skipping does not burn the once-per-session pop');
+  // A later page view in the same session may still pop.
+  modalOpen = false;
+  const w2 = loadWelcomeWidget({ storageData: shared, isModalOpen: () => modalOpen });
+  w2.advance(1500);
+  assert.equal(w2.bubbleShown(), true, 'the next page view pops normally');
+});
+
+test('welcome bubble: an ignored bubble gently collapses after 30 seconds and does not re-pop', () => {
+  const shared = new Map();
+  const w = loadWelcomeWidget({ storageData: shared });
+  w.advance(1500);
+  assert.equal(w.bubbleShown(), true);
+  w.advance(29999);
+  assert.equal(w.bubbleShown(), true, 'the bubble is still there just before 30s');
+  w.advance(1);
+  assert.equal(w.bubbleShown(), false, 'the bubble collapses at 30s');
+  assert.equal(shared.get('nvaWelcomeSeen'), '1', 'the session flag survives the collapse');
+  const w2 = loadWelcomeWidget({ storageData: shared });
+  w2.advance(10000);
+  assert.equal(w2.bubbleShown(), false, 'no re-pop later in the session');
+});
