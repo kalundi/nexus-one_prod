@@ -2,13 +2,13 @@ const {test,expect}=require('@playwright/test');
 const facility={id:'FC-A',name:'Care Facility A',address:'100 Facility Lane, Annapolis, MD'};
 const trip={reference:'PROD-1001',name:'Alex Passenger',service:'wheelchair',pickup:facility.address,destination:'200 Hospital Road, Annapolis, MD',trip_date:'2026-10-28',trip_time:'08:00:00',appointment_time:'09:00:00',status:'SCHEDULED',payment_status:'DEPOSIT_PAID',driver_name:'Assigned Driver',vehicle_unit:'N100',trip_type:'ROUND_TRIP',return_trip_date:'2026-10-28',return_trip_time:'12:00:00',unread:1};
 async function fixture(page,{staff=false,empty=false}={}){
- const captured={messages:[],locations:[],scope:[]};let messages=[];
+ const captured={messages:[],locations:[],scope:[],tripParams:[]};let messages=[];
  await page.addInitScript(()=>sessionStorage.setItem('nexusAccessToken','production-manager-session'));
  await page.route('https://**',r=>r.abort());
  await page.route('**/api/**',async route=>{const url=new URL(route.request().url()),path=url.pathname;let json={};
   if(path==='/api/auth/me')json={user:{id:'manager',role:staff?'DISPATCHER':'FACILITY',scopeId:facility.id,displayName:'Facility Manager',email:'manager@example.com',phone:'2405550100'}};
   if(path==='/api/facility-portal/context')json={facilities:staff?[facility,{id:'FC-B',name:'Care B',address:'Other address'}]:[facility],manager:!staff,today:'2026-10-28'};
-  if(path==='/api/facility-portal/trips'){captured.scope.push(url.searchParams.get('facility'));json={facility,trips:empty?[]:[trip],page:0,hasMore:false,updatedAt:new Date().toISOString()};}
+  if(path==='/api/facility-portal/trips'){captured.scope.push(url.searchParams.get('facility'));captured.tripParams.push({from:url.searchParams.get('from'),to:url.searchParams.get('to')});json={facility,trips:empty?[]:[trip],page:0,hasMore:false,summary:{total:empty?0:1,pending:empty?0:1,active:0,complete:0},updatedAt:new Date().toISOString()};}
   if(path==='/api/facility-portal/locations')json={locations:empty?[]:[{address:trip.destination,visits:4,last_visit:'2026-10-27'}],basis:'Completed bookings, all time.'};
   if(path.startsWith('/api/facility-portal/communications/')){
    if(route.request().method()==='POST'){const body=route.request().postDataJSON();captured.messages.push(body);messages.push({id:'message',body:body.message,author_name:'Facility Manager',author_role:'FACILITY',created_at:new Date().toISOString()});json={message:'Saved'};}
@@ -24,6 +24,8 @@ async function fixture(page,{staff=false,empty=false}={}){
 for(const width of [1440,390])test(`production manager works across board, routes, inbox and evolving locations at ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:1000});const errors=[];page.on('pageerror',e=>errors.push(e.message));const captured=await fixture(page);
  await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText('Alex Passenger');await expect(page.locator('#facilityName')).toHaveText(facility.name);await expect(page.locator('#facilitySelectLabel')).toBeHidden();
+ await expect(page.locator('text=Service Date/s')).toBeVisible();await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams.at(-1)).toEqual({from:'2026-10-28',to:'2026-10-28'});
+ await page.locator('#timeframe').selectOption('week');await expect(page.locator('#serviceRange')).toHaveText('Sun, Oct 25 – Sat, Oct 31, 2026');await expect(page.locator('#tripCount')).toHaveText('1');expect(captured.tripParams.at(-1)).toEqual({from:'2026-10-25',to:'2026-10-31'});
  await expect(page.locator('#tripRows')).toContainText('Deposit Paid');await expect(page.locator('#tripRows')).toContainText('Assigned Driver');
  await page.screenshot({path:`output/facility-production-board-${width}.png`,fullPage:true});
  await page.locator('#tripSearch').fill('no match');await expect(page.locator('#tripRows')).toContainText('No trips match');await page.locator('#tripSearch').fill('');
@@ -54,7 +56,7 @@ test('shared Nexus header and footer use the ride sign and open an accessible po
  await page.locator('#closeBookingDialog').click();await expect(page.locator('#bookingDialog')).not.toBeVisible();await expect(button).toBeFocused();await button.click();await page.keyboard.press('Escape');await expect(page.locator('#bookingDialog')).not.toBeVisible();await expect(button).toBeFocused();
 });
 test('empty production accounts show empty operations and no fictional locations',async({page})=>{
- await fixture(page,{empty:true});await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText('No trips match');await page.locator('nav [data-view="locations"]').click();await expect(page.locator('#locationStatus')).toContainText('No completed transportation history');await expect(page.locator('#locationList')).toBeEmpty();await page.locator('nav [data-view="communications"]').click();await expect(page.locator('#messageStatus')).toContainText('Choose a service day');
+ await fixture(page,{empty:true});await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText('No trips match');await page.locator('nav [data-view="locations"]').click();await expect(page.locator('#locationStatus')).toContainText('No completed transportation history');await expect(page.locator('#locationList')).toBeEmpty();await page.locator('nav [data-view="communications"]').click();await expect(page.locator('#messageStatus')).toContainText('Choose a service date');
 });
 test('dispatch must select a facility and can use the same shared inbox',async({page})=>{
  const captured=await fixture(page,{staff:true});await page.goto('/facility.html');await expect(page.locator('#facilitySelectLabel')).toBeVisible();await expect(page.locator('#notice')).toContainText('Select a facility');expect(captured.scope).toHaveLength(0);await page.locator('#facilitySelect').selectOption('FC-A');await expect(page.locator('#tripRows')).toContainText(trip.reference);await page.locator('nav [data-view="communications"]').click();await expect(page.locator('#messageRecipient')).toHaveText('the facility manager');

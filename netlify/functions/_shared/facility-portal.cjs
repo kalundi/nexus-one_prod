@@ -19,12 +19,25 @@ function createHandler({query,requireUser,bearer,json,parseBody}){
   if(!facility)throw error(isManager?'Your assigned facility is inactive or unavailable.':'Select an active facility.',409);
   const base={facility,bookingUrl:'/booking-app.html?facility='+encodeURIComponent(id)};
   if(p[1]==='trips'&&method==='GET'){
-   const date=clean(params.date)||easternDate(),page=Number(params.page||0);
-   if(!validDate(date)||!Number.isInteger(page)||page<0||page>10000)throw error('Choose a valid service day and page.');
-   const rows=(await query(`SELECT b.reference,b.name,b.service,b.pickup,b.destination,b.trip_date,b.trip_time,booking_appointment_time(b.notes) AS appointment_time,b.status,b.payment_status,b.driver_name,b.vehicle_unit,b.trip_type,b.return_trip_date,b.return_trip_time,b.updated_at,
-    (SELECT count(*)::int FROM facility_portal_messages m WHERE m.facility_id=$1 AND m.booking_reference=b.reference AND m.author_id<>$4::uuid AND m.created_at>COALESCE((SELECT r.read_at FROM facility_portal_reads r WHERE r.user_id=$4::uuid AND r.booking_reference=b.reference),'-infinity'::timestamptz)) AS unread
-    FROM bookings b WHERE b.facility_id=$1 AND ${realBooking} AND (b.trip_date=$2::date OR b.return_trip_date=$2::date) ORDER BY b.trip_time,b.reference LIMIT 101 OFFSET $3`,[id,date,page*100,user.id])).rows;
-   return json(200,{...base,date,page,hasMore:rows.length>100,trips:rows.slice(0,100),updatedAt:new Date().toISOString()});
+   const page=Number(params.page||0),fromParam=clean(params.from),toParam=clean(params.to);
+   let from,to;
+   if(fromParam||toParam){from=fromParam;to=toParam;}
+   else{from=to=clean(params.date)||easternDate();}
+   if(!validDate(from)||!validDate(to)||from>to||(Date.parse(to+'T12:00:00Z')-Date.parse(from+'T12:00:00Z'))/86400000>366||!Number.isInteger(page)||page<0||page>10000)throw error('Choose valid service dates and page.');
+   const rangeTrips=`b.facility_id=$1 AND ${realBooking} AND (b.trip_date BETWEEN $2::date AND $3::date OR b.return_trip_date BETWEEN $2::date AND $3::date)`;
+   const [rows,summaryRows]=await Promise.all([
+    query(`SELECT b.reference,b.name,b.service,b.pickup,b.destination,b.trip_date,b.trip_time,booking_appointment_time(b.notes) AS appointment_time,b.status,b.payment_status,b.driver_name,b.vehicle_unit,b.trip_type,b.return_trip_date,b.return_trip_time,b.updated_at,
+    (SELECT count(*)::int FROM facility_portal_messages m WHERE m.facility_id=$1 AND m.booking_reference=b.reference AND m.author_id<>$5::uuid AND m.created_at>COALESCE((SELECT r.read_at FROM facility_portal_reads r WHERE r.user_id=$5::uuid AND r.booking_reference=b.reference),'-infinity'::timestamptz)) AS unread
+    FROM bookings b WHERE ${rangeTrips} ORDER BY b.trip_date,b.trip_time,b.reference LIMIT 101 OFFSET $4`,[id,from,to,page*100,user.id]),
+    query(`SELECT count(*)::int AS total,
+    count(*) FILTER (WHERE upper(COALESCE(b.status,'')) IN ('COMPLETED','DELIVERED','BILLED','PAID'))::int AS complete,
+    count(*) FILTER (WHERE upper(COALESCE(b.status,'')) IN ('CANCELLED','NO_SHOW','MISSED','DENIED'))::int AS cancelled,
+    count(*) FILTER (WHERE upper(COALESCE(b.status,'')) IN ('EN_ROUTE','ARRIVED','ARRIVED_PICKUP','PATIENT_ON_BOARD','IN_TRANSIT','DEPARTED','ARRIVED_DESTINATION'))::int AS active
+    FROM bookings b WHERE ${rangeTrips}`,[id,from,to])
+   ]);
+   const counts=summaryRows.rows[0]||{total:0,complete:0,cancelled:0,active:0};
+   const summary={total:counts.total,pending:counts.total-counts.complete-counts.cancelled-counts.active,active:counts.active,complete:counts.complete};
+   return json(200,{...base,date:from,from,to,page,hasMore:rows.rows.length>100,trips:rows.rows.slice(0,100),summary,updatedAt:new Date().toISOString()});
   }
   if(p[1]==='locations'&&method==='GET'){
    const locations=(await query(`WITH stops AS (

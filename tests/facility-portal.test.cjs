@@ -58,3 +58,51 @@ test('production facility operations enforce scope, persist conversations and ra
   assert.equal((await db.query('SELECT count(*)::int AS count FROM facility_portal_messages')).rows[0].count,2);
  }finally{await db.close();}
 });
+
+test('trips endpoint serves date ranges with range-wide summary counts and unchanged facility scope',async()=>{
+ const db=new PGlite(),manager='11111111-1111-4111-8111-111111111111';
+ try{
+  await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
+   CREATE TABLE users(id uuid PRIMARY KEY); INSERT INTO users VALUES('${manager}');
+   CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
+   INSERT INTO facilities VALUES('FC-A','Care A','100 Facility Lane',true),('FC-B','Care B','200 Facility Lane',true);
+   CREATE TABLE bookings(reference text PRIMARY KEY,facility_id text,booking_source text,name text,service text,pickup text,destination text,trip_date date,trip_time time,notes text,status text,payment_status text,driver_name text,vehicle_unit text,trip_type text,return_trip_date date,return_trip_time time,updated_at timestamptz);`);
+  await db.exec(fs.readFileSync('database/migrations/084.001_patient_schedule_duplicates.sql','utf8').split('CREATE OR REPLACE FUNCTION booking_appointment_time')[1].split('CREATE OR REPLACE FUNCTION booking_referral_key')[0].replace(/^/, 'CREATE OR REPLACE FUNCTION booking_appointment_time'));
+  await db.exec(fs.readFileSync('database/migrations/094.001_facility_portal.sql','utf8'));
+  const bulk=Array.from({length:105},(_,i)=>`('R${String(i).padStart(3,'0')}','FC-A','CUSTOMER','Bulk Passenger','Facility Lane','Clinic Lane','2026-03-10','08:00','REQUESTED','UNPAID')`).join(',');
+  await db.exec(`INSERT INTO bookings(reference,facility_id,booking_source,name,pickup,destination,trip_date,trip_time,status,payment_status) VALUES ${bulk},
+   ('DONE1','FC-A','CUSTOMER','Done Passenger','Facility Lane','Clinic Lane','2026-03-05','09:00','COMPLETED','PAID_IN_FULL'),
+   ('ACT1','FC-A','CUSTOMER','Active Passenger','Facility Lane','Clinic Lane','2026-03-20','09:00','EN_ROUTE','UNPAID'),
+   ('CAN1','FC-A','CUSTOMER','Cancelled Passenger','Facility Lane','Clinic Lane','2026-03-31','09:00','CANCELLED','UNPAID'),
+   ('RET1','FC-A','CUSTOMER','Return Passenger','Facility Lane','Clinic Lane','2026-02-27','09:00','COMPLETED','PAID_IN_FULL'),
+   ('OUT1','FC-A','CUSTOMER','Outside Passenger','Facility Lane','Clinic Lane','2026-04-01','09:00','COMPLETED','PAID_IN_FULL'),
+   ('OTHER','FC-B','CUSTOMER','Other Facility Passenger','Other Lane','Clinic Lane','2026-03-10','09:00','COMPLETED','PAID_IN_FULL');
+   UPDATE bookings SET return_trip_date='2026-03-01',return_trip_time='12:00',trip_type='ROUND_TRIP' WHERE reference='RET1';`);
+  const users={manager:{id:manager,role:'FACILITY',scope_id:'FC-A',display_name:'Manager A'}};
+  const handler=createHandler({query:(...args)=>db.query(...args),requireUser:async token=>{if(!users[token])throw Object.assign(Error('Authentication required'),{statusCode:401});return users[token];},bearer:e=>e.headers.authorization,json:(statusCode,body)=>({statusCode,body}),parseBody:e=>JSON.parse(e.body)});
+  const call=async(params={})=>{try{return await handler({headers:{authorization:'manager'},queryStringParameters:params,body:'{}'},['facility-portal','trips'],'GET');}catch(error){return {statusCode:error.statusCode||500,body:{error:error.message}};}};
+  // March 2026 range: 105 bulk + DONE1 + ACT1 + CAN1 + RET1 (return leg lands Mar 1). OUT1 (Apr 1) and FC-B's OTHER stay out.
+  const page0=await call({from:'2026-03-01',to:'2026-03-31',page:'0'});
+  assert.equal(page0.statusCode,200);assert.equal(page0.body.from,'2026-03-01');assert.equal(page0.body.to,'2026-03-31');
+  assert.equal(page0.body.trips.length,100);assert.equal(page0.body.hasMore,true);
+  assert.deepEqual(page0.body.summary,{total:109,pending:105,active:1,complete:2});
+  const dates=page0.body.trips.map(t=>String(t.trip_date).slice(0,10));
+  assert.deepEqual(dates,[...dates].sort(),'page 0 must arrive in date order across the range');
+  const page1=await call({from:'2026-03-01',to:'2026-03-31',page:'1'});
+  assert.equal(page1.body.trips.length,9);assert.equal(page1.body.hasMore,false);
+  const allRefs=new Set([...page0.body.trips,...page1.body.trips].map(t=>t.reference));
+  assert.equal(allRefs.size,109);assert.ok(allRefs.has('RET1'));assert.ok(!allRefs.has('OUT1'));assert.ok(!allRefs.has('OTHER'));
+  // Summary counts describe the whole range even when only one page is loaded.
+  assert.equal(page1.body.summary.total,109);
+  // Legacy single-day requests still work and scope identically.
+  const legacy=await call({date:'2026-03-10'});
+  assert.equal(legacy.statusCode,200);assert.equal(legacy.body.trips.length,100);assert.equal(legacy.body.summary.total,105);
+  // Invalid ranges are rejected.
+  assert.equal((await call({from:'2026-03-31',to:'2026-03-01'})).statusCode,400);
+  assert.equal((await call({from:'2026-02-30',to:'2026-03-01'})).statusCode,400);
+  assert.equal((await call({from:'2026-03-01'})).statusCode,400);
+  assert.equal((await call({from:'2026-01-01',to:'2027-12-31'})).statusCode,400);
+  // Facility scoping is unchanged: naming another facility is forbidden.
+  assert.equal((await call({from:'2026-03-01',to:'2026-03-31',facility:'FC-B'})).statusCode,403);
+ }finally{await db.close();}
+});
