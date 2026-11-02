@@ -103,3 +103,26 @@ img[src$="nexus-footer-logo.png"]{
   img[src$="nexus-logo.png"],
   img[src$="nexus-footer-logo.png"]{animation:none !important}
 }
+
+/* Build 060: static global header bar for the app shells (patient, driver,
+   booking) — mirrors the home page header's items and dimensions without
+   loading platform.js into the apps. */
+.nexusShellGlobalHeader{position:sticky;top:0;z-index:95;background:rgba(255,255,255,.97);border-bottom:1px solid var(--nexus-line);font-family:'Sora',system-ui,sans-serif}
+.nexusShellNav{min-height:94px;max-width:1240px;margin:0 auto;padding:10px 18px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.nexusShellBrand{display:flex;align-items:center}
+.nexusShellLogo{display:block;width:190px;height:auto}
+.nexusShellLinks{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nexusShellLinks a{color:var(--nexus-navy);font-weight:700;text-decoration:none;font-size:15px}
+.nexusShellActions{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.nexusShellCall{display:grid;gap:1px;padding:7px 12px;border:1px solid var(--nexus-line);border-radius:12px;background:#fff;color:var(--nexus-navy);text-decoration:none;line-height:1.1}
+.nexusShellCall small{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--nexus-muted);font-weight:800}
+.nexusShellCall strong{font-size:14px}
+.nexusShellBook{display:inline-flex;align-items:center;min-height:48px;padding:10px 18px;border-radius:20px;background:radial-gradient(circle at 32% 22%,#c22323,#9f0f0f 52%,#690505);border:2px solid #cf1f1f;color:#fff !important;font-family:Manrope,system-ui,sans-serif;font-weight:900;text-transform:uppercase;text-decoration:none}
+.nexusShellCompact .nexusShellNav{min-height:64px;max-width:none;padding:8px 12px;gap:10px}
+.nexusShellCompact .nexusShellLogo{width:132px}
+.nexusShellCompact .nexusShellLinks{gap:12px}
+.nexusShellCompact .nexusShellLinks a{font-size:13px}
+.nexusShellCompact .nexusShellCall{padding:5px 9px}
+.nexusShellCompact .nexusShellCall strong{font-size:12px}
+.nexusShellCompact .nexusShellBook{min-height:40px;padding:8px 12px;font-size:12px}
+@media(max-width:760px){.nexusShellNav{gap:10px}.nexusShellLogo{width:150px}.nexusShellActions{margin-left:0}}
