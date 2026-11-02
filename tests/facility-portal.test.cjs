@@ -175,3 +175,78 @@ test('trips endpoint unions multiple ranges once per trip, paginates and summari
   assert.equal((await call({ranges,facility:'FC-B'})).statusCode,403);
  }finally{await db.close();}
 });
+
+test('trips endpoint serves a selected date set with set-wide summary, dedupe, precedence and validation',async()=>{
+ const db=new PGlite(),manager='11111111-1111-4111-8111-111111111111';
+ try{
+  await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
+   CREATE TABLE users(id uuid PRIMARY KEY); INSERT INTO users VALUES('${manager}');
+   CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
+   INSERT INTO facilities VALUES('FC-A','Care A','100 Facility Lane',true),('FC-B','Care B','200 Facility Lane',true);
+   CREATE TABLE bookings(reference text PRIMARY KEY,facility_id text,booking_source text,name text,service text,pickup text,destination text,trip_date date,trip_time time,notes text,status text,payment_status text,driver_name text,vehicle_unit text,trip_type text,return_trip_date date,return_trip_time time,updated_at timestamptz);`);
+  await db.exec(fs.readFileSync('database/migrations/084.001_patient_schedule_duplicates.sql','utf8').split('CREATE OR REPLACE FUNCTION booking_appointment_time')[1].split('CREATE OR REPLACE FUNCTION booking_referral_key')[0].replace(/^/, 'CREATE OR REPLACE FUNCTION booking_appointment_time'));
+  await db.exec(fs.readFileSync('database/migrations/094.001_facility_portal.sql','utf8'));
+  const bulk=Array.from({length:104},(_,i)=>`('D${String(i).padStart(3,'0')}','FC-A','CUSTOMER','Bulk Passenger','Facility Lane','Clinic Lane','2026-03-03','08:00','REQUESTED','UNPAID')`).join(',');
+  await db.exec(`INSERT INTO bookings(reference,facility_id,booking_source,name,pickup,destination,trip_date,trip_time,status,payment_status) VALUES ${bulk},
+   ('DAY-A','FC-A','CUSTOMER','Day A Passenger','Facility Lane','Clinic Lane','2026-03-03','09:00','REQUESTED','UNPAID'),
+   ('DAY-B','FC-A','CUSTOMER','Day B Passenger','Facility Lane','Clinic Lane','2026-03-16','09:00','COMPLETED','PAID_IN_FULL'),
+   ('DAY-C','FC-A','CUSTOMER','Day C Passenger','Facility Lane','Clinic Lane','2026-03-25','09:00','EN_ROUTE','UNPAID'),
+   ('SPLITD','FC-A','CUSTOMER','Split Passenger','Facility Lane','Clinic Lane','2026-03-05','09:00','REQUESTED','UNPAID'),
+   ('CANXD','FC-A','CUSTOMER','Cancelled Passenger','Facility Lane','Clinic Lane','2026-03-04','09:00','CANCELLED','UNPAID'),
+   ('OUTD','FC-A','CUSTOMER','Outside Passenger','Facility Lane','Clinic Lane','2026-03-10','09:00','REQUESTED','UNPAID'),
+   ('OTHERD','FC-B','CUSTOMER','Other Facility Passenger','Other Lane','Clinic Lane','2026-03-03','09:00','REQUESTED','UNPAID');
+   UPDATE bookings SET return_trip_date='2026-03-24',return_trip_time='12:00',trip_type='ROUND_TRIP' WHERE reference='SPLITD';
+   UPDATE bookings SET return_trip_date='2026-03-11',return_trip_time='12:00',trip_type='ROUND_TRIP' WHERE reference='OUTD';`);
+  const users={manager:{id:manager,role:'FACILITY',scope_id:'FC-A',display_name:'Manager A'}};
+  const handler=createHandler({query:(...args)=>db.query(...args),requireUser:async token=>{if(!users[token])throw Object.assign(Error('Authentication required'),{statusCode:401});return users[token];},bearer:e=>e.headers.authorization,json:(statusCode,body)=>({statusCode,body}),parseBody:e=>JSON.parse(e.body)});
+  const call=async(params={})=>{try{return await handler({headers:{authorization:'manager'},queryStringParameters:params,body:'{}'},['facility-portal','trips'],'GET');}catch(error){return {statusCode:error.statusCode||500,body:{error:error.message}};}};
+  // The set is echoed sorted, however it was sent, and from/to envelope it.
+  const dates='2026-03-16,2026-03-03,2026-03-25,2026-03-04,2026-03-05';
+  const page0=await call({dates,page:'0'});
+  assert.equal(page0.statusCode,200);
+  assert.deepEqual(page0.body.dates,['2026-03-03','2026-03-04','2026-03-05','2026-03-16','2026-03-25']);
+  assert.equal(page0.body.from,'2026-03-03');assert.equal(page0.body.to,'2026-03-25');
+  assert.equal(page0.body.trips.length,100);assert.equal(page0.body.hasMore,true);
+  // Cancelled trips count toward the set total but never toward pending.
+  assert.deepEqual(page0.body.summary,{total:109,pending:106,active:1,complete:1});
+  const page1=await call({dates,page:'1'});
+  assert.equal(page1.statusCode,200);assert.equal(page1.body.trips.length,9);assert.equal(page1.body.hasMore,false);
+  assert.deepEqual(page1.body.summary,page0.body.summary);
+  const refs=[...page0.body.trips,...page1.body.trips].map(t=>t.reference);
+  assert.equal(new Set(refs).size,109,'the date set must contain each matching booking exactly once');
+  assert.equal(refs.filter(ref=>ref==='SPLITD').length,1,'a trip with its outbound in the set appears once');
+  assert.ok(!refs.includes('OUTD'));assert.ok(!refs.includes('OTHERD'));
+  // A trip is also matched by its return date alone.
+  assert.deepEqual((await call({dates:'2026-03-24'})).body.trips.map(t=>t.reference),['SPLITD']);
+  // Duplicate dates in the parameter are deduplicated before use.
+  const dupes=await call({dates:'2026-03-16,2026-03-03,2026-03-16'});
+  assert.equal(dupes.statusCode,200);
+  assert.deepEqual(dupes.body.dates,['2026-03-03','2026-03-16']);
+  assert.equal(dupes.body.summary.total,106);
+  // The dates mode wins when legacy parameters ride along.
+  const precedence=await call({dates:'2026-03-16',ranges:'2026-03-02..2026-03-06',from:'2026-03-02',to:'2026-03-06',date:'2026-03-03'});
+  assert.equal(precedence.statusCode,200);
+  assert.deepEqual(precedence.body.dates,['2026-03-16']);
+  assert.deepEqual(precedence.body.trips.map(t=>t.reference),['DAY-B']);
+  // Validation mirrors the established date/page error contract.
+  const sixtyThree=Array.from({length:63},(_,i)=>new Date(Date.UTC(2026,0,1+i)).toISOString().slice(0,10)).join(',');
+  for(const params of [
+   {dates:'2026-02-30'},
+   {dates:''},
+   {dates:'garbage'},
+   {dates:'2026-03-03,'},
+   {dates:sixtyThree},
+   {dates:'2026-03-03',page:'-1'},
+  ])assert.equal((await call(params)).statusCode,400,JSON.stringify(params));
+  // Exactly 62 dates are accepted.
+  const sixtyTwo=Array.from({length:62},(_,i)=>new Date(Date.UTC(2026,0,1+i)).toISOString().slice(0,10)).join(',');
+  assert.equal((await call({dates:sixtyTwo})).statusCode,200);
+  // Facility scoping is applied before the dates logic.
+  assert.equal((await call({dates:'2026-03-03',facility:'FC-B'})).statusCode,403);
+  // Legacy modes carry no dates echo and behave as before.
+  const legacyDate=await call({date:'2026-03-16'});
+  assert.equal(legacyDate.statusCode,200);
+  assert.equal(legacyDate.body.dates,undefined);
+  assert.deepEqual(legacyDate.body.trips.map(t=>t.reference),['DAY-B']);
+ }finally{await db.close();}
+});
