@@ -60,6 +60,10 @@ const montgomeryOutreachPilot=require('../../data/montgomery-tier-a-outreach-pil
 const STATUS_FLOW={SUBMITTED:'SCHEDULED',REQUESTED:'SCHEDULED',PENDING_APPROVAL:'SCHEDULED',PENDING_DISPATCH_CONFIRMATION:'SCHEDULED',SCHEDULED:'ASSIGNED',ASSIGNED:'EN_ROUTE',EN_ROUTE:'ARRIVED',ARRIVED:'IN_TRANSIT',IN_TRANSIT:'COMPLETED'};
 const statusLabel=s=>String(s||'SUBMITTED').toLowerCase().replaceAll('_','-');
 const envEnabled=name=>Boolean(process.env[name]);
+// Public browser keys, served to visitors via /api/integrations/config. They are kept as
+// code constants instead of Netlify env vars to stay under the 4 KB Lambda env limit.
+const GOOGLE_MAPS_BROWSER_KEY='AIzaSyBxUsk6C1KUYpf4rRmfnfzA2Pe182D8RVY';
+const STRIPE_PUBLISHABLE_KEY='pk_live_51Te4PhP0o9BjdOwSewm2KTex4eFjXpSITUPhTCpBGLznHQKRWSsbhAMUfpoMXmiaHNau68m0CM6EGN3CJBkJ4iUD00ZfvX2mOk';
 const clean=v=>String(v??'').trim();
 const isTestMode=()=>String(process.env.NEXUS_TEST_MODE||'').toLowerCase()==='true';
 let flightLookupRateLimitSchemaPromise=null;
@@ -2968,8 +2972,8 @@ async function handler(event){
      }
    });
   }
-  if(p.join('/')==='integrations/config'&&method==='GET')return json(200,{build:'042',googleMapsEnabled:envEnabled('GOOGLE_MAPS_BROWSER_KEY'),googleMapsBrowserKey:process.env.GOOGLE_MAPS_BROWSER_KEY||'',stripeEnabled:envEnabled('STRIPE_SECRET_KEY') || envEnabled('STRIPE_PUBLISHABLE_KEY'),stripePublishableKey:process.env.STRIPE_PUBLISHABLE_KEY||'',squareEnabled:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')});
-  if(p.join('/')==='integrations/health'&&method==='GET')return json(200,{googleMaps:envEnabled('GOOGLE_MAPS_BROWSER_KEY')?'configured':'not-configured',twilio:envEnabled('TWILIO_ACCOUNT_SID')&&envEnabled('TWILIO_AUTH_TOKEN')&&envEnabled('TWILIO_PHONE_NUMBER')?'configured':'not-configured',emailProvider:'Postmark',postmark:Email.isConfigured()?'configured':'not-configured',teams:Teams.isConfigured()?'configured':'not-configured',teamsProvider:Teams.provider(),stripe:envEnabled('STRIPE_SECRET_KEY')||envEnabled('STRIPE_PUBLISHABLE_KEY')?'configured':'not-configured',square:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')?'configured':'not-configured',gps:'enabled',checkedAt:new Date().toISOString()});
+  if(p.join('/')==='integrations/config'&&method==='GET')return json(200,{build:'042',googleMapsEnabled:Boolean(GOOGLE_MAPS_BROWSER_KEY),googleMapsBrowserKey:GOOGLE_MAPS_BROWSER_KEY,stripeEnabled:envEnabled('STRIPE_SECRET_KEY') || Boolean(STRIPE_PUBLISHABLE_KEY),stripePublishableKey:STRIPE_PUBLISHABLE_KEY,squareEnabled:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')});
+  if(p.join('/')==='integrations/health'&&method==='GET')return json(200,{googleMaps:GOOGLE_MAPS_BROWSER_KEY?'configured':'not-configured',twilio:envEnabled('TWILIO_ACCOUNT_SID')&&envEnabled('TWILIO_AUTH_TOKEN')&&envEnabled('TWILIO_PHONE_NUMBER')?'configured':'not-configured',emailProvider:'Postmark',postmark:Email.isConfigured()?'configured':'not-configured',teams:Teams.isConfigured()?'configured':'not-configured',teamsProvider:Teams.provider(),stripe:envEnabled('STRIPE_SECRET_KEY')||STRIPE_PUBLISHABLE_KEY?'configured':'not-configured',square:envEnabled('SQUARE_ACCESS_TOKEN')&&envEnabled('SQUARE_LOCATION_ID')?'configured':'not-configured',gps:'enabled',checkedAt:new Date().toISOString()});
   if(p[0]==='admin'&&p[1]==='social'&&p[2]==='preview'&&method==='GET'){
    await requireUser(bearer(event),['ADMIN']);
    const channels=parseChannels(event.queryStringParameters?.channels||process.env.SOCIAL_AUTOMATION_CHANNELS||'');

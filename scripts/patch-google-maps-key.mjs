@@ -11,7 +11,10 @@ const distAssetsDir = path.join(root, 'dist', 'assets');
 
 // Get the API key from environment - note: in production, Netlify will handle this
 // For now, we'll patch it to dynamically load from /api/integrations/config
-const googleMapsKey = process.env.GOOGLE_MAPS_BROWSER_KEY || '';
+// Public Google Maps browser key, kept in code (moved out of Netlify env to stay under
+// the 4 KB Lambda environment cap); the env var remains supported as an override.
+const GOOGLE_MAPS_BROWSER_KEY = 'AIzaSyBxUsk6C1KUYpf4rRmfnfzA2Pe182D8RVY';
+const googleMapsKey = process.env.GOOGLE_MAPS_BROWSER_KEY || GOOGLE_MAPS_BROWSER_KEY;
 
 const patchFiles = async (dir, isProduction = false) => {
   const jsFile = path.join(dir, 'index-drvotlb1.js');
