@@ -20,13 +20,22 @@ function createHandler({query,requireUser,bearer,json,parseBody}){
   const base={facility,bookingUrl:'/booking-app.html?facility='+encodeURIComponent(id)};
   if(p[1]==='trips'&&method==='GET'){
    const page=Number(params.page||0),rangesParam=clean(params.ranges);
-   // Blocks model: the board is the union of 1–12 inclusive date blocks. The
-   // `ranges` parameter carries comma-separated from..to pairs resolved by
-   // the client; legacy `date` / `from`+`to` requests map to exactly one
-   // block, so their behavior is unchanged. A booking row matches once when
-   // its outbound OR return date falls in ANY block.
-   let blocks=null;
-   if(rangesParam){
+   // Three request modes share one matching engine. `dates` (the portal's
+   // multi-select calendar) wins when present: a comma-separated set of
+   // single days, deduplicated, sorted and capped at 62, carried through
+   // as one-day blocks. Otherwise `ranges` carries 1–12 inclusive
+   // from..to blocks resolved by the client, and legacy `date` /
+   // `from`+`to` requests map to exactly one block, so their behavior is
+   // unchanged. A booking row matches once when its outbound OR return
+   // date falls in ANY block.
+   let blocks=null,selectedDates=null;
+   if(params.dates!==undefined){
+    const parts=clean(params.dates).split(',').map(part=>part.trim());
+    if(parts.some(part=>!/^\d{4}-\d{2}-\d{2}$/.test(part)||!validDate(part)))throw error('Choose valid service dates and page.');
+    selectedDates=[...new Set(parts)].sort();
+    if(!selectedDates.length||selectedDates.length>62)throw error('Choose valid service dates and page.');
+    blocks=selectedDates.map(day=>({from:day,to:day}));
+   }else if(rangesParam){
     blocks=[];
     for(const pair of rangesParam.split(',')){
      const match=/^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/.exec(pair);
@@ -60,7 +69,7 @@ function createHandler({query,requireUser,bearer,json,parseBody}){
    ]);
    const counts=summaryRows.rows[0]||{total:0,complete:0,cancelled:0,active:0};
    const summary={total:counts.total,pending:counts.total-counts.complete-counts.cancelled-counts.active,active:counts.active,complete:counts.complete};
-   return json(200,{...base,date:from,from,to,ranges:blocks,page,hasMore:rows.rows.length>100,trips:rows.rows.slice(0,100),summary,updatedAt:new Date().toISOString()});
+   return json(200,{...base,date:from,from,to,ranges:blocks,...(selectedDates?{dates:selectedDates}:{}),page,hasMore:rows.rows.length>100,trips:rows.rows.slice(0,100),summary,updatedAt:new Date().toISOString()});
   }
   if(p[1]==='locations'&&method==='GET'){
    const locations=(await query(`WITH stops AS (

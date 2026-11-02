@@ -86,5 +86,50 @@
     const firstYear=parse(sorted[0].from).getUTCFullYear();
     return sorted.map(range=>compactLabel(range,parse(range.from).getUTCFullYear()!==firstYear)).join(' · ');
   }
-  return {PERIODS,rangeFor,resolveBlocks,describeBlocks,validDate:value=>parse(value)!==null};
+  // monthGrid(2026,10) -> {year:2026,month:10,label:'November 2026',
+  //   weeks:[[{date:'2026-11-01',day:1,weekday:0},...,null],...]}
+  // The calendar grid for one month: Sunday-first weeks (the same week
+  // rule rangeFor uses), each cell either a day of the month or null for
+  // the leading/trailing blanks. Only the weeks the month touches are
+  // returned (4–6 rows), so the portal can render the grid as-is.
+  function monthGrid(year,month){
+    year=Number(year);month=Number(month);
+    if(!Number.isInteger(year)||!Number.isInteger(month)||month<0||month>11)return null;
+    const first=new Date(Date.UTC(year,month,1));
+    if(first.getUTCFullYear()!==year||first.getUTCMonth()!==month)return null;
+    const last=new Date(Date.UTC(year,month+1,0));
+    const start=addDays(first,-first.getUTCDay());
+    const weeks=[];
+    for(let offset=0;;offset+=7){
+      const weekStart=addDays(start,offset),week=[];
+      for(let d=0;d<7;d++){
+        const cell=addDays(weekStart,d);
+        week.push(cell.getUTCMonth()===month?{date:iso(cell),day:cell.getUTCDate(),weekday:cell.getUTCDay()}:null);
+      }
+      weeks.push(week);
+      if(addDays(weekStart,7)>last)break;
+    }
+    return {year,month,label:MONTHS[month]+' '+year,weeks};
+  }
+  const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const fullDateLabel=value=>{const date=parse(value);return date?DAYS[date.getUTCDay()]+', '+MONTHS[date.getUTCMonth()]+' '+date.getUTCDate()+', '+date.getUTCFullYear():'';};
+  const shortDateLabel=value=>{const date=parse(value);return date?DAYS_SHORT[date.getUTCDay()]+', '+dayMonth(date):'';};
+  // describeDates(['2026-11-03']) -> 'Tue, Nov 3, 2026'
+  // describeDates(['2026-11-20','2026-11-03','2026-11-12'])
+  //   -> '3 dates: Nov 3 · Nov 12 · Nov 20, 2026'
+  // The selection words for the summary line, following describeBlocks'
+  // convention: one date keeps its full label; several read as a count
+  // plus compact segments in date order, joined by ' · '. A segment
+  // gains its year when it starts in a different year than the first
+  // date, and the closing year is added when every date shares it.
+  function describeDates(dates){
+    if(!Array.isArray(dates))return '';
+    const parsed=dates.map(parse).filter(Boolean).sort((a,b)=>a-b);
+    if(!parsed.length)return '';
+    if(parsed.length===1)return dayMonthYear(parsed[0]);
+    const firstYear=parsed[0].getUTCFullYear(),lastYear=parsed[parsed.length-1].getUTCFullYear();
+    const parts=parsed.map(date=>dayMonth(date)+(date.getUTCFullYear()!==firstYear?', '+date.getUTCFullYear():''));
+    return parsed.length+' dates: '+parts.join(' · ')+(lastYear===firstYear?', '+firstYear:'');
+  }
+  return {PERIODS,rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,fullDateLabel,shortDateLabel,validDate:value=>parse(value)!==null};
 });

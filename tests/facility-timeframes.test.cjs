@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const {rangeFor,resolveBlocks,describeBlocks,validDate}=require('../facility-range.js');
+const {rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,fullDateLabel,shortDateLabel,validDate}=require('../facility-range.js');
 
 test('worked example: anchor Sun Nov 1, 2026 produces all five ranges',()=>{
  assert.deepEqual(rangeFor('2026-11-01','day'),{period:'day',from:'2026-11-01',to:'2026-11-01',label:'Sun, Nov 1, 2026'});
@@ -67,24 +67,65 @@ test('multiple blocks resolve independently and describe their union in date ord
  assert.equal(describeBlocks([{anchor:'not-a-date',timeframe:'day'}]),'');
 });
 
+test('month grid lays out Sunday-first weeks with blanks outside the month',()=>{
+ // November 2026 starts on a Sunday and touches five weeks.
+ const nov=monthGrid(2026,10);
+ assert.equal(nov.label,'November 2026');
+ assert.equal(nov.weeks.length,5);
+ assert.deepEqual(nov.weeks[0][0],{date:'2026-11-01',day:1,weekday:0});
+ assert.deepEqual(nov.weeks[0][6],{date:'2026-11-07',day:7,weekday:6});
+ assert.deepEqual(nov.weeks[4][0],{date:'2026-11-29',day:29,weekday:0});
+ assert.deepEqual(nov.weeks[4][1],{date:'2026-11-30',day:30,weekday:1});
+ assert.equal(nov.weeks[4][2],null);
+ // February 2026 starts on a Sunday with 28 days: exactly four weeks.
+ const feb=monthGrid(2026,1);
+ assert.equal(feb.label,'February 2026');
+ assert.equal(feb.weeks.length,4);
+ assert.deepEqual(feb.weeks[3][6],{date:'2026-02-28',day:28,weekday:6});
+ // A month starting mid-week pads its first week with blanks.
+ const oct=monthGrid(2026,9);
+ assert.equal(oct.weeks[0][0],null);
+ assert.deepEqual(oct.weeks[0][4],{date:'2026-10-01',day:1,weekday:4});
+ // A six-week month keeps all six rows.
+ assert.equal(monthGrid(2026,7).weeks.length,6);
+ assert.equal(monthGrid(2026,12),null);
+ assert.equal(monthGrid('2026',10).label,'November 2026');
+ assert.equal(monthGrid(2026,-1),null);
+});
+
+test('describeDates words a date selection for the summary line',()=>{
+ assert.equal(describeDates(['2026-11-03']),'Tue, Nov 3, 2026');
+ assert.equal(describeDates(['2026-11-20','2026-11-03','2026-11-12']),'3 dates: Nov 3 · Nov 12 · Nov 20, 2026');
+ assert.equal(describeDates(['2027-01-05','2026-12-30']),'2 dates: Dec 30 · Jan 5, 2027');
+ assert.equal(describeDates([]),'');
+ assert.equal(describeDates('2026-11-03'),'');
+ assert.equal(describeDates(['not-a-date']),'');
+ assert.equal(fullDateLabel('2026-11-03'),'Tuesday, November 3, 2026');
+ assert.equal(shortDateLabel('2026-11-03'),'Tue, Nov 3');
+ assert.equal(fullDateLabel('2026-02-30'),'');
+});
+
 test('facility portal says Service Date/s and never Service day',()=>{
  const html=fs.readFileSync('facility.html','utf8'),portal=fs.readFileSync('facility-portal.js','utf8'),server=fs.readFileSync('netlify/functions/_shared/facility-portal.cjs','utf8'),css=fs.readFileSync('facility-portal.css','utf8');
  for(const [name,content] of [['facility.html',html],['facility-portal.js',portal],['facility-portal.cjs',server]])assert.ok(!/service day/i.test(content),name+' still says "Service day"');
- assert.ok(html.includes('id="dateBlocks"'),'portal must render the timeframe block list');
- assert.ok(html.includes('id="addBlock"'),'portal must offer Add timeframe');
- assert.ok(html.includes('class="blockTimeframe"'));
- assert.ok(html.includes('class="blockDate"'));
- assert.ok(html.includes('class="removeBlock"'));
- // Anthony's layout direction: in the header and in every block row the
- // Timeframe control is left of the Service Date/s control.
- assert.ok(html.indexOf('<span>Timeframe</span>')<html.indexOf('<span>Service Date/s</span>'),'Timeframe header must be left of Service Date/s');
- assert.ok(html.indexOf('id="timeframe"')<html.indexOf('id="serviceDay"'),'the first block timeframe must be left of its date input');
- assert.ok(css.includes('grid-template-columns:minmax(118px,1fr) minmax(140px,1.15fr) 44px'),'block columns must be timeframe, date, remove');
- assert.ok(html.includes('id="timeframe"'));
- for(const value of ['day','week','month','quarter','year'])assert.ok(html.includes(`<option value="${value}">`),'missing timeframe option '+value);
+ // The filter is a multi-select calendar now: no timeframe blocks, no
+ // Timeframe dropdown and no Add timeframe button remain.
+ assert.ok(html.includes('id="calGrid"'),'portal must render the calendar day grid');
+ assert.ok(html.includes('id="calPrev"'));assert.ok(html.includes('id="calNext"'));assert.ok(html.includes('id="calMonth"'));
+ assert.ok(html.includes('id="dateChips"'),'selected dates render as chips');
+ assert.ok(html.includes('id="clearDates"'),'a Clear control resets the selection');
+ assert.ok(html.includes('>Service Date/s<'),'the calendar is labeled Service Date/s');
+ assert.ok(!html.includes('id="dateBlocks"'),'the timeframe block list is gone');
+ assert.ok(!html.includes('id="addBlock"'),'there is no Add timeframe button');
+ assert.ok(!html.includes('blockTimeframe'),'there is no Timeframe dropdown');
+ assert.ok(!html.includes('id="serviceDay"'),'the single date input is gone');
  assert.ok(html.includes('id="serviceRange"'));
  assert.ok(html.includes('src="/facility-range.js'));
- assert.ok(portal.includes("ranges:blocks.map(block=>block.from+'..'+block.to).join(',')"),'portal must request the union of all blocks');
+ assert.ok(portal.includes('dates:dates.join(\',\')'),'portal must request the selected date set');
  assert.ok(portal.includes('summary=data.summary'),'portal counters must come from the range summary');
  assert.ok(server.includes('ranges:blocks'),'the trips response must echo the resolved blocks');
+ assert.ok(server.includes('selectedDates'),'the trips handler must implement the dates mode');
+ assert.ok(server.includes('dates:selectedDates'),'the trips response must echo the selected dates');
+ assert.ok(css.includes('.calDay'),'calendar day styles ship with the portal');
+ assert.ok(css.includes('.calDay.selected'),'selected days are visibly marked in the calendar styles');
 });

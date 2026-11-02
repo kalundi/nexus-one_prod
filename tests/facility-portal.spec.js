@@ -8,7 +8,7 @@ async function fixture(page,{staff=false,empty=false}={}){
  await page.route('**/api/**',async route=>{const url=new URL(route.request().url()),path=url.pathname;let json={};
   if(path==='/api/auth/me')json={user:{id:'manager',role:staff?'DISPATCHER':'FACILITY',scopeId:facility.id,displayName:'Facility Manager',email:'manager@example.com',phone:'2405550100'}};
   if(path==='/api/facility-portal/context')json={facilities:staff?[facility,{id:'FC-B',name:'Care B',address:'Other address'}]:[facility],manager:!staff,today:'2026-10-28'};
-  if(path==='/api/facility-portal/trips'){captured.scope.push(url.searchParams.get('facility'));captured.tripParams.push({from:url.searchParams.get('from'),to:url.searchParams.get('to'),ranges:url.searchParams.get('ranges')});json={facility,trips:empty?[]:[trip],page:0,hasMore:false,summary:{total:empty?0:1,pending:empty?0:1,active:0,complete:0},updatedAt:new Date().toISOString()};}
+  if(path==='/api/facility-portal/trips'){captured.scope.push(url.searchParams.get('facility'));captured.tripParams.push({from:url.searchParams.get('from'),to:url.searchParams.get('to'),ranges:url.searchParams.get('ranges'),dates:url.searchParams.get('dates')});json={facility,trips:empty?[]:[trip],page:0,hasMore:false,summary:{total:empty?0:1,pending:empty?0:1,active:0,complete:0},updatedAt:new Date().toISOString()};}
   if(path==='/api/facility-portal/locations')json={locations:empty?[]:[{address:trip.destination,visits:4,last_visit:'2026-10-27'}],basis:'Completed bookings, all time.'};
   if(path.startsWith('/api/facility-portal/communications/')){
    if(route.request().method()==='POST'){const body=route.request().postDataJSON();captured.messages.push(body);messages.push({id:'message',body:body.message,author_name:'Facility Manager',author_role:'FACILITY',created_at:new Date().toISOString()});json={message:'Saved'};}
@@ -24,8 +24,8 @@ async function fixture(page,{staff=false,empty=false}={}){
 for(const width of [1440,390])test(`production manager works across board, routes, inbox and evolving locations at ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:1000});const errors=[];page.on('pageerror',e=>errors.push(e.message));const captured=await fixture(page);
  await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText('Alex Passenger');await expect(page.locator('#facilityName')).toHaveText(facility.name);await expect(page.locator('#facilitySelectLabel')).toBeHidden();
- await expect(page.locator('text=Service Date/s')).toBeVisible();await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-28..2026-10-28'});
- await page.locator('#timeframe').selectOption('week');await expect(page.locator('#serviceRange')).toHaveText('Sun, Oct 25 – Sat, Oct 31, 2026');await expect(page.locator('#tripCount')).toHaveText('1');expect(captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-25..2026-10-31'});
+ await expect(page.locator('text=Service Date/s')).toBeVisible();await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:null,dates:'2026-10-28'});
+ await page.locator('[data-date="2026-10-30"]').click();await expect(page.locator('#serviceRange')).toHaveText('2 dates: Oct 28 · Oct 30, 2026');await expect(page.locator('#tripCount')).toHaveText('1');expect(captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:null,dates:'2026-10-28,2026-10-30'});
  await expect(page.locator('#tripRows')).toContainText('Deposit Paid');await expect(page.locator('#tripRows')).toContainText('Assigned Driver');
  await page.screenshot({path:`output/facility-production-board-${width}.png`,fullPage:true});
  await page.locator('#tripSearch').fill('no match');await expect(page.locator('#tripRows')).toContainText('No trips match');await page.locator('#tripSearch').fill('');
@@ -72,33 +72,49 @@ test('route map calculates real booking addresses and reverses the return leg',a
  await page.locator('#routeLeg').selectOption('return');await expect(page.locator('#mapStatus')).toHaveText('Planned return road route.');expect(await page.evaluate(()=>window.routeRequests.at(-1).origin)).toBe(trip.destination);
  await page.locator('nav [data-view="board"]').click();await page.locator('[data-route]').click();await expect(page.locator('#mapStatus')).toContainText('Planned return');
 });
-test('manager can combine, change and remove timeframe blocks in Timeframe then Service Date/s order',async({page})=>{
+test('manager selects multiple service dates on the calendar and manages them with chips',async({page})=>{
  const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);
- const head=page.locator('.dateBlockHead span'),firstBlock=page.locator('.dateBlock').first();
- const headBoxes=await Promise.all([0,1].map(i=>head.nth(i).boundingBox()));expect(headBoxes[0].x).toBeLessThan(headBoxes[1].x);
- const firstBoxes=await Promise.all([firstBlock.locator('.blockTimeframe').boundingBox(),firstBlock.locator('.blockDate').boundingBox(),firstBlock.locator('.removeBlock').boundingBox()]);
- expect(firstBoxes[0].x).toBeLessThan(firstBoxes[1].x);expect(firstBoxes[1].x).toBeLessThan(firstBoxes[2].x);
- await expect(firstBlock.locator('.removeBlock')).toBeDisabled();
- await page.locator('#addBlock').click();await expect(page.locator('.dateBlock')).toHaveCount(2);
- const secondBlock=page.locator('.dateBlock').nth(1);
- await expect(secondBlock.locator('.blockTimeframe')).toHaveValue('day');
- await expect(secondBlock.locator('.blockDate')).toHaveValue('2026-10-28');
- await secondBlock.locator('.blockDate').fill('2026-11-16');
- await expect(page.locator('#serviceRange')).toHaveText('Oct 28 · Nov 16');
- expect(captured.tripParams.at(-1).ranges).toBe('2026-10-28..2026-10-28,2026-11-16..2026-11-16');
- await secondBlock.locator('.blockTimeframe').selectOption('week');
- await expect(page.locator('#serviceRange')).toHaveText('Oct 28 · Nov 15 – Nov 21');
- expect(captured.tripParams.at(-1).ranges).toBe('2026-10-28..2026-10-28,2026-11-15..2026-11-21');
- await expect(secondBlock.locator('.removeBlock')).toHaveAttribute('aria-label','Remove block 2: Sun, Nov 15 – Sat, Nov 21, 2026');
- await secondBlock.locator('.removeBlock').click();await expect(page.locator('.dateBlock')).toHaveCount(1);
- await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams.at(-1).ranges).toBe('2026-10-28..2026-10-28');
- await expect(page.locator('.dateBlock .removeBlock')).toBeDisabled();
- for(let i=0;i<11;i++)await page.locator('#addBlock').click();
- await expect(page.locator('.dateBlock')).toHaveCount(12);await expect(page.locator('#addBlock')).toBeDisabled();
+ const day=iso=>page.locator(`[data-date="${iso}"]`);
+ // Today (the fixture's Eastern date) starts selected on its own month.
+ await expect(page.locator('#calMonth')).toHaveText('October 2026');
+ await expect(day('2026-10-28')).toHaveAttribute('aria-pressed','true');
+ await expect(day('2026-10-28')).toHaveAttribute('aria-label','Wednesday, October 28, 2026, today, selected');
+ await expect(day('2026-10-30')).toHaveAttribute('aria-pressed','false');
+ // Clicking a day adds it to the selection and re-queries by date set.
+ await day('2026-10-30').click();
+ await expect(day('2026-10-30')).toHaveAttribute('aria-pressed','true');
+ await expect(page.locator('#serviceRange')).toHaveText('2 dates: Oct 28 · Oct 30, 2026');
+ expect(captured.tripParams.at(-1).dates).toBe('2026-10-28,2026-10-30');
+ await expect(page.locator('.dateChip')).toHaveCount(2);
+ // Navigating months never clears the selection.
+ await page.locator('#calNext').click();await expect(page.locator('#calMonth')).toHaveText('November 2026');
+ await expect(page.locator('.dateChip')).toHaveCount(2);
+ await day('2026-11-16').click();
+ await expect(page.locator('#serviceRange')).toHaveText('3 dates: Oct 28 · Oct 30 · Nov 16, 2026');
+ expect(captured.tripParams.at(-1).dates).toBe('2026-10-28,2026-10-30,2026-11-16');
+ await page.locator('#calPrev').click();await expect(page.locator('#calMonth')).toHaveText('October 2026');
+ await expect(day('2026-10-28')).toHaveAttribute('aria-pressed','true');
+ await expect(day('2026-10-30')).toHaveAttribute('aria-pressed','true');
+ // A chip removes only its own date.
+ await page.locator('[data-remove-date="2026-10-30"]').click();
+ await expect(page.locator('.dateChip')).toHaveCount(2);
+ await expect(page.locator('#serviceRange')).toHaveText('2 dates: Oct 28 · Nov 16, 2026');
+ expect(captured.tripParams.at(-1).dates).toBe('2026-10-28,2026-11-16');
+ // Clear resets to today alone, back on today's month.
+ await page.locator('#clearDates').click();
+ await expect(page.locator('#calMonth')).toHaveText('October 2026');
+ await expect(page.locator('.dateChip')).toHaveCount(1);
+ await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026');
+ expect(captured.tripParams.at(-1).dates).toBe('2026-10-28');
+ // The last remaining date cannot be removed or toggled off.
+ await expect(page.locator('[data-remove-date="2026-10-28"]')).toBeDisabled();
+ await day('2026-10-28').click();
+ await expect(day('2026-10-28')).toHaveAttribute('aria-pressed','true');
+ expect(captured.tripParams.at(-1).dates).toBe('2026-10-28');
 });
-for(const width of [1440,390])test(`Ask Nex is mirrored to the right edge without covering the timeframe controls at ${width}px`,async({page})=>{
- await page.setViewportSize({width,height:1000});const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);expect(captured.tripParams.at(-1).ranges).toBe('2026-10-28..2026-10-28');
- const tab=page.locator('#nvaTab'),panel=page.locator('#nvaPanel'),controls=page.locator('.dateBlocksWrap');
+for(const width of [1440,390])test(`Ask Nex is mirrored to the right edge without covering the calendar controls at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:1000});const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);expect(captured.tripParams.at(-1).dates).toBe('2026-10-28');
+ const tab=page.locator('#nvaTab'),panel=page.locator('#nvaPanel'),controls=page.locator('.dateCalendarWrap');
  await expect(tab).toBeVisible();await expect(tab).toHaveAttribute('data-nva-side','right');await expect(panel).toHaveAttribute('data-nva-side','right');
  const tabBox=await tab.boundingBox(),controlsBox=await controls.boundingBox(),accessBox=await page.locator('.access').boundingBox();
  const overlaps=(a,b)=>!(a.x+a.width<=b.x||a.x>=b.x+b.width||a.y+a.height<=b.y||a.y>=b.y+b.height);
