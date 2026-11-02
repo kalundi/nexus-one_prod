@@ -39,7 +39,13 @@
  * panel/tab/bubble (except inside an open host-page dialog or
  * aria-modal), or after 15 seconds without interaction inside the
  * panel. Typing, sending, tapping panel controls and scrolling the chat
- * log reset that idle timer. Closing only hides the panel: it does not
+ * log reset that idle timer — and the timer never fires on a visitor
+ * who is mid-message: while the composer holds a draft, or holds
+ * keyboard focus the visitor themselves placed there (a press or
+ * keystroke in the composer — the widget's own focus-on-open does not
+ * count), idle closing is suspended, however long the pause between
+ * keystrokes.
+ * Closing only hides the panel: it does not
  * clear messages, the remembered estimate/route, an in-progress
  * estimate flow, or the welcome state. If keyboard focus is inside the
  * panel when it closes, focus returns to the Ask Nex tab; reopening
@@ -355,6 +361,7 @@
   var greetingOverride = null;
   var busy = false;
   var panelIdleTimer = null;
+  var composerUserEngaged = false;
 
   function escapeHtml(text) {
     return String(text).replace(/[&<>"']/g, function (c) {
@@ -510,11 +517,32 @@
     }
   }
 
+  // A visitor who is mid-message is never idle, however long they
+  // pause between keystrokes. A draft sitting in the composer always
+  // counts as engaged; so does keyboard focus in the composer once
+  // the visitor has pressed or typed into it themselves. Focus the
+  // widget moves on its own — on open, or back into the box after a
+  // send — never counts: a panel nobody has actually used still
+  // idle-closes on time.
+  function composerEngaged() {
+    var draft = '';
+    try { draft = String(input.value || ''); } catch (err) { draft = ''; }
+    if (draft.trim().length > 0) return true;
+    if (!composerUserEngaged) return false;
+    try { return document.activeElement === input; } catch (err) { return false; }
+  }
+
   function schedulePanelIdleClose() {
     clearPanelIdleClose();
     if (!panel.classList.contains('open')) return;
     panelIdleTimer = setTimeout(function () {
       panelIdleTimer = null;
+      if (composerEngaged()) {
+        // Stay armed and look again next window; the close lands
+        // within one window of the composer going quiet.
+        schedulePanelIdleClose();
+        return;
+      }
       closePanel();
     }, PANEL_IDLE_CLOSE_MS);
   }
@@ -550,6 +578,7 @@
     tab.setAttribute('aria-expanded', String(open));
     if (open) {
       outsidePressPanelFocus = false;
+      composerUserEngaged = false;
       // Opening Nex — by tab, bubble, or keyboard — settles the entry
       // welcome for the session, so it never pops over the chat.
       settleWelcome(true);
@@ -568,6 +597,7 @@
       setTimeout(function () { input.focus(); }, 60);
       schedulePanelIdleClose();
     } else {
+      composerUserEngaged = false;
       clearPanelIdleClose();
     }
   }
@@ -598,6 +628,20 @@
   });
   log.addEventListener('scroll', notePanelActivity, true);
   form.addEventListener('submit', notePanelActivity);
+  // The composer also reports its own activity directly, so typing
+  // counts even if panel-level bubbling is ever interrupted — and a
+  // press or keystroke in the box marks it as genuinely in use, which
+  // is what suspends idle closing while a message is being composed.
+  // Focus leaving the composer (the visitor tabs or taps away) ends
+  // that, so an empty, unfocused composer idle-closes as approved.
+  function noteComposerActivity() {
+    composerUserEngaged = true;
+    notePanelActivity();
+  }
+  input.addEventListener('pointerdown', noteComposerActivity);
+  input.addEventListener('keydown', noteComposerActivity);
+  input.addEventListener('input', noteComposerActivity);
+  input.addEventListener('focusout', function () { composerUserEngaged = false; });
   // An outside press closes on the click that completes it, not on
   // pointerdown: the browser moves focus out of the panel during
   // pointerdown (to the pressed control, or to the body for a bare

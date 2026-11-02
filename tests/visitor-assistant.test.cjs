@@ -1205,6 +1205,39 @@ test('Nex panel: 15 seconds of inactivity closes it and panel interactions reset
   assert.equal(w.panelOpen(), false, 'the panel closes after the full idle interval');
 });
 
+test('Nex panel: idle closing is suspended while a message is being composed', () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
+  w.tab.click();
+  // The visitor presses into the composer and types, then pauses far
+  // beyond the idle window with the draft still in the box: the panel
+  // must not close on them mid-thought.
+  w.input.dispatch('pointerdown');
+  w.input.focus();
+  w.input.value = 'What does a ride cost from here?';
+  w.input.dispatch('input');
+  w.advance(10000);
+  assert.equal(w.panelOpen(), true, 'a draft in the composer suspends idle close');
+  assert.equal(w.activeElement(), w.input, 'focus stays in the composer');
+  assert.equal(w.input.value, 'What does a ride cost from here?', 'the draft survives the pause');
+  // With the draft cleared and focus moved out, idle close runs again.
+  w.input.value = '';
+  w.input.dispatch('input');
+  w.outside.focus();
+  w.input.dispatch('focusout');
+  w.advance(1000);
+  assert.equal(w.panelOpen(), false, 'an idle panel with an empty draft still closes');
+  assert.equal(w.activeElement(), w.outside, 'closing does not steal focus that was already outside');
+});
+
+test('Nex panel: focus the widget placed itself does not suspend idle close', () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
+  w.tab.click();
+  w.advance(60);
+  assert.equal(w.activeElement(), w.input, 'opening moves focus into the composer');
+  w.advance(1000);
+  assert.equal(w.panelOpen(), false, 'an untouched panel idle-closes even while the composer holds focus');
+});
+
 test('Nex panel: conversation and in-progress estimate flow persist through X, outside and idle closes', async () => {
   const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
   w.tab.click();
