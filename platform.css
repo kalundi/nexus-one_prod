@@ -9,8 +9,6 @@
 .logo,
 .footerLogo,
 .globalBrand .logo,
-.facilityPortalBrand .logo,
-.facilityWorldNav .logo{
   animation:logoPop .8s cubic-bezier(.36,.07,.19,.97) both;
   transform-origin:center center;
 }
@@ -91,27 +89,8 @@ header .nav .navCta,header .nav .bookRide{background:linear-gradient(135deg,#ef3
 
 .secureSessionBar{position:relative;z-index:1001;display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:7px max(18px,calc((100% - 1180px)/2));background:#071f36;color:#fff;font-size:12px}.secureSessionBar>div{display:flex;align-items:center;gap:8px}.secureSessionBar span{color:#a9c4d8;text-transform:uppercase;letter-spacing:.08em;font-size:10px;font-weight:850}.secureSessionBar small{padding:3px 7px;border:1px solid rgba(255,255,255,.25);border-radius:999px}.secureSessionBar button{border:1px solid rgba(255,255,255,.35);border-radius:8px;background:transparent;color:#fff;padding:6px 10px;font-weight:800;cursor:pointer}.secureSessionBar button:hover,.secureSessionBar button:focus-visible{background:#fff;color:#071f36}@media(max-width:620px){.secureSessionBar{justify-content:space-between}.secureSessionBar span{display:none}.secureSessionBar>div{min-width:0}.secureSessionBar strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}}
 
-/* Build 014: focused authenticated facility navigation */
-.facilityPortalHeader{position:sticky;top:0;z-index:1000;background:rgba(255,255,255,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--line);box-shadow:0 8px 28px rgba(15,39,68,.06)}
-.facilityPortalNav{min-height:84px;display:flex;align-items:center;gap:28px}
-.facilityPortalBrand{display:flex;align-items:center;flex:0 0 auto}.facilityPortalBrand .logo{width:186px;height:auto}
-.facilityPortalLinks{display:flex;align-items:center;gap:24px}.facilityPortalLinks a{position:relative;color:var(--navy);font-weight:850;text-decoration:none;padding:12px 0}.facilityPortalLinks a:after{content:"";position:absolute;left:0;right:100%;bottom:4px;height:3px;border-radius:999px;background:var(--red);transition:right .2s ease}.facilityPortalLinks a:hover:after,.facilityPortalLinks a:focus-visible:after,.facilityPortalLinks a[aria-current=page]:after{right:0}
-.facilityPortalActions{display:flex;align-items:center;gap:10px;margin-left:auto}
-.facilityLanguageSlot{display:flex;align-items:center}.facilityLanguageSlot .nexusLanguageControl{position:static!important;right:auto!important;bottom:auto!important;margin:0!important;padding:3px 5px!important;border-radius:12px!important;box-shadow:none!important}.facilityLanguageSlot .nexusLanguageControl select{min-width:122px;min-height:44px;padding:0 8px!important}
-.facilityCall{display:grid;gap:2px;min-width:158px;padding:7px 12px;border:1px solid var(--line);border-radius:13px;background:#fff;color:var(--navy);text-decoration:none;line-height:1.05;white-space:nowrap}.facilityCall span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:850}.facilityCall strong{font-size:14px}.facilityCall:hover,.facilityCall:focus-visible{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,117,176,.12)}
-.facilityBookRide{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 18px!important;white-space:nowrap}
-@media(max-width:900px){.facilityPortalNav{gap:14px;flex-wrap:wrap;padding:10px 0}.facilityPortalBrand .logo{width:160px}.facilityPortalLinks{order:3;width:100%;justify-content:center;border-top:1px solid var(--line);padding-top:5px}.facilityPortalActions{gap:7px}.facilityCall{min-width:auto}.facilityCall span{display:none}.facilityCall strong{font-size:13px}}
-@media(max-width:650px){.facilityPortalBrand .logo{width:145px}.facilityPortalNav{gap:8px}.facilityPortalActions{width:100%;justify-content:space-between}.facilityLanguageSlot .nexusLanguageControl select{min-width:92px}.facilityCall{padding:7px 9px}.facilityCall strong{font-size:12px}.facilityBookRide{min-height:42px;padding:0 12px!important}.facilityPortalLinks{gap:40px}}
-
 /* Build 015: Livecare real-time ride operations board */
 .liveRidePanel{min-height:430px;display:flex;flex-direction:column;background:#fff}.liveRideHead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:22px 22px 12px}.liveRideHead small{display:block;color:var(--muted);font-weight:850;text-transform:uppercase;letter-spacing:.08em}.liveRideHead h2{margin:4px 0 0;font-size:23px}.liveDot{display:inline-block;width:10px;height:10px;margin-right:7px;border-radius:50%;background:#16a36a;box-shadow:0 0 0 6px rgba(22,163,106,.12)}.boardRefresh{min-height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--navy);font-weight:850;padding:0 13px;cursor:pointer}.liveRideMetrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 22px 14px}.liveRideMetrics span{padding:11px;border-radius:12px;background:#eef6fb;border:1px solid #d8e7f0}.liveRideMetrics small,.liveRideMetrics strong{display:block}.liveRideMetrics small{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:800}.liveRideMetrics strong{font-size:24px;color:var(--navy)}.liveRideBoard{display:grid;gap:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);max-height:270px;overflow:auto}.rideBoardRow{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:13px 22px;border-top:1px solid var(--line)}.rideBoardRow:first-child{border-top:0}.rideBoardRow>div{display:grid;gap:3px}.rideBoardRow>div:last-child{justify-items:end}.rideBoardRow small{font-size:12px;color:var(--muted)}.rideBoardLoading{padding:28px 22px;color:var(--muted);text-align:center}.liveRidePanel .heroPanelBody{padding:16px 22px 20px}.liveRidePanel .heroPanelBody p{margin:0}@media(max-width:620px){.liveRideMetrics{grid-template-columns:1fr 1fr}.liveRideMetrics span:last-child{grid-column:1/-1}.rideBoardRow{grid-template-columns:1fr}.rideBoardRow>div:last-child{justify-items:start}}
-
-/* Build 016: world-class facility header + system-wide fleet movement */
-.facilityWorldHeader{position:sticky;top:0;z-index:1000;background:rgba(255,255,255,.96);backdrop-filter:blur(18px);border-bottom:1px solid rgba(10,48,76,.1);box-shadow:0 12px 36px rgba(7,31,54,.08)}
-.facilityWorldNav{min-height:88px}.facilityWorldLinks{margin-left:18px}.facilityWorldLinks a{font-size:15px}.facilityWorldActions{margin-left:auto}.facilityLanguageControl{position:static!important;right:auto!important;bottom:auto!important;z-index:auto!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}.facilityLanguageControl select{min-width:88px!important;min-height:46px!important;border:1px solid var(--line)!important;border-radius:12px!important;padding:0 10px!important;background:#fff!important;color:var(--navy)!important;font-weight:850!important}.facilityBookRide{min-height:48px;padding-inline:19px!important;box-shadow:0 10px 24px rgba(183,32,63,.18)}
-@media(max-width:950px){.facilityWorldActions{order:3}.facilityWorldLinks{order:4;margin-left:0}.facilityWorldNav .mobileNavToggle{order:2}.facilityWorldActions .globalPhone{display:grid}}
-@media(max-width:720px){.facilityWorldNav{gap:8px}.facilityWorldActions{width:100%;justify-content:flex-end;border-top:1px solid var(--line);padding-top:10px}.facilityWorldActions .globalPhone{display:grid}.facilityWorldActions .navCta{font-size:14px}.facilityWorldActions .navCta:before{content:none}.facilityWorldLinks{width:100%}}
-@media(max-width:520px){.facilityWorldActions{justify-content:space-between}.facilityWorldActions .globalPhone small{display:none}.facilityWorldActions .globalPhone{padding:8px 9px}.facilityWorldActions .globalPhone strong{font-size:12px}.facilityLanguageControl select{min-width:75px!important}.facilityBookRide{padding-inline:12px!important}}
 
 .fleetCommandPanel{min-height:590px;background:#061f35;color:#fff;overflow:hidden;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 70px rgba(2,23,40,.3)}
 .fleetCommandHead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:22px 22px 14px}.fleetCommandHead small{display:block;color:#9fc2d8;text-transform:uppercase;letter-spacing:.1em;font-weight:850}.fleetCommandHead h2{margin:5px 0 0;color:#fff;font-size:24px}.fleetHeadActions{display:flex;align-items:center;gap:10px}.fleetUpdated{font-size:11px;color:#9fc2d8;white-space:nowrap}.fleetCommandPanel .boardRefresh{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2);color:#fff}.fleetCommandPanel .boardRefresh:hover{background:#fff;color:var(--navy)}
@@ -1615,3 +1594,20 @@ body.nexusStaff .mapOnlyShell .liveFleetMap{height:260px;min-height:260px}
 body.nexusStaff .mapServiceStrip{margin:0 16px 14px}
 body.nexusStaff .mapServiceStrip span{padding:12px 8px}
 @media(max-width:560px){body.nexusStaff .mapOnlyShell,body.nexusStaff .mapOnlyShell .liveFleetMap{min-height:260px!important}}
+
+/* Facility portal booking button sizing (facility.html keeps its own header in this round; its .facilityBookRide hook stays supported). */
+.facilityBookRide{min-height:48px;padding-inline:19px!important;box-shadow:0 10px 24px rgba(183,32,63,.18)}
+@media(max-width:520px){.facilityBookRide{padding-inline:12px!important}}
+
+/* Build 060: workspace-length navs move into the shared toggle panel above
+   the mobile breakpoint so the one-row header keeps the home dimensions.
+   normalizeNav marks navs with more than five top-row items .nexusOverflowNav. */
+@media(min-width:951px){
+ header .globalLinks.nexusOverflowNav{display:none!important}
+ header .globalLinks.nexusOverflowNav.open{display:flex!important;flex-direction:column;align-items:stretch;position:absolute;top:100%;left:0;right:0;width:100%;margin:0!important;padding:10px 24px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 18px 40px rgba(7,31,55,.18);z-index:95}
+ header .globalLinks.nexusOverflowNav.open>a{padding:10px 4px}
+ header .globalLinks.nexusOverflowNav .nexusHomeGroup{width:100%}
+ header .globalLinks.nexusOverflowNav .nexusHomeMenu{position:static;width:100%;box-shadow:none;margin-top:5px}
+ header .globalNav:has(> .nexusOverflowNav) .mobileNavToggle{display:inline-flex!important;margin-left:auto;min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:0 14px;font-weight:800}
+}
+.nexusHeaderSignOut{min-height:40px;padding:8px 13px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--navy);font:inherit;font-weight:850;cursor:pointer;white-space:nowrap}
