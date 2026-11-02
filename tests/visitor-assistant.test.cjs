@@ -267,7 +267,7 @@ test('panel booking buttons share ONE sign style (bottom CTA and estimate action
     assert.match(rule, /radial-gradient\(130% 95% at 50% 0,#9f0f0f 0,#7f0707 52%,#690505 100%\)/, 'sign radial gradient');
     assert.match(rule, /border:2px solid #cf1f1f/, 'sign border');
     assert.match(rule, /border-radius:20px/, 'sign radius');
-    assert.match(rule, /min-height:42px/, 'compact height');
+    assert.match(rule, /min-height:44px/, 'compact height (44px touch target)');
     assert.match(rule, /text-transform:uppercase/, 'uppercase');
     assert.match(rule, /font-weight:900/, 'Manrope 900 weight');
     assert.match(rule, /letter-spacing:\.02em/, 'sign letter spacing');
@@ -639,6 +639,8 @@ function loadSmartWidget() {
     open() { tab.click(); },
     send(text) { input.value = text; form.dispatch('submit'); },
     logText() { return log.children.map((c) => stripTags(c.innerHTML)).join('\n'); },
+    logHtml() { return log.children.map((c) => c.innerHTML).join('\n'); },
+    inputLabelText() { const l = panel.querySelector('#nvaInputLabel'); return l ? l.textContent : null; },
     chipLabels() { return chips.children.map((c) => c.textContent); },
     clickChip(label) {
       const chip = chips.children.find((c) => c.textContent === label);
@@ -745,3 +747,82 @@ test('smart Nex: with no estimate yet, a follow-up-shaped message behaves as bef
 });
 
 
+
+// ---------------------------------------------------------------
+// Estimate block + Section 508 pass: the key values a visitor
+// came for render as a structured block (from the response's
+// structured fields, not the prose), and the widget carries its
+// accessibility contract — live region, named controls, visible
+// focus, 3:1 control borders, 44px targets, per-step input label.
+
+test('estimate block: the guided estimate opens with the structured block, then the narrative', async () => {
+  const w = loadSmartWidget();
+  await completeFirstEstimate(w);
+  const ambTotal = await expectedTotal({});
+  const html = w.logHtml();
+  const blockAt = html.indexOf('nvaEstBlock');
+  assert.ok(blockAt >= 0, 'the estimate renders a structured block');
+  assert.match(html, /<span class="nvaEstLabel">Your rough estimate<\/span>/, 'the block is labeled, not color alone');
+  assert.match(html, new RegExp('<span class="nvaEstTotal">\\$' + ambTotal + '<\\/span>'), 'the tool-returned total is the hero figure');
+  assert.match(html, /<span class="nvaEstMeta">Ambulatory \u00b7 One way \u00b7 10\.0 mi \u00b7 Wed, Jan 6 at 10:00 AM<\/span>/,
+    'the meta line is built from the structured service, trip type, miles and date/time');
+  const narrativeAt = html.indexOf('How I got there');
+  assert.ok(narrativeAt > blockAt, 'the narrative explanation follows the block');
+  assert.match(html, new RegExp('<strong>\\$' + ambTotal + '<\\/strong>'), 'the narrative bolds the tool-returned total');
+});
+
+test('estimate block: a follow-up re-price renders its own block for the changed trip', async () => {
+  const w = loadSmartWidget();
+  await completeFirstEstimate(w);
+  w.send('for the same what would be the price for stretcher');
+  await flush(24);
+  const stretcherTotal = await expectedTotal({ service: 'stretcher' });
+  const html = w.logHtml();
+  const blocks = html.match(/nvaEstBlock/g) || [];
+  assert.equal(blocks.length, 2, 'each priced answer gets its own block');
+  assert.match(html, new RegExp('<span class="nvaEstTotal">\\$' + stretcherTotal + '<\\/span>'), 'the re-priced total leads its block');
+  assert.match(html, /<span class="nvaEstMeta">Stretcher \u00b7 One way \u00b7 10\.0 mi \u00b7 Wed, Jan 6 at 10:00 AM<\/span>/,
+    'the follow-up block describes the changed trip from the echoed structured state');
+  assert.match(html, new RegExp('<strong>\\$' + stretcherTotal + '<\\/strong>'), 'the follow-up narrative bolds its tool-returned total');
+});
+
+test('the chat input label follows the estimate flow step', async () => {
+  const w = loadSmartWidget();
+  w.open();
+  w.send('How much does a ride cost?');
+  assert.equal(w.inputLabelText(), 'Pickup address or place name');
+  w.send(SMART_TRIP.pickup);
+  assert.equal(w.inputLabelText(), 'Drop-off address or place name');
+  w.send(SMART_TRIP.dropoff);
+  assert.equal(w.inputLabelText(), 'Ride type');
+  w.clickChip('Ambulatory');
+  assert.equal(w.inputLabelText(), 'One way or round trip');
+  w.clickChip('One way');
+  assert.equal(w.inputLabelText(), 'Pickup date and time');
+});
+
+test('508 contract: live region, focus visibility, contrast borders, target sizes, estimate hero', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  // The chat log announces answers: a polite live region with log semantics.
+  assert.match(src, /id="nvaLog" role="log" aria-live="polite"/, 'chat log is a polite live region');
+  // Keyboard focus is visible on every control.
+  assert.match(src, /:focus-visible/, 'keyboard focus is styled');
+  assert.match(src, /outline:3px solid #0e5c8c/, 'focus ring meets 3:1 on light surfaces');
+  assert.match(src, /outline:3px solid #ffffff/, 'dark controls get a light ring with a halo');
+  // Interactive-component borders meet the 3:1 non-text minimum;
+  // the old sub-3:1 border colors are gone.
+  assert.ok(!src.includes('#b9cfdd') && !src.includes('#aebfcb'), 'sub-3:1 control border colors are gone');
+  assert.match(src, /\.nvaChip\{[^}]*border:1px solid #6e8ca3/, 'chip border meets 3:1');
+  assert.match(src, /\.nvaInput\{[^}]*border:1px solid #6e8ca3/, 'input border meets 3:1');
+  assert.match(src, /\.nvaCall\{flex:1\.3;[^}]*border:1px solid #6e8ca3/, 'call button border meets 3:1');
+  // Touch targets: the restore-suggestions button joins the 44px set.
+  assert.match(src, /\.nvaAskMore\{min-height:44px/, 'the restore-suggestions button is a 44px target');
+  // Reduced motion stills the typing indicator (the text remains).
+  assert.match(src, /prefers-reduced-motion:reduce\)\{[\s\S]{0,120}\.nvaTypingGif\{display:none\}/, 'reduced motion stills the typing indicator');
+  // The chat input has a real label element whose text follows the flow.
+  assert.match(src, /id="nvaInputLabel"/, 'the chat input has a real label element');
+  // The estimate total is large and heavy — emphasis by size and
+  // weight with a text label, never by color alone.
+  assert.match(src, /\.nvaEstTotal\{[^}]*font:800 27px/, 'the estimate total renders large and heavy');
+  assert.match(src, /\.nvaEstLabel\{[^}]*text-transform:uppercase/, 'the estimate block carries a text label');
+});

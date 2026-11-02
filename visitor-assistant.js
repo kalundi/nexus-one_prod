@@ -81,6 +81,19 @@
  * shares ONE class (.nvaBookBtn) styled as the compact scale of the
  * sign look, so all booking buttons in the panel always match each
  * other. Page-level sign styling outside the widget is untouched.
+ *
+ * Estimate block + accessibility (Section 508 / WCAG 2.1 AA): every
+ * priced answer opens with a structured estimate block built from
+ * the response's structured fields — a labeled "Your rough
+ * estimate" line with the total large and bold, then service, trip
+ * type, miles and pickup date/time — before the narrative answer, so
+ * the figure a visitor came for is found at a glance and is never
+ * carried by color alone (weight, size and a text label do the
+ * work). The chat log is a polite live region (role="log"), every
+ * control is a real button/input with an accessible name, focus is
+ * visible on every control, interactive borders meet the 3:1
+ * non-text contrast minimum, touch targets are at least 44px, and
+ * reduced-motion visitors get a static thinking state.
  */
 (function () {
   'use strict';
@@ -126,17 +139,17 @@
     '.nvaMsg.nvaTyping{display:flex;align-items:center;gap:9px;padding:8px 12px;color:#3d5a70;font-weight:600}',
     '.nvaTypingGif{width:40px;height:40px;border-radius:12px;object-fit:cover;flex:none}',
     '.nvaChips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px 4px;background:#f6fafc;max-height:136px;overflow-y:auto}',
-    '.nvaChip{display:inline-flex;align-items:center;min-height:44px;border:1px solid #b9cfdd;background:#fff;color:#082f49;border-radius:999px;padding:8px 12px;font:700 13px Manrope,sans-serif;cursor:pointer}',
+    '.nvaChip{display:inline-flex;align-items:center;min-height:44px;border:1px solid #6e8ca3;background:#fff;color:#082f49;border-radius:999px;padding:8px 12px;font:700 13px Manrope,sans-serif;cursor:pointer}',
     '.nvaChip:hover{border-color:#082f49}',
     /* Slim affordance that replaces the hidden suggestion chips once a
        question has been asked; tapping it brings the suggestions back. */
-    '.nvaAskMore{min-height:36px;border-style:dashed;background:transparent;color:#3d5a70;font-weight:600}',
+    '.nvaAskMore{min-height:44px;border-style:dashed;background:transparent;color:#3d5a70;font-weight:600}',
     /* Bottom CTA row: compact, sized for the panel. The Call label
        never wraps; the Book button stays narrower than the Call one. */
     '.nvaCtas{display:flex;gap:8px;padding:8px 14px;background:#fff;border-top:1px solid #e3edf3}',
-    '.nvaCall{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;min-height:42px;padding:8px 8px;border-radius:11px;font:800 14px Manrope,sans-serif}',
+    '.nvaCall{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;min-height:44px;padding:8px 8px;border-radius:11px;font:800 14px Manrope,sans-serif}',
     '.nvaBook{flex:1}',
-    '.nvaCall{flex:1.3;background:#fff;color:#082f49!important;border:1px solid #b9cfdd;white-space:nowrap}',
+    '.nvaCall{flex:1.3;background:#fff;color:#082f49!important;border:1px solid #6e8ca3;white-space:nowrap}',
     /* Estimate result action row (holds the shared booking button). */
     '.nvaEstActions{align-self:flex-start;display:flex;gap:8px}',
     /* Route map block under an estimate: map + drive-time line.
@@ -148,11 +161,11 @@
     /* ONE shared style for every booking-app button inside the panel:
        the compact scale of the platform .bookRideSign look (dark red
        radial sign, 2px #cf1f1f border, Manrope 900 uppercase, 20px
-       radius, ~42px tall). The bottom CTA (.nvaBook) and the estimate
+       radius, ~44px tall). The bottom CTA (.nvaBook) and the estimate
        answer button (.nvaEstBook) both carry .nvaBookBtn, and any
        future booking button in the panel must use the same class so
        they can never drift apart again. */
-    '.nvaPanel .nvaBookBtn{position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;gap:0;min-height:42px;padding:8px 18px;border:2px solid #cf1f1f;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 33%),radial-gradient(130% 95% at 50% 0,#9f0f0f 0,#7f0707 52%,#690505 100%);color:#fff!important;text-align:center;text-decoration:none;text-transform:uppercase;letter-spacing:.02em;font-family:Manrope,sans-serif;font-size:14px;font-weight:900;line-height:1.05;box-shadow:0 20px 38px rgba(70,0,0,.32),inset 0 1px 0 rgba(255,255,255,.25),inset 0 -7px 14px rgba(18,0,0,.34);overflow:hidden;white-space:nowrap}',
+    '.nvaPanel .nvaBookBtn{position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;gap:0;min-height:44px;padding:8px 18px;border:2px solid #cf1f1f;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 33%),radial-gradient(130% 95% at 50% 0,#9f0f0f 0,#7f0707 52%,#690505 100%);color:#fff!important;text-align:center;text-decoration:none;text-transform:uppercase;letter-spacing:.02em;font-family:Manrope,sans-serif;font-size:14px;font-weight:900;line-height:1.05;box-shadow:0 20px 38px rgba(70,0,0,.32),inset 0 1px 0 rgba(255,255,255,.25),inset 0 -7px 14px rgba(18,0,0,.34);overflow:hidden;white-space:nowrap}',
     '.nvaPanel .nvaBookBtn:before{content:"";position:absolute;inset:4px;border-radius:16px;border:1px solid rgba(255,74,74,.48);pointer-events:none}',
     /* The page-level .bookRideSign treatment (added by platform.js to
        booking-bound links anywhere in the DOM) must not balloon links
@@ -167,15 +180,30 @@
        platform stylesheet cannot pull them back to full size or a
        different look. One rule covers every .nvaBookBtn, present
        and future, in any part of the panel. */
-    '.nvaPanel a.nvaBookBtn.bookRideSign{display:inline-flex!important;position:relative!important;isolation:isolate!important;align-items:center!important;justify-content:center!important;gap:0!important;min-height:42px!important;height:auto!important;padding:8px 18px!important;border:2px solid #cf1f1f!important;border-radius:20px!important;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 33%),radial-gradient(130% 95% at 50% 0,#9f0f0f 0,#7f0707 52%,#690505 100%)!important;box-shadow:0 20px 38px rgba(70,0,0,.32),inset 0 1px 0 rgba(255,255,255,.25),inset 0 -7px 14px rgba(18,0,0,.34)!important;color:#fff!important;text-align:center!important;text-decoration:none!important;text-transform:uppercase!important;letter-spacing:.02em!important;font-family:Manrope,sans-serif!important;font-size:14px!important;font-weight:900!important;line-height:1.05!important;white-space:nowrap!important;overflow:hidden!important}',
+    '.nvaPanel a.nvaBookBtn.bookRideSign{display:inline-flex!important;position:relative!important;isolation:isolate!important;align-items:center!important;justify-content:center!important;gap:0!important;min-height:44px!important;height:auto!important;padding:8px 18px!important;border:2px solid #cf1f1f!important;border-radius:20px!important;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 33%),radial-gradient(130% 95% at 50% 0,#9f0f0f 0,#7f0707 52%,#690505 100%)!important;box-shadow:0 20px 38px rgba(70,0,0,.32),inset 0 1px 0 rgba(255,255,255,.25),inset 0 -7px 14px rgba(18,0,0,.34)!important;color:#fff!important;text-align:center!important;text-decoration:none!important;text-transform:uppercase!important;letter-spacing:.02em!important;font-family:Manrope,sans-serif!important;font-size:14px!important;font-weight:900!important;line-height:1.05!important;white-space:nowrap!important;overflow:hidden!important}',
     '.nvaPanel a.nvaBookBtn.bookRideSign:before{content:""!important;display:block!important;position:absolute!important;inset:4px!important;border-radius:16px!important;border:1px solid rgba(255,74,74,.48)!important;pointer-events:none!important}',
     '.nvaForm{display:flex;gap:8px;padding:10px 14px 14px;background:#fff}',
-    '.nvaInput{flex:1;min-width:0;min-height:48px;border:1px solid #aebfcb;border-radius:11px;padding:11px 13px;font:inherit}',
+    '.nvaInput{flex:1;min-width:0;min-height:48px;border:1px solid #6e8ca3;border-radius:11px;padding:11px 13px;font:inherit}',
+    '.nvaInput:focus{border-color:#0e5c8c}',
     '.nvaSend{flex:none;min-height:48px;min-width:76px;border:0;border-radius:11px;padding:11px 17px;background:#082f49;color:#fff;font:800 15.5px Manrope,sans-serif;cursor:pointer}',
     '.nvaSend:disabled{opacity:.55;cursor:wait}',
     '.nvaNote{padding:0 14px 12px;background:#fff;color:#52677a;font-size:12.5px}',
+    /* Structured estimate block: the priced answer's key values,
+       built from the response's structured fields (never scraped
+       from the prose). The total is the hero — large, heavy, and
+       labeled — so emphasis is weight + size + label, not color. */
+    '.nvaEstBlock{display:block;background:#fff;border:1px solid #6e8ca3;border-left:5px solid #0e5c8c;border-radius:10px;padding:10px 12px;margin:0 0 9px}',
+    '.nvaEstLabel{display:block;font:800 12px/1.3 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#3d5a70}',
+    '.nvaEstTotal{display:block;font:800 27px/1.15 Manrope,sans-serif;color:#082f49;margin:2px 0}',
+    '.nvaEstMeta{display:block;font:600 13.5px/1.45 "Source Sans 3",sans-serif;color:#12212e}',
+    /* Visible keyboard focus on every control (WCAG 2.4.7): a solid
+       ring in the brand mid-blue on light surfaces; on the dark
+       controls a white ring backed by a blue halo, so the indicator
+       keeps 3:1 against both the control and what surrounds it. */
+    '.nvaChip:focus-visible,.nvaCall:focus-visible,.nvaInput:focus-visible,.nvaMsg a:focus-visible,.nvaEstActions a:focus-visible,.nvaPanel .nvaBookBtn:focus-visible{outline:3px solid #0e5c8c;outline-offset:2px}',
+    '.nvaTab:focus-visible,.nvaClose:focus-visible,.nvaSend:focus-visible{outline:3px solid #ffffff;outline-offset:2px;box-shadow:0 0 0 6px #0e5c8c}',
     '/* Full height at every width: the drawer always spans 100dvh. */',
-    '@media (prefers-reduced-motion:reduce){.nvaPanel,.nvaTab{transition:none!important}}'
+    '@media (prefers-reduced-motion:reduce){.nvaPanel,.nvaTab{transition:none!important}.nvaTypingGif{display:none}}'
   ].join('\n');
 
   var style = document.createElement('style');
@@ -203,11 +231,11 @@
     '<div class="nvaHeadText"><h2>Nex <span class="nvaRole">&middot; Nexus Medical Transit Virtual Assistant</span></h2>' +
     '<p>Answers from our website. Emergencies: <strong>call 911</strong>.</p></div>' +
     '<button type="button" class="nvaClose" aria-label="Close chat">&times;</button></div>' +
-    '<div class="nvaLog" id="nvaLog" aria-live="polite"></div>' +
+    '<div class="nvaLog" id="nvaLog" role="log" aria-live="polite" aria-label="Conversation with Nex"></div>' +
     '<div class="nvaChips" id="nvaChips"></div>' +
     '<div class="nvaCtas"><a class="nvaBook nvaBookBtn" href="' + BOOKING_URL + '">Book a Ride</a>' +
     '<a class="nvaCall" href="' + MAIN_PHONE_HREF + '">Call ' + MAIN_PHONE + '</a></div>' +
-    '<form class="nvaForm" id="nvaForm"><label class="sr" for="nvaInput" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Type your question</label>' +
+    '<form class="nvaForm" id="nvaForm"><label class="sr" id="nvaInputLabel" for="nvaInput" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Type your question</label>' +
     '<input class="nvaInput" id="nvaInput" type="text" autocomplete="off" maxlength="500" placeholder="' + DEFAULT_PLACEHOLDER + '">' +
     '<button class="nvaSend" id="nvaSend" type="submit">Send</button></form>' +
     '<div class="nvaNote">Nex answers from the Nexus website. Addresses you enter for a rough estimate are used only to work out the distance and are not stored. When you book, the booking form collects the full trip details.</div>';
@@ -221,6 +249,7 @@
   var input = panel.querySelector('#nvaInput');
   var send = panel.querySelector('#nvaSend');
   var headAvatar = panel.querySelector('#nvaAvatar');
+  var inputLabel = panel.querySelector('#nvaInputLabel');
   var greeted = false;
   var busy = false;
 
@@ -279,6 +308,95 @@
   function fillPending(pending, text) {
     pending.classList.remove('nvaTyping');
     pending.innerHTML = renderText(text);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // ------------------------------------------------ estimate block
+  // A priced answer is rendered as a structured block FIRST (built
+  // only from the response's structured estimate fields and the
+  // trip inputs — never scraped from the prose), then the narrative
+  // answer with its "How I got there" explanation. Inside the
+  // narrative, the figures the structured payload itself carries —
+  // the tool-returned total, and the billed deadhead miles in the
+  // allowance phrasing — are bolded by exact match against those
+  // values; anything the payload does not vouch for stays unbolded.
+  var SERVICE_SHORT = { ambulatory: 'Ambulatory', wheelchair: 'Wheelchair', stretcher: 'Stretcher', bariatric: 'Bariatric', bls: 'Ambulance (BLS)' };
+
+  // Mirror of the estimate service's fmtMiles: one decimal always.
+  function fmtMiles1(value) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) return '';
+    return (Math.round(n * 10) / 10).toFixed(1);
+  }
+
+  function fmtDateShort(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+    if (!m) return '';
+    var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    if (Number.isNaN(d.getTime())) return '';
+    return days[d.getUTCDay()] + ', ' + months[d.getUTCMonth()] + ' ' + d.getUTCDate();
+  }
+
+  function fmtTimeShort(hhmm) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+    if (!m) return '';
+    var h = Number(m[1]);
+    if (h > 23) return '';
+    var suffix = h >= 12 ? 'PM' : 'AM';
+    var h12 = h % 12 === 0 ? 12 : h % 12;
+    return h12 + ':' + m[2] + ' ' + suffix;
+  }
+
+  function estimateMetaLine(est, inputs) {
+    var parts = [];
+    var svc = (est && est.serviceLabel) || (est && SERVICE_SHORT[est.service]) || (inputs && SERVICE_SHORT[inputs.service]) || '';
+    if (svc) parts.push(svc);
+    var tt = (est && est.tripType) || (inputs && inputs.tripType) || '';
+    if (tt) parts.push(tt === 'ROUND_TRIP' ? 'Round trip' : 'One way');
+    if (inputs && Number(inputs.loadedMiles) > 0) {
+      parts.push(fmtMiles1(inputs.loadedMiles) + (tt === 'ROUND_TRIP' ? ' mi each way' : ' mi'));
+    } else if (est && Number(est.loadedMiles) > 0) {
+      parts.push(fmtMiles1(est.loadedMiles) + ' mi' + (tt === 'ROUND_TRIP' ? ' total' : ''));
+    }
+    var when = [];
+    var d = fmtDateShort(inputs && inputs.date);
+    if (d) when.push(d);
+    var t = fmtTimeShort(inputs && inputs.time);
+    if (t) when.push('at ' + t);
+    if (when.length) parts.push(when.join(' '));
+    return parts.join(' \u00b7 ');
+  }
+
+  function estimateBlockHtml(est, inputs) {
+    if (!est || !Number.isFinite(Number(est.displayTotal))) return '';
+    var meta = estimateMetaLine(est, inputs);
+    return '<span class="nvaEstBlock"><span class="nvaEstLabel">Your rough estimate</span>' +
+      '<span class="nvaEstTotal">$' + escapeHtml(String(est.displayTotal)) + '</span>' +
+      (meta ? '<span class="nvaEstMeta">' + escapeHtml(meta) + '</span>' : '') + '</span>';
+  }
+
+  function boldFigure(html, fig) {
+    if (!fig) return html;
+    var esc = fig.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return html.replace(new RegExp(esc + '(?![0-9])', 'g'), '<strong>' + fig + '</strong>');
+  }
+
+  function renderEstimateText(text, est) {
+    var html = renderText(text);
+    if (est && Number.isFinite(Number(est.displayTotal))) {
+      html = boldFigure(html, '$' + est.displayTotal);
+    }
+    if (est && Number(est.deadheadMiles) > 0) {
+      html = boldFigure(html, fmtMiles1(est.deadheadMiles) + ' miles over 25');
+    }
+    return html;
+  }
+
+  function fillPendingEstimate(pending, text, est, inputs) {
+    pending.classList.remove('nvaTyping');
+    pending.innerHTML = estimateBlockHtml(est, inputs) + renderEstimateText(text, est);
     log.scrollTop = log.scrollHeight;
   }
 
@@ -365,7 +483,7 @@
       lastEstimate = data.state.lastEstimate;
       if (!lastEstimate) lastRoute = null;
     }
-    if (data.mode === 'followup-estimate' && data.estimate) {
+    if ((data.mode === 'followup-estimate' || data.mode === 'model-estimate') && data.estimate) {
       addEstimateActions();
       if (lastRoute) renderRouteMap(lastRoute);
       log.scrollTop = log.scrollHeight;
@@ -405,8 +523,16 @@
         if (out.res.ok && out.data && out.data.answer) {
           // Hold the thinking state for its beat before the answer lands.
           return afterThinking(startedAt, out.data.answer).then(function () {
-            fillPending(pending, out.data.answer);
-            handleAssistantData(out.data);
+            var d = out.data;
+            var est = (d.mode === 'followup-estimate' || d.mode === 'model-estimate') ? d.estimate : null;
+            if (est) {
+              var estInputs = (d.state && d.state.lastEstimate && d.state.lastEstimate.inputs) ||
+                (lastEstimate && lastEstimate.inputs) || null;
+              fillPendingEstimate(pending, d.answer, est, estInputs);
+            } else {
+              fillPending(pending, d.answer);
+            }
+            handleAssistantData(d);
           });
         }
         if (out.data && out.data.error) {
@@ -503,7 +629,27 @@
     });
   }
 
-  function setPlaceholder(text) { input.setAttribute('placeholder', text); }
+  // Each flow step's placeholder has a matching accessible label, so
+  // the single chat input is announced as what Nex is actually
+  // asking for right now (pickup, drop-off, date/time…), not just
+  // "type your question" throughout the estimate flow.
+  var PLACEHOLDER_LABELS = {};
+  PLACEHOLDER_LABELS[DEFAULT_PLACEHOLDER] = 'Type your question';
+  PLACEHOLDER_LABELS['Pickup address\u2026'] = 'Pickup address or place name';
+  PLACEHOLDER_LABELS['Drop-off address\u2026'] = 'Drop-off address or place name';
+  PLACEHOLDER_LABELS['New pickup address\u2026'] = 'New pickup address or place name';
+  PLACEHOLDER_LABELS['New drop-off address\u2026'] = 'New drop-off address or place name';
+  PLACEHOLDER_LABELS['Or type the ride type\u2026'] = 'Ride type';
+  PLACEHOLDER_LABELS['One way or round trip\u2026'] = 'One way or round trip';
+  PLACEHOLDER_LABELS['Date and time, e.g. Nov 8 at 2 PM\u2026'] = 'Pickup date and time';
+  PLACEHOLDER_LABELS['Pickup time, e.g. 10:30 AM\u2026'] = 'Pickup time';
+  PLACEHOLDER_LABELS['Tap a place above, or type again\u2026'] = 'Choose a place above, or type an address';
+
+  function setPlaceholder(text) {
+    input.setAttribute('placeholder', text);
+    var label = PLACEHOLDER_LABELS[text];
+    if (label && inputLabel) inputLabel.textContent = label;
+  }
 
   function endFlow() {
     flow = null;
@@ -1093,7 +1239,7 @@
         }
         if (out.res.ok && out.data && out.data.mode === 'estimate' && out.data.answer) {
           return afterThinking(startedAt, out.data.answer).then(function () {
-          fillPending(pending, out.data.answer);
+          fillPendingEstimate(pending, out.data.answer, out.data.estimate, flow && flow.lastPayload);
           rememberEstimate(out.data.estimate);
           recordTurn('assistant', out.data.answer);
           addEstimateActions();
