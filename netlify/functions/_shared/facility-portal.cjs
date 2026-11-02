@@ -71,6 +71,68 @@ function createHandler({query,requireUser,bearer,json,parseBody}){
    const summary={total:counts.total,pending:counts.total-counts.complete-counts.cancelled-counts.active,active:counts.active,complete:counts.complete};
    return json(200,{...base,date:from,from,to,ranges:blocks,...(selectedDates?{dates:selectedDates}:{}),page,hasMore:rows.rows.length>100,trips:rows.rows.slice(0,100),summary,updatedAt:new Date().toISOString()});
   }
+  if(p[1]==='reports'&&method==='GET'){
+   // Aggregates only: counts and series for the caller's own facility,
+   // never per-trip rows, passenger names or street addresses. The scope
+   // is the same `id` the trips endpoint uses (the manager's session
+   // scope, or the facility staff selected above), and the endpoint
+   // accepts no facility of its own beyond that shared resolution, so a
+   // manager naming another facility has already been rejected with 403
+   // before this branch runs. Range validation mirrors the trips
+   // endpoint: real calendar dates, from <= to, span at most 366 days,
+   // with the legacy `date` and today fallbacks.
+   const fromParam=clean(params.from),toParam=clean(params.to);
+   let from,to;
+   if(fromParam||toParam){from=fromParam;to=toParam;}
+   else{from=to=clean(params.date)||easternDate();}
+   if(!validDate(from)||!validDate(to)||from>to||(Date.parse(to+'T12:00:00Z')-Date.parse(from+'T12:00:00Z'))/86400000>366)throw error('Choose valid reporting dates.');
+   // A booking matches when its outbound OR return date falls in range,
+   // exactly like the trip board. It is counted once, on its outbound
+   // date when that is in range and otherwise on its return date, so
+   // every series below partitions the same matched set and the daily
+   // counts sum to the headline total.
+   const matched=`SELECT b.status,b.service,b.destination,b.trip_date,b.created_at,
+    CASE WHEN b.trip_date BETWEEN $2::date AND $3::date THEN b.trip_date ELSE b.return_trip_date END AS counted_date,
+    CASE WHEN b.trip_date BETWEEN $2::date AND $3::date THEN b.trip_time ELSE COALESCE(b.return_trip_time,b.trip_time) END AS counted_time
+    FROM bookings b WHERE b.facility_id=$1 AND ${realBooking}
+    AND (b.trip_date BETWEEN $2::date AND $3::date OR b.return_trip_date BETWEEN $2::date AND $3::date)`;
+   const args=[id,from,to];
+   const ownAddress=clean(facility.address).toLowerCase().replace(/\s+/g,' ');
+   const [totalsRows,dailyRows,statusRows,serviceRows,dowRows,hourRows,destinationRows,leadRows]=await Promise.all([
+    query(`WITH matched AS (${matched}) SELECT count(*)::int AS total,
+    count(*) FILTER (WHERE upper(COALESCE(status,'')) IN ('COMPLETED','DELIVERED','BILLED','PAID'))::int AS complete,
+    count(*) FILTER (WHERE upper(COALESCE(status,'')) IN ('CANCELLED','NO_SHOW','MISSED','DENIED'))::int AS cancelled,
+    count(*) FILTER (WHERE upper(COALESCE(status,'')) IN ('EN_ROUTE','ARRIVED','ARRIVED_PICKUP','PATIENT_ON_BOARD','IN_TRANSIT','DEPARTED','ARRIVED_DESTINATION'))::int AS active
+    FROM matched`,args),
+    query(`WITH matched AS (${matched}) SELECT counted_date AS day,count(*)::int AS count FROM matched GROUP BY counted_date ORDER BY counted_date`,args),
+    query(`WITH matched AS (${matched}) SELECT upper(COALESCE(NULLIF(trim(status),''),'UNSPECIFIED')) AS status,count(*)::int AS count FROM matched GROUP BY 1 ORDER BY count DESC,status`,args),
+    query(`WITH matched AS (${matched}) SELECT COALESCE(NULLIF(trim(service),''),'Unspecified') AS service,count(*)::int AS count FROM matched GROUP BY 1 ORDER BY count DESC,service LIMIT 12`,args),
+    query(`WITH matched AS (${matched}) SELECT EXTRACT(DOW FROM counted_date)::int AS day,count(*)::int AS count FROM matched GROUP BY 1 ORDER BY 1`,args),
+    query(`WITH matched AS (${matched}) SELECT EXTRACT(HOUR FROM counted_time)::int AS hour,count(*)::int AS count FROM matched WHERE counted_time IS NOT NULL GROUP BY 1 ORDER BY 1`,args),
+    query(`WITH matched AS (${matched}) SELECT COALESCE(substring(destination from ',\\s*([^,]+),\\s*[A-Z]{2}(?:\\s+\\d{5})?\\s*$'),'Unspecified area') AS name,count(*)::int AS count FROM matched
+    WHERE trim(COALESCE(destination,''))<>'' AND ($4::text IS NULL OR lower(regexp_replace(trim(destination),'\\s+',' ','g'))<>$4)
+    GROUP BY 1 ORDER BY count DESC,name LIMIT 8`,[...args,ownAddress||null]),
+    query(`WITH matched AS (${matched}) SELECT CASE WHEN days<=0 THEN '0' WHEN days=1 THEN '1' WHEN days=2 THEN '2' WHEN days BETWEEN 3 AND 7 THEN '3-7' WHEN days BETWEEN 8 AND 14 THEN '8-14' ELSE '15+' END AS bucket,count(*)::int AS count
+    FROM (SELECT (trip_date-(created_at AT TIME ZONE 'America/New_York')::date) AS days FROM matched WHERE created_at IS NOT NULL) lead GROUP BY 1`,args)
+   ]);
+   const counts=totalsRows.rows[0]||{total:0,complete:0,cancelled:0,active:0};
+   const total=counts.total,rate=value=>total?Math.round(value/total*1000)/10:0;
+   const dayKey=value=>value instanceof Date?value.toISOString().slice(0,10):String(value).slice(0,10);
+   const byDay=new Map(dailyRows.rows.map(row=>[dayKey(row.day),Number(row.count)]));
+   const daily=[];for(let cursor=Date.parse(from+'T12:00:00Z'),end=Date.parse(to+'T12:00:00Z');cursor<=end;cursor+=86400000){const day=new Date(cursor).toISOString().slice(0,10);daily.push({date:day,count:byDay.get(day)||0});}
+   const fill=(rows,key,size)=>{const map=new Map(rows.map(row=>[Number(row[key]),Number(row.count)]));return Array.from({length:size},(_,index)=>({[key]:index,count:map.get(index)||0}));};
+   const leadOrder=['0','1','2','3-7','8-14','15+'],leadMap=new Map(leadRows.rows.map(row=>[row.bucket,Number(row.count)]));
+   return json(200,{...base,from,to,
+    totals:{trips:total,completed:counts.complete,cancelled:counts.cancelled,pending:total-counts.complete-counts.cancelled-counts.active,active:counts.active,completionRate:rate(counts.complete),cancellationRate:rate(counts.cancelled)},
+    daily,
+    byStatus:statusRows.rows.map(row=>({status:row.status,count:Number(row.count)})),
+    byServiceType:serviceRows.rows.map(row=>({service:row.service,count:Number(row.count)})),
+    byDayOfWeek:fill(dowRows.rows,'day',7),
+    byHourOfDay:fill(hourRows.rows,'hour',24),
+    topDestinations:destinationRows.rows.map(row=>({name:row.name,count:Number(row.count)})),
+    leadTimeDays:leadOrder.map(bucket=>({bucket,count:leadMap.get(bucket)||0})),
+    updatedAt:new Date().toISOString()});
+  }
   if(p[1]==='locations'&&method==='GET'){
    const locations=(await query(`WITH stops AS (
     SELECT b.reference,b.trip_date,trim(s.address) AS address,lower(regexp_replace(trim(s.address),'\\s+',' ','g')) AS address_key

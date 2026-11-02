@@ -2,13 +2,14 @@ const {test,expect}=require('@playwright/test');
 const facility={id:'FC-A',name:'Care Facility A',address:'100 Facility Lane, Annapolis, MD'};
 const trip={reference:'PROD-1001',name:'Alex Passenger',service:'wheelchair',pickup:facility.address,destination:'200 Hospital Road, Annapolis, MD',trip_date:'2026-10-28',trip_time:'08:00:00',appointment_time:'09:00:00',status:'SCHEDULED',payment_status:'DEPOSIT_PAID',driver_name:'Assigned Driver',vehicle_unit:'N100',trip_type:'ROUND_TRIP',return_trip_date:'2026-10-28',return_trip_time:'12:00:00',unread:1};
 async function fixture(page,{staff=false,empty=false}={}){
- const captured={messages:[],locations:[],scope:[],tripParams:[]};let messages=[];
+ const captured={messages:[],locations:[],scope:[],tripParams:[],reportParams:[],reportScope:[]};let messages=[];
  await page.addInitScript(()=>sessionStorage.setItem('nexusAccessToken','production-manager-session'));
  await page.route('https://**',r=>r.abort());
  await page.route('**/api/**',async route=>{const url=new URL(route.request().url()),path=url.pathname;let json={};
   if(path==='/api/auth/me')json={user:{id:'manager',role:staff?'DISPATCHER':'FACILITY',scopeId:facility.id,displayName:'Facility Manager',email:'manager@example.com',phone:'2405550100'}};
   if(path==='/api/facility-portal/context')json={facilities:staff?[facility,{id:'FC-B',name:'Care B',address:'Other address'}]:[facility],manager:!staff,today:'2026-10-28'};
   if(path==='/api/facility-portal/trips'){captured.scope.push(url.searchParams.get('facility'));captured.tripParams.push({from:url.searchParams.get('from'),to:url.searchParams.get('to'),ranges:url.searchParams.get('ranges'),dates:url.searchParams.get('dates')});json={facility,trips:empty?[]:[trip],page:0,hasMore:false,summary:{total:empty?0:1,pending:empty?0:1,active:0,complete:0},updatedAt:new Date().toISOString()};}
+  if(path==='/api/facility-portal/reports'){captured.reportScope.push(url.searchParams.get('facility'));captured.reportParams.push({from:url.searchParams.get('from'),to:url.searchParams.get('to')});json=empty?{facility,from:'2026-10-01',to:'2026-10-31',totals:{trips:0,completed:0,cancelled:0,pending:0,active:0,completionRate:0,cancellationRate:0},daily:[],byStatus:[],byServiceType:[],byDayOfWeek:[],byHourOfDay:[],topDestinations:[],leadTimeDays:[],updatedAt:new Date().toISOString()}:{facility,from:'2026-10-01',to:'2026-10-31',totals:{trips:3,completed:2,cancelled:0,pending:1,active:0,completionRate:66.7,cancellationRate:0},daily:[{date:'2026-10-01',count:1},{date:'2026-10-02',count:2}],byStatus:[{status:'COMPLETED',count:2},{status:'REQUESTED',count:1}],byServiceType:[{service:'wheelchair',count:3}],byDayOfWeek:[{day:0,count:0},{day:1,count:1},{day:2,count:0},{day:3,count:2},{day:4,count:0},{day:5,count:0},{day:6,count:0}],byHourOfDay:Array.from({length:24},(_,hour)=>({hour,count:hour===8?3:0})),topDestinations:[{name:'Annapolis',count:3}],leadTimeDays:[{bucket:'0',count:1},{bucket:'1',count:0},{bucket:'2',count:2},{bucket:'3-7',count:0},{bucket:'8-14',count:0},{bucket:'15+',count:0}],updatedAt:new Date().toISOString()};}
   if(path==='/api/facility-portal/locations')json={locations:empty?[]:[{address:trip.destination,visits:4,last_visit:'2026-10-27'}],basis:'Completed bookings, all time.'};
   if(path.startsWith('/api/facility-portal/communications/')){
    if(route.request().method()==='POST'){const body=route.request().postDataJSON();captured.messages.push(body);messages.push({id:'message',body:body.message,author_name:'Facility Manager',author_role:'FACILITY',created_at:new Date().toISOString()});json={message:'Saved'};}
@@ -143,4 +144,28 @@ test('Ask Nex closes on an outside tap and after 15 idle seconds, preserving the
  await panel.locator('#nvaInput').fill('1');await page.clock.fastForward(10000);await expect(panel).toBeVisible();
  await page.clock.fastForward(20000);await expect(panel).toBeHidden();await expect(tab).toBeFocused();
  await tab.click();await expect(panel).toBeVisible();await expect(panel.locator('#nvaLog')).toContainText('Where should we pick you up?');
+});
+test('reporting tab shows facility charts and refetches when the timeframe changes',async({page})=>{
+ const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);
+ await page.locator('nav [data-view="reports"]').click();
+ await expect(page.locator('#reportsView')).toBeVisible();await expect(page.locator('#viewTitle')).toHaveText('Reporting');
+ await expect(page.locator('#repTotalTrips')).toHaveText('3');await expect(page.locator('#repCompletionRate')).toHaveText('66.7%');
+ await expect(page.locator('#reportsView svg.repSvg')).toHaveCount(7);
+ await expect(page.locator('#repDaily table.repSrOnly')).toContainText('2026-10-02');
+ await expect(page.locator('#repDest')).toContainText('Annapolis');
+ // The default view is the context month containing the fixture's today.
+ expect(captured.reportParams.at(-1)).toEqual({from:'2026-10-01',to:'2026-10-31'});
+ expect(captured.reportScope.every(id=>id==='FC-A')).toBe(true);
+ // Switching timeframe re-resolves the range from the same anchor date.
+ await page.locator('#repTimeframe').selectOption('week');
+ expect(captured.reportParams.at(-1)).toEqual({from:'2026-10-25',to:'2026-10-31'});
+ await expect(page.locator('#repRangeLabel')).toContainText('2026-10-25');
+ // Leaving the tab restores the trip board.
+ await page.locator('nav [data-view="board"]').click();
+ await expect(page.locator('#reportsView')).toBeHidden();await expect(page.locator('#boardView')).toBeVisible();await expect(page.locator('#viewTitle')).toHaveText('Trip board');
+});
+test('reporting tab shows a clean empty state when the range has no trips',async({page})=>{
+ await fixture(page,{empty:true});await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText('No trips match');
+ await page.locator('nav [data-view="reports"]').click();
+ await expect(page.locator('#reportsView')).toBeVisible();await expect(page.locator('#repEmpty')).toBeVisible();await expect(page.locator('#repCharts')).toBeHidden();
 });
