@@ -148,5 +148,45 @@
     if(from.getUTCFullYear()!==to.getUTCFullYear())return segment(from)+', '+from.getUTCFullYear()+' → '+segment(to)+', '+to.getUTCFullYear();
     return segment(from)+' → '+segment(to)+', '+to.getUTCFullYear();
   }
-  return {PERIODS,rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,rangeSummary,fullDateLabel,shortDateLabel,validDate:value=>parse(value)!==null};
+  // ---- Multi-range selection (the pop-up calendar's pick state) ----
+  // A selection is an ordered list of resolved ranges (rangeFor output,
+  // possibly carrying the tapped `anchor`). Identity is the from/to span
+  // alone: two timeframes can resolve a tap to the same span, and the
+  // selection holds that span once.
+  const rangeKey=range=>range?range.from+'..'+range.to:'';
+  const sameRange=(a,b)=>Boolean(a&&b&&a.from===b.from&&a.to===b.to);
+  // toggleRange(selection, range) -> a NEW list with the span removed
+  // when it was already selected, or appended when it was not. Exact
+  // duplicates therefore can never enter the selection.
+  function toggleRange(selection,range){
+    const list=Array.isArray(selection)?selection:[];
+    if(!range||!range.from||!range.to)return [...list];
+    return list.some(entry=>sameRange(entry,range))?list.filter(entry=>!sameRange(entry,range)):[...list,range];
+  }
+  // dateInRanges(selection, '2026-11-15') -> true when the day falls
+  // inside any selected range, inclusive of both ends (ISO dates order
+  // lexicographically, so plain string comparison is exact).
+  function dateInRanges(selection,value){
+    return Array.isArray(selection)&&selection.some(range=>range&&range.from<=value&&value<=range.to);
+  }
+  // rangesParam(selection) -> '2026-11-02..2026-11-02,2026-11-15..2026-11-21'
+  // The `ranges` query value for the trips endpoint: one from..to pair
+  // per selected range, in selection order. '' for an empty selection.
+  function rangesParam(selection){
+    if(!Array.isArray(selection))return '';
+    return selection.filter(range=>range&&range.from&&range.to).map(rangeKey).join(',');
+  }
+  // selectionSummary(selection) words the whole selection for the small
+  // line under the filter: one range keeps its rangeSummary; two or
+  // three read as their summaries joined by ' · '; more than three
+  // collapse to a count plus the outer span so the line stays short.
+  function selectionSummary(selection){
+    if(!Array.isArray(selection))return '';
+    const sorted=selection.filter(range=>range&&range.from&&range.to).sort((a,b)=>a.from<b.from?-1:a.from>b.from?1:a.to<b.to?-1:a.to>b.to?1:0);
+    if(!sorted.length)return '';
+    if(sorted.length===1)return rangeSummary(sorted[0]);
+    if(sorted.length<=3)return sorted.map(rangeSummary).join(' · ');
+    return sorted.length+' ranges: '+dayMonthYear(parse(sorted[0].from))+' → '+dayMonthYear(parse(sorted[sorted.length-1].to));
+  }
+  return {PERIODS,rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,rangeSummary,rangeKey,sameRange,toggleRange,dateInRanges,rangesParam,selectionSummary,fullDateLabel,shortDateLabel,validDate:value=>parse(value)!==null};
 });
