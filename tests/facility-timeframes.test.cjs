@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const {rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,fullDateLabel,shortDateLabel,validDate}=require('../facility-range.js');
+const {rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,rangeSummary,fullDateLabel,shortDateLabel,validDate}=require('../facility-range.js');
 
 test('worked example: anchor Sun Nov 1, 2026 produces all five ranges',()=>{
  assert.deepEqual(rangeFor('2026-11-01','day'),{period:'day',from:'2026-11-01',to:'2026-11-01',label:'Sun, Nov 1, 2026'});
@@ -105,27 +105,48 @@ test('describeDates words a date selection for the summary line',()=>{
  assert.equal(fullDateLabel('2026-02-30'),'');
 });
 
-test('facility portal says Service Date/s and never Service day',()=>{
+test('rangeSummary words one resolved range as a from-to line',()=>{
+ assert.equal(rangeSummary(rangeFor('2026-11-02','day')),'Mon, Nov 2, 2026');
+ assert.equal(rangeSummary(rangeFor('2026-11-04','week')),'Sun, Nov 1 → Sat, Nov 7, 2026');
+ assert.equal(rangeSummary(rangeFor('2026-11-15','month')),'Nov 1 → Nov 30, 2026');
+ assert.equal(rangeSummary(rangeFor('2026-11-15','quarter')),'Oct 1 → Dec 31, 2026');
+ assert.equal(rangeSummary(rangeFor('2026-06-15','year')),'Jan 1 → Dec 31, 2026');
+ // A week spanning the year boundary states both years.
+ assert.equal(rangeSummary(rangeFor('2026-12-31','week')),'Sun, Dec 27, 2026 → Sat, Jan 2, 2027');
+ assert.equal(rangeSummary(null),'');
+ assert.equal(rangeSummary({from:'not-a-date',to:'2026-11-07'}),'');
+});
+
+test('facility portal filters by one timeframe and a pop-up date picker',()=>{
  const html=fs.readFileSync('facility.html','utf8'),portal=fs.readFileSync('facility-portal.js','utf8'),server=fs.readFileSync('netlify/functions/_shared/facility-portal.cjs','utf8'),css=fs.readFileSync('facility-portal.css','utf8');
  for(const [name,content] of [['facility.html',html],['facility-portal.js',portal],['facility-portal.cjs',server]])assert.ok(!/service day/i.test(content),name+' still says "Service day"');
- // The filter is a multi-select calendar now: no timeframe blocks, no
- // Timeframe dropdown and no Add timeframe button remain.
- assert.ok(html.includes('id="calGrid"'),'portal must render the calendar day grid');
+ // The filter is one timeframe choice plus one anchor date. The calendar
+ // is only a pop-up date picker: present in the markup but hidden, so it
+ // consumes no layout space until the Service Date control opens it.
+ assert.ok(html.includes('id="serviceTimeframe"'),'portal must offer the timeframe select');
+ for(const value of ['day','week','month','quarter','year'])assert.ok(html.includes('<option value="'+value+'">'),'timeframe option '+value+' must exist');
+ assert.ok(html.includes('id="serviceDateButton"'),'the date control shows the picked anchor date');
+ assert.ok(html.includes('id="serviceCalendarPop"'),'the calendar lives in a pop-up container');
+ assert.ok(/id="serviceCalendarPop"[^>]*hidden/.test(html),'the pop-up starts hidden and takes no layout space');
+ assert.ok(html.includes('id="calGrid"'),'pop-up must render the calendar day grid');
  assert.ok(html.includes('id="calPrev"'));assert.ok(html.includes('id="calNext"'));assert.ok(html.includes('id="calMonth"'));
- assert.ok(html.includes('id="dateChips"'),'selected dates render as chips');
- assert.ok(html.includes('id="clearDates"'),'a Clear control resets the selection');
- assert.ok(html.includes('>Service Date/s<'),'the calendar is labeled Service Date/s');
+ assert.ok(html.includes('>Service Date<'),'the date control is labeled Service Date');
+ assert.ok(!html.includes('id="dateChips"'),'multi-select chips are gone');
+ assert.ok(!html.includes('id="clearDates"'),'the multi-select Clear control is gone');
+ assert.ok(!html.includes('dateCalendarWrap'),'the embedded always-visible calendar is gone');
  assert.ok(!html.includes('id="dateBlocks"'),'the timeframe block list is gone');
  assert.ok(!html.includes('id="addBlock"'),'there is no Add timeframe button');
- assert.ok(!html.includes('blockTimeframe'),'there is no Timeframe dropdown');
- assert.ok(!html.includes('id="serviceDay"'),'the single date input is gone');
+ assert.ok(!html.includes('blockTimeframe'),'there is no per-block Timeframe dropdown');
+ assert.ok(!html.includes('id="serviceDay"'),'the native date input is gone');
  assert.ok(html.includes('id="serviceRange"'));
  assert.ok(html.includes('src="/facility-range.js'));
- assert.ok(portal.includes('dates:dates.join(\',\')'),'portal must request the selected date set');
+ assert.ok(portal.includes('from:range.from,to:range.to'),'portal must request the resolved from/to range');
+ assert.ok(!portal.includes('dates:dates.join'),'portal no longer requests a set of dates');
  assert.ok(portal.includes('summary=data.summary'),'portal counters must come from the range summary');
  assert.ok(server.includes('ranges:blocks'),'the trips response must echo the resolved blocks');
  assert.ok(server.includes('selectedDates'),'the trips handler must implement the dates mode');
  assert.ok(server.includes('dates:selectedDates'),'the trips response must echo the selected dates');
+ assert.ok(css.includes('.serviceCalendarPop'),'pop-up styles ship with the portal');
  assert.ok(css.includes('.calDay'),'calendar day styles ship with the portal');
- assert.ok(css.includes('.calDay.selected'),'selected days are visibly marked in the calendar styles');
+ assert.ok(css.includes('.calDay.selected'),'the anchor day is visibly marked in the calendar styles');
 });

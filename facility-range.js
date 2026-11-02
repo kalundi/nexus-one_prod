@@ -131,5 +131,22 @@
     const parts=parsed.map(date=>dayMonth(date)+(date.getUTCFullYear()!==firstYear?', '+date.getUTCFullYear():''));
     return parsed.length+' dates: '+parts.join(' · ')+(lastYear===firstYear?', '+firstYear:'');
   }
-  return {PERIODS,rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,fullDateLabel,shortDateLabel,validDate:value=>parse(value)!==null};
+  // rangeSummary(rangeFor('2026-11-04','week'))
+  //   -> 'Sun, Nov 1 → Sat, Nov 7, 2026'
+  // rangeSummary(rangeFor('2026-11-15','month')) -> 'Nov 1 → Nov 30, 2026'
+  // The small from → to line under the portal filter: one resolved range
+  // worded end to end. A single day keeps its full label; a week names
+  // both weekdays; a month, quarter or year names both dates. The year
+  // is stated once when both ends share it, on both ends when they do
+  // not.
+  function rangeSummary(range){
+    if(!range)return '';
+    const from=parse(range.from),to=parse(range.to);
+    if(!from||!to)return '';
+    if(range.from===range.to)return dayMonthYear(from);
+    const segment=date=>(range.period==='week'?DAYS_SHORT[date.getUTCDay()]+', ':'')+dayMonth(date);
+    if(from.getUTCFullYear()!==to.getUTCFullYear())return segment(from)+', '+from.getUTCFullYear()+' → '+segment(to)+', '+to.getUTCFullYear();
+    return segment(from)+' → '+segment(to)+', '+to.getUTCFullYear();
+  }
+  return {PERIODS,rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,rangeSummary,fullDateLabel,shortDateLabel,validDate:value=>parse(value)!==null};
 });
