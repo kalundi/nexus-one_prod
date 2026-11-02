@@ -362,6 +362,7 @@
   var busy = false;
   var panelIdleTimer = null;
   var composerUserEngaged = false;
+  var conversationStarted = false;
 
   function escapeHtml(text) {
     return String(text).replace(/[&<>"']/g, function (c) {
@@ -532,11 +533,29 @@
     try { return document.activeElement === input; } catch (err) { return false; }
   }
 
+  // Anthony's rule (Nov 2, 2026): once a conversation has started,
+  // the panel never auto-closes — the inactivity timer only ever
+  // applies to a panel nobody has used yet. A conversation starts
+  // when the visitor sends a message from the composer, taps a chip
+  // that asks something or starts the estimate, or answers inside
+  // the estimate flow (every one of those paths funnels through
+  // handleUserText or startEstimateFlow below); the greeting alone
+  // does not start one. The flag is page memory only: it survives
+  // manual close/reopen like the rest of the session, and a fresh
+  // page load resets it.
+  function markConversationStarted() {
+    if (conversationStarted) return;
+    conversationStarted = true;
+    clearPanelIdleClose();
+  }
+
   function schedulePanelIdleClose() {
     clearPanelIdleClose();
+    if (conversationStarted) return;
     if (!panel.classList.contains('open')) return;
     panelIdleTimer = setTimeout(function () {
       panelIdleTimer = null;
+      if (conversationStarted) return;
       if (composerEngaged()) {
         // Stay armed and look again next window; the close lands
         // within one window of the composer going quiet.
@@ -1031,6 +1050,7 @@
   }
 
   function startEstimateFlow() {
+    markConversationStarted();
     flow = { step: 'pickup', pickup: '', dropoff: '', service: '', tripType: '', date: '', time: '', pendingDate: '', geoFails: { pickup: 0, dropoff: 0 }, pickupPlace: null, dropoffPlace: null, placeOptions: null, route: null };
     renderChips();
     addMessage('I can work out a rough estimate right here \u2014 no need to open the booking app first. I just need a few details. (Availability itself is confirmed when you book.)\n\n' + STEP_PROMPTS.pickup, 'bot');
@@ -1683,6 +1703,7 @@
   function handleUserText(raw) {
     var q = String(raw || '').trim();
     if (!q || busy) return;
+    markConversationStarted();
     input.value = '';
     // The visitor has asked something: clear the suggestion chips out
     // of the way so the answer is fully visible when it lands.

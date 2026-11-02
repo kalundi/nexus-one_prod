@@ -133,7 +133,7 @@ for(const width of [1440,390])test(`Ask Nex is mirrored to the right edge withou
  await expect(panel.locator('#nvaInput')).toBeFocused();
  await page.locator('.nvaClose').click();await expect(panel).toBeHidden();await expect(tab).toBeFocused();
 });
-test('Ask Nex closes on an outside tap and after 15 idle seconds, preserving the conversation',async({page})=>{
+test('Ask Nex closes on an outside tap, preserving the conversation, and idle never closes once it starts',async({page})=>{
  await page.clock.install();const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);expect(captured.tripParams).toHaveLength(1);
  const tab=page.locator('#nvaTab'),panel=page.locator('#nvaPanel');
  await tab.click();await expect(panel).toBeVisible();await page.clock.fastForward(60);
@@ -150,10 +150,15 @@ test('Ask Nex closes on an outside tap and after 15 idle seconds, preserving the
  // entirely: even 20 more seconds with no keystrokes leaves the
  // panel open. (Before the fix, the timer fired here, mid-message.)
  await page.clock.fastForward(20000);await expect(panel).toBeVisible();
- // Idle closing resumes once the draft is cleared and focus leaves
- // the composer (here: moved to the Send button, still in the panel).
+ // Anthony's rule: the conversation started with the Send at the
+ // top of this test, so idle closing never applies again — not
+ // even with the draft cleared and focus moved off the composer
+ // (here: moved to the Send button, still in the panel). (This leg
+ // asserted the close resumed here before the rule change.)
  await panel.locator('#nvaInput').fill('');await page.evaluate(()=>document.getElementById('nvaSend').focus());
- await page.clock.fastForward(20000);await expect(panel).toBeHidden();await expect(tab).toBeFocused();
+ await page.clock.fastForward(30000);await expect(panel).toBeVisible();
+ // A genuine outside tap still closes, and the flow survives it.
+ await page.mouse.click(20,950);await expect(panel).toBeHidden();await expect(tab).toBeFocused();
  await tab.click();await expect(panel).toBeVisible();await expect(panel.locator('#nvaLog')).toContainText('Where should we pick you up?');
 });
 test('Ask Nex never closes while a message is being composed (idle-close regression)',async({page})=>{
@@ -192,6 +197,33 @@ test('Ask Nex never closes while a message is being composed (idle-close regress
  // (e) A genuine outside tap still closes immediately.
  await tab.click();await expect(panel).toBeVisible();
  await page.mouse.click(20,950);await expect(panel).toBeHidden();
+});
+test('Ask Nex never idle-closes once a conversation has started',async({page})=>{
+ await page.clock.install();await fixture(page);
+ // Shorten the idle window to 3s through the widget's own config,
+ // the same route as the composing regression test above.
+ const fs=require('fs');
+ const html=fs.readFileSync('facility.html','utf8').replace("side:'right'","side:'right',idleCloseMs:3000");
+ expect(html).toContain('idleCloseMs:3000');
+ await page.route('**/facility.html',route=>route.fulfill({body:html,contentType:'text/html'}));
+ await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);
+ const tab=page.locator('#nvaTab'),panel=page.locator('#nvaPanel'),input=panel.locator('#nvaInput');
+ await tab.click();await expect(panel).toBeVisible();await page.clock.fastForward(60);
+ // (a) Send a plain question, then sit on the answer with an empty
+ // composer: ten idle windows pass and the panel stays open.
+ // (Pre-fix, this post-send pause is what closed it.)
+ await input.fill('What areas do you serve?');await panel.locator('#nvaSend').click();
+ await expect(panel.locator('#nvaLog')).toContainText('What areas do you serve?');
+ await page.clock.fastForward(30000);await expect(panel).toHaveClass(/\bopen\b/);await expect(panel).toBeVisible();
+ // (b) Fresh page load, so the conversation flag resets: start
+ // the estimate from the cost chip and pause between steps, far
+ // past the idle window — still open, still on the pickup step.
+ await page.reload();await expect(page.locator('#tripRows')).toContainText(trip.reference);
+ await tab.click();await expect(panel).toBeVisible();await page.clock.fastForward(60);
+ await panel.locator('#nvaChips button').filter({hasText:'what your ride would cost'}).click();
+ await expect(panel.locator('#nvaLog')).toContainText('Where should we pick you up?');
+ await page.clock.fastForward(30000);await expect(panel).toHaveClass(/\bopen\b/);await expect(panel).toBeVisible();
+ await expect(panel.locator('#nvaLog')).toContainText('Where should we pick you up?');
 });
 test('reporting tab shows facility charts and refetches when the timeframe changes',async({page})=>{
  const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);

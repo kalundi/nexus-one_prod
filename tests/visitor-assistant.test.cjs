@@ -1229,6 +1229,37 @@ test('Nex panel: idle closing is suspended while a message is being composed', (
   assert.equal(w.activeElement(), w.outside, 'closing does not steal focus that was already outside');
 });
 
+test('Nex panel: idle never closes after the visitor sends a message', async () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
+  w.tab.click();
+  w.send('What are your hours?');
+  await flush();
+  assert.match(w.logText(), /What are your hours\?/, 'the sent question is in the log');
+  // The composer is empty again and the only focus in it is the
+  // focus the widget restored itself after the send: this post-send
+  // pause — sitting reading the answer — is the one that kept
+  // closing on Anthony. Several idle windows pass; the panel must
+  // stay open.
+  w.advance(10000);
+  assert.equal(w.panelOpen(), true, 'a sent message starts the conversation: idle close never fires');
+});
+
+test('Nex panel: idle never closes once the estimate flow has started', async () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
+  w.tab.click();
+  w.clickChip('Do you want to know what your ride would cost?');
+  assert.match(w.logText(), /Where should we pick you up\?/, 'the cost chip starts the estimate flow');
+  // Pausing between flow steps — reading the question, looking up
+  // an address — must not close the panel either.
+  w.advance(10000);
+  assert.equal(w.panelOpen(), true, 'an in-progress estimate never idle-closes');
+  w.send('100 Main Street, Clarksburg, MD');
+  await flush(8);
+  assert.match(w.logText(), /where are you headed\?/, 'the flow is still alive after the pause');
+  w.advance(10000);
+  assert.equal(w.panelOpen(), true, 'later flow steps never idle-close either');
+});
+
 test('Nex panel: focus the widget placed itself does not suspend idle close', () => {
   const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
   w.tab.click();
@@ -1238,7 +1269,7 @@ test('Nex panel: focus the widget placed itself does not suspend idle close', ()
   assert.equal(w.panelOpen(), false, 'an untouched panel idle-closes even while the composer holds focus');
 });
 
-test('Nex panel: conversation and in-progress estimate flow persist through X, outside and idle closes', async () => {
+test('Nex panel: conversation and in-progress estimate flow persist through X and outside closes, and idle never closes mid-conversation', async () => {
   const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
   w.tab.click();
   w.send('How much does a ride cost?');
@@ -1259,10 +1290,13 @@ test('Nex panel: conversation and in-progress estimate flow persist through X, o
   await flush(8);
   assert.match(w.logText(), /What type of ride is it\?/, 'the preserved flow advances to ride type after the outside close');
 
-  w.advance(1000);
-  assert.equal(w.panelOpen(), false, 'the idle timer closes mid-flow');
-  w.tab.click();
-  assert.ok(w.chipLabels().includes('Wheelchair'), 'reopening after the idle close is still on the ride-type step');
+  // Anthony's rule: once the conversation has started the idle
+  // timer never closes the panel — several idle windows pass
+  // mid-flow and it stays open on the same step. (This leg asserted
+  // the mid-flow idle close before the rule change.)
+  w.advance(10000);
+  assert.equal(w.panelOpen(), true, 'idle never closes once the conversation has started');
+  assert.ok(w.chipLabels().includes('Wheelchair'), 'the flow is still on the ride-type step after the idle windows');
   w.clickChip('Wheelchair');
-  assert.match(w.logText(), /One way, or round trip\?/, 'the preserved flow continues after the idle close');
+  assert.match(w.logText(), /One way, or round trip\?/, 'the preserved flow continues');
 });
