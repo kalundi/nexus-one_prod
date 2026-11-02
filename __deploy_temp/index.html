@@ -1044,6 +1044,77 @@
 </script>
 <style>@keyframes logoPop{0%{transform:scale(1) rotate(0deg)}15%{transform:scale(1.28) rotate(-4deg)}30%{transform:scale(1.35) rotate(4deg)}50%{transform:scale(1.25) rotate(-2deg)}70%{transform:scale(1.12) rotate(1.5deg)}85%{transform:scale(1.05) rotate(-0.5deg)}100%{transform:scale(1) rotate(0deg)}}.logo-pop{animation:logoPop .8s cubic-bezier(.36,.07,.19,.97) both !important;transform-origin:center center}</style>
 <script>(function(){function popLogos(){document.querySelectorAll('img.logo, img[src*="nexus-logo"], img[src*="logo.png"], header img[alt*="Nexus"]').forEach(function(el){el.classList.remove('logo-pop');void el.offsetWidth;el.classList.add('logo-pop');el.addEventListener('animationend',function(){el.classList.remove('logo-pop');},{once:true});});}function init(){popLogos();setInterval(popLogos,60000);}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(init,500);},{once:true});}else{setTimeout(init,500);}var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1){var imgs=n.tagName==='IMG'?[n]:Array.from(n.querySelectorAll('img'));imgs.forEach(function(img){if(img.src&&(img.src.includes('logo')||img.alt&&img.alt.toLowerCase().includes('nexus'))){img.classList.remove('logo-pop');void img.offsetWidth;img.classList.add('logo-pop');img.addEventListener('animationend',function(){img.classList.remove('logo-pop');},{once:true});}});}});});});obs.observe(document.body,{childList:true,subtree:true});}());</script>
+<script>
+(function(){
+  var SECTION_ID='early-morning-pickups';
+  var STYLE_ID='earlyMorningCalloutStyle';
+
+  function ensureEarlyMorningStyles(){
+    if(document.getElementById(STYLE_ID))return;
+    var style=document.createElement('style');
+    style.id=STYLE_ID;
+    style.textContent=''
+    +'.earlyMorning{background:linear-gradient(135deg,#082f49,#0f4566);color:#fff;padding:38px 0}'
+    +'.earlyMorningInner{width:min(1180px,calc(100% - 40px));margin:auto;display:flex;align-items:center;gap:28px;flex-wrap:wrap}'
+    +'.earlyMorningText{flex:1 1 480px;min-width:min(100%,320px)}'
+    +'.earlyMorningEyebrow{display:inline-block;text-transform:uppercase;letter-spacing:.14em;font-size:12px;font-weight:900;color:#83eef1}'
+    +'.earlyMorning h2{margin:8px 0 10px;font-size:clamp(26px,3.4vw,36px);line-height:1.15;color:#fff}'
+    +'.earlyMorning p{margin:0;font-size:17px;line-height:1.6;color:#d7e5f0;max-width:62ch}'
+    +'.earlyMorningActions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}'
+    +'.earlyMorning a.bookRideCta{display:inline-flex;align-items:center;justify-content:center;min-height:54px;padding:12px 28px;border-radius:20px;background:linear-gradient(135deg,#d61f1f,#b61a2a);color:#fff;text-decoration:none;font-weight:900;text-transform:uppercase;letter-spacing:.02em}'
+    +'.earlyMorningCall{display:inline-flex;align-items:center;justify-content:center;min-height:54px;padding:12px 22px;border-radius:20px;border:2px solid rgba(255,255,255,.45);color:#fff;text-decoration:none;font-weight:800}'
+    +'@media(max-width:620px){.earlyMorning{padding:30px 0}.earlyMorningCall{min-height:50px}}';
+    document.head.appendChild(style);
+  }
+
+  function insertEarlyMorningCallout(){
+    if(document.getElementById(SECTION_ID))return true;
+    var services=document.querySelector('section#services')||document.getElementById('services');
+    var hero=document.querySelector('section#home')||document.querySelector('.hero');
+    if(!services&&!hero)return false;
+    ensureEarlyMorningStyles();
+    var section=document.createElement('section');
+    section.id=SECTION_ID;
+    section.className='earlyMorning';
+    section.setAttribute('aria-label','Early morning pickups');
+    section.innerHTML=''
+    +'<div class="earlyMorningInner">'
+    +  '<div class="earlyMorningText">'
+    +    '<span class="earlyMorningEyebrow">Early morning appointments</span>'
+    +    '<h2>Early morning procedure? We\u2019ll be there.</h2>'
+    +    '<p>Surgery check-ins, dialysis, and early appointments often start before regular hours. Nexus schedules early morning pickups in advance, timed around your procedure time \u2014 so the right vehicle and crew are ready when you are.</p>'
+    +  '</div>'
+    +  '<div class="earlyMorningActions">'
+    +    '<a class="bookRideCta" href="https://mynexusride.com">Book a Ride</a>'
+    +    '<a class="earlyMorningCall" href="tel:+18886395766">Call (888) 639-5766</a>'
+    +  '</div>'
+    +'</div>';
+    if(services&&services.parentNode){
+      services.parentNode.insertBefore(section,services);
+    }else if(hero&&hero.parentNode){
+      hero.parentNode.insertBefore(section,hero.nextSibling);
+    }else{
+      return false;
+    }
+    return true;
+  }
+
+  function bootEarlyMorningCallout(){
+    if(insertEarlyMorningCallout())return;
+    var observer=new MutationObserver(function(){
+      if(insertEarlyMorningCallout())observer.disconnect();
+    });
+    observer.observe(document.documentElement,{childList:true,subtree:true});
+    setTimeout(function(){observer.disconnect();},20000);
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',bootEarlyMorningCallout,{once:true});
+  }else{
+    bootEarlyMorningCallout();
+  }
+})();
+</script>
 <script src="/platform.js?v=20261028-ems"></script>
 <script src="./nexus-analytics.js"></script>
 </body></html>
