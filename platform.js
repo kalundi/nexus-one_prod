@@ -757,13 +757,18 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
 
 /* BEGIN Nexus visitor assistant loader (visitor-qa-bot) — public pages only.
    Loads /visitor-assistant.js (the visitor Q&A chat widget) unless this is a
-   staff/back-office or app surface. Keep this block intact and self-contained
-   so it can be reconciled independently of header/navigation changes. */
+   staff/back-office or app surface. A staff page may opt in explicitly by
+   setting window.NEXUS_VISITOR_ASSISTANT = {enabled:true, side:'right'}
+   before platform.js runs (the facility portal does this to place Nex on
+   the right edge); without that flag nothing changes on any page. Keep this
+   block intact and self-contained so it can be reconciled independently of
+   header/navigation changes. */
 (function(){
 	if(document.body && document.body.hasAttribute('data-backoffice-workspace')) return;
 	if(document.getElementById('bookingForm')) return;
+	var optedIn=!!(window.NEXUS_VISITOR_ASSISTANT && window.NEXUS_VISITOR_ASSISTANT.enabled);
 	var staffOrApp=/\/(admin|dispatch|operations|billing|fleet|executive|ai-operations|qa|facility|facility-demo|driver-app|patient|caretaker|apps|training|admin-maintenance|secure-documents|set-password|career-application|booking-app|test-payment)(\.html)?$/i;
-	if(staffOrApp.test(location.pathname)) return;
+	if(staffOrApp.test(location.pathname) && !optedIn) return;
 	var script=document.createElement('script');
 	script.src='/visitor-assistant.js';
 	script.defer=true;

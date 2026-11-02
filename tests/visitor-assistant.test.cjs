@@ -872,6 +872,12 @@ function loadWelcomeWidget(options) {
     now = target;
   }
   const docListeners = {};
+  const modal = makeFakeElement('div');
+  modal.setAttribute('aria-modal', 'true');
+  const modalChild = makeFakeElement('button');
+  modal.appendChild(modalChild);
+  modal.contains = (target) => target === modal || target === modalChild;
+  modalChild.closest = (sel) => (String(sel).includes('aria-modal') ? modal : null);
   const documentStub = {
     head: makeFakeElement('head'),
     body: makeFakeElement('body'),
@@ -879,8 +885,8 @@ function loadWelcomeWidget(options) {
     createElement: (tag) => makeFakeElement(tag),
     addEventListener: (type, fn) => { (docListeners[type] = docListeners[type] || []).push(fn); },
     querySelector: (sel) => {
-      if (sel === 'dialog[open]' || sel === '[aria-modal="true"]') {
-        return opts.isModalOpen && opts.isModalOpen() ? makeFakeElement('div') : null;
+      if (sel === 'dialog[open]' || sel === '[aria-modal="true"]' || sel === 'dialog[open],[aria-modal="true"]') {
+        return opts.isModalOpen && opts.isModalOpen() ? modal : null;
       }
       return null;
     },
@@ -890,9 +896,10 @@ function loadWelcomeWidget(options) {
     matchMedia: () => ({ matches: opts.reducedMotion !== false }),
     sessionStorage: sessionStorageStub,
   };
+  if (opts.config) windowStub.NEXUS_VISITOR_ASSISTANT = opts.config;
   const sandbox = {
     window: windowStub, document: documentStub,
-    fetch: async () => { throw new Error('network disabled in welcome tests'); },
+    fetch: opts.fetchImpl || (async () => { throw new Error('network disabled in welcome tests'); }),
     setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout, console,
   };
   vm.createContext(sandbox);
@@ -906,20 +913,49 @@ function loadWelcomeWidget(options) {
   const bubbleClose = bubble.querySelector('.nvaBubbleClose');
   const log = panel.querySelector('#nvaLog');
   const chips = panel.querySelector('#nvaChips');
-  for (const el of [tab, bubbleMain, bubbleClose]) {
+  const form = panel.querySelector('#nvaForm');
+  const input = panel.querySelector('#nvaInput');
+  const close = panel.querySelector('.nvaClose');
+  const outside = makeFakeElement('main');
+  const panelChildren = [log, chips, form, input, close];
+  const isWithin = (root, target) => {
+    let node = target;
+    while (node) {
+      if (node === root) return true;
+      node = node.parent;
+    }
+    return false;
+  };
+  panel.contains = (target) => panelChildren.includes(target) || isWithin(panel, target) || isWithin(log, target);
+  tab.contains = (target) => target === tab;
+  bubble.contains = (target) => target === bubble || target === bubbleMain || target === bubbleClose;
+  for (const el of [tab, bubbleMain, bubbleClose, input, close, outside]) {
     el.focus = () => { documentStub.activeElement = el; };
   }
-  return {
+  const widget = {
     storageData,
     advance,
     tab, panel, bubble, live, bubbleMain, bubbleClose,
+    log, chips, form, input, close, outside, modal, modalChild,
     bubbleShown: () => bubble.classList.contains('show'),
     panelOpen: () => panel.classList.contains('open'),
     activeElement: () => documentStub.activeElement,
     logText: () => log.children.map((c) => stripTags(c.innerHTML)).join('\n'),
     chipLabels: () => chips.children.map((c) => c.textContent),
+    clickChip: (label) => {
+      const chip = chips.children.find((c) => c.textContent === label);
+      assert.ok(chip, 'chip not found: ' + label + ' (have: ' + widget.chipLabels().join(' | ') + ')');
+      chip.click();
+    },
+    send: (text) => { input.value = text; form.dispatch('submit'); },
+    dispatchPointerDown: (target) => (docListeners.pointerdown || []).forEach((fn) => fn({ target, preventDefault() {} })),
+    tapOutside: (target) => {
+      (docListeners.pointerdown || []).forEach((fn) => fn({ target, preventDefault() {} }));
+      (docListeners.click || []).forEach((fn) => fn({ target, preventDefault() {} }));
+    },
     pressEscape: () => (docListeners.keydown || []).forEach((fn) => fn({ key: 'Escape', preventDefault() {} })),
   };
+  return widget;
 }
 
 test('welcome bubble: 508 and placement contract in the widget source', () => {
@@ -1077,4 +1113,123 @@ test('welcome bubble: an ignored bubble gently collapses after 30 seconds and do
   const w2 = loadWelcomeWidget({ storageData: shared });
   w2.advance(10000);
   assert.equal(w2.bubbleShown(), false, 'no re-pop later in the session');
+});
+
+// ---------------------------------------------------------------
+// Nex placement + panel closing: the default placement is the left
+// edge; a page-level opt-in can mirror Nex to the right (the facility
+// portal). However it closes — X, outside press, or the inactivity
+// timer — closing hides the panel only and leaves the session intact.
+
+test('Nex placement: right-side variant is opt-in and left remains the default', () => {
+  const widgetSrc = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
+  const platformSrc = fs.readFileSync(path.join(__dirname, '..', 'platform.js'), 'utf8');
+  const facilityHtml = fs.readFileSync(path.join(__dirname, '..', 'facility.html'), 'utf8');
+  assert.match(widgetSrc, /WIDGET_CONFIG\.side === 'right' \? 'right' : 'left'/, 'only an explicit right setting mirrors Nex');
+  assert.match(widgetSrc, /PANEL_IDLE_CLOSE_MS = 15000/, 'the panel idle close defaults to 15 seconds');
+  assert.match(widgetSrc, /\.nvaTab\.nvaRight\{[^}]*left:auto;right:0/, 'the right tab anchors to the right edge');
+  assert.match(widgetSrc, /\.nvaTab\.nvaRight\{[^}]*top:calc\(50% \+ 110px\)/, 'the right tab sits below the centered accessibility control');
+  assert.match(widgetSrc, /\.nvaBubble\.nvaRight\{[^}]*top:calc\(50% \+ 110px\)/, 'the right bubble aligns with the offset tab');
+  assert.match(widgetSrc, /\.nvaPanel\.nvaRight\{[^}]*left:auto;right:0[^}]*transform:translate\(112%,0\)/, 'the right panel hides off the right edge');
+  assert.match(widgetSrc, /\.nvaBubble\.nvaRight\{[^}]*left:auto;right:64px/, 'the right welcome bubble sits beside the right tab');
+  assert.match(widgetSrc, /\.nvaBubble\.nvaRight:before\{[^}]*right:-7px/, 'the right bubble arrow is mirrored');
+  assert.match(platformSrc, /var optedIn=!!\(window\.NEXUS_VISITOR_ASSISTANT && window\.NEXUS_VISITOR_ASSISTANT\.enabled\);/, 'the loader reads the page opt-in');
+  assert.match(platformSrc, /staffOrApp\.test\(location\.pathname\) && !optedIn/, 'staff surfaces stay excluded without the opt-in');
+  assert.ok(facilityHtml.indexOf("window.NEXUS_VISITOR_ASSISTANT={enabled:true,side:'right'}") < facilityHtml.indexOf('/platform.js'), 'facility.html sets the opt-in before platform.js loads');
+
+  const left = loadWelcomeWidget({});
+  assert.equal(left.tab.getAttribute('data-nva-side'), 'left');
+  assert.equal(left.tab.classList.contains('nvaRight'), false);
+  assert.equal(left.panel.classList.contains('nvaRight'), false);
+  assert.equal(left.bubble.classList.contains('nvaRight'), false);
+
+  const right = loadWelcomeWidget({ config: { enabled: true, side: 'right' } });
+  assert.equal(right.tab.getAttribute('data-nva-side'), 'right');
+  assert.equal(right.tab.classList.contains('nvaRight'), true);
+  assert.equal(right.panel.classList.contains('nvaRight'), true);
+  assert.equal(right.bubble.classList.contains('nvaRight'), true);
+});
+
+test('Nex panel: X closes it and returns focus from inside the panel to the tab', () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right' } });
+  w.tab.click();
+  assert.equal(w.panelOpen(), true);
+  w.close.focus();
+  w.close.click();
+  assert.equal(w.panelOpen(), false, 'the X button closes the panel');
+  assert.equal(w.activeElement(), w.tab, 'focus returns to the Ask Nex tab');
+  w.tab.click();
+  assert.equal(w.panelOpen(), true, 'the panel can reopen after closing');
+  assert.match(w.logText(), /I answer questions using the information on this website/, 'the greeting remains in the reopened log');
+  assert.equal(w.logText().split('I answer questions using the information on this website').length - 1, 1, 'reopening does not duplicate the greeting');
+});
+
+test('Nex panel: an outside tap closes it, while panel and host-modal taps do not', () => {
+  let modalOpen = false;
+  const w = loadWelcomeWidget({ isModalOpen: () => modalOpen });
+  w.tab.click();
+  w.dispatchPointerDown(w.input);
+  assert.equal(w.panelOpen(), true, 'a press inside the panel does not close it');
+  modalOpen = true;
+  w.tapOutside(w.modalChild);
+  assert.equal(w.panelOpen(), true, 'a press inside an open host-page modal does not close Nex');
+  modalOpen = false;
+  w.input.focus();
+  w.tapOutside(w.outside);
+  assert.equal(w.panelOpen(), false, 'a tap outside the widget closes the panel');
+  assert.equal(w.activeElement(), w.tab, 'focus inside the panel returns to the tab on an outside close');
+
+  // With focus outside the panel, closing must not steal it.
+  w.tab.click();
+  w.outside.focus();
+  w.tapOutside(w.outside);
+  assert.equal(w.panelOpen(), false);
+  assert.equal(w.activeElement(), w.outside, 'an outside close does not move focus that was already outside');
+});
+
+test('Nex panel: 15 seconds of inactivity closes it and panel interactions reset the timer', () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
+  w.tab.click();
+  w.advance(999);
+  assert.equal(w.panelOpen(), true, 'the panel is still open just before the idle limit');
+  w.panel.dispatch('input');
+  w.advance(999);
+  assert.equal(w.panelOpen(), true, 'typing resets the idle timer');
+  w.log.dispatch('scroll');
+  w.advance(999);
+  assert.equal(w.panelOpen(), true, 'scrolling the chat log resets the idle timer');
+  w.panel.dispatch('click');
+  w.advance(999);
+  assert.equal(w.panelOpen(), true, 'tapping a panel control resets the idle timer');
+  w.advance(1);
+  assert.equal(w.panelOpen(), false, 'the panel closes after the full idle interval');
+});
+
+test('Nex panel: conversation and in-progress estimate flow persist through X, outside and idle closes', async () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
+  w.tab.click();
+  w.send('How much does a ride cost?');
+  assert.match(w.logText(), /Where should we pick you up\?/, 'the estimate flow starts at the pickup step');
+
+  w.close.click();
+  assert.equal(w.panelOpen(), false, 'X closes mid-flow');
+  w.tab.click();
+  assert.match(w.logText(), /Where should we pick you up\?/, 'the pickup step is still there after reopening');
+  w.send('100 Main Street, Clarksburg, MD');
+  await flush(8);
+  assert.match(w.logText(), /where are you headed\?/, 'the preserved flow advances to drop-off after reopening');
+
+  w.tapOutside(w.outside);
+  assert.equal(w.panelOpen(), false, 'an outside tap closes mid-flow');
+  w.tab.click();
+  w.send('200 Hospital Road, Annapolis, MD');
+  await flush(8);
+  assert.match(w.logText(), /What type of ride is it\?/, 'the preserved flow advances to ride type after the outside close');
+
+  w.advance(1000);
+  assert.equal(w.panelOpen(), false, 'the idle timer closes mid-flow');
+  w.tab.click();
+  assert.ok(w.chipLabels().includes('Wheelchair'), 'reopening after the idle close is still on the ride-type step');
+  w.clickChip('Wheelchair');
+  assert.match(w.logText(), /One way, or round trip\?/, 'the preserved flow continues after the idle close');
 });
