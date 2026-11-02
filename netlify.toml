@@ -8,6 +8,7 @@
   NPM_VERSION = "10.9.2"
   NPM_FLAGS = "--registry=https://registry.npmjs.org/"
   SECRETS_SCAN_SMART_DETECTION_OMIT_KEYS = "DATABASE_URL"
+  SECRETS_SCAN_OMIT_PATHS = "netlify/functions/api.cjs,netlify/functions/_shared/maintenance.cjs,scripts/patch-google-maps-key.mjs"
   NEXUS_ADMIN_EMAIL = "admin@nexusmt.com"
   ALLOW_FALLBACK_AUTH = "false"
   # NEXUS_ADMIN_PASSWORD must be configured as a protected Netlify environment variable.
