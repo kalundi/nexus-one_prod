@@ -146,8 +146,52 @@ test('Ask Nex closes on an outside tap and after 15 idle seconds, preserving the
  // open if typing reset the timer.
  await page.clock.fastForward(10000);await expect(panel).toBeVisible();
  await panel.locator('#nvaInput').fill('1');await page.clock.fastForward(10000);await expect(panel).toBeVisible();
+ // A draft sitting in the focused composer suspends idle closing
+ // entirely: even 20 more seconds with no keystrokes leaves the
+ // panel open. (Before the fix, the timer fired here, mid-message.)
+ await page.clock.fastForward(20000);await expect(panel).toBeVisible();
+ // Idle closing resumes once the draft is cleared and focus leaves
+ // the composer (here: moved to the Send button, still in the panel).
+ await panel.locator('#nvaInput').fill('');await page.evaluate(()=>document.getElementById('nvaSend').focus());
  await page.clock.fastForward(20000);await expect(panel).toBeHidden();await expect(tab).toBeFocused();
  await tab.click();await expect(panel).toBeVisible();await expect(panel.locator('#nvaLog')).toContainText('Where should we pick you up?');
+});
+test('Ask Nex never closes while a message is being composed (idle-close regression)',async({page})=>{
+ await page.clock.install();await fixture(page);
+ // Shorten the idle window to 3s through the widget's own config so
+ // the regression legs run fast: serve facility.html with
+ // idleCloseMs added to its NEXUS_VISITOR_ASSISTANT config.
+ const fs=require('fs');
+ const html=fs.readFileSync('facility.html','utf8').replace("side:'right'","side:'right',idleCloseMs:3000");
+ expect(html).toContain('idleCloseMs:3000');
+ await page.route('**/facility.html',route=>route.fulfill({body:html,contentType:'text/html'}));
+ await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);
+ const tab=page.locator('#nvaTab'),panel=page.locator('#nvaPanel'),input=panel.locator('#nvaInput');
+ await tab.click();await expect(panel).toBeVisible();await page.clock.fastForward(60);
+ // (c) Pressing into the composer is a press inside the widget, not
+ // an outside press: the panel stays open.
+ await input.click();await expect(panel).toBeVisible();
+ // (a) Typing with pauses: each pause is shorter than the idle
+ // window, but total time at the keyboard runs far past it.
+ for(const chunk of ['What ','does ','a ride ','cost ','from ','here?']){
+  await page.keyboard.type(chunk);await page.clock.fastForward(2000);await expect(panel).toHaveClass(/\bopen\b/);
+ }
+ // (b) Now stop touching anything, draft still in the box and the
+ // composer still focused: ten idle windows pass and the panel must
+ // still be open with the draft intact. (Pre-fix, the idle timer
+ // fired during this pause and closed the panel mid-message; the
+ // open-class check is used because closing removes it at once,
+ // while the visibility transition lags behind it.)
+ await page.clock.fastForward(30000);await expect(panel).toHaveClass(/\bopen\b/);await expect(panel).toBeVisible();
+ await expect(input).toBeFocused();await expect(input).toHaveValue('What does a ride cost from here?');
+ // (d) Once the draft is cleared and focus leaves the composer,
+ // idle closing resumes: the panel closes and focus returns to the
+ // Ask Nex tab.
+ await input.fill('');await page.evaluate(()=>document.getElementById('nvaSend').focus());
+ await page.clock.fastForward(10000);await expect(panel).toBeHidden();await expect(tab).toBeFocused();
+ // (e) A genuine outside tap still closes immediately.
+ await tab.click();await expect(panel).toBeVisible();
+ await page.mouse.click(20,950);await expect(panel).toBeHidden();
 });
 test('reporting tab shows facility charts and refetches when the timeframe changes',async({page})=>{
  const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);
