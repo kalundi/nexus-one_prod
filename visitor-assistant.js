@@ -34,17 +34,13 @@
  * portal does — the tab, panel and welcome bubble are mirrored to the
  * right edge and the panel slides in from the right instead.
  *
- * Closing and session persistence: the open panel closes with its X
- * button, the tab again, Escape, a pointer press anywhere outside the
- * panel/tab/bubble (except inside an open host-page dialog or
- * aria-modal), or after 15 seconds without interaction inside the
- * panel. Typing, sending, tapping panel controls and scrolling the chat
- * log reset that idle timer — and the timer never fires on a visitor
- * who is mid-message: while the composer holds a draft, or holds
- * keyboard focus the visitor themselves placed there (a press or
- * keystroke in the composer — the widget's own focus-on-open does not
- * count), idle closing is suspended, however long the pause between
- * keystrokes.
+ * Closing and session persistence: the open panel closes only when
+ * the visitor closes it — with its X button, the tab again, Escape,
+ * or a pointer press anywhere outside the panel/tab/bubble (except
+ * inside an open host-page dialog or aria-modal). There is no
+ * inactivity auto-close: an earlier 15-second idle timer was removed
+ * outright (Nov 2, 2026) after it kept closing the panel on a visitor
+ * mid-conversation, however narrowly the gating around it was drawn.
  * Closing only hides the panel: it does not
  * clear messages, the remembered estimate/route, an in-progress
  * estimate flow, or the welcome state. If keyboard focus is inside the
@@ -152,8 +148,6 @@
     ? window.NEXUS_VISITOR_ASSISTANT
     : {};
   var WIDGET_SIDE = WIDGET_CONFIG.side === 'right' ? 'right' : 'left';
-  var PANEL_IDLE_CLOSE_MS = Number(WIDGET_CONFIG.idleCloseMs);
-  if (!Number.isFinite(PANEL_IDLE_CLOSE_MS) || PANEL_IDLE_CLOSE_MS <= 0) PANEL_IDLE_CLOSE_MS = 15000;
 
   var CSS = [
     '.nvaTab,.nvaPanel,.nvaPanel *{box-sizing:border-box}',
@@ -360,9 +354,6 @@
   var greeted = false;
   var greetingOverride = null;
   var busy = false;
-  var panelIdleTimer = null;
-  var composerUserEngaged = false;
-  var conversationStarted = false;
 
   function escapeHtml(text) {
     return String(text).replace(/[&<>"']/g, function (c) {
@@ -511,74 +502,12 @@
     log.scrollTop = log.scrollHeight;
   }
 
-  function clearPanelIdleClose() {
-    if (panelIdleTimer !== null) {
-      clearTimeout(panelIdleTimer);
-      panelIdleTimer = null;
-    }
-  }
-
-  // A visitor who is mid-message is never idle, however long they
-  // pause between keystrokes. A draft sitting in the composer always
-  // counts as engaged; so does keyboard focus in the composer once
-  // the visitor has pressed or typed into it themselves. Focus the
-  // widget moves on its own — on open, or back into the box after a
-  // send — never counts: a panel nobody has actually used still
-  // idle-closes on time.
-  function composerEngaged() {
-    var draft = '';
-    try { draft = String(input.value || ''); } catch (err) { draft = ''; }
-    if (draft.trim().length > 0) return true;
-    if (!composerUserEngaged) return false;
-    try { return document.activeElement === input; } catch (err) { return false; }
-  }
-
-  // Anthony's rule (Nov 2, 2026): once a conversation has started,
-  // the panel never auto-closes — the inactivity timer only ever
-  // applies to a panel nobody has used yet. A conversation starts
-  // when the visitor sends a message from the composer, taps a chip
-  // that asks something or starts the estimate, or answers inside
-  // the estimate flow (every one of those paths funnels through
-  // handleUserText or startEstimateFlow below); the greeting alone
-  // does not start one. The flag is page memory only: it survives
-  // manual close/reopen like the rest of the session, and a fresh
-  // page load resets it.
-  function markConversationStarted() {
-    if (conversationStarted) return;
-    conversationStarted = true;
-    clearPanelIdleClose();
-  }
-
-  function schedulePanelIdleClose() {
-    clearPanelIdleClose();
-    if (conversationStarted) return;
-    if (!panel.classList.contains('open')) return;
-    panelIdleTimer = setTimeout(function () {
-      panelIdleTimer = null;
-      if (conversationStarted) return;
-      if (composerEngaged()) {
-        // Stay armed and look again next window; the close lands
-        // within one window of the composer going quiet.
-        schedulePanelIdleClose();
-        return;
-      }
-      closePanel();
-    }, PANEL_IDLE_CLOSE_MS);
-  }
-
-  function notePanelActivity() {
-    if (panel.classList.contains('open')) schedulePanelIdleClose();
-  }
-
   // Closing is deliberately only a visibility change. The log's DOM,
   // chat history, remembered estimate/route, in-progress estimate flow
   // and welcome state are left untouched, so reopening resumes exactly
   // where the visitor left the conversation.
   function closePanel(restoreFocusOverride) {
-    if (!panel.classList.contains('open')) {
-      clearPanelIdleClose();
-      return;
-    }
+    if (!panel.classList.contains('open')) return;
     var restoreFocus = typeof restoreFocusOverride === 'boolean' ? restoreFocusOverride : false;
     if (typeof restoreFocusOverride !== 'boolean') {
       try {
@@ -597,7 +526,6 @@
     tab.setAttribute('aria-expanded', String(open));
     if (open) {
       outsidePressPanelFocus = false;
-      composerUserEngaged = false;
       // Opening Nex — by tab, bubble, or keyboard — settles the entry
       // welcome for the session, so it never pops over the chat.
       settleWelcome(true);
@@ -614,10 +542,6 @@
         log.scrollTop = log.scrollHeight; // resume at the latest message
       }
       setTimeout(function () { input.focus(); }, 60);
-      schedulePanelIdleClose();
-    } else {
-      composerUserEngaged = false;
-      clearPanelIdleClose();
     }
   }
 
@@ -642,25 +566,6 @@
     else setOpen(true);
   });
   panel.querySelector('.nvaClose').addEventListener('click', closePanel);
-  ['pointerdown', 'keydown', 'click', 'input', 'touchstart', 'wheel'].forEach(function (type) {
-    panel.addEventListener(type, notePanelActivity);
-  });
-  log.addEventListener('scroll', notePanelActivity, true);
-  form.addEventListener('submit', notePanelActivity);
-  // The composer also reports its own activity directly, so typing
-  // counts even if panel-level bubbling is ever interrupted — and a
-  // press or keystroke in the box marks it as genuinely in use, which
-  // is what suspends idle closing while a message is being composed.
-  // Focus leaving the composer (the visitor tabs or taps away) ends
-  // that, so an empty, unfocused composer idle-closes as approved.
-  function noteComposerActivity() {
-    composerUserEngaged = true;
-    notePanelActivity();
-  }
-  input.addEventListener('pointerdown', noteComposerActivity);
-  input.addEventListener('keydown', noteComposerActivity);
-  input.addEventListener('input', noteComposerActivity);
-  input.addEventListener('focusout', function () { composerUserEngaged = false; });
   // An outside press closes on the click that completes it, not on
   // pointerdown: the browser moves focus out of the panel during
   // pointerdown (to the pressed control, or to the body for a bare
@@ -672,7 +577,7 @@
     if (!panel.classList.contains('open')) return;
     var target = e && e.target;
     if (!target) return;
-    if (panel.contains(target)) { notePanelActivity(); outsidePressPanelFocus = false; return; }
+    if (panel.contains(target)) { outsidePressPanelFocus = false; return; }
     if (tab.contains(target) || bubble.contains(target)) { outsidePressPanelFocus = false; return; }
     if (eventInsideHostModal(target)) { outsidePressPanelFocus = false; return; }
     try {
@@ -1050,7 +955,6 @@
   }
 
   function startEstimateFlow() {
-    markConversationStarted();
     flow = { step: 'pickup', pickup: '', dropoff: '', service: '', tripType: '', date: '', time: '', pendingDate: '', geoFails: { pickup: 0, dropoff: 0 }, pickupPlace: null, dropoffPlace: null, placeOptions: null, route: null };
     renderChips();
     addMessage('I can work out a rough estimate right here \u2014 no need to open the booking app first. I just need a few details. (Availability itself is confirmed when you book.)\n\n' + STEP_PROMPTS.pickup, 'bot');
@@ -1703,7 +1607,6 @@
   function handleUserText(raw) {
     var q = String(raw || '').trim();
     if (!q || busy) return;
-    markConversationStarted();
     input.value = '';
     // The visitor has asked something: clear the suggestion chips out
     // of the way so the answer is fully visible when it lands.

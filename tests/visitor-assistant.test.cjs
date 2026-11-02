@@ -1118,15 +1118,17 @@ test('welcome bubble: an ignored bubble gently collapses after 30 seconds and do
 // ---------------------------------------------------------------
 // Nex placement + panel closing: the default placement is the left
 // edge; a page-level opt-in can mirror Nex to the right (the facility
-// portal). However it closes — X, outside press, or the inactivity
-// timer — closing hides the panel only and leaves the session intact.
+// portal). The panel closes only when the visitor closes it — X,
+// tab, Escape or an outside press; there is no inactivity
+// auto-close. Closing hides the panel only and leaves the session
+// intact.
 
 test('Nex placement: right-side variant is opt-in and left remains the default', () => {
   const widgetSrc = fs.readFileSync(path.join(__dirname, '..', 'visitor-assistant.js'), 'utf8');
   const platformSrc = fs.readFileSync(path.join(__dirname, '..', 'platform.js'), 'utf8');
   const facilityHtml = fs.readFileSync(path.join(__dirname, '..', 'facility.html'), 'utf8');
   assert.match(widgetSrc, /WIDGET_CONFIG\.side === 'right' \? 'right' : 'left'/, 'only an explicit right setting mirrors Nex');
-  assert.match(widgetSrc, /PANEL_IDLE_CLOSE_MS = 15000/, 'the panel idle close defaults to 15 seconds');
+  assert.doesNotMatch(widgetSrc, /PANEL_IDLE_CLOSE_MS|idleCloseMs/, 'the idle auto-close is gone from the widget entirely');
   assert.match(widgetSrc, /\.nvaTab\.nvaRight\{[^}]*left:auto;right:0/, 'the right tab anchors to the right edge');
   assert.match(widgetSrc, /\.nvaTab\.nvaRight\{[^}]*top:calc\(50% \+ 110px\)/, 'the right tab sits below the centered accessibility control');
   assert.match(widgetSrc, /\.nvaBubble\.nvaRight\{[^}]*top:calc\(50% \+ 110px\)/, 'the right bubble aligns with the offset tab');
@@ -1187,50 +1189,52 @@ test('Nex panel: an outside tap closes it, while panel and host-modal taps do no
   assert.equal(w.activeElement(), w.outside, 'an outside close does not move focus that was already outside');
 });
 
-test('Nex panel: 15 seconds of inactivity closes it and panel interactions reset the timer', () => {
+test('Nex panel: no idle auto-close — an untouched panel is still open after 10 minutes', () => {
+  // The idleCloseMs config is passed on purpose: the widget no
+  // longer reads it, and even a page that still sets it must not
+  // resurrect a timer. Anthony's instruction (Nov 2, 2026): remove
+  // the 15 seconds entirely.
   const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
   w.tab.click();
-  w.advance(999);
-  assert.equal(w.panelOpen(), true, 'the panel is still open just before the idle limit');
+  assert.equal(w.panelOpen(), true);
+  w.advance(600000);
+  assert.equal(w.panelOpen(), true, 'ten minutes untouched: the panel is still open');
+  // Panel interactions change nothing about that — there is no
+  // timer for them to reset.
   w.panel.dispatch('input');
-  w.advance(999);
-  assert.equal(w.panelOpen(), true, 'typing resets the idle timer');
   w.log.dispatch('scroll');
-  w.advance(999);
-  assert.equal(w.panelOpen(), true, 'scrolling the chat log resets the idle timer');
   w.panel.dispatch('click');
-  w.advance(999);
-  assert.equal(w.panelOpen(), true, 'tapping a panel control resets the idle timer');
-  w.advance(1);
-  assert.equal(w.panelOpen(), false, 'the panel closes after the full idle interval');
+  w.advance(600000);
+  assert.equal(w.panelOpen(), true, 'twenty minutes in, the panel has never closed on its own');
 });
 
-test('Nex panel: idle closing is suspended while a message is being composed', () => {
-  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
+test('Nex panel: composing a message is never interrupted, however long the pause', () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right' } });
   w.tab.click();
-  // The visitor presses into the composer and types, then pauses far
-  // beyond the idle window with the draft still in the box: the panel
-  // must not close on them mid-thought.
+  // The visitor presses into the composer and types, then pauses for
+  // minutes with the draft still in the box: the panel must not
+  // close on them mid-thought.
   w.input.dispatch('pointerdown');
   w.input.focus();
   w.input.value = 'What does a ride cost from here?';
   w.input.dispatch('input');
-  w.advance(10000);
-  assert.equal(w.panelOpen(), true, 'a draft in the composer suspends idle close');
+  w.advance(60000);
+  assert.equal(w.panelOpen(), true, 'a draft in the composer is never closed on');
   assert.equal(w.activeElement(), w.input, 'focus stays in the composer');
   assert.equal(w.input.value, 'What does a ride cost from here?', 'the draft survives the pause');
-  // With the draft cleared and focus moved out, idle close runs again.
+  // Clearing the draft and moving focus out changes nothing: with
+  // no idle timer left, the empty panel simply stays open.
   w.input.value = '';
   w.input.dispatch('input');
   w.outside.focus();
   w.input.dispatch('focusout');
-  w.advance(1000);
-  assert.equal(w.panelOpen(), false, 'an idle panel with an empty draft still closes');
-  assert.equal(w.activeElement(), w.outside, 'closing does not steal focus that was already outside');
+  w.advance(60000);
+  assert.equal(w.panelOpen(), true, 'an empty, unfocused panel still does not close on its own');
+  assert.equal(w.activeElement(), w.outside, 'focus stays where the visitor left it');
 });
 
-test('Nex panel: idle never closes after the visitor sends a message', async () => {
-  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
+test('Nex panel: the panel stays open after the visitor sends a message, however long they read', async () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right' } });
   w.tab.click();
   w.send('What are your hours?');
   await flush();
@@ -1238,39 +1242,38 @@ test('Nex panel: idle never closes after the visitor sends a message', async () 
   // The composer is empty again and the only focus in it is the
   // focus the widget restored itself after the send: this post-send
   // pause — sitting reading the answer — is the one that kept
-  // closing on Anthony. Several idle windows pass; the panel must
-  // stay open.
-  w.advance(10000);
-  assert.equal(w.panelOpen(), true, 'a sent message starts the conversation: idle close never fires');
+  // closing on Anthony. Minutes pass; the panel must stay open.
+  w.advance(120000);
+  assert.equal(w.panelOpen(), true, 'a post-send reading pause never closes the panel');
 });
 
-test('Nex panel: idle never closes once the estimate flow has started', async () => {
-  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
+test('Nex panel: the panel stays open through the estimate flow, however long the pauses', async () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right' } });
   w.tab.click();
   w.clickChip('Do you want to know what your ride would cost?');
   assert.match(w.logText(), /Where should we pick you up\?/, 'the cost chip starts the estimate flow');
   // Pausing between flow steps — reading the question, looking up
   // an address — must not close the panel either.
-  w.advance(10000);
-  assert.equal(w.panelOpen(), true, 'an in-progress estimate never idle-closes');
+  w.advance(60000);
+  assert.equal(w.panelOpen(), true, 'an in-progress estimate never closes on its own');
   w.send('100 Main Street, Clarksburg, MD');
   await flush(8);
   assert.match(w.logText(), /where are you headed\?/, 'the flow is still alive after the pause');
-  w.advance(10000);
-  assert.equal(w.panelOpen(), true, 'later flow steps never idle-close either');
+  w.advance(60000);
+  assert.equal(w.panelOpen(), true, 'later flow steps never close on their own either');
 });
 
-test('Nex panel: focus the widget placed itself does not suspend idle close', () => {
-  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
+test('Nex panel: an untouched panel stays open even while the composer holds widget-placed focus', () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right' } });
   w.tab.click();
   w.advance(60);
   assert.equal(w.activeElement(), w.input, 'opening moves focus into the composer');
-  w.advance(1000);
-  assert.equal(w.panelOpen(), false, 'an untouched panel idle-closes even while the composer holds focus');
+  w.advance(600000);
+  assert.equal(w.panelOpen(), true, 'an untouched panel never closes on its own');
 });
 
-test('Nex panel: conversation and in-progress estimate flow persist through X and outside closes, and idle never closes mid-conversation', async () => {
-  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right', idleCloseMs: 1000 } });
+test('Nex panel: conversation and in-progress estimate flow persist through X and outside closes, and never close on their own mid-conversation', async () => {
+  const w = loadWelcomeWidget({ config: { enabled: true, side: 'right' } });
   w.tab.click();
   w.send('How much does a ride cost?');
   assert.match(w.logText(), /Where should we pick you up\?/, 'the estimate flow starts at the pickup step');
@@ -1290,13 +1293,11 @@ test('Nex panel: conversation and in-progress estimate flow persist through X an
   await flush(8);
   assert.match(w.logText(), /What type of ride is it\?/, 'the preserved flow advances to ride type after the outside close');
 
-  // Anthony's rule: once the conversation has started the idle
-  // timer never closes the panel — several idle windows pass
-  // mid-flow and it stays open on the same step. (This leg asserted
-  // the mid-flow idle close before the rule change.)
-  w.advance(10000);
-  assert.equal(w.panelOpen(), true, 'idle never closes once the conversation has started');
-  assert.ok(w.chipLabels().includes('Wheelchair'), 'the flow is still on the ride-type step after the idle windows');
+  // With the idle auto-close removed entirely, minutes pass
+  // mid-flow and the panel stays open on the same step.
+  w.advance(120000);
+  assert.equal(w.panelOpen(), true, 'the panel never closes on its own once the conversation has started');
+  assert.ok(w.chipLabels().includes('Wheelchair'), 'the flow is still on the ride-type step after the minutes pass');
   w.clickChip('Wheelchair');
   assert.match(w.logText(), /One way, or round trip\?/, 'the preserved flow continues');
 });
