@@ -25,8 +25,10 @@ async function fixture(page,{staff=false,empty=false}={}){
 for(const width of [1440,390])test(`production manager works across board, routes, inbox and evolving locations at ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:1000});const errors=[];page.on('pageerror',e=>errors.push(e.message));const captured=await fixture(page);
  await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText('Alex Passenger');await expect(page.locator('#facilityName')).toHaveText(facility.name);await expect(page.locator('#facilitySelectLabel')).toBeHidden();
- await expect(page.locator('#serviceTimeframe')).toBeVisible();await expect(page.locator('#serviceDateButton')).toHaveText('Wed, Oct 28, 2026');await expect(page.locator('#serviceCalendarPop')).toBeHidden();await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams.at(-1)).toEqual({from:'2026-10-28',to:'2026-10-28',ranges:null,dates:null});
- await page.locator('#serviceDateButton').click();await expect(page.locator('#serviceCalendarPop')).toBeVisible();await page.locator('[data-date="2026-10-30"]').click();await expect(page.locator('#serviceCalendarPop')).toBeHidden();await expect(page.locator('#serviceDateButton')).toHaveText('Fri, Oct 30, 2026');await expect(page.locator('#serviceRange')).toHaveText('Fri, Oct 30, 2026');await expect(page.locator('#tripCount')).toHaveText('1');expect(captured.tripParams.at(-1)).toEqual({from:'2026-10-30',to:'2026-10-30',ranges:null,dates:null});
+ await expect(page.locator('#serviceTimeframe')).toBeVisible();await expect(page.locator('#serviceDateButton')).toHaveText('Wed, Oct 28, 2026');await expect(page.locator('#serviceCalendarPop')).toBeHidden();await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-28..2026-10-28',dates:null});
+ // Multi-pick: tapping a second day adds its range while the pop-up
+ // stays open; Done closes it and the board reloads for the union.
+ await page.locator('#serviceDateButton').click();await expect(page.locator('#serviceCalendarPop')).toBeVisible();await page.locator('[data-date="2026-10-30"]').click();await expect(page.locator('#serviceCalendarPop')).toBeVisible();await expect(page.locator('[data-date="2026-10-30"]')).toHaveAttribute('aria-pressed','true');await page.locator('#calDone').click();await expect(page.locator('#serviceCalendarPop')).toBeHidden();await expect(page.locator('#serviceDateButton')).toHaveText('2 dates: Oct 28 · Oct 30, 2026');await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026 · Fri, Oct 30, 2026');await expect(page.locator('#tripCount')).toHaveText('1');await expect.poll(()=>captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-28..2026-10-28,2026-10-30..2026-10-30',dates:null});
  await expect(page.locator('#tripRows')).toContainText('Deposit Paid');await expect(page.locator('#tripRows')).toContainText('Assigned Driver');
  await page.screenshot({path:`output/facility-production-board-${width}.png`,fullPage:true});
  await page.locator('#tripSearch').fill('no match');await expect(page.locator('#tripRows')).toContainText('No trips match');await page.locator('#tripSearch').fill('');
@@ -73,50 +75,97 @@ test('route map calculates real booking addresses and reverses the return leg',a
  await page.locator('#routeLeg').selectOption('return');await expect(page.locator('#mapStatus')).toHaveText('Planned return road route.');expect(await page.evaluate(()=>window.routeRequests.at(-1).origin)).toBe(trip.destination);
  await page.locator('nav [data-view="board"]').click();await page.locator('[data-route]').click();await expect(page.locator('#mapStatus')).toContainText('Planned return');
 });
-test('manager picks one date from a pop-up calendar and switches timeframe',async({page})=>{
+test('manager picks multiple dates in a pop-up calendar and switches timeframe',async({page})=>{
  const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);
  const day=iso=>page.locator(`[data-date="${iso}"]`),pop=page.locator('#serviceCalendarPop'),button=page.locator('#serviceDateButton');
  // On load the calendar takes no space: the pop-up is hidden, and the
- // board already shows today through the from/to range.
+ // board already shows today through the seeded single-day range,
+ // carried by the ranges parameter.
  await expect(pop).toBeHidden();await expect(page.locator('#calGrid')).toBeHidden();
  await expect(button).toHaveText('Wed, Oct 28, 2026');await expect(button).toHaveAttribute('aria-expanded','false');
- expect(captured.tripParams.at(-1)).toEqual({from:'2026-10-28',to:'2026-10-28',ranges:null,dates:null});
- // Clicking the date control opens the pop-up on the anchor's month,
- // with the anchor day marked and today named in its label.
+ expect(captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-28..2026-10-28',dates:null});
+ // Clicking the date control opens the pop-up on the seeded month,
+ // with today marked and named in its label.
  await button.click();await expect(pop).toBeVisible();await expect(button).toHaveAttribute('aria-expanded','true');
  await expect(page.locator('#calMonth')).toHaveText('October 2026');
  await expect(day('2026-10-28')).toHaveAttribute('aria-pressed','true');
  await expect(day('2026-10-28')).toHaveAttribute('aria-label','Wednesday, October 28, 2026, today');
  await expect(day('2026-10-30')).toHaveAttribute('aria-pressed','false');
- // Escape closes the pop-up without changing the date.
+ // Escape closes the pop-up without applying anything new.
+ const requests=captured.tripParams.length;
  await page.keyboard.press('Escape');await expect(pop).toBeHidden();await expect(button).toBeFocused();
- await expect(button).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams.at(-1).from).toBe('2026-10-28');
- // An outside click also closes it without changing the date.
- await button.click();await expect(pop).toBeVisible();await page.locator('#viewTitle').click();await expect(pop).toBeHidden();await expect(button).toHaveText('Wed, Oct 28, 2026');
- // Picking a day closes the pop-up, updates the control and the summary
- // line, and reloads the board for that day.
+ await expect(button).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams).toHaveLength(requests);
+ // An outside click also closes it without changing the selection.
+ await button.click();await expect(pop).toBeVisible();await page.locator('#viewTitle').click();await expect(pop).toBeHidden();await expect(button).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams).toHaveLength(requests);
+ // Tapping a day toggles its range on and the pop-up STAYS OPEN —
+ // that is what makes picking several dates possible. Tapping the
+ // same day again toggles it back off.
  await button.click();await day('2026-10-30').click();
- await expect(pop).toBeHidden();await expect(button).toBeFocused();await expect(button).toHaveText('Fri, Oct 30, 2026');
- await expect(page.locator('#serviceRange')).toHaveText('Fri, Oct 30, 2026');
- await expect.poll(()=>captured.tripParams.at(-1)).toEqual({from:'2026-10-30',to:'2026-10-30',ranges:null,dates:null});
- // Month navigation inside the pop-up reaches other months; picking a
- // day there moves the anchor.
- await button.click();await page.locator('#calNext').click();await expect(page.locator('#calMonth')).toHaveText('November 2026');
- await day('2026-11-16').click();await expect(pop).toBeHidden();await expect(button).toHaveText('Mon, Nov 16, 2026');
- await expect.poll(()=>captured.tripParams.at(-1)).toEqual({from:'2026-11-16',to:'2026-11-16',ranges:null,dates:null});
- // Switching the timeframe re-resolves the same anchor: Week is the
- // Sunday-Saturday span, Month the calendar month, and the summary line
- // words the range from -> to. The pop-up stays closed throughout.
+ await expect(pop).toBeVisible();
+ await expect(day('2026-10-28')).toHaveAttribute('aria-pressed','true');
+ await expect(day('2026-10-30')).toHaveAttribute('aria-pressed','true');
+ await day('2026-10-30').click();await expect(day('2026-10-30')).toHaveAttribute('aria-pressed','false');
+ await day('2026-10-30').click();await expect(day('2026-10-30')).toHaveAttribute('aria-pressed','true');
+ // Done closes the pop-up, returns focus to the control, and reloads
+ // the board for the union of both picked days.
+ await page.locator('#calDone').click();
+ await expect(pop).toBeHidden();await expect(button).toBeFocused();
+ await expect(button).toHaveText('2 dates: Oct 28 · Oct 30, 2026');
+ await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026 · Fri, Oct 30, 2026');
+ await expect.poll(()=>captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-28..2026-10-28,2026-10-30..2026-10-30',dates:null});
+ // Switching the timeframe does NOT clear the selection and does not
+ // refetch: it only changes what the next tap resolves to.
+ const beforeSwitch=captured.tripParams.length;
  await page.locator('#serviceTimeframe').selectOption('week');
- await expect(page.locator('#serviceRange')).toHaveText('Sun, Nov 15 → Sat, Nov 21, 2026');
- await expect.poll(()=>captured.tripParams.at(-1)).toEqual({from:'2026-11-15',to:'2026-11-21',ranges:null,dates:null});
- await page.locator('#serviceTimeframe').selectOption('month');
- await expect(page.locator('#serviceRange')).toHaveText('Nov 1 → Nov 30, 2026');
- await expect.poll(()=>captured.tripParams.at(-1)).toEqual({from:'2026-11-01',to:'2026-11-30',ranges:null,dates:null});
- await expect(pop).toBeHidden();
+ await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026 · Fri, Oct 30, 2026');
+ expect(captured.tripParams).toHaveLength(beforeSwitch);
+ // In Week mode a tap selects the whole Sunday-Saturday span: every
+ // day of that week is marked, and Done carries it as one more range.
+ await button.click();await page.locator('#calNext').click();await expect(page.locator('#calMonth')).toHaveText('November 2026');
+ await day('2026-11-18').click();await expect(pop).toBeVisible();
+ for(const iso of ['2026-11-15','2026-11-16','2026-11-17','2026-11-18','2026-11-19','2026-11-20','2026-11-21'])await expect(day(iso)).toHaveAttribute('aria-pressed','true');
+ await expect(day('2026-11-22')).toHaveAttribute('aria-pressed','false');
+ await page.locator('#calDone').click();await expect(pop).toBeHidden();
+ await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026 · Fri, Oct 30, 2026 · Sun, Nov 15 → Sat, Nov 21, 2026');
+ await expect.poll(()=>captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-28..2026-10-28,2026-10-30..2026-10-30,2026-11-15..2026-11-21',dates:null});
+ // Clear resets the selection to today's range for the timeframe in
+ // effect — here the week containing today — and refetches.
+ await page.locator('#clearRanges').click();
+ await expect(button).toHaveText('Wed, Oct 28, 2026');
+ await expect(page.locator('#serviceRange')).toHaveText('Sun, Oct 25 → Sat, Oct 31, 2026');
+ await expect.poll(()=>captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-25..2026-10-31',dates:null});
+});
+test('toggling off the only selected day reseeds to today',async({page})=>{
+ const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);
+ const day=iso=>page.locator(`[data-date="${iso}"]`),pop=page.locator('#serviceCalendarPop'),button=page.locator('#serviceDateButton');
+ await button.click();await expect(pop).toBeVisible();
+ // Today is the only selected range. Tapping it would empty the
+ // selection, so the minimum-one rule reseeds today's range instead:
+ // the day stays marked, and Done refetches the same single day.
+ await day('2026-10-28').click();await expect(day('2026-10-28')).toHaveAttribute('aria-pressed','true');
+ await page.locator('#calDone').click();await expect(pop).toBeHidden();
+ await expect(button).toHaveText('Wed, Oct 28, 2026');await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026');
+ await expect.poll(()=>captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-28..2026-10-28',dates:null});
+});
+for(const width of [1440,390])test(`calendar day cells are square with one-line numbers at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:1000});await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);
+ await page.locator('#serviceDateButton').click();await expect(page.locator('#serviceCalendarPop')).toBeVisible();
+ const cells=await page.evaluate(()=>{
+  const measure=iso=>{const el=document.querySelector(`[data-date="${iso}"]`);const box=el.getBoundingClientRect();return {width:box.width,height:box.height,scrollHeight:el.scrollHeight,clientHeight:el.clientHeight,padding:getComputedStyle(el).padding,whiteSpace:getComputedStyle(el).whiteSpace};};
+  return {single:measure('2026-10-05'),double:measure('2026-10-15')};
+ });
+ // A two-digit day takes the same square cell as a single-digit day.
+ // Before the fix, the portal-wide button padding landed on the day
+ // cells, left ~8px of content width, and wrapped two-digit numbers
+ // onto two lines — the cell grew about 50% taller than its neighbours.
+ expect(Math.abs(cells.double.height-cells.single.height)).toBeLessThanOrEqual(2);
+ expect(Math.abs(cells.double.width-cells.double.height)).toBeLessThanOrEqual(2);
+ expect(cells.double.scrollHeight).toBeLessThanOrEqual(cells.double.clientHeight+1);
+ expect(cells.double.padding).toBe('0px');
+ expect(cells.double.whiteSpace).toBe('nowrap');
 });
 for(const width of [1440,390])test(`Ask Nex is mirrored to the right edge without covering the calendar controls at ${width}px`,async({page})=>{
- await page.setViewportSize({width,height:1000});const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);expect(captured.tripParams.at(-1)).toEqual({from:'2026-10-28',to:'2026-10-28',ranges:null,dates:null});
+ await page.setViewportSize({width,height:1000});const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);expect(captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-28..2026-10-28',dates:null});
  const tab=page.locator('#nvaTab'),panel=page.locator('#nvaPanel');
  await page.locator('#serviceDateButton').click();const controls=page.locator('#serviceCalendarPop');await expect(controls).toBeVisible();
  await expect(tab).toBeVisible();await expect(tab).toHaveAttribute('data-nva-side','right');await expect(panel).toHaveAttribute('data-nva-side','right');

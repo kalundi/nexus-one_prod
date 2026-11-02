@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const {rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,rangeSummary,fullDateLabel,shortDateLabel,validDate}=require('../facility-range.js');
+const {rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,rangeSummary,toggleRange,dateInRanges,rangesParam,selectionSummary,fullDateLabel,shortDateLabel,validDate}=require('../facility-range.js');
 
 test('worked example: anchor Sun Nov 1, 2026 produces all five ranges',()=>{
  assert.deepEqual(rangeFor('2026-11-01','day'),{period:'day',from:'2026-11-01',to:'2026-11-01',label:'Sun, Nov 1, 2026'});
@@ -117,12 +117,49 @@ test('rangeSummary words one resolved range as a from-to line',()=>{
  assert.equal(rangeSummary({from:'not-a-date',to:'2026-11-07'}),'');
 });
 
-test('facility portal filters by one timeframe and a pop-up date picker',()=>{
+test('selection toggles ranges by span, dedupes, and words the union',()=>{
+ const day=rangeFor('2026-10-28','day'),otherDay=rangeFor('2026-10-30','day'),week=rangeFor('2026-11-18','week');
+ // Toggling appends in tap order and returns a new list each time.
+ const one=toggleRange([],day);
+ assert.deepEqual(one,[day]);
+ const two=toggleRange(one,otherDay);
+ assert.deepEqual(two,[day,otherDay]);
+ assert.deepEqual(one,[day],'toggleRange must not mutate the list it was given');
+ // Toggling a selected span removes it — even when the tap resolved
+ // through another timeframe instance of the same span, and an exact
+ // duplicate can never be added twice.
+ assert.deepEqual(toggleRange(two,rangeFor('2026-10-30','day')),[day]);
+ assert.deepEqual(toggleRange(two,{from:'2026-10-30',to:'2026-10-30'}),[day]);
+ assert.deepEqual(toggleRange([],null),[]);
+ // Membership is inclusive of both ends of every selected span.
+ assert.equal(dateInRanges([week],'2026-11-15'),true);
+ assert.equal(dateInRanges([week],'2026-11-21'),true);
+ assert.equal(dateInRanges([week],'2026-11-14'),false);
+ assert.equal(dateInRanges([week],'2026-11-22'),false);
+ assert.equal(dateInRanges([day,week],'2026-10-28'),true);
+ assert.equal(dateInRanges([],'2026-10-28'),false);
+ // The ranges query value is one from..to pair per range, in order.
+ assert.equal(rangesParam([day,otherDay,week]),'2026-10-28..2026-10-28,2026-10-30..2026-10-30,2026-11-15..2026-11-21');
+ assert.equal(rangesParam([]),'');
+ // The summary line: one range keeps its rangeSummary, two or three
+ // join with ' · ', more collapse to a count plus the outer span.
+ assert.equal(selectionSummary([day]),'Wed, Oct 28, 2026');
+ assert.equal(selectionSummary([otherDay,day]),'Wed, Oct 28, 2026 · Fri, Oct 30, 2026');
+ assert.equal(selectionSummary([week,otherDay,day]),'Wed, Oct 28, 2026 · Fri, Oct 30, 2026 · Sun, Nov 15 → Sat, Nov 21, 2026');
+ const month=rangeFor('2026-12-15','month');
+ assert.equal(selectionSummary([month,week,otherDay,day]),'4 ranges: Wed, Oct 28, 2026 → Thu, Dec 31, 2026');
+ assert.equal(selectionSummary([]),'');
+});
+
+test('facility portal filters by timeframe and a multi-pick pop-up calendar',()=>{
  const html=fs.readFileSync('facility.html','utf8'),portal=fs.readFileSync('facility-portal.js','utf8'),server=fs.readFileSync('netlify/functions/_shared/facility-portal.cjs','utf8'),css=fs.readFileSync('facility-portal.css','utf8');
  for(const [name,content] of [['facility.html',html],['facility-portal.js',portal],['facility-portal.cjs',server]])assert.ok(!/service day/i.test(content),name+' still says "Service day"');
- // The filter is one timeframe choice plus one anchor date. The calendar
- // is only a pop-up date picker: present in the markup but hidden, so it
+ // The filter is one timeframe choice plus a pop-up calendar. The
+ // calendar is only a pop-up: present in the markup but hidden, so it
  // consumes no layout space until the Service Date control opens it.
+ // Inside it, days are toggles — each tap adds or removes the range the
+ // tapped day resolves to under the chosen timeframe — and a Done
+ // button closes it and applies the union.
  assert.ok(html.includes('id="serviceTimeframe"'),'portal must offer the timeframe select');
  for(const value of ['day','week','month','quarter','year'])assert.ok(html.includes('<option value="'+value+'">'),'timeframe option '+value+' must exist');
  assert.ok(html.includes('id="serviceDateButton"'),'the date control shows the picked anchor date');
@@ -140,8 +177,14 @@ test('facility portal filters by one timeframe and a pop-up date picker',()=>{
  assert.ok(!html.includes('id="serviceDay"'),'the native date input is gone');
  assert.ok(html.includes('id="serviceRange"'));
  assert.ok(html.includes('src="/facility-range.js'));
- assert.ok(portal.includes('from:range.from,to:range.to'),'portal must request the resolved from/to range');
+ assert.ok(html.includes('id="calDone"'),'the pop-up must offer a Done button that closes it and applies the picked ranges');
+ assert.ok(html.includes('id="clearRanges"'),'the summary line must offer a Clear control back to today');
+ assert.ok(portal.includes('rangesParam(selected)'),'portal must request the selected ranges through the ranges parameter');
+ assert.ok(portal.includes('toggleRange'),'portal must toggle ranges in the pop-up calendar');
+ assert.ok(!portal.includes('from:range.from,to:range.to'),'portal no longer requests a single from/to range');
  assert.ok(!portal.includes('dates:dates.join'),'portal no longer requests a set of dates');
+ assert.ok(css.includes('.serviceCalendarPop .calDay'),'calendar day styles must be scoped under the pop-up so they beat the portal-wide button padding');
+ assert.ok(css.includes('aspect-ratio:1/1'),'calendar day cells must be square so two-digit numbers cannot wrap');
  assert.ok(portal.includes('summary=data.summary'),'portal counters must come from the range summary');
  assert.ok(server.includes('ranges:blocks'),'the trips response must echo the resolved blocks');
  assert.ok(server.includes('selectedDates'),'the trips handler must implement the dates mode');
