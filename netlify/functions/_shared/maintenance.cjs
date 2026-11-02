@@ -1,4 +1,8 @@
 const crypto = require('node:crypto');
+// Public Google Maps browser key (the same value /api/integrations/config serves). Kept as
+// a code constant instead of a Netlify env var to stay under the 4 KB Lambda env limit;
+// an env value, when present, still takes precedence in the maps-config check below.
+const GOOGLE_MAPS_BROWSER_KEY='AIzaSyBxUsk6C1KUYpf4rRmfnfzA2Pe182D8RVY';
 const ORIGIN = 'https://nexusmt.com';
 const TARGETS = [
   ['booking', 'Booking page', '/booking-app.html', 'id="journeyHeader"'],
@@ -94,7 +98,7 @@ function createMonitor({query, fetchImpl = fetch, env = process.env, now = Date.
       for (let i=0;i<TARGETS.length;i+=5) results.push(...await Promise.all(TARGETS.slice(i,i+5).map(t => probe(t,fetchImpl,now))));
       try { await query('SELECT 1 AS maintenance_database_probe'); results.push({id:'database',label:'Database connectivity',status:'pass',detail:'Read-only query succeeded'}); }
       catch { results.push({id:'database',label:'Database connectivity',status:'fail',detail:'Read-only database query failed'}); }
-      results.push({id:'maps-config',label:'Maps configuration',status:env.GOOGLE_MAPS_BROWSER_KEY?'pass':'warn',detail:env.GOOGLE_MAPS_BROWSER_KEY?'Browser key present; provider validity and road rendering are not tested':'Google Maps browser key is not configured'});
+      results.push({id:'maps-config',label:'Maps configuration',status:(env.GOOGLE_MAPS_BROWSER_KEY||GOOGLE_MAPS_BROWSER_KEY)?'pass':'warn',detail:(env.GOOGLE_MAPS_BROWSER_KEY||GOOGLE_MAPS_BROWSER_KEY)?'Browser key present; provider validity and road rendering are not tested':'Google Maps browser key is not configured'});
       const report = reduceReport(claimed.rows[0].report,results,now());
       await query(`UPDATE maintenance_monitor SET report=$1::jsonb,lease_token=NULL,lease_until=NULL,
         acknowledgements=(SELECT COALESCE(jsonb_object_agg(key,value),'{}'::jsonb) FROM jsonb_each(acknowledgements) WHERE key=ANY($3::text[]))
