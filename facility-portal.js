@@ -9,32 +9,38 @@
  const time=value=>String(value||'').slice(0,5)||'Not set';
  const timestamp=value=>value?new Date(value).toLocaleString('en-US',{timeZone:'America/New_York',dateStyle:'medium',timeStyle:'short'})+' ET':'';
  function notice(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);}
- let selectedDates=new Set(),calendarMonth='';
- function sortedDates(){return [...selectedDates].sort();}
- function renderRange(){$('serviceRange').textContent=window.NexusFacilityRange?window.NexusFacilityRange.describeDates(sortedDates()):'';}
+ let anchorDate='',timeframe='day',calendarMonth='',calendarOpen=false;
+ function currentRange(){const fallback={period:timeframe,from:anchorDate,to:anchorDate,label:''};if(!window.NexusFacilityRange||!anchorDate)return fallback;return window.NexusFacilityRange.rangeFor(anchorDate,timeframe)||fallback;}
+ function renderRange(){
+  const range=window.NexusFacilityRange;
+  $('serviceDateButton').textContent=range?range.describeDates([anchorDate]):anchorDate;
+  $('serviceRange').textContent=range?range.rangeSummary(currentRange()):'';
+ }
  function renderCalendar(){
   const range=window.NexusFacilityRange,grid=$('calGrid');if(!range||!grid)return;
   const today=context?.today||'';
-  if(!calendarMonth)calendarMonth=(sortedDates()[0]||today).slice(0,7);
+  if(!calendarMonth)calendarMonth=(anchorDate||today).slice(0,7);
   const parts=calendarMonth.split('-').map(Number),view=range.monthGrid(parts[0],parts[1]-1);
   if(!view)return;
   $('calMonth').textContent=view.label;
   grid.innerHTML=view.weeks.map(week=>'<div class="calWeek">'+week.map(cell=>{
    if(!cell)return '<span class="calBlank" aria-hidden="true"></span>';
-   const selected=selectedDates.has(cell.date),isToday=cell.date===today;
-   const aria=range.fullDateLabel(cell.date)+(isToday?', today':'')+(selected?', selected':'');
-   return '<button type="button" class="calDay'+(selected?' selected':'')+(isToday?' today':'')+'" data-date="'+cell.date+'" aria-pressed="'+selected+'" aria-label="'+aria+'">'+cell.day+(selected?'<span class="calCheck" aria-hidden="true">&#10003;</span>':'')+'</button>';
+   const selected=cell.date===anchorDate,isToday=cell.date===today;
+   const aria=range.fullDateLabel(cell.date)+(isToday?', today':'');
+   return '<button type="button" class="calDay'+(selected?' selected':'')+(isToday?' today':'')+'" data-date="'+cell.date+'" aria-pressed="'+selected+'" aria-label="'+aria+'">'+cell.day+'</button>';
   }).join('')+'</div>').join('');
-  $('dateChips').innerHTML=sortedDates().map(day=>'<span class="dateChip">'+esc(range.shortDateLabel(day))+'<button type="button" class="chipRemove" data-remove-date="'+day+'"'+(selectedDates.size<=1?' disabled':'')+' aria-label="Remove '+range.fullDateLabel(day)+'">&times;</button></span>').join('');
  }
- function datesChanged(){revision++;page=0;trips=[];summary=null;renderCalendar();renderRange();renderTrips();clearMap();refresh();}
- // The selection always keeps at least one date: toggling off or removing
- // the final selected day is refused, and Clear resets to today alone.
- function toggleDate(day){
-  if(selectedDates.has(day)){if(selectedDates.size<=1)return;selectedDates.delete(day);}
-  else{if(selectedDates.size>=62)return;selectedDates.add(day);}
-  datesChanged();
+ // The calendar is a pop-up: hidden (and taking no layout space) until the
+ // Service Date control opens it, and closed again as soon as a day is
+ // picked, the control is clicked again, Escape is pressed, or the user
+ // clicks anywhere outside it.
+ function setCalendarOpen(open){
+  calendarOpen=open;$('serviceCalendarPop').hidden=!open;$('serviceDateButton').setAttribute('aria-expanded',String(open));
+  if(open){calendarMonth=(anchorDate||context?.today||'').slice(0,7);renderCalendar();}
  }
+ function closeCalendar(refocus=false){if(!calendarOpen)return;setCalendarOpen(false);if(refocus)$('serviceDateButton').focus();}
+ function rangeChanged(){revision++;page=0;trips=[];summary=null;renderRange();renderTrips();clearMap();refresh();}
+ function pickDate(day){if(!day)return;anchorDate=day;calendarMonth=day.slice(0,7);closeCalendar(true);rangeChanged();}
  function shiftMonth(delta){
   const parts=calendarMonth.split('-').map(Number);if(parts.length!==2||!parts[0])return;
   calendarMonth=new Date(Date.UTC(parts[0],parts[1]-1+delta,1)).toISOString().slice(0,7);renderCalendar();
@@ -65,7 +71,7 @@
  async function refresh(){
   if(!active||loading||!facility)return;loading=true;const version=revision,session=token(),currentFacility=facility;
   $('refresh').disabled=true;
-  try{const dates=sortedDates();const query=dates.length?{dates:dates.join(','),page:String(page)}:{date:context?.today||'',page:String(page)};const data=await api('trips?'+new URLSearchParams(query));if(version!==revision||session!==token()||currentFacility!==facility)return;trips=data.trips;hasMore=data.hasMore;summary=data.summary||null;renderTrips();notice('Updated '+timestamp(data.updatedAt)+'. Refreshes automatically while this portal is open.');if(view==='routes')renderRoute();if(view==='communications')loadConversation();if(view==='locations')loadLocations();}
+  try{const range=currentRange();const query={from:range.from,to:range.to,page:String(page)};const data=await api('trips?'+new URLSearchParams(query));if(version!==revision||session!==token()||currentFacility!==facility)return;trips=data.trips;hasMore=data.hasMore;summary=data.summary||null;renderTrips();notice('Updated '+timestamp(data.updatedAt)+'. Refreshes automatically while this portal is open.');if(view==='routes')renderRoute();if(view==='communications')loadConversation();if(view==='locations')loadLocations();}
   catch(error){if(version===revision)notice('Refresh failed: '+error.message+' Previously loaded information may be out of date.',true);}
   finally{loading=false;$('refresh').disabled=false;if(version!==revision&&active)refresh();}
  }
@@ -97,7 +103,7 @@
  async function changeScope(){clearPrivate();facility=context.manager?context.facilities[0]?.id||'':$('facilitySelect').value;page=0;$('facilityBookingFrame').dataset.facility='';const f=context.facilities.find(f=>f.id===facility);$('facilityName').textContent=f?.name||'Select a facility';$('facilityAddress').textContent=f?.address||'';if(facility)await refresh();}
  document.addEventListener('click',event=>{const trigger=event.target.closest('[data-view],.bookRideSign,a[href^="/booking-app.html"]');if(!trigger||$('bookingDialog').contains(trigger))return;event.preventDefault();openView(trigger.dataset.view||'booking');});
  $('closeBookingDialog').addEventListener('click',()=>$('bookingDialog').close());
- $('refresh').addEventListener('click',()=>{lastRoute='';refresh();});$('calGrid').addEventListener('click',event=>{const day=event.target.closest('[data-date]');if(day)toggleDate(day.dataset.date);});$('calPrev').addEventListener('click',()=>shiftMonth(-1));$('calNext').addEventListener('click',()=>shiftMonth(1));$('dateChips').addEventListener('click',event=>{const remove=event.target.closest('[data-remove-date]');if(remove&&!remove.disabled)toggleDate(remove.dataset.removeDate);});$('clearDates').addEventListener('click',()=>{const today=context?.today;if(!today)return;selectedDates=new Set([today]);calendarMonth=today.slice(0,7);datesChanged();});$('tripSearch').addEventListener('input',renderTrips);$('statusFilter').addEventListener('change',renderTrips);$('facilitySelect').addEventListener('change',changeScope);
+ $('refresh').addEventListener('click',()=>{lastRoute='';refresh();});$('serviceDateButton').addEventListener('click',()=>setCalendarOpen(!calendarOpen));$('serviceTimeframe').addEventListener('change',()=>{timeframe=$('serviceTimeframe').value;rangeChanged();});$('calGrid').addEventListener('click',event=>{const day=event.target.closest('[data-date]');if(day)pickDate(day.dataset.date);});$('calPrev').addEventListener('click',()=>shiftMonth(-1));$('calNext').addEventListener('click',()=>shiftMonth(1));document.addEventListener('click',event=>{if(calendarOpen&&!event.target.closest('.serviceDateWrap'))closeCalendar();});document.addEventListener('keydown',event=>{if(event.key==='Escape'&&calendarOpen){event.preventDefault();closeCalendar(true);}});$('tripSearch').addEventListener('input',renderTrips);$('statusFilter').addEventListener('change',renderTrips);$('facilitySelect').addEventListener('change',changeScope);
  $('previousPage').addEventListener('click',()=>{if(page){page--;revision++;refresh();}});$('nextPage').addEventListener('click',()=>{if(hasMore){page++;revision++;refresh();}});
  $('tripRows').addEventListener('click',event=>{const route=event.target.closest('[data-route]'),message=event.target.closest('[data-message]');if(route){selectedRoute=route.dataset.route;$('routeTrip').value=selectedRoute;openView('routes');}if(message){setConversation(message.dataset.message);$('messageTrip').value=selectedMessage;openView('communications');}});
  $('routeTrip').addEventListener('change',()=>{selectedRoute=$('routeTrip').value;renderRoute();});$('routeLeg').addEventListener('change',renderRoute);$('messageTrip').addEventListener('change',()=>{setConversation($('messageTrip').value);loadConversation();});
@@ -106,7 +112,7 @@
  function applyLocation(){if(!pendingLocation)return;$('facilityBookingFrame').contentWindow?.postMessage({type:'nexus:facility-location',destination:pendingLocation},location.origin);}
  $('facilityBookingFrame').addEventListener('load',applyLocation);
  window.addEventListener('message',event=>{const frame=$('facilityBookingFrame');if(!active||event.origin!==location.origin||event.source!==frame.contentWindow)return;if(event.data?.type==='nexus:facility-booking-saved')refresh();if(event.data?.type==='nexus:facility-checkout'){let url;try{url=new URL(event.data.url);}catch{return;}if(url.protocol==='https:')location.assign(url.href);}});
- async function start(){if(active)return;active=true;try{const params=new URLSearchParams(location.search),requested=params.get('facility');context=await api('context'+(requested?'?'+new URLSearchParams({facility:requested}):''));if(!active)return;selectedDates=new Set([context.today]);calendarMonth=context.today.slice(0,7);renderCalendar();renderRange();$('facilitySelectLabel').hidden=context.manager;$('messageRecipient').textContent=context.manager?'dispatch':'the facility manager';$('facilitySelect').innerHTML=(context.manager?'':'<option value="">Select a facility</option>')+context.facilities.map(f=>`<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');if(!context.manager&&context.facilities.some(f=>f.id===requested))$('facilitySelect').value=requested;else if(!context.manager&&context.facilities.length===1)$('facilitySelect').value=context.facilities[0].id;await changeScope();if(!facility)notice('Select a facility to open its operations workspace.');else if(['success','cancelled'].includes(params.get('payment'))&&params.get('bookingReference'))openBooking();}catch(error){notice(error.message,true);}}
+ async function start(){if(active)return;active=true;try{const params=new URLSearchParams(location.search),requested=params.get('facility');context=await api('context'+(requested?'?'+new URLSearchParams({facility:requested}):''));if(!active)return;anchorDate=context.today;timeframe='day';$('serviceTimeframe').value='day';calendarMonth=context.today.slice(0,7);renderRange();$('facilitySelectLabel').hidden=context.manager;$('messageRecipient').textContent=context.manager?'dispatch':'the facility manager';$('facilitySelect').innerHTML=(context.manager?'':'<option value="">Select a facility</option>')+context.facilities.map(f=>`<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');if(!context.manager&&context.facilities.some(f=>f.id===requested))$('facilitySelect').value=requested;else if(!context.manager&&context.facilities.length===1)$('facilitySelect').value=context.facilities[0].id;await changeScope();if(!facility)notice('Select a facility to open its operations workspace.');else if(['success','cancelled'].includes(params.get('payment'))&&params.get('bookingReference'))openBooking();}catch(error){notice(error.message,true);}}
  window.addEventListener('nexus:authorized',start);if(window.NexusAuthorizedUser)start();
  setInterval(()=>{if(active&&!document.hidden){if(!token()){active=false;clearPrivate();notice('Your session ended. Sign in again.',true);return;}refresh();}},20000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&active)refresh();});
