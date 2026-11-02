@@ -27,6 +27,8 @@ const handleMockAssignments=MockAssignments.createHandler({getPool,requireUser,a
 const handleMockPractice=require('./_shared/mock-driver-practice.cjs').createHandler({getPool,requireUser,audit,json,parseBody,bearer});
 const {createApplicantResponseHandler}=require('./_shared/applicant-response.cjs');
 const handleApplicantResponse=createApplicantResponseHandler({query,sendEmail,audit});
+const {createDriveflexMarketplace}=require('./_shared/driveflex-marketplace.cjs');
+const driveflexMarketplace=createDriveflexMarketplace({query,getPool,requireUser,audit,sendEmail,siteBase});
 const {buildBrokerBookingPayload,getBrokerAutoBookStatus,resolveBrokerRequestStatus}=require('./_shared/broker-auto-book.cjs');
 const {canAdvanceBookingForAvailability}=require('./_shared/dispatch-approval.cjs');
 const {buildEmailRecipients,buildSmsRecipients,buildPatientEmailRecipients,buildPatientSmsRecipients,alternateEmailOf}=require('./_shared/notification-routing.cjs');
@@ -2245,6 +2247,9 @@ async function handler(event){
   const userManagerResponse=await handleUserManager(event,p,method);
   if(userManagerResponse)return userManagerResponse;
   if(p[0]==='training')return await handleTraining(event,p,method);
+  if(p[0]==='driveflex'&&p[1]!=='shifts'){
+   const result=await driveflexMarketplace.handle(event,p,method);if(result)return result;
+  }
   if(p[0]==='caretaker'){
    const access=require('./_shared/caretaker-access.cjs');
    if(['access','permissions','alerts'].includes(p[1]))return await access.accessRoutes(event,p);
@@ -2352,7 +2357,9 @@ async function handler(event){
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb) RETURNING id,created_at`,[clean(b.firstName),clean(b.lastName),email,clean(b.phone),clean(b.city),clean(b.state),clean(b.position),clean(b.employmentPreference),clean(b.availableStartDate)||null,clean(b.preferredShift)||null,b.reliableTransportation===true,clean(b.experienceYears),clean(b.licenseState)||null,clean(b.certifications)||null,clean(b.interest),clean(b.additionalInformation)||null,resume?clean(resume.name)||null:null,resume?clean(resume.mimeType)||null:null,resumeBytes,JSON.stringify(driveflexDetails)]);
    const applicationId=String(created.rows[0].id),name=`${clean(b.firstName)} ${clean(b.lastName)}`;
    const safe=value=>clean(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-   const applicantEmail=sendEmail([email],'We received your Nexus Medical Transit application',`<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><h2 style="color:#082f49">Application received</h2><p>Hello ${safe(b.firstName)},</p><p>Thank you for applying to Nexus Medical Transit for <strong>${safe(b.position)}</strong>. Our hiring team will review your qualifications and contact you if your experience matches an available opportunity.</p><p><strong>Application reference:</strong> ${applicationId}</p><p>Do not send Social Security numbers or financial information by email.</p><p>Nexus Medical Transit<br>(888) 639-5766</p></div>`);
+   const applicationPortalUrl=driveflexType==='driveflex-driver'?await driveflexMarketplace.createAccess(applicationId):null;
+   const portalMessage=applicationPortalUrl?`<p>Your next step is ready. Add your documents a little at a time; your progress is saved. Nexus can provide the six required training items if you do not have current accepted certificates.</p><p><a href="${safe(applicationPortalUrl)}">Continue my application securely</a></p><p>This private link expires in 30 days. Keep it private. You can request another link from the DriveFlex application page.</p>`:'';
+   const applicantEmail=sendEmail([email],'We received your Nexus Medical Transit application',`<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><h2 style="color:#082f49">Application received</h2><p>Hello ${safe(b.firstName)},</p><p>Thank you for applying to Nexus Medical Transit for <strong>${safe(b.position)}</strong>. Our hiring team will review your qualifications and contact you if your experience matches an available opportunity.</p><p><strong>Application reference:</strong> ${applicationId}</p>${portalMessage}<p>Do not send Social Security numbers or financial information by email.</p><p>Nexus Medical Transit<br>(888) 639-5766</p></div>`);
    const hiringRecipients=buildEmailRecipients(process.env.HIRING_EMAIL||process.env.COMPANY_EMAIL||'contact@nexusmt.com');
    const hiringEmail=sendEmail(hiringRecipients,`New Nexus applicant — ${name} — ${clean(b.position)}`,`<div style="font-family:Arial,sans-serif;max-width:680px"><h2>New career application</h2><p><strong>${safe(name)}</strong> applied for <strong>${safe(b.position)}</strong>.</p><p>Email: ${safe(email)}<br>Phone: ${safe(b.phone)}<br>Location: ${safe(b.city)}, ${safe(b.state)}<br>Experience: ${safe(b.experienceYears)}</p><p>Sign in to the Nexus Admin applicant workspace to review and respond.</p><p>Reference: ${applicationId}</p></div>`);
    const notificationResults=await Promise.allSettled([applicantEmail,hiringEmail]);
@@ -2360,7 +2367,7 @@ async function handler(event){
    await query('UPDATE career_applications SET notification_status=$2::jsonb WHERE id=$1',[applicationId,JSON.stringify(notificationStatus)]);
    await audit('CAREER_APPLICATION',applicationId,'SUBMITTED',{position:clean(b.position),notifications:notificationStatus});
    const confirmationEmailSent=notificationStatus.applicant?.status==='sent';
-   return json(201,{received:true,applicationId,confirmationEmailSent,message:confirmationEmailSent?'Your application has been received. A confirmation email has been sent.':'Your application has been received. Save your application reference.'});
+   return json(201,{received:true,applicationId,confirmationEmailSent,applicationPortalUrl,message:confirmationEmailSent?'Your application has been received. A confirmation email has been sent.':'Your application has been received. Save your application reference.'});
   }
   if(p[0]==='admin'&&p[1]==='career-applications'){
    const me=await requireUser(bearer(event),['ADMIN']);await ensureCareerApplicationsSchema();

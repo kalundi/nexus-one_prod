@@ -149,13 +149,18 @@
 # DriveFlex runs on nexusmt.com and reuses existing Nexus pages and sign-in.
 [[redirects]]
   from = "/driveflex"
-  to = "/careers.html"
-  status = 302
+  to = "/driveflex.html"
+  status = 200
 
 [[redirects]]
   from = "/driveflex/apply"
-  to = "/career-application.html"
-  status = 302
+  to = "/driveflex.html"
+  status = 200
+
+[[redirects]]
+  from = "/driveflex/manage"
+  to = "/driveflex.html"
+  status = 200
 
 [[redirects]]
   from = "/driveflex/dispatch"

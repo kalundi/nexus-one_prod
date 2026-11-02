@@ -24,6 +24,7 @@
    const response=await fetch('/api/careers/applications',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)}),result=await response.json().catch(()=>({}));
    if(!response.ok)throw new Error(result.error||'Unable to submit your application.');
    form.reset();syncDriveflex();show(`Application received. Your reference is ${result.applicationId}.${result.confirmationEmailSent===false?' Save this reference; email confirmation is temporarily unavailable.':' Check your email for confirmation.'}`);status.focus();
+   if(result.applicationPortalUrl){const url=new URL(result.applicationPortalUrl,location.origin);if(url.origin===location.origin&&url.pathname==='/driveflex/apply'){location.assign(url.href);}}
   }catch(error){show(error.message||'Unable to submit your application.',true)}finally{button.disabled=false;button.textContent='Submit application'}
  });
  form.addEventListener('invalid',event=>event.target.setAttribute('aria-invalid','true'),true);
