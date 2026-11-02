@@ -16,13 +16,49 @@
  async function load(){
   const version=++generation;
   try{
-   const q=new URLSearchParams({q:$('search').value,category:$('category').value,page:String(page)}),data=await api('?'+q);
+   const q=new URLSearchParams({q:$('search').value,category:$('category').value,status:$('status').value,page:String(page)}),data=await api('?'+q);
    if(version!==generation||!authorized)return;
    $('actorList').replaceChildren();
-   for(const actor of data.actors){const li=node('li'),button=node('button'),name=node('strong',actor.display_name),summary=node('small',actor.classifications.map(c=>`${label(c.category)} · ${label(c.subtype)}`).join(' / '));button.type='button';button.dataset.id=actor.id;button.setAttribute('aria-current',String(selected===actor.id));button.append(name,summary);button.addEventListener('click',()=>show(actor.id));li.append(button);$('actorList').append(li);}
+   for(const actor of data.actors){const li=node('li'),button=node('button'),name=node('strong',actor.display_name),summary=node('small',actor.classifications.map(c=>`${label(c.category)} · ${label(c.subtype)}`).join(' / ')+(actor.active===false?' · Inactive':''));button.type='button';button.dataset.id=actor.id;button.setAttribute('aria-current',String(selected===actor.id));button.append(name,summary);button.addEventListener('click',()=>show(actor.id));li.append(button);$('actorList').append(li);}
    if(!data.actors.length)$('actorList').append(node('li','No matching actors.'));
    $('pageNumber').textContent='Page '+(page+1);$('previous').disabled=page===0;$('next').disabled=!data.hasMore;notice('Directory ready.');
   }catch(e){notice(e.message);}
+ }
+ function manageSection(data){
+  const actor=data.actor,management=data.management,section=node('div'),id=actor.id;section.className='manage';
+  section.append(node('h3','Manage this actor'));
+  const words={USER:'User account',EMPLOYEE:'Employee record',PATIENT:'Patient record',FACILITY:'Facility record',ORGANIZATION:'Organization record'};
+  const count=management.relationshipCount;
+  section.append(node('p',count===0?'This actor has no relationships recorded.':`This actor has ${count} relationship${count===1?'':'s'} recorded.`));
+  section.append(node('p',management.sources.length?`It is kept in step with ${[...new Set(management.sources.map(r=>words[r.source]||'a live record'))].join(' and ')}.`:'It is a directory identity only, with no live record behind it.'));
+  const actions=node('div');actions.className='manageActions';
+  const stateButton=node('button',actor.active?'Deactivate actor':'Reactivate actor');stateButton.type='button';
+  const removeButton=node('button','Remove actor permanently');removeButton.type='button';removeButton.className='danger';
+  if(!management.canRemove){removeButton.disabled=true;removeButton.setAttribute('aria-describedby','removeReason');}
+  actions.append(stateButton,removeButton);section.append(actions);
+  if(!management.canRemove){const reason=node('p',management.blockers.join(' '));reason.id='removeReason';reason.className='removeReason';section.append(reason);}
+  const confirm=(text,confirmLabel,danger,run)=>{
+   section.querySelector('.confirmBox')?.remove();
+   const box=node('div');box.className='confirmBox';box.setAttribute('role','alertdialog');box.setAttribute('aria-label',confirmLabel);
+   box.append(node('p',text));
+   const row=node('div');row.className='actions';
+   const yes=node('button',confirmLabel);yes.type='button';if(danger)yes.className='danger';
+   const no=node('button','Cancel');no.type='button';
+   no.addEventListener('click',()=>{box.remove();(danger?removeButton:stateButton).focus();});
+   yes.addEventListener('click',async()=>{yes.disabled=true;no.disabled=true;try{await run();}catch(e){notice(e.message);box.remove();}});
+   row.append(yes,no);box.append(row);section.append(box);yes.focus();
+  };
+  stateButton.addEventListener('click',()=>confirm(
+   actor.active?`Deactivate ${actor.display_name}? It will be hidden from the default directory list. You can reactivate it at any time.`:`Reactivate ${actor.display_name}? It will return to the default directory list.`,
+   actor.active?'Deactivate':'Reactivate',false,
+   async()=>{await api('/'+id+(actor.active?'/deactivate':'/reactivate'),{});notice(actor.active?`Deactivated ${actor.display_name}.`:`Reactivated ${actor.display_name}.`);await show(id);await load();}
+  ));
+  removeButton.addEventListener('click',()=>confirm(
+   `Permanently remove ${actor.display_name}? This cannot be undone. Its classifications will be removed with it, and the removal will be recorded.`,
+   'Permanently remove',true,
+   async()=>{await api('/'+id+'/remove',{});selected='';$('details').replaceChildren(node('p','Select an actor to view classifications, source records, and relationships.'));notice(`Removed ${actor.display_name}.`);await load();}
+  ));
+  return section;
  }
  async function show(id){
   selected=id;const version=++generation;
@@ -39,11 +75,12 @@
    for(const key of Object.keys(relationships)){const option=node('option',label(key));option.value=key;relation.append(option);}
    search.type='button';search.addEventListener('click',async()=>{search.disabled=true;try{const result=await api('?q='+encodeURIComponent(find.value));target.replaceChildren();for(const a of result.actors.filter(a=>a.id!==id)){const o=node('option',a.display_name);o.value=a.id;target.append(o);}if(!target.options.length)notice('No related actors found.');}catch(e){notice(e.message);}finally{search.disabled=false;}});
    relationForm.append(typeLabel,searchLabel,search,targetLabel,saveRelation);relationForm.addEventListener('submit',async event=>{event.preventDefault();saveRelation.disabled=true;try{await api('/'+id+'/relationships',{relationship:relation.value,objectId:target.value});await show(id);}catch(e){notice(e.message);saveRelation.disabled=false;}});panel.append(relationForm);
+   if(data.management)panel.append(manageSection(data));
    document.querySelectorAll('#actorList button').forEach(b=>b.setAttribute('aria-current',String(b.dataset.id===id)));
    if(window.innerWidth<760)panel.scrollIntoView({block:'start'});
   }catch(e){notice(e.message);}
  }
- $('searchForm').addEventListener('submit',event=>{event.preventDefault();page=0;load();});$('previous').addEventListener('click',()=>{page--;load();});$('next').addEventListener('click',()=>{page++;load();});
+ $('searchForm').addEventListener('submit',event=>{event.preventDefault();page=0;load();});$('status').addEventListener('change',()=>{page=0;load();});$('previous').addEventListener('click',()=>{page--;load();});$('next').addEventListener('click',()=>{page++;load();});
  $('addActor').addEventListener('click',()=>{$('actorError').textContent='';$('actorForm').reset();options($('actorForm').elements.classification,'PERSON');$('actorDialog').showModal();});
  $('cancelActor').addEventListener('click',()=>$('actorDialog').close());$('actorForm').elements.kind.addEventListener('change',event=>options($('actorForm').elements.classification,event.target.value));
  $('actorForm').addEventListener('submit',async event=>{
