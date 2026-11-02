@@ -45,5 +45,46 @@
     else{from=new Date(Date.UTC(date.getUTCFullYear(),0,1));to=new Date(Date.UTC(date.getUTCFullYear(),11,31));}
     return {period:kind,from:iso(from),to:iso(to),label:label(kind,from,to)};
   }
-  return {PERIODS,rangeFor,validDate:value=>parse(value)!==null};
+  // resolveBlocks([{anchor:'2026-11-04',timeframe:'week'},{anchor:'2026-11-16',timeframe:'day'}])
+  //   -> [{period:'week',from:'2026-11-01',to:'2026-11-07',label:...},{period:'day',...}]
+  // `period` is accepted as a synonym for `timeframe`. Every block resolves
+  // with the exact rangeFor rules above. Returns null when the list is empty
+  // or any block is unusable, so callers fall back to a single day instead of
+  // guessing at a partial union.
+  function resolveBlocks(blocks){
+    if(!Array.isArray(blocks)||!blocks.length)return null;
+    const resolved=[];
+    for(const block of blocks){
+      const range=rangeFor(block&&block.anchor,block&&(block.timeframe||block.period));
+      if(!range)return null;
+      resolved.push(range);
+    }
+    return resolved;
+  }
+  function compactLabel(range,showYear){
+    const from=parse(range.from),to=parse(range.to);
+    if(range.period==='day')return dayMonth(from)+(showYear?', '+from.getUTCFullYear():'');
+    if(range.period==='week')return dayMonth(from)+' – '+dayMonth(to)+(showYear||from.getUTCFullYear()!==to.getUTCFullYear()?', '+to.getUTCFullYear():'');
+    if(range.period==='month')return MONTHS_SHORT[from.getUTCMonth()]+' '+from.getUTCFullYear();
+    if(range.period==='quarter')return 'Q'+(Math.floor(from.getUTCMonth()/3)+1)+' '+from.getUTCFullYear();
+    return String(from.getUTCFullYear());
+  }
+  // describeBlocks(blocks) words the union for the summary line. A single
+  // block keeps its full rangeFor label ('Sun, Nov 1 – Sat, Nov 7, 2026');
+  // several blocks read as compact segments in date order, joined by ' · ',
+  // e.g. 'Nov 2 – Nov 8 · Nov 16 · Dec 2026'. A segment gains its year when
+  // it starts in a different year than the first segment.
+  function describeBlocks(blocks){
+    // Accept either the raw block list or an already-resolved list, which
+    // is what the portal has after currentBlocks() resolves the controls.
+    const resolved=Array.isArray(blocks)&&blocks.length&&blocks.every(block=>block&&block.from&&block.to&&block.period)
+      ? blocks
+      : resolveBlocks(blocks);
+    if(!resolved)return '';
+    if(resolved.length===1)return resolved[0].label;
+    const sorted=[...resolved].sort((a,b)=>a.from<b.from?-1:a.from>b.from?1:a.to<b.to?-1:a.to>b.to?1:0);
+    const firstYear=parse(sorted[0].from).getUTCFullYear();
+    return sorted.map(range=>compactLabel(range,parse(range.from).getUTCFullYear()!==firstYear)).join(' · ');
+  }
+  return {PERIODS,rangeFor,resolveBlocks,describeBlocks,validDate:value=>parse(value)!==null};
 });

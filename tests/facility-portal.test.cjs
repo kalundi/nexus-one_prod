@@ -106,3 +106,72 @@ test('trips endpoint serves date ranges with range-wide summary counts and uncha
   assert.equal((await call({from:'2026-03-01',to:'2026-03-31',facility:'FC-B'})).statusCode,403);
  }finally{await db.close();}
 });
+
+test('trips endpoint unions multiple ranges once per trip, paginates and summarizes the union, and validates ranges',async()=>{
+ const db=new PGlite(),manager='11111111-1111-4111-8111-111111111111';
+ try{
+  await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
+   CREATE TABLE users(id uuid PRIMARY KEY); INSERT INTO users VALUES('${manager}');
+   CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
+   INSERT INTO facilities VALUES('FC-A','Care A','100 Facility Lane',true),('FC-B','Care B','200 Facility Lane',true);
+   CREATE TABLE bookings(reference text PRIMARY KEY,facility_id text,booking_source text,name text,service text,pickup text,destination text,trip_date date,trip_time time,notes text,status text,payment_status text,driver_name text,vehicle_unit text,trip_type text,return_trip_date date,return_trip_time time,updated_at timestamptz);`);
+  await db.exec(fs.readFileSync('database/migrations/084.001_patient_schedule_duplicates.sql','utf8').split('CREATE OR REPLACE FUNCTION booking_appointment_time')[1].split('CREATE OR REPLACE FUNCTION booking_referral_key')[0].replace(/^/, 'CREATE OR REPLACE FUNCTION booking_appointment_time'));
+  await db.exec(fs.readFileSync('database/migrations/094.001_facility_portal.sql','utf8'));
+  const bulk=Array.from({length:104},(_,i)=>`('U${String(i).padStart(3,'0')}','FC-A','CUSTOMER','Bulk Passenger','Facility Lane','Clinic Lane','2026-03-03','08:00','REQUESTED','UNPAID')`).join(',');
+  await db.exec(`INSERT INTO bookings(reference,facility_id,booking_source,name,pickup,destination,trip_date,trip_time,status,payment_status) VALUES ${bulk},
+   ('BLK-A','FC-A','CUSTOMER','Block A Passenger','Facility Lane','Clinic Lane','2026-03-03','09:00','REQUESTED','UNPAID'),
+   ('BLK-B','FC-A','CUSTOMER','Block B Passenger','Facility Lane','Clinic Lane','2026-03-16','09:00','COMPLETED','PAID_IN_FULL'),
+   ('BLK-C','FC-A','CUSTOMER','Block C Passenger','Facility Lane','Clinic Lane','2026-03-25','09:00','EN_ROUTE','UNPAID'),
+   ('SPLIT','FC-A','CUSTOMER','Split Passenger','Facility Lane','Clinic Lane','2026-03-05','09:00','REQUESTED','UNPAID'),
+   ('CANX','FC-A','CUSTOMER','Cancelled Passenger','Facility Lane','Clinic Lane','2026-03-04','09:00','CANCELLED','UNPAID'),
+   ('OUTSIDE','FC-A','CUSTOMER','Outside Passenger','Facility Lane','Clinic Lane','2026-03-10','09:00','REQUESTED','UNPAID'),
+   ('OTHER','FC-B','CUSTOMER','Other Facility Passenger','Other Lane','Clinic Lane','2026-03-03','09:00','REQUESTED','UNPAID');
+   UPDATE bookings SET return_trip_date='2026-03-24',return_trip_time='12:00',trip_type='ROUND_TRIP' WHERE reference='SPLIT';
+   UPDATE bookings SET return_trip_date='2026-03-11',return_trip_time='12:00',trip_type='ROUND_TRIP' WHERE reference='OUTSIDE';`);
+  const users={manager:{id:manager,role:'FACILITY',scope_id:'FC-A',display_name:'Manager A'}};
+  const handler=createHandler({query:(...args)=>db.query(...args),requireUser:async token=>{if(!users[token])throw Object.assign(Error('Authentication required'),{statusCode:401});return users[token];},bearer:e=>e.headers.authorization,json:(statusCode,body)=>({statusCode,body}),parseBody:e=>JSON.parse(e.body)});
+  const call=async(params={})=>{try{return await handler({headers:{authorization:'manager'},queryStringParameters:params,body:'{}'},['facility-portal','trips'],'GET');}catch(error){return {statusCode:error.statusCode||500,body:{error:error.message}};}};
+  const ranges='2026-03-02..2026-03-06,2026-03-16..2026-03-16,2026-03-23..2026-03-27';
+  const page0=await call({ranges,page:'0'});
+  assert.equal(page0.statusCode,200);
+  assert.deepEqual(page0.body.ranges,[{from:'2026-03-02',to:'2026-03-06'},{from:'2026-03-16',to:'2026-03-16'},{from:'2026-03-23',to:'2026-03-27'}]);
+  assert.equal(page0.body.from,'2026-03-02');assert.equal(page0.body.to,'2026-03-27');
+  assert.equal(page0.body.trips.length,100);assert.equal(page0.body.hasMore,true);
+  assert.deepEqual(page0.body.summary,{total:109,pending:106,active:1,complete:1});
+  const page1=await call({ranges,page:'1'});
+  assert.equal(page1.statusCode,200);assert.equal(page1.body.trips.length,9);assert.equal(page1.body.hasMore,false);
+  assert.deepEqual(page1.body.summary,page0.body.summary);
+  const all=[...page0.body.trips,...page1.body.trips];
+  const refs=all.map(t=>t.reference);
+  assert.equal(new Set(refs).size,109,'the union must contain each matching booking exactly once');
+  assert.equal(refs.filter(ref=>ref==='SPLIT').length,1,'a trip spanning block A outbound and block C return appears once');
+  assert.ok(!refs.includes('OUTSIDE'));assert.ok(!refs.includes('OTHER'));
+  const order=all.map(t=>[t.trip_date instanceof Date?t.trip_date.toISOString().slice(0,10):String(t.trip_date).slice(0,10),String(t.trip_time),t.reference]);
+  assert.deepEqual(order,[...order].sort((a,b)=>a[0].localeCompare(b[0])||a[1].localeCompare(b[1])||a[2].localeCompare(b[2])),'union results keep trip date, time and reference order');
+  // One ranges pair is equivalent to the established from/to request.
+  const oneRange=await call({ranges:'2026-03-02..2026-03-06'});
+  const legacyRange=await call({from:'2026-03-02',to:'2026-03-06'});
+  assert.deepEqual(oneRange.body.ranges,legacyRange.body.ranges);
+  assert.deepEqual(oneRange.body.trips.map(t=>t.reference),legacyRange.body.trips.map(t=>t.reference));
+  assert.deepEqual(oneRange.body.summary,legacyRange.body.summary);
+  // Legacy date remains a single block.
+  const legacyDate=await call({date:'2026-03-16'});
+  assert.deepEqual(legacyDate.body.ranges,[{from:'2026-03-16',to:'2026-03-16'}]);
+  assert.deepEqual(legacyDate.body.trips.map(t=>t.reference),['BLK-B']);
+  // Ranges validation mirrors the established date/page error contract.
+  const thirteen=Array.from({length:13},(_,i)=>`2026-01-${String(i+1).padStart(2,'0')}..2026-01-${String(i+1).padStart(2,'0')}`).join(',');
+  for(const params of [
+   {ranges:thirteen},
+   {ranges:'2026-02-30..2026-03-01'},
+   {ranges:'2026-03-06..2026-03-02'},
+   {ranges:'2026-01-01..2027-01-03'},
+   {ranges:'garbage'},
+   {ranges:'2026-03-02..2026-03-06,'},
+   {ranges},
+   {ranges:'2026-03-02..2026-03-06',page:'-1'},
+  ])assert.equal((await call(params)).statusCode,params.page==='-1'||params.ranges!==ranges?400:200);
+  assert.equal((await call({ranges:'2026-03-02..2026-03-06',page:'-1'})).statusCode,400);
+  // Facility scoping is applied before the ranges logic.
+  assert.equal((await call({ranges,facility:'FC-B'})).statusCode,403);
+ }finally{await db.close();}
+});

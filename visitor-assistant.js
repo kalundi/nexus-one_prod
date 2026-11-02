@@ -6,8 +6,10 @@
  * keeps nothing: conversation lives in page memory only, and addresses
  * typed for a rough estimate are sent to the visitor-estimate function
  * for that calculation alone — never stored. Loaded on public pages by
- * the delimited loader block at the end of platform.js; never on
- * staff/back-office surfaces.
+ * the delimited loader block at the end of platform.js. Staff/back-office
+ * surfaces stay excluded unless the page explicitly opts in by setting
+ * window.NEXUS_VISITOR_ASSISTANT before platform.js runs; the facility
+ * portal uses that opt-in and asks for the right-side placement below.
  *
  * Entry welcome: on the first page view of a browser session, after a
  * short beat (1.5s, once the page is usable), a welcome bubble appears
@@ -26,11 +28,22 @@
  * whole polling window it skips that page view without setting the
  * session flag, so a later page view may still welcome the visitor.
  *
- * Placement: a slim edge tab on the LEFT side of the screen (Nex's
- * waiting avatar). Clicking it slides the chat panel in from the left;
- * closing (X, Escape, or the tab again) slides it back out of the way.
- * The right side of the screen belongs to the site's accessibility
- * toggle and language control, so Nex stays clear of both.
+ * Placement: by default, a slim edge tab on the LEFT side of the screen
+ * (Nex's waiting avatar). Clicking it slides the chat panel in from the
+ * left. When the page configuration sets side:'right' — as the facility
+ * portal does — the tab, panel and welcome bubble are mirrored to the
+ * right edge and the panel slides in from the right instead.
+ *
+ * Closing and session persistence: the open panel closes with its X
+ * button, the tab again, Escape, a pointer press anywhere outside the
+ * panel/tab/bubble (except inside an open host-page dialog or
+ * aria-modal), or after 15 seconds without interaction inside the
+ * panel. Typing, sending, tapping panel controls and scrolling the chat
+ * log reset that idle timer. Closing only hides the panel: it does not
+ * clear messages, the remembered estimate/route, an in-progress
+ * estimate flow, or the welcome state. If keyboard focus is inside the
+ * panel when it closes, focus returns to the Ask Nex tab; reopening
+ * scrolls to the latest message.
  *
  * Rough estimates: a price question (or the cost chip) starts a short
  * guided flow — pickup, drop-off, ride type, one way / round trip,
@@ -129,6 +142,12 @@
   var WELCOME_TEXT = 'Hi, I\u2019m Nex \u2014 the Nexus Medical Transit Virtual Assistant. I can answer questions about our rides and work out what a ride would cost. ' + COST_PROMPT;
   var WELCOME_SEEN_KEY = 'nvaWelcomeSeen';
   var DEFAULT_PLACEHOLDER = 'Ask about services, areas, hours\u2026';
+  var WIDGET_CONFIG = window.NEXUS_VISITOR_ASSISTANT && typeof window.NEXUS_VISITOR_ASSISTANT === 'object'
+    ? window.NEXUS_VISITOR_ASSISTANT
+    : {};
+  var WIDGET_SIDE = WIDGET_CONFIG.side === 'right' ? 'right' : 'left';
+  var PANEL_IDLE_CLOSE_MS = Number(WIDGET_CONFIG.idleCloseMs);
+  if (!Number.isFinite(PANEL_IDLE_CLOSE_MS) || PANEL_IDLE_CLOSE_MS <= 0) PANEL_IDLE_CLOSE_MS = 15000;
 
   var CSS = [
     '.nvaTab,.nvaPanel,.nvaPanel *{box-sizing:border-box}',
@@ -157,6 +176,18 @@
     /* Panel: slides in from the left; message list scrolls inside. */
     '.nvaPanel{position:fixed;left:0;top:0;z-index:140;width:var(--nvaW);height:100dvh;display:flex;flex-direction:column;background:#fff;border:1px solid #d7e2e9;border-left:0;border-top:0;border-bottom:0;border-radius:0 22px 22px 0;overflow:hidden;box-shadow:24px 30px 80px rgba(8,47,73,.30);font:16px/1.5 "Source Sans 3","Segoe UI",sans-serif;color:#12212e;transform:translate(-112%,0);visibility:hidden;pointer-events:none;transition:transform .34s cubic-bezier(.32,.72,.28,1),visibility 0s linear .34s}',
     '.nvaPanel.open{transform:translate(0,0);visibility:visible;pointer-events:auto;transition:transform .34s cubic-bezier(.32,.72,.28,1)}',
+    /* Right-side variant: the same tab, bubble and full-height panel
+       mirrored to the right edge. The drawer width is unchanged. The
+       tab and bubble sit 110px below vertical center so they clear
+       the site's own fixed accessibility control, which is centered
+       on the right edge at a higher z-index. */
+    '.nvaTab.nvaRight{left:auto;right:0;top:calc(50% + 110px);border-radius:16px 0 0 16px;box-shadow:-6px 12px 26px rgba(8,47,73,.32)}',
+    '.nvaTab.nvaRight.open{transform:translate(calc(-1 * var(--nvaW)),-50%)}',
+    '.nvaBubble.nvaRight{left:auto;right:64px;top:calc(50% + 110px);transform:translate(8px,-50%)}',
+    '.nvaBubble.nvaRight.show{transform:translate(0,-50%)}',
+    '.nvaBubble.nvaRight:before{left:auto;right:-7px;border-left:0;border-bottom:0;border-right:1px solid #6e8ca3;border-top:1px solid #6e8ca3}',
+    '.nvaPanel.nvaRight{left:auto;right:0;border-left:1px solid #d7e2e9;border-right:0;border-radius:22px 0 0 22px;box-shadow:-24px 30px 80px rgba(8,47,73,.30);transform:translate(112%,0)}',
+    '.nvaPanel.nvaRight.open{transform:translate(0,0)}',
     '.nvaHead{position:relative;display:flex;align-items:center;gap:11px;background:linear-gradient(126deg,#071f37 0%,#0d365b 56%,#0e5c8c 100%);color:#fff;padding:14px 56px 13px 16px}',
     '.nvaAvatar{width:46px;height:46px;border-radius:50%;object-fit:cover;background:#fff;border:2px solid rgba(255,255,255,.55);flex:none}',
     '.nvaHeadText{min-width:0}',
@@ -291,6 +322,15 @@
     '<button type="button" class="nvaBubbleClose" id="nvaBubbleClose" aria-label="Dismiss Nex\u2019s welcome message">&times;</button>';
   document.body.appendChild(bubble);
 
+  tab.setAttribute('data-nva-side', WIDGET_SIDE);
+  panel.setAttribute('data-nva-side', WIDGET_SIDE);
+  bubble.setAttribute('data-nva-side', WIDGET_SIDE);
+  if (WIDGET_SIDE === 'right') {
+    tab.classList.add('nvaRight');
+    panel.classList.add('nvaRight');
+    bubble.classList.add('nvaRight');
+  }
+
   // Separate polite announcer for the welcome: the bubble appearing
   // must not steal focus, so its text is announced here instead.
   var welcomeLive = document.createElement('div');
@@ -314,6 +354,7 @@
   var greeted = false;
   var greetingOverride = null;
   var busy = false;
+  var panelIdleTimer = null;
 
   function escapeHtml(text) {
     return String(text).replace(/[&<>"']/g, function (c) {
@@ -462,14 +503,57 @@
     log.scrollTop = log.scrollHeight;
   }
 
+  function clearPanelIdleClose() {
+    if (panelIdleTimer !== null) {
+      clearTimeout(panelIdleTimer);
+      panelIdleTimer = null;
+    }
+  }
+
+  function schedulePanelIdleClose() {
+    clearPanelIdleClose();
+    if (!panel.classList.contains('open')) return;
+    panelIdleTimer = setTimeout(function () {
+      panelIdleTimer = null;
+      closePanel();
+    }, PANEL_IDLE_CLOSE_MS);
+  }
+
+  function notePanelActivity() {
+    if (panel.classList.contains('open')) schedulePanelIdleClose();
+  }
+
+  // Closing is deliberately only a visibility change. The log's DOM,
+  // chat history, remembered estimate/route, in-progress estimate flow
+  // and welcome state are left untouched, so reopening resumes exactly
+  // where the visitor left the conversation.
+  function closePanel(restoreFocusOverride) {
+    if (!panel.classList.contains('open')) {
+      clearPanelIdleClose();
+      return;
+    }
+    var restoreFocus = typeof restoreFocusOverride === 'boolean' ? restoreFocusOverride : false;
+    if (typeof restoreFocusOverride !== 'boolean') {
+      try {
+        restoreFocus = Boolean(document.activeElement && panel.contains(document.activeElement));
+      } catch (err) {
+        restoreFocus = false;
+      }
+    }
+    setOpen(false);
+    if (restoreFocus) tab.focus();
+  }
+
   function setOpen(open) {
     panel.classList.toggle('open', open);
     tab.classList.toggle('open', open);
     tab.setAttribute('aria-expanded', String(open));
     if (open) {
+      outsidePressPanelFocus = false;
       // Opening Nex — by tab, bubble, or keyboard — settles the entry
       // welcome for the session, so it never pops over the chat.
       settleWelcome(true);
+      var reopening = greeted;
       if (!greeted) {
         greeted = true;
         addMessage(
@@ -478,16 +562,75 @@
         );
         greetingOverride = null;
         log.scrollTop = 0; // greet from the top; later messages scroll down
+      } else if (reopening) {
+        log.scrollTop = log.scrollHeight; // resume at the latest message
       }
       setTimeout(function () { input.focus(); }, 60);
+      schedulePanelIdleClose();
+    } else {
+      clearPanelIdleClose();
     }
   }
 
-  tab.addEventListener('click', function () { setOpen(!panel.classList.contains('open')); });
-  panel.querySelector('.nvaClose').addEventListener('click', function () { setOpen(false); tab.focus(); });
+  function eventInsideHostModal(target) {
+    if (!target) return false;
+    try {
+      if (target.closest) {
+        var closestModal = target.closest('dialog[open],[aria-modal="true"]');
+        if (closestModal && closestModal !== panel) return true;
+      }
+    } catch (err) { /* fall through to the containment check */ }
+    try {
+      var openModal = document.querySelector('dialog[open],[aria-modal="true"]');
+      return Boolean(openModal && openModal !== panel && openModal.contains && openModal.contains(target));
+    } catch (err) {
+      return false;
+    }
+  }
+
+  tab.addEventListener('click', function () {
+    if (panel.classList.contains('open')) closePanel();
+    else setOpen(true);
+  });
+  panel.querySelector('.nvaClose').addEventListener('click', closePanel);
+  ['pointerdown', 'keydown', 'click', 'input', 'touchstart', 'wheel'].forEach(function (type) {
+    panel.addEventListener(type, notePanelActivity);
+  });
+  log.addEventListener('scroll', notePanelActivity, true);
+  form.addEventListener('submit', notePanelActivity);
+  // An outside press closes on the click that completes it, not on
+  // pointerdown: the browser moves focus out of the panel during
+  // pointerdown (to the pressed control, or to the body for a bare
+  // area), which would undo a focus return made that early. Whether
+  // focus was inside the panel is therefore recorded at pointerdown
+  // and honored when the click lands.
+  var outsidePressPanelFocus = false;
+  document.addEventListener('pointerdown', function (e) {
+    if (!panel.classList.contains('open')) return;
+    var target = e && e.target;
+    if (!target) return;
+    if (panel.contains(target)) { notePanelActivity(); outsidePressPanelFocus = false; return; }
+    if (tab.contains(target) || bubble.contains(target)) { outsidePressPanelFocus = false; return; }
+    if (eventInsideHostModal(target)) { outsidePressPanelFocus = false; return; }
+    try {
+      outsidePressPanelFocus = Boolean(document.activeElement && panel.contains(document.activeElement));
+    } catch (err) {
+      outsidePressPanelFocus = false;
+    }
+  }, true);
+  document.addEventListener('click', function (e) {
+    if (!panel.classList.contains('open')) return;
+    var target = e && e.target;
+    if (!target) return;
+    if (panel.contains(target) || tab.contains(target) || bubble.contains(target)) { outsidePressPanelFocus = false; return; }
+    if (eventInsideHostModal(target)) { outsidePressPanelFocus = false; return; }
+    var restoreFocus = outsidePressPanelFocus;
+    outsidePressPanelFocus = false;
+    closePanel(restoreFocus);
+  }, true);
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    if (panel.classList.contains('open')) { setOpen(false); tab.focus(); return; }
+    if (panel.classList.contains('open')) { closePanel(); return; }
     // Escape dismisses the welcome only while one of its own controls
     // has keyboard focus; it never hijacks Escape elsewhere on the page.
     if (welcomeVisible && (document.activeElement === bubbleMain || document.activeElement === bubbleClose)) {

@@ -19,25 +19,48 @@ function createHandler({query,requireUser,bearer,json,parseBody}){
   if(!facility)throw error(isManager?'Your assigned facility is inactive or unavailable.':'Select an active facility.',409);
   const base={facility,bookingUrl:'/booking-app.html?facility='+encodeURIComponent(id)};
   if(p[1]==='trips'&&method==='GET'){
-   const page=Number(params.page||0),fromParam=clean(params.from),toParam=clean(params.to);
-   let from,to;
-   if(fromParam||toParam){from=fromParam;to=toParam;}
-   else{from=to=clean(params.date)||easternDate();}
-   if(!validDate(from)||!validDate(to)||from>to||(Date.parse(to+'T12:00:00Z')-Date.parse(from+'T12:00:00Z'))/86400000>366||!Number.isInteger(page)||page<0||page>10000)throw error('Choose valid service dates and page.');
-   const rangeTrips=`b.facility_id=$1 AND ${realBooking} AND (b.trip_date BETWEEN $2::date AND $3::date OR b.return_trip_date BETWEEN $2::date AND $3::date)`;
+   const page=Number(params.page||0),rangesParam=clean(params.ranges);
+   // Blocks model: the board is the union of 1–12 inclusive date blocks. The
+   // `ranges` parameter carries comma-separated from..to pairs resolved by
+   // the client; legacy `date` / `from`+`to` requests map to exactly one
+   // block, so their behavior is unchanged. A booking row matches once when
+   // its outbound OR return date falls in ANY block.
+   let blocks=null;
+   if(rangesParam){
+    blocks=[];
+    for(const pair of rangesParam.split(',')){
+     const match=/^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/.exec(pair);
+     if(!match){blocks=null;break;}
+     blocks.push({from:match[1],to:match[2]});
+    }
+    if(blocks&&(blocks.length>12||blocks.some(block=>!validDate(block.from)||!validDate(block.to)||block.from>block.to||(Date.parse(block.to+'T12:00:00Z')-Date.parse(block.from+'T12:00:00Z'))/86400000>366)))blocks=null;
+    if(!blocks)throw error('Choose valid service dates and page.');
+   }else{
+    const fromParam=clean(params.from),toParam=clean(params.to);
+    let from,to;
+    if(fromParam||toParam){from=fromParam;to=toParam;}
+    else{from=to=clean(params.date)||easternDate();}
+    if(!validDate(from)||!validDate(to)||from>to||(Date.parse(to+'T12:00:00Z')-Date.parse(from+'T12:00:00Z'))/86400000>366)throw error('Choose valid service dates and page.');
+    blocks=[{from,to}];
+   }
+   if(!Number.isInteger(page)||page<0||page>10000)throw error('Choose valid service dates and page.');
+   const from=blocks.reduce((min,block)=>block.from<min?block.from:min,blocks[0].from),to=blocks.reduce((max,block)=>block.to>max?block.to:max,blocks[0].to);
+   const union=blocks.map((block,index)=>`(b.trip_date BETWEEN $${2+index*2}::date AND $${3+index*2}::date OR b.return_trip_date BETWEEN $${2+index*2}::date AND $${3+index*2}::date)`).join(' OR ');
+   const rangeTrips=`b.facility_id=$1 AND ${realBooking} AND (${union})`;
+   const rangeArgs=blocks.flatMap(block=>[block.from,block.to]),offsetParam=2+blocks.length*2,userParam=offsetParam+1;
    const [rows,summaryRows]=await Promise.all([
     query(`SELECT b.reference,b.name,b.service,b.pickup,b.destination,b.trip_date,b.trip_time,booking_appointment_time(b.notes) AS appointment_time,b.status,b.payment_status,b.driver_name,b.vehicle_unit,b.trip_type,b.return_trip_date,b.return_trip_time,b.updated_at,
-    (SELECT count(*)::int FROM facility_portal_messages m WHERE m.facility_id=$1 AND m.booking_reference=b.reference AND m.author_id<>$5::uuid AND m.created_at>COALESCE((SELECT r.read_at FROM facility_portal_reads r WHERE r.user_id=$5::uuid AND r.booking_reference=b.reference),'-infinity'::timestamptz)) AS unread
-    FROM bookings b WHERE ${rangeTrips} ORDER BY b.trip_date,b.trip_time,b.reference LIMIT 101 OFFSET $4`,[id,from,to,page*100,user.id]),
+    (SELECT count(*)::int FROM facility_portal_messages m WHERE m.facility_id=$1 AND m.booking_reference=b.reference AND m.author_id<>$${userParam}::uuid AND m.created_at>COALESCE((SELECT r.read_at FROM facility_portal_reads r WHERE r.user_id=$${userParam}::uuid AND r.booking_reference=b.reference),'-infinity'::timestamptz)) AS unread
+    FROM bookings b WHERE ${rangeTrips} ORDER BY b.trip_date,b.trip_time,b.reference LIMIT 101 OFFSET $${offsetParam}`,[id,...rangeArgs,page*100,user.id]),
     query(`SELECT count(*)::int AS total,
     count(*) FILTER (WHERE upper(COALESCE(b.status,'')) IN ('COMPLETED','DELIVERED','BILLED','PAID'))::int AS complete,
     count(*) FILTER (WHERE upper(COALESCE(b.status,'')) IN ('CANCELLED','NO_SHOW','MISSED','DENIED'))::int AS cancelled,
     count(*) FILTER (WHERE upper(COALESCE(b.status,'')) IN ('EN_ROUTE','ARRIVED','ARRIVED_PICKUP','PATIENT_ON_BOARD','IN_TRANSIT','DEPARTED','ARRIVED_DESTINATION'))::int AS active
-    FROM bookings b WHERE ${rangeTrips}`,[id,from,to])
+    FROM bookings b WHERE ${rangeTrips}`,[id,...rangeArgs])
    ]);
    const counts=summaryRows.rows[0]||{total:0,complete:0,cancelled:0,active:0};
    const summary={total:counts.total,pending:counts.total-counts.complete-counts.cancelled-counts.active,active:counts.active,complete:counts.complete};
-   return json(200,{...base,date:from,from,to,page,hasMore:rows.rows.length>100,trips:rows.rows.slice(0,100),summary,updatedAt:new Date().toISOString()});
+   return json(200,{...base,date:from,from,to,ranges:blocks,page,hasMore:rows.rows.length>100,trips:rows.rows.slice(0,100),summary,updatedAt:new Date().toISOString()});
   }
   if(p[1]==='locations'&&method==='GET'){
    const locations=(await query(`WITH stops AS (

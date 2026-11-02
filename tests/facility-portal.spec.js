@@ -8,7 +8,7 @@ async function fixture(page,{staff=false,empty=false}={}){
  await page.route('**/api/**',async route=>{const url=new URL(route.request().url()),path=url.pathname;let json={};
   if(path==='/api/auth/me')json={user:{id:'manager',role:staff?'DISPATCHER':'FACILITY',scopeId:facility.id,displayName:'Facility Manager',email:'manager@example.com',phone:'2405550100'}};
   if(path==='/api/facility-portal/context')json={facilities:staff?[facility,{id:'FC-B',name:'Care B',address:'Other address'}]:[facility],manager:!staff,today:'2026-10-28'};
-  if(path==='/api/facility-portal/trips'){captured.scope.push(url.searchParams.get('facility'));captured.tripParams.push({from:url.searchParams.get('from'),to:url.searchParams.get('to')});json={facility,trips:empty?[]:[trip],page:0,hasMore:false,summary:{total:empty?0:1,pending:empty?0:1,active:0,complete:0},updatedAt:new Date().toISOString()};}
+  if(path==='/api/facility-portal/trips'){captured.scope.push(url.searchParams.get('facility'));captured.tripParams.push({from:url.searchParams.get('from'),to:url.searchParams.get('to'),ranges:url.searchParams.get('ranges')});json={facility,trips:empty?[]:[trip],page:0,hasMore:false,summary:{total:empty?0:1,pending:empty?0:1,active:0,complete:0},updatedAt:new Date().toISOString()};}
   if(path==='/api/facility-portal/locations')json={locations:empty?[]:[{address:trip.destination,visits:4,last_visit:'2026-10-27'}],basis:'Completed bookings, all time.'};
   if(path.startsWith('/api/facility-portal/communications/')){
    if(route.request().method()==='POST'){const body=route.request().postDataJSON();captured.messages.push(body);messages.push({id:'message',body:body.message,author_name:'Facility Manager',author_role:'FACILITY',created_at:new Date().toISOString()});json={message:'Saved'};}
@@ -24,8 +24,8 @@ async function fixture(page,{staff=false,empty=false}={}){
 for(const width of [1440,390])test(`production manager works across board, routes, inbox and evolving locations at ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:1000});const errors=[];page.on('pageerror',e=>errors.push(e.message));const captured=await fixture(page);
  await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText('Alex Passenger');await expect(page.locator('#facilityName')).toHaveText(facility.name);await expect(page.locator('#facilitySelectLabel')).toBeHidden();
- await expect(page.locator('text=Service Date/s')).toBeVisible();await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams.at(-1)).toEqual({from:'2026-10-28',to:'2026-10-28'});
- await page.locator('#timeframe').selectOption('week');await expect(page.locator('#serviceRange')).toHaveText('Sun, Oct 25 – Sat, Oct 31, 2026');await expect(page.locator('#tripCount')).toHaveText('1');expect(captured.tripParams.at(-1)).toEqual({from:'2026-10-25',to:'2026-10-31'});
+ await expect(page.locator('text=Service Date/s')).toBeVisible();await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-28..2026-10-28'});
+ await page.locator('#timeframe').selectOption('week');await expect(page.locator('#serviceRange')).toHaveText('Sun, Oct 25 – Sat, Oct 31, 2026');await expect(page.locator('#tripCount')).toHaveText('1');expect(captured.tripParams.at(-1)).toEqual({from:null,to:null,ranges:'2026-10-25..2026-10-31'});
  await expect(page.locator('#tripRows')).toContainText('Deposit Paid');await expect(page.locator('#tripRows')).toContainText('Assigned Driver');
  await page.screenshot({path:`output/facility-production-board-${width}.png`,fullPage:true});
  await page.locator('#tripSearch').fill('no match');await expect(page.locator('#tripRows')).toContainText('No trips match');await page.locator('#tripSearch').fill('');
@@ -71,4 +71,60 @@ test('route map calculates real booking addresses and reverses the return leg',a
  expect(await page.evaluate(()=>window.routeRequests[0])).toEqual({origin:trip.pickup,destination:trip.destination,travelMode:'DRIVING'});await expect(page.locator('#mapAttribution')).toContainText('Road warning');
  await page.locator('#routeLeg').selectOption('return');await expect(page.locator('#mapStatus')).toHaveText('Planned return road route.');expect(await page.evaluate(()=>window.routeRequests.at(-1).origin)).toBe(trip.destination);
  await page.locator('nav [data-view="board"]').click();await page.locator('[data-route]').click();await expect(page.locator('#mapStatus')).toContainText('Planned return');
+});
+test('manager can combine, change and remove timeframe blocks in Timeframe then Service Date/s order',async({page})=>{
+ const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);
+ const head=page.locator('.dateBlockHead span'),firstBlock=page.locator('.dateBlock').first();
+ const headBoxes=await Promise.all([0,1].map(i=>head.nth(i).boundingBox()));expect(headBoxes[0].x).toBeLessThan(headBoxes[1].x);
+ const firstBoxes=await Promise.all([firstBlock.locator('.blockTimeframe').boundingBox(),firstBlock.locator('.blockDate').boundingBox(),firstBlock.locator('.removeBlock').boundingBox()]);
+ expect(firstBoxes[0].x).toBeLessThan(firstBoxes[1].x);expect(firstBoxes[1].x).toBeLessThan(firstBoxes[2].x);
+ await expect(firstBlock.locator('.removeBlock')).toBeDisabled();
+ await page.locator('#addBlock').click();await expect(page.locator('.dateBlock')).toHaveCount(2);
+ const secondBlock=page.locator('.dateBlock').nth(1);
+ await expect(secondBlock.locator('.blockTimeframe')).toHaveValue('day');
+ await expect(secondBlock.locator('.blockDate')).toHaveValue('2026-10-28');
+ await secondBlock.locator('.blockDate').fill('2026-11-16');
+ await expect(page.locator('#serviceRange')).toHaveText('Oct 28 · Nov 16');
+ expect(captured.tripParams.at(-1).ranges).toBe('2026-10-28..2026-10-28,2026-11-16..2026-11-16');
+ await secondBlock.locator('.blockTimeframe').selectOption('week');
+ await expect(page.locator('#serviceRange')).toHaveText('Oct 28 · Nov 15 – Nov 21');
+ expect(captured.tripParams.at(-1).ranges).toBe('2026-10-28..2026-10-28,2026-11-15..2026-11-21');
+ await expect(secondBlock.locator('.removeBlock')).toHaveAttribute('aria-label','Remove block 2: Sun, Nov 15 – Sat, Nov 21, 2026');
+ await secondBlock.locator('.removeBlock').click();await expect(page.locator('.dateBlock')).toHaveCount(1);
+ await expect(page.locator('#serviceRange')).toHaveText('Wed, Oct 28, 2026');expect(captured.tripParams.at(-1).ranges).toBe('2026-10-28..2026-10-28');
+ await expect(page.locator('.dateBlock .removeBlock')).toBeDisabled();
+ for(let i=0;i<11;i++)await page.locator('#addBlock').click();
+ await expect(page.locator('.dateBlock')).toHaveCount(12);await expect(page.locator('#addBlock')).toBeDisabled();
+});
+for(const width of [1440,390])test(`Ask Nex is mirrored to the right edge without covering the timeframe controls at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:1000});const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);expect(captured.tripParams.at(-1).ranges).toBe('2026-10-28..2026-10-28');
+ const tab=page.locator('#nvaTab'),panel=page.locator('#nvaPanel'),controls=page.locator('.dateBlocksWrap');
+ await expect(tab).toBeVisible();await expect(tab).toHaveAttribute('data-nva-side','right');await expect(panel).toHaveAttribute('data-nva-side','right');
+ const tabBox=await tab.boundingBox(),controlsBox=await controls.boundingBox(),accessBox=await page.locator('.access').boundingBox();
+ const overlaps=(a,b)=>!(a.x+a.width<=b.x||a.x>=b.x+b.width||a.y+a.height<=b.y||a.y>=b.y+b.height);
+ expect(Math.abs(tabBox.x+tabBox.width-width)).toBeLessThanOrEqual(2);
+ expect(overlaps(tabBox,controlsBox)).toBe(false);
+ expect(overlaps(tabBox,accessBox)).toBe(false);
+ await tab.click();await expect(panel).toBeVisible();
+ await expect.poll(async()=>{const b=await panel.boundingBox();return Math.abs(b.x+b.width-width);}).toBeLessThanOrEqual(2);
+ const panelBox=await panel.boundingBox();const expectedWidth=Math.min(380,width-70);
+ expect(Math.abs(panelBox.width-expectedWidth)).toBeLessThanOrEqual(2);expect(Math.abs(panelBox.x+panelBox.width-width)).toBeLessThanOrEqual(2);
+ await expect(panel.locator('#nvaInput')).toBeFocused();
+ await page.locator('.nvaClose').click();await expect(panel).toBeHidden();await expect(tab).toBeFocused();
+});
+test('Ask Nex closes on an outside tap and after 15 idle seconds, preserving the conversation',async({page})=>{
+ await page.clock.install();const captured=await fixture(page);await page.goto('/facility.html');await expect(page.locator('#tripRows')).toContainText(trip.reference);expect(captured.tripParams).toHaveLength(1);
+ const tab=page.locator('#nvaTab'),panel=page.locator('#nvaPanel');
+ await tab.click();await expect(panel).toBeVisible();await page.clock.fastForward(60);
+ await panel.locator('#nvaInput').fill('How much does a ride cost?');await panel.locator('#nvaSend').click();await expect(panel.locator('#nvaLog')).toContainText('Where should we pick you up?');
+ await page.mouse.click(20,950);await expect(panel).toBeHidden();await expect(tab).toBeFocused();
+ await tab.click();await expect(panel).toBeVisible();await expect(panel.locator('#nvaLog')).toContainText('Where should we pick you up?');
+ // The fake clock also drifts with real elapsed time, so the idle
+ // assertions use wide margins: 10s forward is safely inside the
+ // 15-second window, and 20s+ total since opening can only still be
+ // open if typing reset the timer.
+ await page.clock.fastForward(10000);await expect(panel).toBeVisible();
+ await panel.locator('#nvaInput').fill('1');await page.clock.fastForward(10000);await expect(panel).toBeVisible();
+ await page.clock.fastForward(20000);await expect(panel).toBeHidden();await expect(tab).toBeFocused();
+ await tab.click();await expect(panel).toBeVisible();await expect(panel.locator('#nvaLog')).toContainText('Where should we pick you up?');
 });
