@@ -117,7 +117,7 @@ var seen=new Set(),list=document.createElement('ul');
 list.className='chat-sources';
 (items||[]).forEach(function(item){
 if(typeof item!=='string')return;
-(item.match(/[a-z0-9-]+\\.html/ig)||[]).forEach(function(name){
+(item.match(/[a-z0-9-]+\.html/ig)||[]).forEach(function(name){
 if(!pages.has(name)||seen.has(name))return;
 seen.add(name);
 var li=document.createElement('li'),a=document.createElement('a');
