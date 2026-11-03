@@ -1243,7 +1243,14 @@
           var timer = setTimeout(function () { reject({ code: 'maps-unavailable' }); }, 15000);
           var script = document.createElement('script');
           script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(cfg.googleMapsBrowserKey) + '&v=weekly&libraries=places';
-          script.onload = function () { clearTimeout(timer); resolve(window.google.maps); };
+          script.onload = function () {
+            clearTimeout(timer);
+            if (!window.google || !window.google.maps || !window.google.maps.DirectionsService || !window.google.maps.Geocoder) {
+              reject({ code: 'maps-unavailable' });
+              return;
+            }
+            resolve(window.google.maps);
+          };
           script.onerror = function () { clearTimeout(timer); reject({ code: 'maps-unavailable' }); };
           document.head.appendChild(script);
         });
@@ -1273,16 +1280,27 @@
 
   function directionsMiles(maps, origin, destination) {
     return new Promise(function (resolve, reject) {
-      // "Leave now" with traffic, so the result carries the drive
-      // time in current traffic (duration_in_traffic) alongside the
-      // plain duration, plus the raw result for the route map.
-      var request = {
-        origin: origin, destination: destination, travelMode: maps.TravelMode.DRIVING,
-        drivingOptions: { departureTime: new Date(), trafficModel: 'bestguess' }
+      // Traffic data is optional. If Google rejects a traffic-aware route,
+      // retry once without drivingOptions before giving up on a valid trip.
+      var base = {
+        origin: origin, destination: destination, travelMode: maps.TravelMode.DRIVING
       };
-      new maps.DirectionsService().route(request, function (result, status) {
+      var trafficRequest = Object.assign({}, base, {
+        drivingOptions: { departureTime: new Date(), trafficModel: 'bestguess' }
+      });
+      var service = new maps.DirectionsService();
+      function finish(result, status, allowRetry) {
         var legs = result && result.routes && result.routes[0] && result.routes[0].legs;
-        if (status !== 'OK' || !legs || !legs.length) { reject({ code: 'directions' }); return; }
+        if (status !== 'OK' || !legs || !legs.length) {
+          if (allowRetry) {
+            service.route(base, function (fallbackResult, fallbackStatus) {
+              finish(fallbackResult, fallbackStatus, false);
+            });
+            return;
+          }
+          reject({ code: 'directions', status: String(status || 'UNKNOWN').slice(0,32) });
+          return;
+        }
         var meters = 0, seconds = 0, trafficSeconds = 0, hasTraffic = false;
         legs.forEach(function (leg) {
           meters += leg.distance.value;
@@ -1292,13 +1310,31 @@
             hasTraffic = true;
           }
         });
+        if (!(meters > 0) || !(seconds > 0)) {
+          reject({ code: 'directions', status: 'EMPTY_ROUTE' });
+          return;
+        }
         resolve({
           miles: meters / 1609.344,
           minutes: seconds / 60,
           trafficMinutes: hasTraffic ? trafficSeconds / 60 : null,
           result: result
         });
-      });
+      }
+      try {
+        service.route(trafficRequest, function (result, status) {
+          finish(result, status, true);
+        });
+      } catch (error) {
+        // A synchronous API failure may still permit a normal non-traffic route.
+        try {
+          service.route(base, function (result, status) {
+            finish(result, status, false);
+          });
+        } catch {
+          reject({ code: 'directions', status: 'ROUTE_SERVICE_ERROR' });
+        }
+      }
     });
   }
 
@@ -1655,7 +1691,12 @@
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(payload)
-        }).then(function (res) { return res.json().then(function (data) { return { res: res, data: data }; }); });
+        }).then(function (res) {
+          return res.json().then(
+            function (data) { return { res: res, data: data }; },
+            function () { throw { code: 'invalid-response' }; }
+          );
+        }, function () { throw { code: 'estimate-network' }; });
       })
       .then(function (out) {
         if (out.res.ok && out.data && out.data.mode === 'out_of_area') {
@@ -1699,7 +1740,17 @@
           setPlaceholder(which === 'pickup' ? 'Pickup address\u2026' : 'Drop-off address\u2026');
           return;
         }
-        fillPending(pending, 'I couldn\u2019t finish the estimate just now. You can get the exact quote in the booking app at ' + BOOKING_URL + ', or call ' + MAIN_PHONE + ' and the team will quote it.');
+        var reason = err && err.code;
+        var explanation = reason === 'maps-unavailable'
+          ? 'The map service needed to measure driving distance is unavailable right now.'
+          : reason === 'directions'
+            ? 'Google Maps could not calculate a drivable route between those two addresses.'
+            : reason === 'estimate-network'
+              ? 'I could not connect to the Nexus estimate service.'
+              : reason === 'invalid-response'
+                ? 'The Nexus estimate service returned a response I could not read.'
+                : 'I could not finish calculating your estimate just now.';
+        fillPending(pending, explanation + ' Please check the locations or get an exact quote in the booking app at ' + BOOKING_URL + ', or call ' + MAIN_PHONE + '.');
         endFlow();
       })
       .finally(function () {
