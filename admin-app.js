@@ -298,7 +298,7 @@ function initUserSectionDashboard(){
   let preferred='';
   try{preferred=localStorage.getItem(storageKey)||'';}catch{}
   if(!validIds.has(preferred)){
-    preferred='userDirectoryModule';
+    preferred='driverSchedulePanel';
   }
   if(preferred) openModule(preferred,{persist:false,scroll:false});
   section.querySelectorAll('[data-user-module]').forEach(module=>{
@@ -315,7 +315,6 @@ let latestAuditEntries=[];
 const loadUsers=()=>window.NexusUserManager.loadUsers();
 const loadDriverSchedule=(options)=>window.NexusUserManager.loadDriverSchedule(options);
 
-document.getElementById('refreshUsers').addEventListener('click',loadUsers);
 
 document.getElementById('grantDocumentAccess')?.addEventListener('click',async()=>{
   const email=document.getElementById('documentFacilityEmail').value.trim();
@@ -373,61 +372,6 @@ async function loadDocumentGrants(){
   }catch(error){rows.innerHTML=`<tr><td colspan="5">${error.message}</td></tr>`;}
 }
 window.addEventListener('nexus:authorized',()=>{if(userRole()==='ADMIN'){loadSecureDocumentOptions();loadDocumentGrants();}},{once:true});
-
-// Reset standard non-production accounts
-document.getElementById('resetCredentialsBtn')?.addEventListener('click',async()=>{
-  const btn=document.getElementById('resetCredentialsBtn');
-  const msgEl=document.getElementById('resetCredentialsMsg');
-  if(!confirm('This will reset all 7 standard non-production accounts. Continue?'))return;
-  btn.disabled=true;btn.textContent='Resetting…';
-  msgEl.hidden=true;
-  try{
-    const r=await fetch('/api/admin/reset-credentials',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'}});
-    const data=await r.json();
-    if(!r.ok)throw new Error(data.error||'Failed to reset credentials');
-    const processed=Array.isArray(data.results)?data.results.length:0;
-    msgEl.style.cssText='background:#ecfdf3;color:#065f46;border:1px solid #6ee7b7;';
-    msgEl.textContent=`✓ ${data.message}${processed?` (${processed} accounts updated)`:''}`;
-    msgEl.hidden=false;
-    loadUsers();
-  }catch(e){
-    msgEl.style.cssText='background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;';
-    msgEl.textContent=`✗ ${e.message}`;
-    msgEl.hidden=false;
-  }finally{btn.disabled=false;btn.textContent='⟳ Reset standard accounts';}
-});
-
-document.getElementById('createUserBtn').addEventListener('click',async()=>{
-  const email=document.getElementById('newEmail').value.trim();
-  const phone=document.getElementById('newPhone').value.trim();
-  const name=document.getElementById('newName').value.trim();
-  const role=document.getElementById('newRole').value;
-  const scopeId=role==='FACILITY'?window.NexusAdminFacilityAccess.newScope():null;
-  const msgEl=document.getElementById('createUserMsg');
-  msgEl.hidden=true;
-  if(!email||!phone||!name||!role){showMsg(msgEl,'All fields are required.','err');return;}
-  if(role==='FACILITY'&&!scopeId){showMsg(msgEl,'Select the facility this manager is authorized to access.','err');document.getElementById('newUserFacility').focus();return;}
-  const btn=document.getElementById('createUserBtn');
-  btn.disabled=true;btn.textContent='Creating...';
-  try{
-    const r=await fetch('/api/admin/users',{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({email,phone,name,role,scopeId})});
-    const data=await r.json();
-    if(!r.ok)throw new Error(data.error||'Failed to create user');
-    const expiresText=data.tempPasswordExpiresAt?new Date(data.tempPasswordExpiresAt).toLocaleString():'2 hours';
-    const emailText=data.emailDeliveryStatus==='sent'
-      ? ' Credential email sent to the user.'
-      : ' Credential email was not sent automatically.';
-    const policyText=data.warning?` ${data.warning}`:' User must change it on first sign-in.';
-    showMsg(msgEl,`User ${data.user.email} created. Nexus ID: ${data.user.userCode}.${data.user.facilityName?' Assigned facility: '+data.user.facilityName+'.':''} Temporary password: ${data.tempPassword}. Expires: ${expiresText}.${emailText}${policyText}`,'ok');
-    document.getElementById('newEmail').value='';
-    document.getElementById('newPhone').value='';
-    document.getElementById('newName').value='';
-    document.getElementById('newRole').value='';
-    window.NexusAdminFacilityAccess.reset();
-    loadUsers();
-  }catch(e){showMsg(msgEl,e.message,'err');}
-  finally{btn.disabled=false;btn.textContent='Create user';}
-});
 
 // Pricing
 function renderPricing(){
@@ -1439,19 +1383,6 @@ async function advanceAdminTrip(reference){
 // Helpers
 function showMsg(el,text,type){el.textContent=text;el.className='msgBox '+(type||'ok');el.hidden=false;if(type==='ok')setTimeout(()=>{el.hidden=true},5000);}
 
-async function loadRoleRequests(){
- const body=document.getElementById('roleRequestRows');if(!body)return;
- const response=await fetch('/api/admin/role-requests',{headers:{authorization:`Bearer ${token()}`},cache:'no-store'}),data=await response.json().catch(()=>({}));
- if(!response.ok){body.innerHTML=`<tr><td colspan="5">${data.error||'Unable to load requests'}</td></tr>`;return}
- body.innerHTML=(data.requests||[]).map(request=>`<tr><td><strong>${request.name||'—'}</strong><br><small>${request.email||''}<br>${request.phone||''}</small></td><td>${request.role}</td><td>${request.status}</td><td>${request.requestedAt?new Date(request.requestedAt).toLocaleString():'—'}</td><td>${request.status==='PENDING'?`<button class="button" data-role-approve="${request.id}" data-role="${request.role}">Approve</button> <button class="button secondary" data-role-reject="${request.id}">Reject</button>`:'Reviewed'}</td></tr>`).join('')||'<tr><td colspan="5">No role requests found.</td></tr>';
-}
-async function decideRoleRequest(id,decision,role){
- let scopeId='';if(decision==='APPROVED'&&role==='FACILITY')scopeId=await window.NexusAdminFacilityAccess.choose();else if(decision==='APPROVED'&&role==='DRIVER')scopeId=prompt('Enter the driver scope ID required for this account:','')||'';
- if(decision==='APPROVED'&&['DRIVER','FACILITY'].includes(role)&&!scopeId)return;
- const response=await fetch(`/api/admin/role-requests/${encodeURIComponent(id)}`,{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({decision,scopeId})}),data=await response.json().catch(()=>({}));
- if(!response.ok)return alert(data.error||'Unable to review request');showToast(`Role request ${decision.toLowerCase()}.`);loadRoleRequests();
-}
-
 let toastTimer=null;
 function showToast(text,type='ok'){
   const el=document.getElementById('adminToast');
@@ -1589,7 +1520,6 @@ document.querySelectorAll('.socialChannel').forEach((el)=>el.addEventListener('c
 document.getElementById('costAnalyzerLoadBtn')?.addEventListener('click',()=>{runCostAnalyzer().catch((err)=>console.error(err));});
 document.getElementById('costAnalyzerExportBtn')?.addEventListener('click',()=>{exportCostAnalyzerCsv().catch((err)=>console.error(err));});
 document.getElementById('costAnalyzerSendBtn')?.addEventListener('click',()=>{sendCostAnalyzerReport().catch((err)=>console.error(err));});
-document.getElementById('roleRequestRows')?.addEventListener('click',event=>{const approve=event.target.closest('[data-role-approve]'),reject=event.target.closest('[data-role-reject]');if(approve)decideRoleRequest(approve.dataset.roleApprove,'APPROVED',approve.dataset.role);if(reject)decideRoleRequest(reject.dataset.roleReject,'REJECTED','')});
 
 initAdminDashboardWorkspace();
 initUserSectionDashboard();
@@ -1600,7 +1530,6 @@ window.addEventListener('nexus:authorized',async()=>{
   syncDashboardTilesWithVisibility();
   if(userRole()==='ADMIN'){
     loadUsers();
-    loadRoleRequests().catch((err)=>console.error(err));
     loadAudit();
     loadDriverSchedule().catch((err)=>console.error(err));
     loadAdminTrips().catch((err)=>console.error(err));
@@ -1618,7 +1547,6 @@ if(window.NexusAuthorizedUser){
   syncDashboardTilesWithVisibility();
   if(userRole()==='ADMIN'){
     loadUsers();
-    loadRoleRequests().catch((err)=>console.error(err));
     loadAudit();
     loadDriverSchedule().catch((err)=>console.error(err));
     loadAdminTrips().catch((err)=>console.error(err));

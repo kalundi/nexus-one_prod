@@ -19,19 +19,9 @@ async function openUsers(page,{mobile=false}={}){
   if(path==='/api/admin/driver-schedule'&&method==='PATCH'){const payload=route.request().postDataJSON();toggles.push(payload);schedules=schedules.map(s=>payload.shiftIds.includes(s.shift_id)?{...s,active:payload.active}:s);body={ok:true};}
   return route.fulfill({status:200,json:body});
  });
- await page.goto('/admin.html#userSection');await expect(page.locator('html')).toHaveAttribute('data-auth-state','authorized');await expect(page.locator('#userSection')).toBeVisible({timeout:10000});await expect(page.locator('#userTableBody tr')).toHaveCount(2);
+ await page.goto('/admin.html#userSection');await expect(page.locator('html')).toHaveAttribute('data-auth-state','authorized');await expect(page.locator('#userSection')).toBeVisible({timeout:10000});await expect(page.locator('#userSection')).toContainText('People and accounts are managed in the Enterprise Directory');
  return {patches,schedulePosts,toggles,errors};
 }
-test('directory searches by memorable ID and edits roles/functions with one save',async({page})=>{
- const f=await openUsers(page);await expect(page.locator('#userDirectoryModule')).toBeVisible();await expect(page.locator('#createUserModule')).toBeHidden();
- await page.locator('#userSearch').fill('N1934');await expect(page.locator('#userTableBody tr')).toHaveCount(1);
- await page.getByRole('button',{name:'Manage',exact:true}).click();await expect(page.locator('#userAccountIdentity')).toContainText('N1934');
- await page.locator('#editUserName').fill('Bankole Afe');await page.locator('#editUserFunctions input[value="PATIENT_CARE"]').check();await page.locator('#saveUserAccount').click();
- await expect(page.locator('#userAccountMsg')).toContainText('Account updated');expect(f.patches).toHaveLength(1);expect(f.patches[0]).toMatchObject({name:'Bankole Afe',functions:['DRIVING','PATIENT_CARE']});
- await page.locator('#toggleUserAccount').click();await expect(page.locator('#toggleUserAccount')).toHaveText('Activate account');await expect(page.locator('#userAccountIdentity')).toContainText('N1934');
- await page.locator('#closeUserAccount').click();await expect(page.locator('#userTableBody')).toContainText('Inactive');expect(f.errors).toEqual([]);
- await page.locator('#userSearch').fill('');await page.locator('#userStatusFilter').selectOption('active');await expect(page.locator('#userTableBody')).toContainText('Anthony Muthoka');await expect(page.locator('#userTableBody')).not.toContainText('Bankole Afe');
-});
 test('weekly schedules group weekdays and support edit, deactivate and reactivate',async({page})=>{
  const f=await openUsers(page);await page.locator('[data-user-module-open="driverSchedulePanel"]').click();
  const row=page.locator('#driverScheduleRows tr');await expect(row).toHaveCount(1);await expect(row).toContainText('Mon, Tue, Wed, Thu, Fri');await expect(row).toContainText('N1934');
@@ -42,23 +32,12 @@ test('weekly schedules group weekdays and support edit, deactivate and reactivat
  await page.locator('#showInactiveSchedules').check();await expect(row).toContainText('Inactive');await row.getByRole('button',{name:'Activate',exact:true}).click();await expect(row).toContainText('Upcoming');expect(f.toggles.map(t=>t.active)).toEqual([false,true]);expect(f.errors).toEqual([]);
  await page.locator('#userSection').screenshot({path:'output/admin-user-schedules-desktop.png'});
 });
-test('mobile people, account editor and schedules fit the screen with readable weekdays',async({page})=>{
- const f=await openUsers(page,{mobile:true});await page.locator('#userSection').screenshot({path:'output/admin-users-mobile.png'});
- expect(await page.locator('#userDirectoryModule').evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBe(true);
- await page.locator('#userTableBody [data-manage-user="test-driver"]').click();await expect(page.locator('#userAccountDialog')).toBeVisible();
- const box=await page.locator('#userAccountDialog').boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(391);
- await page.locator('#userAccountDialog').screenshot({path:'output/admin-user-editor-mobile.png'});
- await page.locator('#userAccountSchedule').click();await expect(page.locator('#driverSchedulePanel')).toBeVisible();
+test('mobile schedules fit the screen with readable weekdays',async({page})=>{
+ const f=await openUsers(page,{mobile:true});await page.locator('[data-user-module-open="driverSchedulePanel"]').click();await expect(page.locator('#driverSchedulePanel')).toBeVisible();
  const layout=await page.locator('#driverSchedulePanel').evaluate(e=>({fits:e.scrollWidth<=e.clientWidth+1,width:e.clientWidth,scroll:e.scrollWidth,overflow:[...e.querySelectorAll('*')].filter(n=>n.getClientRects().length&&n.getBoundingClientRect().right>e.getBoundingClientRect().right+1).map(n=>({tag:n.tagName,id:n.id,cls:n.className,width:n.getBoundingClientRect().width}))}));expect(layout.fits,JSON.stringify(layout)).toBe(true);
  for(const label of await page.locator('#scheduleWeekdayGroup label').all()){expect(await label.evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBe(true);}
  await page.locator('#driverScheduleRows button[data-edit-schedule]').click();await expect(page.locator('#scheduleEffectiveDate')).toHaveValue('2026-08-09');
  await page.locator('#userSection').screenshot({path:'output/admin-user-schedules-mobile.png'});expect(f.errors).toEqual([]);
-});
-test('a failed account save keeps entered values and allows retry',async({page})=>{
- const f=await openUsers(page);await page.locator('#userTableBody [data-manage-user="test-driver"]').click();let fail=true;
- await page.route('**/api/admin/users/test-driver',route=>{if(fail){fail=false;return route.fulfill({status:500,json:{error:'Unable to save right now'}});}return route.fallback();});
- await page.locator('#editUserName').fill('Revised name');await page.locator('#saveUserAccount').click();await expect(page.locator('#userAccountMsg')).toContainText('Unable to save right now');await expect(page.locator('#editUserName')).toHaveValue('Revised name');await expect(page.locator('#saveUserAccount')).toBeEnabled();
- await page.locator('#saveUserAccount').click();await expect(page.locator('#userAccountMsg')).toContainText('Account updated');expect(f.patches).toHaveLength(1);
 });
 for(const mobile of [false,true])test(`separate weekday and weekend schedules can be added, edited and deactivated independently (${mobile?'mobile':'desktop'})`,async({page})=>{
  const f=await openUsers(page,{mobile});await page.locator('[data-user-module-open="driverSchedulePanel"]').click();
