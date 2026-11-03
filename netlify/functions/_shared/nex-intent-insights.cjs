@@ -56,14 +56,18 @@ async function report(queryFn,days=30) {
 async function readiness(queryFn,env=process.env) {
   const schema=await queryFn("SELECT to_regclass('public.nex_intent_events')::text AS table_name");
   const dbReady=Boolean(schema.rows[0]?.table_name);
-  let total=0,latestAt=null;
+  let total=0,latestAt=null,canInsert=false;
   if(dbReady){
-    const result=await queryFn('SELECT count(*)::int AS total, max(created_at) AS latest_at FROM nex_intent_events');
+    const result=await queryFn(`SELECT count(*)::int AS total, max(created_at) AS latest_at,
+      has_table_privilege(current_user, 'public.nex_intent_events', 'INSERT') AS can_insert
+      FROM nex_intent_events`);
     total=Number(result.rows[0]?.total||0);
     latestAt=result.rows[0]?.latest_at||null;
+    canInsert=result.rows[0]?.can_insert===true;
   }
   return {
     databaseReady:dbReady,
+    writePermissionReady:dbReady&&canInsert,
     eventCount:total,
     lastRecordedAt:latestAt,
     aiConfigured:Boolean((env.VISITOR_ASSISTANT_API_KEY||env.OPENAI_API_KEY) &&
