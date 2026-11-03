@@ -69,6 +69,39 @@ test('"can I book a ride to Kansas" gets a yes — inter-state coverage, answere
   assert.ok(!/\$\s?\d/.test(body.answer), 'must not contain a dollar figure');
 });
 
+test('family and patient transfer phrasing recognizes interstate transportation', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const questions = [
+    'Can you transfer my mum to New York?',
+    'Could you move my mother to New York?',
+    'Can you relocate a patient to New York?',
+    'I need to transfer my dad to New York',
+    'Can you send my grandmother to New York?',
+    'Can you escort my wife to New York?',
+    'Can you transport my loved one to New York?',
+    'Can you take my mom to New York?',
+    'Can you arrange a ride for my father to New York?'
+  ];
+  for (const question of questions) {
+    const { body } = await assistant.ask(question, '10.0.0.18');
+    assert.notEqual(body.mode, 'fallback', question);
+    assert.ok(body.sources.includes('long-distance'), question);
+    assert.match(body.answer, /New York/, question);
+    assert.match(body.answer, /scheduled in advance/, question);
+  }
+});
+
+test('financial and data transfers are not mistaken for patient transportation', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  for (const question of [
+    'Can you transfer my bank account to New York?',
+    'Can you move my website data to New York?'
+  ]) {
+    const { body } = await assistant.ask(question, '10.0.0.19');
+    assert.ok(!body.sources.includes('long-distance'), question);
+  }
+});
+
 test('a Maryland to Florida ride gets the inter-state yes', async () => {
   const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
   const { body } = await assistant.ask('Can I get a ride from Maryland to Florida?', '10.0.0.5');
