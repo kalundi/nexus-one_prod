@@ -98,6 +98,8 @@ jobs:
         run: node --test --test-reporter=spec tests/nex-authorization-contract.test.cjs
       - name: Test authenticated Nex Insights chat routing
         run: node --test --test-reporter=spec tests/nex-insights-chat.test.cjs
+      - name: Test Nex Directions retry and estimate errors
+        run: node --test --test-reporter=spec tests/nex-estimate-directions.test.cjs
       - name: Test existing Nex assistant behavior
         run: node --test --test-reporter=spec tests/visitor-assistant.test.cjs
   browser:
