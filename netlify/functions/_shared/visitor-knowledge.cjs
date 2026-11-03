@@ -388,4 +388,8 @@ const ENTRIES = [
   }
 ];
 
+// Reviewed public FAQs supplement the curated baseline; candidate crawls never load here.
+const { loadApproved } = require('./nex-reviewed-knowledge.cjs');
+ENTRIES.push(...loadApproved());
+
 module.exports = { CONTACT, ENTRIES };
