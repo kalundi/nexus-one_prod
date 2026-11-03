@@ -19,6 +19,7 @@ on:
       - 'tests/nex-intent-insights.test.cjs'
       - 'tests/nex-ai-suggestions.test.cjs'
       - 'tests/nex-insights-chat.test.cjs'
+      - 'tests/nex-insight-reviews.test.cjs'
       - 'netlify/functions/_shared/staff-assistant.cjs'
       - 'tests/nex-dashboard-auth.test.cjs'
       - 'tests/nex-conversation.spec.cjs'
@@ -55,6 +56,7 @@ jobs:
           node --check netlify/functions/_shared/nex-intent-insights.cjs
           node --check netlify/functions/_shared/nex-ai-suggestions.cjs
           node --check netlify/functions/_shared/nex-insights-chat.cjs
+          node --check netlify/functions/_shared/nex-insight-reviews.cjs
           node --check netlify/functions/nex-insights.cjs
           node --check nex-insights.js
           node --check netlify/functions/_shared/nex-reviewed-knowledge.cjs
@@ -77,6 +79,8 @@ jobs:
         run: node --test --test-reporter=spec tests/nex-ai-suggestions.test.cjs
       - name: Test Nex dashboard auth and blank-page regression
         run: node --test --test-reporter=spec tests/nex-dashboard-auth.test.cjs
+      - name: Test Nex recommendation review queue
+        run: node --test --test-reporter=spec tests/nex-insight-reviews.test.cjs
       - name: Test authenticated Nex Insights chat routing
         run: node --test --test-reporter=spec tests/nex-insights-chat.test.cjs
       - name: Test existing Nex assistant behavior
