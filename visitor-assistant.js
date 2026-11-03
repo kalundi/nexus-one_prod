@@ -353,7 +353,7 @@
     '<form class="nvaForm" id="nvaForm"><label class="sr" id="nvaInputLabel" for="nvaInput" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Type your question</label>' +
     '<input class="nvaInput" id="nvaInput" type="text" autocomplete="off" maxlength="500" placeholder="' + DEFAULT_PLACEHOLDER + '">' +
     '<button class="nvaSend" id="nvaSend" type="submit">Send</button></form>' +
-    '<div class="nvaNote">Nex answers from the Nexus website. Addresses you enter for a rough estimate are used only to work out the distance and are not stored. When you book, the booking form collects the full trip details.</div>';
+    '<div class="nvaNote">Nex answers from the Nexus website. Anonymous question categories may be counted to improve answers; full chat messages, names and addresses are not saved in analytics. Addresses entered for estimates are used to calculate distance, not stored in chat analytics. Do not share medical details here. Bookings collect trip details separately.</div>';
 
   document.body.appendChild(tab);
   document.body.appendChild(panel);
