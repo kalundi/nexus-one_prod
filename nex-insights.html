@@ -14,5 +14,11 @@
 <section class="card" style="padding:20px;margin-top:20px"><h2>Unanswered question patterns</h2><p>Recognized business keywords only; proposed knowledge updates require human approval.</p><ul id="gaps"></ul></section>
 <section class="card" style="padding:20px;margin-top:20px"><h2>Most frequent transportation concepts</h2><ul id="terms"></ul></section>
 <section class="card" style="padding:20px;margin-top:20px" aria-labelledby="aiTitle"><h2 id="aiTitle">AI improvement recommendations</h2><p>Review-only suggestions based on anonymous aggregate counts. Nothing will be added to the knowledge base automatically. A minimum of three questions is required.</p><button id="generateSuggestions" type="button">Generate recommendations</button><p id="aiStatus" role="status">Not generated.</p><pre id="aiSuggestions" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></section>
+<section class="card" style="padding:20px;margin-top:20px" aria-labelledby="reviewsTitle">
+<h2 id="reviewsTitle">Recommendation review queue</h2>
+<p>Draft AI recommendations are not published as approved business facts. Mark them reviewed after fact-checking or dismiss them; neither action changes Nex's knowledge base.</p>
+<button id="refreshReviews" type="button">Refresh review queue</button>
+<p id="reviewStatus" role="status">Loading review queue…</p>
+<div id="reviewItems" aria-live="polite"></div></section>
 <p>Scope: Public visitor-assistant requests only. Staff assistant chats and booking form details are not collected. Analytics collection depends on database availability and migration.</p>
 </main><script src="/platform.js"></script></body></html>
