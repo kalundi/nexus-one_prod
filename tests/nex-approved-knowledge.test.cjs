@@ -85,7 +85,13 @@ test('Nex uses recent context for short transport and geographic follow-ups', as
 });
 test('Ask Nex keeps bounded in-page memory and never persists it', () => {
   const page=fs.readFileSync(path.join(__dirname,'../ask-nex.html'),'utf8');
-  assert.match(page,/history:conversation.slice\(-8\)/);
+  assert.match(page,/history:previous/);
   assert.match(page,/conversation=conversation.slice\(-8\)/);
+  assert.match(page,/id="chatLog"/);
+  assert.match(page,/id="clearChat"/);
+  assert.match(page,/appendMessage\('user',q\)/);
+  assert.match(page,/appendMessage\('assistant','Nex is looking up an answer/);
+  assert.match(page,/generation\+\+;busy=false;conversation=\[\]/);
+  assert.match(page,/body.textContent=String\(text\|\|''\)/);
   assert.doesNotMatch(page,/localStorage\.setItem|sessionStorage\.setItem/);
 });
