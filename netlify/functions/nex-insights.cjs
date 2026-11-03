@@ -3,12 +3,16 @@
 const {json,bearer}=require('./_shared/http.cjs');
 const {requireUser}=require('./_shared/auth.cjs');
 const {query}=require('./_shared/db.cjs');
-const {report}=require('./_shared/nex-intent-insights.cjs');
+const {report,readiness}=require('./_shared/nex-intent-insights.cjs');
 const {suggest}=require('./_shared/nex-ai-suggestions.cjs');
 exports.handler=async event=>{
   if(!['GET','POST'].includes(event.httpMethod))return json(405,{error:'Method not allowed'});
   try {
     await requireUser(bearer(event),['ADMIN']);
+    if(event.httpMethod==='GET' && event.queryStringParameters?.readiness==='1'){
+      const result=await readiness(query);
+      return json(200,result);
+    }
     const days=Number(event.queryStringParameters?.days||30);
     const data=await report(query,days);
     if(event.httpMethod==='POST'){
