@@ -43,6 +43,7 @@ const {
   sanitizeState, sanitizeHistory, allowedFigures, detectFollowUp, describeChanges
 } = require('./visitor-conversation.cjs');
 
+const {relatedFor:relatedNexContent}=require('./nex-social-content.cjs');
 const BOOKING_CTA = `You can book online at ${CONTACT.bookingUrl} or call ${CONTACT.mainPhoneDisplay}.`;
 const FALLBACK_ANSWER =
   `I don\u2019t have that in the information on our website, and I don\u2019t want to guess. ` +
@@ -878,6 +879,12 @@ function createAssistant({ fetchImpl = fetch, env = process.env, now = Date.now,
     const asksForDetails = /(my name|i am|i'm|my phone|my address|book me|pick me up)/i.test(clean);
     if (asksForDetails) answer += '\n\n' + PRIVACY_NOTE;
     const body = { answer, sources: composed.sources, mode, state };
+    // Recommend only curated approved public resources for informational queries.
+    // Emergency, price/estimate and private operations responses never get social suggestions.
+    if(!estimateBody && composed.mode==='composed' && composed.sources.length){
+      const relatedContent=relatedNexContent(groundedQuestion,composed.sources);
+      if(relatedContent.length)body.relatedContent=relatedContent;
+    }
     if (estimateBody) {
       body.estimate = estimateBody.estimate;
       body.state = { lastEstimate: { inputs: modelInputs, result: estimateBody.estimate } };
