@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask Nex | Nexus Medical Transit</title>
+<meta name="description" content="Ask Nex questions about Nexus Medical Transit services, booking, accessibility, and coverage. Learn how Nex's AI-assisted answers work.">
+<link rel="canonical" href="https://nexusmt.com/ask-nex.html">
+<link rel="stylesheet" href="/platform.css?v=66">
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#102338;background:#f4f8fb}
+*{box-sizing:border-box}body{margin:0}a{color:#075985}a:focus-visible,button:focus-visible,textarea:focus-visible{outline:3px solid #db9100;outline-offset:3px}
+.skip{position:absolute;left:-9999px}.skip:focus{left:12px;top:12px;z-index:1000;background:#fff;padding:12px}
+.topbar{background:#082f49;color:#fff;padding:16px 20px}.topbar-inner{max-width:1080px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.topbar a{color:#fff}.brand{font-size:18px;font-weight:800;text-decoration:none}.top-actions{display:flex;gap:18px;flex-wrap:wrap}
+main{max-width:1080px;margin:0 auto;padding:32px 18px 65px}
+.hero{background:linear-gradient(110deg,#082f49,#0e5c8c);color:#fff;border-radius:24px;padding:32px;display:grid;gap:14px}
+.hero h1{font-size:clamp(32px,6vw,52px);margin:0;line-height:1.12}.hero p{margin:0;max-width:690px;line-height:1.6}
+.layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:22px;margin-top:22px}
+.panel{background:#fff;border:1px solid #d2e1ea;border-radius:20px;padding:23px;box-shadow:0 8px 24px rgba(8,47,73,.06)}
+h2{margin:0 0 12px;font-size:22px}h3{font-size:17px;margin:20px 0 8px}p,li{line-height:1.6}
+.prompt{display:flex;flex-direction:column;gap:12px}textarea{width:100%;min-height:114px;border:1px solid #819aaa;border-radius:12px;padding:14px;font:inherit;resize:vertical}
+button{font:inherit;cursor:pointer}button.primary{border:0;background:#075985;color:#fff;font-weight:750;border-radius:12px;padding:13px 20px;min-height:44px}button.primary:disabled{opacity:.65;cursor:wait}
+.examples{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.examples button{padding:9px 12px;min-height:44px;border-radius:999px;border:1px solid #6e8ca3;background:#f5fafc;color:#082f49;font-weight:650}
+.response{margin-top:23px;padding:18px;border:1px solid #cedce6;border-radius:13px;background:#f5fafc;white-space:pre-wrap;overflow-wrap:anywhere;min-height:84px}
+.response[aria-busy="true"]{opacity:.75}.source-list{padding-left:18px}.source-list a{overflow-wrap:anywhere}
+.fine{font-size:13px;color:#445c6c}.notice{padding:13px 15px;background:#eef7ff;border-left:4px solid #0e5c8c;border-radius:8px}
+@media(max-width:780px){.layout{grid-template-columns:1fr}.hero{padding:24px}.panel{padding:18px}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="topbar"><div class="topbar-inner">
+<a class="brand" href="/">Nexus Medical Transit</a>
+<nav class="top-actions" aria-label="Page links"><a href="/">Home</a><a href="/accessibility.html">Accessibility</a><a href="https://mynexusride.com">Book a Ride</a></nav>
+</div></header>
+<main id="main">
+<section class="hero" aria-labelledby="page-title">
+<h1 id="page-title">Ask Nex</h1>
+<p>Your Nexus Medical Transit virtual assistant. Ask about services, coverage areas, booking, accessibility, and ride tracking. Nex retrieves answers from approved Nexus information and can help point you to the next step.</p>
+</section>
+<div class="layout">
+<section class="panel" aria-labelledby="ask-title">
+<h2 id="ask-title">What can Nex help with?</h2>
+<form class="prompt" id="askForm">
+<label for="askQuestion">Ask a question about Nexus Medical Transit</label>
+<textarea id="askQuestion" maxlength="500" required placeholder="For example: Can you transport someone in a wheelchair?"></textarea>
+<div><button class="primary" id="askSubmit" type="submit">Ask Nex</button></div>
+</form>
+<div class="examples" aria-label="Example questions">
+<button type="button" data-question="What services do you offer?">Our services</button>
+<button type="button" data-question="Where does Nexus provide transportation?">Service areas</button>
+<button type="button" data-question="How do I book a ride?">Booking a ride</button>
+<button type="button" data-question="Can I track my ride?">Ride tracking</button>
+</div>
+<div id="answerWrap" hidden>
+<h3>Nex's answer</h3>
+<div class="response" id="answer" role="status" aria-live="polite"></div>
+<div id="sourcesWrap" hidden><h3>Source pages</h3><ul id="sources" class="source-list"></ul></div>
+<p class="fine">AI-assisted responses can be incomplete or outdated. Verify important trip and care arrangements with Nexus directly.</p>
+</div>
+</section>
+<aside class="panel" aria-labelledby="about-title">
+<h2 id="about-title">How Nex answers</h2>
+<p>Nex searches Nexus's approved website knowledge and uses that information to answer questions. Some responses may be phrased using an AI model; Nex also works using prewritten, retrieved answers when AI service is unavailable.</p>
+<h3>What Nex can and can't do</h3>
+<ul>
+<li>Nex can explain general services, accessible transportation, coverage, and how to request a ride.</li>
+<li>Nex cannot confirm a live ride booking or guarantee availability from this page.</li>
+<li>Fare estimates require trip details and use the separate booking and estimate process.</li>
+<li>Nex does not diagnose conditions, recommend a patient's clinical level of transport, or provide emergency response.</li>
+</ul>
+<h3>Privacy and accuracy</h3>
+<p>Do not enter patient names, diagnoses, medical records, payment details, or other sensitive personal information here. Questions are sent to the Nexus assistant service to generate a response. The existing public assistant uses conversation context for the request and does not maintain a persistent chat history in this page.</p>
+<p>Website updates are gathered for review; they are not automatically approved as answers. The Nexus team controls the approved knowledge catalog.</p>
+<div class="notice"><strong>Medical emergency?</strong> Call <a href="tel:911">911</a>. For confirmed service information or booking assistance call <a href="tel:+18886395766">(888) 639-5766</a>.</div>
+<p><a href="/legal.html">Privacy and legal information</a></p>
+</aside>
+</div>
+</main>
+<script>
+(function(){
+'use strict';
+var form=document.getElementById('askForm'), input=document.getElementById('askQuestion');
+var button=document.getElementById('askSubmit'), answer=document.getElementById('answer');
+var wrap=document.getElementById('answerWrap'), sources=document.getElementById('sources');
+var sourcesWrap=document.getElementById('sourcesWrap');
+var pages=new Set(['non-emergency-medical-transportation.html','wheelchair-transportation.html',
+'stretcher-transportation.html','ambulance-transportation.html','bariatric-transportation.html',
+'contact-service-areas.html','accessibility.html','legal.html','booking-app.html',
+'livecare.html','medical-transportation-annapolis.html']);
+function showSources(items){
+sources.replaceChildren();
+var seen=new Set();
+(items||[]).forEach(function(item){
+if(typeof item!=='string')return;
+var names=item.match(/[a-z0-9-]+\.html/ig)||[];
+names.forEach(function(name){
+if(!pages.has(name)||seen.has(name))return;
+seen.add(name);
+var li=document.createElement('li'),a=document.createElement('a');
+a.href='/'+name;a.textContent=name.replace('.html','').replace(/-/g,' ');
+li.appendChild(a);sources.appendChild(li);
+});
+});
+sourcesWrap.hidden=!sources.children.length;
+}
+async function ask(question){
+var q=String(question||'').trim().slice(0,500);if(!q)return;
+input.value=q;wrap.hidden=false;answer.textContent='Nex is looking up an answer…';
+answer.setAttribute('aria-busy','true');button.disabled=true;sourcesWrap.hidden=true;
+try{
+var res=await fetch('/.netlify/functions/visitor-assistant',{method:'POST',
+headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,history:[]})});
+var data=await res.json();if(!res.ok)throw new Error(data.error||'Nex is unavailable.');
+answer.textContent=typeof data.answer==='string'?data.answer:'Nex could not find an answer.';
+showSources(data.sources);
+}catch(e){answer.textContent='Nex could not answer right now. Please call (888) 639-5766 for assistance.';showSources([]);}
+finally{answer.setAttribute('aria-busy','false');button.disabled=false;}
+}
+form.addEventListener('submit',function(event){event.preventDefault();ask(input.value);});
+document.querySelectorAll('[data-question]').forEach(function(el){
+el.addEventListener('click',function(){ask(el.getAttribute('data-question'));});
+});
+var prefill=new URLSearchParams(location.search).get('message');
+if(prefill){input.value=prefill.slice(0,500);ask(input.value);}
+})();
+</script>
+</body>
+</html>
