@@ -51,4 +51,25 @@ async function report(queryFn,days=30) {
   ]);
   return {days:daysSafe,summary:overview.rows[0],intents:intents.rows,gaps:gaps.rows,terms:terms.rows,storesRawMessages:false};
 }
-module.exports={TERMS,classify,store,report};
+// Admin-only status check deliberately works before the migration has run.
+// Avoid classifying an empty dashboard as a healthy, active analytics system.
+async function readiness(queryFn,env=process.env) {
+  const schema=await queryFn("SELECT to_regclass('public.nex_intent_events')::text AS table_name");
+  const dbReady=Boolean(schema.rows[0]?.table_name);
+  let total=0,latestAt=null;
+  if(dbReady){
+    const result=await queryFn('SELECT count(*)::int AS total, max(created_at) AS latest_at FROM nex_intent_events');
+    total=Number(result.rows[0]?.total||0);
+    latestAt=result.rows[0]?.latest_at||null;
+  }
+  return {
+    databaseReady:dbReady,
+    eventCount:total,
+    lastRecordedAt:latestAt,
+    aiConfigured:Boolean((env.VISITOR_ASSISTANT_API_KEY||env.OPENAI_API_KEY) &&
+      (env.NEX_INSIGHTS_MODEL||env.VISITOR_ASSISTANT_MODEL||env.OPENAI_MODEL)),
+    rawMessagesStored:false
+  };
+}
+
+module.exports={TERMS,classify,store,report,readiness};
