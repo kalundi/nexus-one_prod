@@ -756,20 +756,25 @@ $$('[data-api-list]').forEach(async el=>{try{const endpoint=el.dataset.apiList;i
   }, CHECK_MS);
 }());
 
-/* BEGIN Nexus visitor assistant loader (visitor-qa-bot) — public pages only.
-   Loads /visitor-assistant.js (the visitor Q&A chat widget) unless this is a
-   staff/back-office or app surface. A staff page may opt in explicitly by
-   setting window.NEXUS_VISITOR_ASSISTANT = {enabled:true, side:'right'}
-   before platform.js runs (the facility portal does this to place Nex on
-   the right edge); without that flag nothing changes on any page. Keep this
-   block intact and self-contained so it can be reconciled independently of
+/* BEGIN Nexus visitor assistant loader (visitor-qa-bot).
+   Loads /visitor-assistant.js (the Nex chat widget) on every page —
+   public, staff and back-office alike. Guests get Nex's public mode;
+   signed-in users are answered in their role's staff mode by the
+   server (the role comes from the session, never from the page). A
+   page may still opt in explicitly / choose its edge by setting
+   window.NEXUS_VISITOR_ASSISTANT = {enabled:true, side:'right'}
+   before platform.js runs (the facility portal places Nex on the
+   right edge). The three app surfaces (booking app, patient app,
+   driver app) and the booking form itself keep their own chrome for
+   now — their Nex format is a separate, deliberate step — as do the
+   password and test-payment utility pages. Keep this block intact
+   and self-contained so it can be reconciled independently of
    header/navigation changes. */
 (function(){
-	if(document.body && document.body.hasAttribute('data-backoffice-workspace')) return;
-	if(document.getElementById('bookingForm')) return;
 	var optedIn=!!(window.NEXUS_VISITOR_ASSISTANT && window.NEXUS_VISITOR_ASSISTANT.enabled);
-	var staffOrApp=/\/(admin|dispatch|operations|billing|fleet|executive|ai-operations|qa|facility|facility-demo|driver-app|patient|caretaker|apps|training|admin-maintenance|secure-documents|set-password|career-application|booking-app|test-payment)(\.html)?$/i;
-	if(staffOrApp.test(location.pathname) && !optedIn) return;
+	var appSurface=/\/(driver-app|patient|booking-app|set-password|test-payment)(\.html)?$/i;
+	if(appSurface.test(location.pathname) && !optedIn) return;
+	if(document.getElementById('bookingForm') && !optedIn) return;
 	var script=document.createElement('script');
 	script.src='/visitor-assistant.js';
 	script.defer=true;
