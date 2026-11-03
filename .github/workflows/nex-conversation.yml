@@ -28,6 +28,7 @@ on:
       - 'tests/nex-dashboard-auth.test.cjs'
       - 'tests/nex-conversation.spec.cjs'
       - 'tests/nex-admin.spec.cjs'
+      - 'tests/nex-authorization-contract.test.cjs'
       - 'tests/visitor-assistant.test.cjs'
       - 'playwright.nex.config.cjs'
       - 'scripts/nex-playwright-server.cjs'
@@ -93,6 +94,8 @@ jobs:
         run: node --test --test-reporter=spec tests/nex-knowledge-drafts.test.cjs
       - name: Test Nex recommendation review queue
         run: node --test --test-reporter=spec tests/nex-insight-reviews.test.cjs
+      - name: Test Nex admin authorization and confirmation invariants
+        run: node --test --test-reporter=spec tests/nex-authorization-contract.test.cjs
       - name: Test authenticated Nex Insights chat routing
         run: node --test --test-reporter=spec tests/nex-insights-chat.test.cjs
       - name: Test existing Nex assistant behavior
