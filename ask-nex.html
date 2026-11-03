@@ -21,7 +21,17 @@ h2{margin:0 0 12px;font-size:22px}h3{font-size:17px;margin:20px 0 8px}p,li{line-
 .prompt{display:flex;flex-direction:column;gap:12px}textarea{width:100%;min-height:114px;border:1px solid #819aaa;border-radius:12px;padding:14px;font:inherit;resize:vertical}
 button{font:inherit;cursor:pointer}button.primary{border:0;background:#075985;color:#fff;font-weight:750;border-radius:12px;padding:13px 20px;min-height:44px}button.primary:disabled{opacity:.65;cursor:wait}
 .examples{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.examples button{padding:9px 12px;min-height:44px;border-radius:999px;border:1px solid #6e8ca3;background:#f5fafc;color:#082f49;font-weight:650}
-.response{margin-top:23px;padding:18px;border:1px solid #cedce6;border-radius:13px;background:#f5fafc;white-space:pre-wrap;overflow-wrap:anywhere;min-height:84px}
+.chat-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;flex-wrap:wrap}
+.chat-toolbar h2{margin:0}.clear-chat{min-height:44px;padding:8px 12px;background:#fff;color:#082f49;border:1px solid #6e8ca3;border-radius:10px}
+.chat-log{min-height:220px;max-height:460px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:15px;border:1px solid #cedce6;border-radius:14px;background:#f5fafc;margin-bottom:18px}
+.message{max-width:92%;padding:12px 14px;white-space:pre-wrap;overflow-wrap:anywhere;border-radius:15px;line-height:1.55}
+.message.user{align-self:flex-end;background:#082f49;color:#fff;border-bottom-right-radius:4px}
+.message.assistant{align-self:flex-start;background:#fff;color:#102338;border:1px solid #d3e2eb;border-bottom-left-radius:4px}
+.message .speaker{display:block;font-weight:800;font-size:12px;margin-bottom:5px}
+.message a{color:#075985}.chat-sources{margin:10px 0 0;padding-left:20px}.chat-sources a{font-size:14px}
+.chat-empty{color:#445c6c;line-height:1.6;margin:auto 0}
+.chat-status{min-height:24px;color:#445c6c;font-size:14px}
+.response[aria-busy="true"]{opacity:.75}
 .response[aria-busy="true"]{opacity:.75}.source-list{padding-left:18px}.source-list a{overflow-wrap:anywhere}
 .fine{font-size:13px;color:#445c6c}.notice{padding:13px 15px;background:#eef7ff;border-left:4px solid #0e5c8c;border-radius:8px}
 @media(max-width:780px){.layout{grid-template-columns:1fr}.hero{padding:24px}.panel{padding:18px}}
@@ -40,7 +50,9 @@ button{font:inherit;cursor:pointer}button.primary{border:0;background:#075985;co
 </section>
 <div class="layout">
 <section class="panel" aria-labelledby="ask-title">
-<h2 id="ask-title">What can Nex help with?</h2>
+<div class="chat-toolbar"><h2 id="ask-title">Chat with Nex</h2><button type="button" id="clearChat" class="clear-chat">New conversation</button></div>
+<div class="chat-log" id="chatLog" role="log" aria-label="Conversation with Nex" aria-live="polite" aria-relevant="additions text"><p id="chatEmpty" class="chat-empty">Hi! Ask Nex a question about Nexus Medical Transit to start a conversation.</p></div>
+<p id="chatStatus" class="chat-status" role="status" aria-live="polite"></p>
 <form class="prompt" id="askForm">
 <label for="askQuestion">Ask a question about Nexus Medical Transit</label>
 <textarea id="askQuestion" maxlength="500" required placeholder="For example: Can you transport someone in a wheelchair?"></textarea>
@@ -52,12 +64,7 @@ button{font:inherit;cursor:pointer}button.primary{border:0;background:#075985;co
 <button type="button" data-question="How do I book a ride?">Booking a ride</button>
 <button type="button" data-question="Can I track my ride?">Ride tracking</button>
 </div>
-<div id="answerWrap" hidden>
-<h3>Nex's answer</h3>
-<div class="response" id="answer" role="status" aria-live="polite"></div>
-<div id="sourcesWrap" hidden><h3>Source pages</h3><ul id="sources" class="source-list"></ul></div>
-<p class="fine">AI-assisted responses can be incomplete or outdated. Verify important trip and care arrangements with Nexus directly.</p>
-</div>
+<p class="fine">AI-assisted responses can be incomplete or outdated. Verify important trip and care arrangements with Nexus directly. Conversation messages remain only in this open page.</p>
 </section>
 <aside class="panel" aria-labelledby="about-title">
 <h2 id="about-title">How Nex answers</h2>
@@ -81,49 +88,81 @@ button{font:inherit;cursor:pointer}button.primary{border:0;background:#075985;co
 (function(){
 'use strict';
 var form=document.getElementById('askForm'), input=document.getElementById('askQuestion');
-var button=document.getElementById('askSubmit'), answer=document.getElementById('answer');
-var wrap=document.getElementById('answerWrap'), sources=document.getElementById('sources');
-var sourcesWrap=document.getElementById('sourcesWrap');
-// Memory lives only in this open page; never saved to browser storage.
+var button=document.getElementById('askSubmit'), log=document.getElementById('chatLog');
+var empty=document.getElementById('chatEmpty'), status=document.getElementById('chatStatus');
+var reset=document.getElementById('clearChat'), busy=false, generation=0;
+// This history is ephemeral: only the last 8 successful conversation turns
+// are sent to the existing public Nex endpoint for follow-up context.
 var conversation=[];
 var pages=new Set(['non-emergency-medical-transportation.html','wheelchair-transportation.html',
 'stretcher-transportation.html','ambulance-transportation.html','bariatric-transportation.html',
 'contact-service-areas.html','accessibility.html','legal.html','booking-app.html',
 'livecare.html','medical-transportation-annapolis.html']);
-function showSources(items){
-sources.replaceChildren();
-var seen=new Set();
+function scrollChat(){log.scrollTop=log.scrollHeight;}
+function appendMessage(role,text){
+if(empty&&empty.parentNode)empty.remove();
+var node=document.createElement('div');
+node.className='message '+(role==='user'?'user':'assistant');
+var label=document.createElement('span');
+label.className='speaker';
+label.textContent=role==='user'?'You':'Nex';
+var body=document.createElement('div');
+body.textContent=String(text||'');
+node.appendChild(label);node.appendChild(body);log.appendChild(node);
+scrollChat();
+return {node:node,body:body};
+}
+function addSources(node,items){
+var seen=new Set(),list=document.createElement('ul');
+list.className='chat-sources';
 (items||[]).forEach(function(item){
 if(typeof item!=='string')return;
-var names=item.match(/[a-z0-9-]+\.html/ig)||[];
-names.forEach(function(name){
+(item.match(/[a-z0-9-]+\\.html/ig)||[]).forEach(function(name){
 if(!pages.has(name)||seen.has(name))return;
 seen.add(name);
 var li=document.createElement('li'),a=document.createElement('a');
 a.href='/'+name;a.textContent=name.replace('.html','').replace(/-/g,' ');
-li.appendChild(a);sources.appendChild(li);
+li.appendChild(a);list.appendChild(li);
 });
 });
-sourcesWrap.hidden=!sources.children.length;
+if(list.children.length)node.appendChild(list);
 }
 async function ask(question){
-var q=String(question||'').trim().slice(0,500);if(!q)return;
-input.value=q;wrap.hidden=false;answer.textContent='Nex is looking up an answer…';
-answer.setAttribute('aria-busy','true');button.disabled=true;sourcesWrap.hidden=true;
+var q=String(question||'').trim().slice(0,500);
+if(!q||busy)return;
+busy=true;var activeGeneration=generation;
+var previous=conversation.slice(-8);
+appendMessage('user',q);input.value='';
+var reply=appendMessage('assistant','Nex is looking up an answer…');
+reply.node.setAttribute('aria-busy','true');
+status.textContent='Nex is responding…';button.disabled=true;
 try{
 var res=await fetch('/.netlify/functions/visitor-assistant',{method:'POST',
-headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,history:conversation.slice(-8)})});
+headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,history:previous})});
 var data=await res.json();if(!res.ok)throw new Error(data.error||'Nex is unavailable.');
-answer.textContent=typeof data.answer==='string'?data.answer:'Nex could not find an answer.';
-conversation.push({role:'user',text:q},{role:'assistant',text:answer.textContent});
+if(activeGeneration!==generation)return;
+reply.body.textContent=typeof data.answer==='string'?data.answer:'Nex could not find an answer.';
+addSources(reply.node,data.sources);
+conversation.push({role:'user',text:q},{role:'assistant',text:reply.body.textContent});
 conversation=conversation.slice(-8);
-showSources(data.sources);
-}catch(e){answer.textContent='Nex could not answer right now. Please call (888) 639-5766 for assistance.';showSources([]);}
-finally{answer.setAttribute('aria-busy','false');button.disabled=false;}
+}catch(e){
+if(activeGeneration!==generation)return;
+reply.body.textContent='Nex could not answer right now. Please try again or call (888) 639-5766 for assistance.';
+}finally{
+if(activeGeneration===generation){reply.node.setAttribute('aria-busy','false');busy=false;button.disabled=false;status.textContent='';scrollChat();}
+}
 }
 form.addEventListener('submit',function(event){event.preventDefault();ask(input.value);});
 document.querySelectorAll('[data-question]').forEach(function(el){
 el.addEventListener('click',function(){ask(el.getAttribute('data-question'));});
+});
+reset.addEventListener('click',function(){
+generation++;busy=false;conversation=[];
+log.replaceChildren();
+empty=document.createElement('p');empty.id='chatEmpty';empty.className='chat-empty';
+empty.textContent='New conversation. What can Nex help you with?';
+log.appendChild(empty);input.value='';button.disabled=false;status.textContent='';
+input.focus();
 });
 var prefill=new URLSearchParams(location.search).get('message');
 if(prefill){input.value=prefill.slice(0,500);ask(input.value);}
