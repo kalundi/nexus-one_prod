@@ -46,7 +46,13 @@ exports.handler = async (event) => {
     const body = parseBody(event);
     const result = await assistant.ask(body.question, clientIp(event), { state: body.state, history: body.history });
     // Save only coarse, non-identifying intent signals; logging failures never block chat.
-    await NexInsights.store(query, body.question, result).catch(() => {});
+    await NexInsights.store(query, body.question, result).catch(error => {
+      // Never log the visitor's message, answer, IP, SQL parameters, or DB connection.
+      // A bounded code-only diagnostic makes missing migrations/permissions observable.
+      const code=String(error?.code||'unknown');
+      const safeCode=/^[A-Z0-9]{4,6}$/i.test(code)?code:'unknown';
+      console.warn('[NEX_INSIGHTS] Analytics event write failed (code '+safeCode+').');
+    });
     return json(result.status, result.body);
   } catch (error) {
     return json(Number(error.statusCode || 500), {

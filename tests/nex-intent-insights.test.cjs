@@ -26,6 +26,7 @@ test('readiness detects missing analytics table without querying nonexistent dat
  const result=await readiness(async()=>{queries++;return {rows:[{table_name:null}]}},{});
  assert.equal(queries,1);
  assert.equal(result.databaseReady,false);
+ assert.equal(result.writePermissionReady,false);
  assert.equal(result.eventCount,0);
  assert.equal(result.aiConfigured,false);
  assert.equal(result.rawMessagesStored,false);
@@ -35,11 +36,21 @@ test('readiness reports actual event count and server-side model setup only',asy
  const result=await readiness(async(sql)=>{
    statements.push(sql);
    if(sql.includes('to_regclass'))return {rows:[{table_name:'nex_intent_events'}]};
-   return {rows:[{total:14,latest_at:'2026-11-03T10:00:00.000Z'}]};
+   return {rows:[{total:14,latest_at:'2026-11-03T10:00:00.000Z',can_insert:true}]};
  },{OPENAI_API_KEY:'secret-value',OPENAI_MODEL:'configured-model'});
  assert.equal(statements.length,2);
  assert.equal(result.databaseReady,true);
+ assert.equal(result.writePermissionReady,true);
  assert.equal(result.eventCount,14);
  assert.equal(result.aiConfigured,true);
  assert.ok(!JSON.stringify(result).includes('secret-value'));
+});
+
+test('readiness flags analytics table where DB user cannot insert',async()=>{
+ const result=await readiness(async sql=>sql.includes('to_regclass')?
+   {rows:[{table_name:'nex_intent_events'}]}:
+   {rows:[{total:8,latest_at:null,can_insert:false}]},{});
+ assert.equal(result.databaseReady,true);
+ assert.equal(result.writePermissionReady,false);
+ assert.equal(result.eventCount,8);
 });
