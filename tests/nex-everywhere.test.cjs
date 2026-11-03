@@ -105,10 +105,14 @@ test('site knowledge refuses cross-role guidance and redirects to what the role 
   } finally { await db.close(); }
 });
 
-test('site knowledge is staff-only: guests keep the public assistant', async () => {
+test('site knowledge is staff-only: an ask with no session is a 401 and leaks no guidance', async () => {
   const { ask, db } = await knowledgeSetup();
   try {
+    // Guests keep the public assistant via its own standalone function;
+    // the staff endpoint itself answers an unauthenticated ask with the
+    // same 401 as /confirm — no answer, no site knowledge.
     const guest = await ask(null, 'How do I add a driver?');
-    assert.equal(guest.answer, 'PUBLIC-ANSWER');
+    assert.equal(guest.answer, undefined);
+    assert.match(guest.error, /session has expired/i);
   } finally { await db.close(); }
 });
