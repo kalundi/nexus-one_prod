@@ -305,6 +305,21 @@ function detectComparison(text) {
 function composeAnswer(question) {
   const text = normalize(question);
 
+  // Social openings are ordinary conversation, not unsupported knowledge
+  // requests. Match the whole short message so genuine service questions
+  // (e.g. "Hi, do you offer wheelchair rides?") still reach retrieval.
+  const greeting = text.replace(/^(?:hey|hi|hello|good morning|good afternoon|good evening)[,!. ]*/i, '').trim();
+  if (/^(?:hi|hello|hey|hey there|hi there|hello there|good morning|good afternoon|good evening)(?: nex)?[!.' ]*$/.test(text) ||
+      (/^(?:hi|hello|hey|good morning|good afternoon|good evening)\b/.test(text) && /^(?:nex|there)?$/.test(greeting))) {
+    return {
+      answer: 'Hi! I\u2019m Nex, the Nexus Medical Transit virtual assistant. I can help with transportation services, coverage areas, booking, ride tracking, and rough ride estimates. What can I help you with today?',
+      sources: [], mode: 'greeting'
+    };
+  }
+  if (/^(?:thanks|thank you|thank you nex|thanks nex|thx)[!.' ]*$/.test(text)) {
+    return { answer: 'You\u2019re welcome! Is there anything else I can help you with?', sources: [], mode: 'courtesy' };
+  }
+
   // Price questions are pinned to the pricing entry: no retrieval drift,
   // never a figure. A question that also asks about availability gets
   // both halves answered, and estimate answers close with the booking
