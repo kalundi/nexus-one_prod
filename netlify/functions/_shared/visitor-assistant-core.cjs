@@ -153,7 +153,83 @@ const COVERED_STATES = [
 // Any phrasing that treats the named place as a trip endpoint or a
 // service question — used to route named places to the coverage answers
 // instead of letting a bare place name drift into a generic booking reply.
-const TRAVEL_INTENT_RE = /(book|ride|trip|take|go|travel|drive|serve|serving|cover|operate|pick ?up|pickup|headed|going|get to|come to|transport|bring|visit)/;
+const TRAVEL_INTENT_RE = /\b(book|rides?|trips?|take|taking|go|going|travel|drive|serve|serving|cover|operate|pick ?up|pickup|headed|bring|visit|transport|transportation|drop ?off|escort|accompany|lift)\b|\bget to\b|\bcome to\b/;
+const PASSENGER_CONTEXT_RE = /\b(mum|mom|mother|dad|father|parent|parents|grandma|grandmother|grandpa|grandfather|granny|nan|nana|pops|patient|patients|passenger|passengers|resident|residents|client|clients|wife|husband|spouse|daughter|son|sister|brother|loved one|family member|elderly|senior|wheelchair|stretcher|hospital|nursing home|rehab|medical|ambulance|caregiver)\b/;
+const TRANSFER_ACTION_RE = /\b(transfer|transferring|transferred|move|moving|relocate|relocating|bring|send|carry|convey|ship)\b/;
+const NON_PASSENGER_TRANSFER_RE = /\b(money|funds|bank|account|wire|payment|data|file|files|domain|website|ownership|property|stock|stocks|documents)\b/;
+function hasTravelIntent(text) {
+  if (TRAVEL_INTENT_RE.test(text)) return true;
+  if (NON_PASSENGER_TRANSFER_RE.test(text)) return false;
+  return PASSENGER_CONTEXT_RE.test(text) &&
+    (TRANSFER_ACTION_RE.test(text) || /\b(get|getting)\b/.test(text));
+}
+
+// SMS abbreviations, medical shorthand, and natural slang.
+// Bare "tx" is ambiguous (Texas/transfer/treatment), so do not expand it.
+// Emoji have no clinical meaning and never become transport facts.
+const SHORT_FORMS = Object.freeze({
+  'nyc': 'new york', 'ny': 'new york', 'xfer': 'transfer',
+  'xfr': 'transfer', 'trnsfr': 'transfer',
+  'transprt': 'transport', 'trnsport': 'transport',
+  'wc': 'wheelchair', 'wchr': 'wheelchair',
+  'hosp': 'hospital', 'appt': 'appointment',
+  'pops': 'father', 'granny': 'grandmother', 'nana': 'grandmother',
+  'nan': 'grandmother', 'ma': 'mother',
+  'pls': 'please', 'plz': 'please', 'u': 'you',
+  'ur': 'your', 'yall': 'you',
+  'fr': '', 'frfr': '', 'ngl': '', 'rn': '',
+  'asap': '', 'lowkey': ''
+});
+const PHRASE_FORMS = Object.freeze({ 'no cap': '', 'y all': 'you' });
+const TYPOS = Object.freeze({
+  'trasfer': 'transfer', 'transfr': 'transfer', 'tranfer': 'transfer',
+  'transffer': 'transfer', 'trnasfer': 'transfer', 'transprot': 'transport',
+  'tranport': 'transport', 'transprtation': 'transportation',
+  'weelchair': 'wheelchair', 'wheelchiar': 'wheelchair',
+  'strecher': 'stretcher', 'stretchr': 'stretcher',
+  'hosptial': 'hospital', 'hopsital': 'hospital',
+  'patinet': 'patient', 'pateint': 'patient',
+  'mothr': 'mother', 'grnadma': 'grandma',
+  'yrok': 'york', 'nwe': 'new'
+});
+// Only one edit or adjacent transposition, and only for long business words.
+const SPELLING_VOCAB = [
+  'transfer', 'transferring', 'transport', 'transportation', 'relocate',
+  'wheelchair', 'stretcher', 'ambulance', 'hospital', 'patient',
+  'grandmother', 'grandfather', 'caregiver', 'discharge',
+  'maryland', 'florida', 'virginia', 'pennsylvania', 'california'
+];
+function editDistanceOneOrSwap(a, b) {
+  if (a === b || Math.abs(a.length - b.length) > 1) return false;
+  if (a.length === b.length) {
+    const diffs = [];
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) diffs.push(i);
+    return diffs.length === 1 ||
+      (diffs.length === 2 && diffs[1] === diffs[0] + 1 &&
+        a[diffs[0]] === b[diffs[1]] && a[diffs[1]] === b[diffs[0]]);
+  }
+  const [short, long] = a.length < b.length ? [a, b] : [b, a];
+  let i = 0, j = 0, edits = 0;
+  while (i < short.length && j < long.length) {
+    if (short[i] === long[j]) { i++; j++; }
+    else { if (++edits > 1) return false; j++; }
+  }
+  return true;
+}
+function interpretVisitorLanguage(question) {
+  let text = normalize(question).replace(/\bw c\b/g, 'wc').replace(/\bx fer\b/g, 'xfer');
+  for (const [from, to] of Object.entries(PHRASE_FORMS)) {
+    text = (' ' + text + ' ').split(' ' + from + ' ').join(' ' + to + ' ').trim();
+  }
+  const words = text.split(/\s+/).filter(Boolean).map(word => {
+    if (Object.prototype.hasOwnProperty.call(SHORT_FORMS, word)) return SHORT_FORMS[word];
+    if (TYPOS[word]) return TYPOS[word];
+    if (word.length < 6 || SPELLING_VOCAB.includes(word)) return word;
+    const candidates = SPELLING_VOCAB.filter(term => editDistanceOneOrSwap(word, term));
+    return candidates.length === 1 ? candidates[0] : word;
+  });
+  return words.join(' ');
+}
 
 const SERVICE_ENTRY_IDS = [
   'wheelchair', 'stretcher', 'bariatric', 'ambulance', 'dialysis',
@@ -344,7 +420,8 @@ function contextualQuestion(question, history) {
 }
 
 function composeAnswer(question) {
-  const text = normalize(question);
+  const interpreted = interpretVisitorLanguage(question);
+  const text = normalize(interpreted);
 
   // Social openings are ordinary conversation, not unsupported knowledge
   // requests. Match the whole short message so genuine service questions
@@ -378,8 +455,8 @@ function composeAnswer(question) {
   // Place outside coverage entirely (Alaska, Hawaii, outside the US):
   // a warm, explicit, honest no — and no booking call to action, so the
   // answer never implies the booking app can take the trip.
-  const outsidePlace = detectNonCoveragePlace(question);
-  if (outsidePlace && TRAVEL_INTENT_RE.test(text)) {
+  const outsidePlace = detectNonCoveragePlace(interpreted);
+  if (outsidePlace && hasTravelIntent(text)) {
     const answer =
       `I\u2019m sorry — ${outsidePlace} is outside the area Nexus covers. ` +
       entryById('area-outside').answer;
@@ -389,14 +466,14 @@ function composeAnswer(question) {
   // Any other named US state is inside the 48-state inter-state
   // coverage: a yes, answered with the long-distance facts, with the
   // booking step as the closing actualization only.
-  const coveredState = detectCoveredState(question);
+  const coveredState = detectCoveredState(interpreted);
   // "Washington" beside a DC place signal means the District, which the
   // place composition below answers with DC specifics — not the state.
-  const washingtonDc = coveredState === 'Washington' && Boolean(detectPlace(question));
-  if (coveredState && !washingtonDc && TRAVEL_INTENT_RE.test(text)) {
+  const washingtonDc = coveredState === 'Washington' && Boolean(detectPlace(interpreted));
+  if (coveredState && !washingtonDc && hasTravelIntent(text)) {
     const answer =
       `Yes — ${coveredState} is within Nexus\u2019s coverage. ` +
-      entryById('long-distance').answer + ' ' + BOOKING_CTA;
+      entryById('long-distance').answer + (PASSENGER_CONTEXT_RE.test(text) ? ' If you are arranging this for a family member or someone in your care, what city would they be leaving from, and would they travel seated, in a wheelchair, or on a stretcher? Please do not share their name or medical records here.' : '') + ' ' + BOOKING_CTA;
     return { answer, sources: ['long-distance', 'areas-overview'], mode: 'composed' };
   }
 
@@ -416,8 +493,8 @@ function composeAnswer(question) {
     return { answer: entry.answer + ' ' + BOOKING_CTA, sources: comparison, mode: 'composed' };
   }
 
-  const hits = retrieve(question);
-  const place = detectPlace(question);
+  const hits = retrieve(interpreted);
+  const place = detectPlace(interpreted);
   const serviceHit = hits.find(h => SERVICE_ENTRY_IDS.includes(h.entry.id));
 
   // Service + place composition: "Do you offer X in Y?"
