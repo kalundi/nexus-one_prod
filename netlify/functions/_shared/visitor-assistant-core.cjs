@@ -159,8 +159,9 @@ const TRANSFER_ACTION_RE = /\b(transfer|transferring|transferred|move|moving|rel
 const NON_PASSENGER_TRANSFER_RE = /\b(money|funds|bank|account|wire|payment|data|file|files|domain|website|ownership|property|stock|stocks|documents)\b/;
 function hasTravelIntent(text) {
   if (TRAVEL_INTENT_RE.test(text)) return true;
-  return TRANSFER_ACTION_RE.test(text) && PASSENGER_CONTEXT_RE.test(text) &&
-    !NON_PASSENGER_TRANSFER_RE.test(text);
+  if (NON_PASSENGER_TRANSFER_RE.test(text)) return false;
+  return PASSENGER_CONTEXT_RE.test(text) &&
+    (TRANSFER_ACTION_RE.test(text) || /\b(get|getting)\b/.test(text));
 }
 
 // SMS abbreviations, medical shorthand, and natural slang.
