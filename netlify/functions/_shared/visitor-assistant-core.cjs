@@ -472,7 +472,7 @@ function composeAnswer(question) {
   if (coveredState && !washingtonDc && hasTravelIntent(text)) {
     const answer =
       `Yes — ${coveredState} is within Nexus\u2019s coverage. ` +
-      entryById('long-distance').answer + ' ' + BOOKING_CTA;
+      entryById('long-distance').answer + (PASSENGER_CONTEXT_RE.test(text) ? ' If you are arranging this for a family member or someone in your care, what city would they be leaving from, and would they travel seated, in a wheelchair, or on a stretcher? Please do not share their name or medical records here.' : '') + ' ' + BOOKING_CTA;
     return { answer, sources: ['long-distance', 'areas-overview'], mode: 'composed' };
   }
 
