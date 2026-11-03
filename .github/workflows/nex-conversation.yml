@@ -2,7 +2,7 @@ name: Nex conversational integration
 on:
   workflow_dispatch:
   push:
-    branches: [feature/nex-approved-knowledge-integration]
+    branches: [main, feature/nex-approved-knowledge-integration]
   pull_request:
     paths:
       - 'ask-nex.html'
@@ -18,7 +18,6 @@ on:
       - 'netlify/functions/_shared/nex-knowledge-drafts.cjs'
       - 'database/migrations/*nex*'
       - 'admin-apps.js'
-      - 'database/migrations/*nex*'
       - 'tests/nex-approved-knowledge.test.cjs'
       - 'tests/nex-intent-insights.test.cjs'
       - 'tests/nex-ai-suggestions.test.cjs'
@@ -28,6 +27,7 @@ on:
       - 'netlify/functions/_shared/staff-assistant.cjs'
       - 'tests/nex-dashboard-auth.test.cjs'
       - 'tests/nex-conversation.spec.cjs'
+      - 'tests/nex-admin.spec.cjs'
       - 'tests/visitor-assistant.test.cjs'
       - 'playwright.nex.config.cjs'
       - 'scripts/nex-playwright-server.cjs'
@@ -69,6 +69,8 @@ jobs:
           node --check nex-insights.js
           node --check netlify/functions/_shared/nex-reviewed-knowledge.cjs
           node --check tests/nex-approved-knowledge.test.cjs
+          node --check tests/nex-admin.spec.cjs
+          node --check scripts/nex-playwright-server.cjs
       - name: Check Ask Nex page JavaScript
         run: |
           node - <<'NODE'
