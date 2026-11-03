@@ -102,6 +102,36 @@ test('financial and data transfers are not mistaken for patient transportation',
   }
 });
 
+test('typos, abbreviations and slang recognize interstate transportation', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  for (const question of [
+    'Can u trasnfer my mum to NYC?',
+    'plz xfer my mom to NY',
+    'Can you tranfer my mothr to New Yrok?',
+    'my granny needs a lift to NYC fr',
+    'no cap can yall get my pops to NY 💀',
+    'need to transprot my patinet to NYC',
+    'can u move my grandma to NYC asap',
+    'Can we x-fer a patient from MD to New York?',
+    'my mom in a weelchair needs to go to NYC',
+    'need a strecher ride to new york',
+    'Can u take my mom to Nwe Yrok?'
+  ]) {
+    const { body } = await assistant.ask(question, '10.0.0.23');
+    assert.ok(body.sources.includes('long-distance'), question + ': ' + body.answer);
+    assert.match(body.answer, /New York/, question);
+    assert.notEqual(body.mode, 'fallback', question);
+  }
+});
+
+test('unrelated slang and emoji do not invent an interstate ride', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  for (const question of ['tx', '💀', 'no cap', 'Can you transfer my bank account to NY?']) {
+    const { body } = await assistant.ask(question, '10.0.0.24');
+    assert.ok(!body.sources.includes('long-distance'), question);
+  }
+});
+
 test('a Maryland to Florida ride gets the inter-state yes', async () => {
   const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
   const { body } = await assistant.ask('Can I get a ride from Maryland to Florida?', '10.0.0.5');
