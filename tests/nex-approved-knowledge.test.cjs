@@ -32,3 +32,19 @@ test('the Ask Nex page uses public assistant and includes user transparency', ()
   assert.match(page,/Do not enter patient names/);
   assert.match(page,/textContent=typeof data.answer/);
 });
+
+test('Nex responds naturally to greetings without inventing website facts', async () => {
+  const { createAssistant } = require('../netlify/functions/_shared/visitor-assistant-core.cjs');
+  const assistant = createAssistant({ env: {} });
+  for (const greeting of ['Hi', 'Hello!', 'Hey Nex', 'Good morning', 'Hi there']) {
+    const result = await assistant.ask(greeting, 'greeting-test-' + greeting);
+    assert.equal(result.status, 200);
+    assert.equal(result.body.mode, 'greeting', greeting);
+    assert.match(result.body.answer, /Hi!.*Nex/);
+    assert.doesNotMatch(result.body.answer, /don't have that/i);
+  }
+  const thanks = await assistant.ask('Thank you', 'courtesy-test');
+  assert.equal(thanks.body.mode, 'courtesy');
+  const service = await assistant.ask('Hi, do you offer wheelchair transportation?', 'service-test');
+  assert.notEqual(service.body.mode, 'greeting', 'greetings must not intercept service questions');
+});
