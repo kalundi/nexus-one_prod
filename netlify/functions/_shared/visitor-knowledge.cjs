@@ -282,10 +282,19 @@ const ENTRIES = [
   {
     id: 'booking-how',
     topic: 'Booking',
-    questions: ['How do I book a ride?', 'How do I schedule transportation?', 'How far in advance should I book?'],
-    keywords: ['book', 'schedule a ride', 'reserve', 'request transportation', 'in advance', 'appointment'],
+    questions: [
+      'How do I book a ride?',
+      'How do I schedule transportation?',
+      'How far in advance should I book?',
+      'How does booking work?',
+      'How does the booking process work?',
+      'How does the reservation process work?',
+      'How do bookings work?',
+      'What is the booking process?'
+    ],
+    keywords: ['book', 'booking', 'booking process', 'schedule a ride', 'reserve', 'request transportation', 'in advance', 'appointment'],
     answer:
-      'Booking a ride with Nexus is a planned-trip process, and here is how it works. You give us the passenger\u2019s pickup and destination addresses, the appointment date and time, and any mobility or equipment needs — a wheelchair, a stretcher, extra room, and so on. With those details, availability is confirmed for that specific trip and it is matched to the right vehicle and crew. Book as early as you can: planning ahead is what lets us match the vehicle and crew properly, and once a trip is booked it can be followed in LiveCare. When you\u2019re ready, you can book online at https://mynexusride.com or call (888) 639-5766.',
+      'Booking with Nexus is a planned-trip process, and here is how it works. Have these details ready: the pickup and drop-off addresses, the date and time of the appointment, the type of ride — ambulatory, wheelchair, stretcher, bariatric, or ambulance — and any mobility or equipment needs the passenger has. With those details, availability is confirmed for that specific trip and the trip is matched to the right vehicle and crew. Book as early as you can: planning ahead is what lets us match the vehicle and crew properly, and no card is charged when you submit a booking. Once a trip is booked it can be followed in LiveCare, and if the same trip repeats — dialysis, for example — it can be set up once as a standing schedule instead of being booked ride by ride. When you\u2019re ready, you can book online at https://mynexusride.com or call (888) 639-5766.',
     source: 'non-emergency-medical-transportation.html (FAQPage JSON-LD); contact-service-areas.html'
   },
   {

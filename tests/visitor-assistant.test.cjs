@@ -277,6 +277,53 @@ test('core battery: booking — how it works, answered in chat', async () => {
   assert.match(body.answer, /\(888\) 639-5766/);
 });
 
+// The "How does booking work?" suggestion chip sends its label
+// verbatim. On main before this build the chip question and its
+// process phrasings fell through to the refusal: they tokenize to
+// ["booking", "work"] / ["booking", "process", "work"], exact token
+// matching cannot bridge "booking" to the entry's "book" keyword,
+// and the entry's listed questions never named the process — so the
+// booking-how entry scored only its topic bonus (2) against the
+// answer threshold (4). The whole booking-how family must answer.
+test('core battery: booking — the chip question "How does booking work?" and its family', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const variants = [
+    'How does booking work?',
+    'How do I book a ride?',
+    'How do I schedule a ride?',
+    'How does the booking process work?'
+  ];
+  for (let i = 0; i < variants.length; i++) {
+    const { body } = await assistant.ask(variants[i], '10.1.2.' + i);
+    assertCleanAnswer(body, variants[i]);
+    assert.ok(body.sources.includes('booking-how'), variants[i]);
+    assert.match(body.answer, /mynexusride\.com/);
+    assert.match(body.answer, /\(888\) 639-5766/);
+  }
+});
+
+test('core battery: booking answer carries the process facts', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('How does booking work?', '10.1.2.9');
+  assertCleanAnswer(body, 'How does booking work?');
+  assert.ok(body.sources.includes('booking-how'));
+  assert.match(body.answer, /pickup and drop-off addresses/i);
+  assert.match(body.answer, /type of ride/i);
+  assert.match(body.answer, /no card is charged/i);
+  assert.match(body.answer, /LiveCare/);
+  assert.match(body.answer, /standing schedule/i);
+});
+
+test('core battery: booking-process route does not swallow price or availability questions', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const price = await assistant.ask('How much does booking a ride cost?', '10.1.2.20');
+  assert.ok(price.body.sources.includes('pricing'));
+  assert.ok(!price.body.sources.includes('booking-how'));
+  const avail = await assistant.ask('Can I reserve a ride?', '10.1.2.21');
+  assert.ok(avail.body.sources.includes('availability'));
+  assert.ok(!avail.body.sources.includes('booking-how'));
+});
+
 test('core battery: early-morning pickup — yes, scheduled in advance', async () => {
   const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
   const q = 'Can you pick up early in the morning?';

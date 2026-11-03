@@ -283,6 +283,25 @@ function isServicesOverviewIntent(text) {
   return false;
 }
 
+// Booking-process intent, matched on the raw normalized text for the
+// same reason as the services overview above: the suggestion chip's
+// own question — "How does booking work?" — tokenizes to
+// ["booking", "work"], and exact token matching cannot bridge
+// "booking" to the entry's "book" keyword, so the booking-how entry
+// scored only its topic bonus (2) against the answer threshold (4)
+// and the chip question fell through to the refusal. Price questions
+// are pinned to the pricing entry earlier in composeAnswer and are
+// excluded here as well; availability questions ("Can I reserve a
+// ride?") stay with the availability entry.
+function isBookingProcessIntent(text) {
+  if (hasPriceIntent(text)) return false;
+  if (hasAvailabilityIntent(text)) return false;
+  if (/\bhow (does|do|can|would) (the |your |nexus )?bookings? (process )?work/.test(text)) return true;
+  if (/\bhow bookings? work/.test(text)) return true;
+  if (/\bbooking process\b/.test(text) && /\b(how|what|explain|describe|tell me|steps)\b/.test(text)) return true;
+  return false;
+}
+
 // Comparison intent: two or more ride types named with a comparing
 // frame ("difference between", "vs", "or", "which"). Answered from
 // the dedicated comparison entry — composing only the top retrieval
@@ -358,6 +377,15 @@ function composeAnswer(question) {
   if (comparison) {
     const entry = entryById('wheelchair-vs-stretcher');
     return { answer: entry.answer + ' ' + BOOKING_CTA, sources: comparison, mode: 'composed' };
+  }
+
+  // "How does booking work?" — the suggestion chip's own wording,
+  // answered from the booking entry directly (see
+  // isBookingProcessIntent). The entry's answer already carries the
+  // booking URL and phone number, so no call to action is appended.
+  if (isBookingProcessIntent(text)) {
+    const booking = entryById('booking-how');
+    return { answer: booking.answer, sources: ['booking-how'], mode: 'composed' };
   }
 
   const hits = retrieve(question);
