@@ -12,12 +12,12 @@ function candidate(question,answer,source,actor,stamp='2026-01-01T00:00:00.000Z'
   return entry;
 }
 async function list(queryFn){
-  const res=await queryFn("SELECT id,review_id,question,answer,source,state,revision,created_at,updated_at,approved_at FROM nex_knowledge_drafts ORDER BY updated_at DESC LIMIT 50");
+  const res=await queryFn("SELECT id,review_id,question,answer,source,state,revision,created_at,updated_at,approved_at,approved_by FROM nex_knowledge_drafts ORDER BY updated_at DESC LIMIT 50");
   return res.rows;
 }
 async function get(queryFn,id){
   if(!/^\d{1,15}$/.test(String(id)))throw bad('Invalid draft identifier');
-  const r=await queryFn("SELECT id,review_id,question,answer,source,state,revision,created_at,updated_at,approved_at FROM nex_knowledge_drafts WHERE id=$1",[String(id)]);
+  const r=await queryFn("SELECT id,review_id,question,answer,source,state,revision,created_at,updated_at,approved_at,approved_by FROM nex_knowledge_drafts WHERE id=$1",[String(id)]);
   return r.rows[0]||null;
 }
 async function save(queryFn,{reviewId,question,answer,source,actor}){
@@ -56,6 +56,6 @@ async function transition(queryFn,{id,revision,action,actor}){
 }
 function exportEntry(row,actor){
   if(!row||row.state!=='approved'||!row.approved_at)throw bad('Only approved drafts can be exported',409);
-  return candidate(row.question,row.answer,row.source,actor,new Date(row.approved_at).toISOString());
+  return candidate(row.question,row.answer,row.source,row.approved_by||actor,new Date(row.approved_at).toISOString());
 }
 module.exports={candidate,list,get,save,revise,transition,exportEntry,SOURCES,STATUS};
