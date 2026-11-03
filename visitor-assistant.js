@@ -235,6 +235,9 @@
     '.nvaHead p strong{color:#fff}',
     '.nvaClose{position:absolute;top:10px;right:12px;width:44px;height:44px;border:0;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:19px;cursor:pointer}',
     '.nvaLog{flex:1;min-height:0;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:#f6fafc}',
+    '.nvaRelatedContent{display:grid;gap:7px;margin-top:12px;padding:12px;border:1px solid #cbdce6;border-radius:12px;background:#f3f8fa}',
+    '.nvaRelatedContent strong{font-size:13px;color:#16364a}',
+    '.nvaRelatedContent a{display:block;font-size:13px;line-height:1.4;overflow-wrap:anywhere;text-decoration:underline;color:#075985}',
     '.nvaMsg{max-width:88%;padding:11px 13px;border-radius:15px;white-space:pre-wrap;word-wrap:break-word}',
     '.nvaMsg.bot{align-self:flex-start;background:#eef6fb;border:1px solid #d7e6f0;border-bottom-left-radius:5px}',
     '.nvaMsg.user{align-self:flex-end;background:#082f49;color:#fff;border-bottom-right-radius:5px}',
@@ -464,6 +467,39 @@
   function fillPending(pending, text) {
     pending.classList.remove('nvaTyping');
     pending.innerHTML = renderText(text);
+    log.scrollTop = log.scrollHeight;
+  }
+
+
+  // Only render curated HTTPS Nexus domains/channels. No remote embeds or autoplay.
+  function renderRelatedNexContent(message, items) {
+    if (!message || !Array.isArray(items) || !items.length) return;
+    var allowed = ['mynexusride.com','www.mynexusride.com','nexusmt.com','www.nexusmt.com',
+      'youtube.com','www.youtube.com','youtu.be','instagram.com','www.instagram.com',
+      'tiktok.com','www.tiktok.com','facebook.com','www.facebook.com','bsky.app'];
+    var wrap = document.createElement('div');
+    wrap.className = 'nvaRelatedContent';
+    var heading = document.createElement('strong');
+    heading.textContent = 'Helpful Nexus links';
+    wrap.appendChild(heading);
+    var added = 0;
+    items.slice(0,3).forEach(function(item){
+      if (!item || typeof item.title !== 'string' || item.title.length > 100 ||
+          !['video','social-post','social-channel','guide'].includes(item.kind)) return;
+      var parsed;
+      try { parsed = new URL(item.url); } catch (error) { return; }
+      if(parsed.protocol !== 'https:' || allowed.indexOf(parsed.hostname.toLowerCase()) < 0 ||
+         parsed.username || parsed.password) return;
+      var link = document.createElement('a');
+      link.href = parsed.href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = (item.kind === 'video' ? 'Watch: ' :
+        item.kind === 'social-post' ? 'View post: ' : '') + item.title;
+      wrap.appendChild(link);
+      added++;
+    });
+    if (added) message.appendChild(wrap);
     log.scrollTop = log.scrollHeight;
   }
 
@@ -955,6 +991,8 @@
             } else {
               fillPending(pending, d.answer);
             }
+            // Attached links are curated on the server; enforce domain and HTML safety here too.
+            renderRelatedNexContent(pending, d.relatedContent);
             handleAssistantData(d);
           });
         }
