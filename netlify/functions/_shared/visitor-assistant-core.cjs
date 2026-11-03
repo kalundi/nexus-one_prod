@@ -153,7 +153,22 @@ const COVERED_STATES = [
 // Any phrasing that treats the named place as a trip endpoint or a
 // service question — used to route named places to the coverage answers
 // instead of letting a bare place name drift into a generic booking reply.
-const TRAVEL_INTENT_RE = /(book|ride|trip|take|go|travel|drive|serve|serving|cover|operate|pick ?up|pickup|headed|going|get to|come to|transport|bring|visit)/;
+const TRAVEL_INTENT_RE = /\\b(book|rides?|trips?|take|taking|go|going|travel|drive|serve|serving|cover|operate|pick ?up|pickup|headed|bring|visit|transport|transportation|drop ?off|escort|accompany)\\b|\\bget to\\b|\\bcome to\\b/;
+
+// "Transfer my mum to New York" is a transportation request, even without
+// the technical words "ride" or "transport". Interpret transfer/move/relocate
+// as trip verbs when a passenger or medical context is present. Do not treat
+// financial/account/data transfers as passenger transportation.
+const PASSENGER_CONTEXT_RE = /\\b(mum|mom|mother|dad|father|parent|parents|grandma|grandmother|grandpa|grandfather|patient|patients|passenger|passengers|resident|residents|client|clients|wife|husband|spouse|daughter|son|sister|brother|loved one|family member|elderly|senior|wheelchair|stretcher|hospital|nursing home|rehab|medical|ambulance|caregiver)\\b/;
+const TRANSFER_ACTION_RE = /\\b(transfer|transferring|transferred|move|moving|relocate|relocating|bring|send|send over|carry|convey)\\b/;
+const NON_PASSENGER_TRANSFER_RE = /\\b(money|funds|bank|account|wire|payment|data|file|files|domain|website|ownership|property|stock|stocks|documents)\\b/;
+
+function hasTravelIntent(text) {
+  if (TRAVEL_INTENT_RE.test(text)) return true;
+  return TRANSFER_ACTION_RE.test(text) &&
+    PASSENGER_CONTEXT_RE.test(text) &&
+    !NON_PASSENGER_TRANSFER_RE.test(text);
+}
 
 const SERVICE_ENTRY_IDS = [
   'wheelchair', 'stretcher', 'bariatric', 'ambulance', 'dialysis',
@@ -379,7 +394,7 @@ function composeAnswer(question) {
   // a warm, explicit, honest no — and no booking call to action, so the
   // answer never implies the booking app can take the trip.
   const outsidePlace = detectNonCoveragePlace(question);
-  if (outsidePlace && TRAVEL_INTENT_RE.test(text)) {
+  if (outsidePlace && hasTravelIntent(text)) {
     const answer =
       `I\u2019m sorry — ${outsidePlace} is outside the area Nexus covers. ` +
       entryById('area-outside').answer;
@@ -393,7 +408,7 @@ function composeAnswer(question) {
   // "Washington" beside a DC place signal means the District, which the
   // place composition below answers with DC specifics — not the state.
   const washingtonDc = coveredState === 'Washington' && Boolean(detectPlace(question));
-  if (coveredState && !washingtonDc && TRAVEL_INTENT_RE.test(text)) {
+  if (coveredState && !washingtonDc && hasTravelIntent(text)) {
     const answer =
       `Yes — ${coveredState} is within Nexus\u2019s coverage. ` +
       entryById('long-distance').answer + ' ' + BOOKING_CTA;
