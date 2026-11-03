@@ -2,10 +2,13 @@
 /*
  * Nexus Medical Transit — visitor assistant knowledge base.
  *
- * Every entry is drawn from the public website's own content (page copy and
- * the FAQPage JSON-LD published on the service/area pages). The `source`
- * field on each entry names the page it came from. The assistant answers
- * ONLY from these entries.
+ * Business entries are drawn from the public website's own content (page
+ * copy and the FAQPage JSON-LD published on the service/area pages); the
+ * `source` field on each entry names the page it came from. A small set
+ * of educational entries (marked "General NEMT knowledge" in `source`)
+ * explain how non-emergency medical transportation works in general —
+ * they describe the industry, never a specific patient's situation, and
+ * are not medical advice. The assistant answers ONLY from these entries.
  *
  * Editorial rules (do not break when editing):
  *  - No prices or fare figures: the site does not publish them, so the
@@ -46,12 +49,42 @@ const ENTRIES = [
       'What services do you offer?',
       'What transportation do you provide?',
       'What types of rides do you do?',
+      'Tell me about your services',
+      'What do you do?',
+      'What does Nexus do?',
       'What is non-emergency medical transportation?'
     ],
-    keywords: ['services', 'offer', 'provide', 'nemt', 'non-emergency medical transportation', 'types of rides', 'transportation options'],
+    keywords: ['services', 'offer', 'provide', 'nemt', 'non-emergency medical transportation', 'types of rides', 'transportation options', 'what do you do', 'tell me about your services'],
     answer:
-      'Nexus Medical Transit provides planned, non-emergency medical transportation (NEMT). Day-to-day service is local to Maryland, Washington, DC, and Northern Virginia, and Nexus also covers the rest of the 48 contiguous states for inter-state and long-distance trips planned in advance. Services include ambulatory rides, wheelchair transportation, stretcher transportation, bariatric transportation, ambulance transportation (BLS/ALS), dialysis and recurring rides, hospital discharge rides, and medical shuttle support. Drivers provide door-through-door support — help from inside the pickup location, secure boarding, and an accompanied arrival at check-in.',
+      'Nexus Medical Transit provides planned, non-emergency medical transportation (NEMT). Day-to-day service is local to Maryland, Washington, DC, and Northern Virginia, and Nexus also covers the rest of the 48 contiguous states for inter-state and long-distance trips planned in advance. Services include ambulatory rides, wheelchair transportation, stretcher transportation, bariatric transportation, ambulance transportation (BLS/ALS), dialysis and recurring rides, hospital discharge rides, and medical shuttle support. Early-morning procedure pickups are scheduled in advance around check-in times, and booked rides can be followed in LiveCare. Drivers provide door-through-door support — help from inside the pickup location, secure boarding, and an accompanied arrival at check-in.',
     source: 'non-emergency-medical-transportation.html'
+  },
+  {
+    id: 'what-is-nemt',
+    topic: 'Services',
+    questions: [
+      'What does NEMT stand for?',
+      'What does non-emergency mean?',
+      'How is medical transportation different from calling 911?'
+    ],
+    keywords: ['nemt stand for', 'what is nemt', 'non-emergency mean', 'medical transport explained'],
+    answer:
+      'NEMT stands for non-emergency medical transportation: planned rides to and from healthcare — appointments, dialysis and therapy, hospital discharges, and transfers between facilities — for people who need a suitable vehicle or help getting there but are not in an emergency. Rides are booked in advance and matched to the passenger\u2019s mobility: seated in a wheelchair, lying down on a stretcher, or in an ambulance with a crew when care is needed on board. It is not an emergency service — for a medical emergency, call 911. Nexus provides NEMT across Maryland, Washington, DC, and Northern Virginia day to day, and across the rest of the 48 contiguous states for long-distance trips planned in advance.',
+    source: 'General NEMT knowledge (educational); non-emergency-medical-transportation.html'
+  },
+  {
+    id: 'wheelchair-vs-stretcher',
+    topic: 'Services',
+    questions: [
+      'What\u2019s the difference between wheelchair and stretcher?',
+      'What is the difference between wheelchair and stretcher transportation?',
+      'Wheelchair or stretcher — which do I need?',
+      'How is an ambulance different from a stretcher ride?'
+    ],
+    keywords: ['difference', 'wheelchair vs stretcher', 'vs', 'versus', 'compare', 'which do i need', 'difference between'],
+    answer:
+      'The difference is how the passenger travels. In wheelchair transportation the passenger rides seated in a wheelchair — their own chair or one provided — which is secured in an accessible vehicle, with help boarding and door-through-door support. In stretcher transportation the passenger stays lying down on a stretcher for the whole trip, for patients who cannot sit up or must remain flat. Ambulance transportation is the step up from both: a trained medical crew and medical equipment travel on board, at BLS level (staffed by EMTs) or ALS level (paramedic-level care), for patients who need care or monitoring during the trip. In general, if the passenger can sit comfortably, wheelchair is the usual choice; if they must stay lying down, it is a stretcher; if they need medical care on the way, it is an ambulance. That is general information, not a recommendation for a specific patient — the treating care team can say which level a patient needs, and when you book, the Nexus team matches the trip to it.',
+    source: 'General NEMT knowledge (educational); wheelchair-transportation.html; stretcher-transportation.html; ambulance-transportation.html'
   },
   {
     id: 'ambulatory',
@@ -112,7 +145,7 @@ const ENTRIES = [
     questions: ['Do you do dialysis transportation?', 'Can I set up recurring rides?', 'Do you offer standing schedules?'],
     keywords: ['dialysis', 'recurring', 'standing schedule', 'repeat trips', 'ongoing treatment', 'therapy rides'],
     answer:
-      'Yes. Nexus supports dialysis and other recurring transportation with standing schedules for ongoing treatment — recurring weekly setup, morning and afternoon treatment coordination, and pickup planning around treatment completion windows. Recurring travel can be coordinated when the treatment pattern and pickup details are known. Call (888) 639-5766 to set up a standing schedule.',
+      'Yes. Nexus supports dialysis and other recurring transportation with standing schedules for ongoing treatment — recurring weekly setup, morning and afternoon treatment coordination, and pickup planning around treatment completion windows. Dialysis typically runs on a recurring schedule — often three treatments a week — so the rides are set up once as a standing schedule around the treatment times rather than booked trip by trip. Recurring travel can be coordinated when the treatment pattern and pickup details are known. Call (888) 639-5766 to set up a standing schedule.',
     source: 'dialysis-transportation.html'
   },
   {
@@ -121,7 +154,7 @@ const ENTRIES = [
     questions: ['Do you do hospital discharge transportation?', 'Can you pick up a patient being discharged?'],
     keywords: ['discharge', 'hospital release', 'leaving the hospital', 'return home after discharge'],
     answer:
-      'Yes. Nexus coordinates hospital discharge transportation planned around the passenger, caregiver, and release timeline — hospital release pickup planning, destination confirmation, caregiver communication, and mobility-aware vehicle matching. Family members, caregivers, and hospital discharge teams can all help arrange discharge rides.',
+      'Yes. Nexus coordinates hospital discharge transportation planned around the passenger, caregiver, and release timeline — hospital release pickup planning, destination confirmation, caregiver communication, and mobility-aware vehicle matching. In general, a discharge ride is arranged once the discharge paperwork is ready, so the pickup can be timed to the actual release. Family members, caregivers, and hospital discharge teams can all help arrange discharge rides.',
     source: 'hospital-discharge-transportation.html'
   },
   {
@@ -167,6 +200,15 @@ const ENTRIES = [
     answer:
       'Inter-state requests are something Nexus handles. Day-to-day service runs locally in Maryland, Washington, DC, and Northern Virginia, and Nexus also covers the rest of the 48 contiguous states when a trip crosses state lines or runs long — a pickup in Maryland to a hospital in DC, a discharge from the region to family in another state, or a trip that starts and ends outside the local region entirely. Because of the distance, long trips are scheduled in advance: the pickup and destination, the appointment timing, and any mobility or equipment needs are planned up front so the right vehicle and crew are matched to the trip, and booked trips can be followed in LiveCare. I can work out a rough estimate for a long trip right here in this chat if you\u2019d like.',
     source: 'Owner directive 2026-11-01 (48-state inter-state coverage); contact-service-areas.html'
+  },
+  {
+    id: 'area-maryland',
+    topic: 'Service areas',
+    questions: ['Do you serve Maryland?', 'Do you offer rides in Maryland?', 'Are you a Maryland transportation company?'],
+    keywords: ['maryland', 'md'],
+    answer:
+      'Yes. Maryland is the heart of Nexus\u2019s local region — Nexus operates from Clarksburg, MD, and serves Maryland communities day to day, including Montgomery County, Prince George\u2019s County, Howard County, Frederick County, and Anne Arundel County (including Annapolis), alongside Washington, DC, and Northern Virginia. Recurring dialysis and other standing schedules can be arranged in Maryland — call (888) 639-5766.',
+    source: 'maryland-medical-transportation.html; contact-service-areas.html'
   },
   {
     id: 'area-montgomery-county',
@@ -221,7 +263,7 @@ const ENTRIES = [
     questions: ['What are your hours?', 'When are you open?', 'What time do you close?'],
     keywords: ['hours', 'open', 'close', 'when', 'schedule', 'weekend'],
     answer:
-      'Nexus\u2019s normal hours are Monday\u2013Friday, 7 AM\u20137 PM. Transportation itself is scheduled in advance around appointment and treatment times, so trips are planned against those hours rather than requested on the spot. When you\u2019re ready to arrange a trip, you can book online at https://mynexusride.com or call (888) 639-5766 during normal hours.',
+      'Nexus\u2019s normal hours are Monday\u2013Friday, 7 AM\u20137 PM. Transportation itself is scheduled in advance around appointment and treatment times, so trips are planned against those hours rather than requested on the spot. Pickups scheduled outside regular hours — early mornings by advance appointment, weekends, and holidays — carry a 30% after-hours premium, which the estimate shows before you book. When you\u2019re ready to arrange a trip, you can book online at https://mynexusride.com or call (888) 639-5766 during normal hours.',
     source: 'platform.js (site footer: "Normal Hours: Mon-Friday, 7 AM-7 PM")'
   },
   {

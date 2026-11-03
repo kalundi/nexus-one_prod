@@ -168,6 +168,195 @@ test('opening hours stays an hours answer, not availability', async () => {
   assert.match(body.answer, /7 AM/);
 });
 
+// ---------------------------------------------------------------------
+// Core-question battery (Nex business knowledge build). Every question
+// a visitor plausibly opens with must be answered from the knowledge
+// base — never the refusal — with the key facts present and nothing
+// forbidden: no street address, no phone other than the two public
+// 888 lines (and 911), no invented dollar figure. On main before this
+// build, "What services do you offer?" (a suggestion chip!) and its
+// variants fell through to the fallback: the tokenizer's stopword
+// list strips every content word of the question ("what", "services",
+// "do", "you", "offer"), so the services entry scored only its topic
+// bonus (2) against the answer threshold (4).
+// ---------------------------------------------------------------------
+
+function assertCleanAnswer(body, q) {
+  assert.notEqual(body.mode, 'fallback', `"${q}" must not fall back to the refusal`);
+  assert.ok(!/don\u2019t have that in the information/.test(body.answer), `"${q}" must not be refused`);
+  assert.ok(!/\$\s?\d/.test(body.answer), `"${q}" must not contain a dollar figure`);
+  const phoneLike = body.answer.match(/(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}|\d{7,}/g) || [];
+  for (const candidate of phoneLike) {
+    const digits = candidate.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+    assert.ok(['8886395766', '8887604990', '911'].includes(digits), `"${q}" produced a non-public number: ${candidate}`);
+  }
+  assert.ok(!/\b\d{3,5}\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Court|Ct|Boulevard|Blvd)\b/.test(body.answer),
+    `"${q}" must not contain a street address`);
+}
+
+test('core battery: "What services do you offer?" is answered, never refused', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('What services do you offer?', '10.1.0.1');
+  assertCleanAnswer(body, 'What services do you offer?');
+  assert.ok(body.sources.includes('services-overview'));
+  for (const fact of [/wheelchair/i, /stretcher/i, /ambulance/i, /dialysis/i, /door-through-door/i]) {
+    assert.match(body.answer, fact);
+  }
+});
+
+test('core battery: services-overview phrasing variants are answered too', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const variants = ['Tell me about your services', 'What do you do?', 'What transportation do you provide?'];
+  for (let i = 0; i < variants.length; i++) {
+    const { body } = await assistant.ask(variants[i], '10.1.0.' + (10 + i));
+    assertCleanAnswer(body, variants[i]);
+    assert.ok(body.sources.includes('services-overview'), variants[i]);
+  }
+});
+
+test('core battery: dialysis rides — yes, with the recurring-schedule facts', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('Do you do dialysis rides?', '10.1.0.2');
+  assertCleanAnswer(body, 'Do you do dialysis rides?');
+  assert.ok(body.sources.includes('dialysis'));
+  assert.match(body.answer, /^Yes/);
+  assert.match(body.answer, /standing schedule/i);
+  assert.match(body.answer, /recurring/i);
+});
+
+test('core battery: wheelchair vs stretcher states BOTH sides of the difference', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const q = 'What\u2019s the difference between wheelchair and stretcher?';
+  const { body } = await assistant.ask(q, '10.1.0.3');
+  assertCleanAnswer(body, q);
+  assert.ok(body.sources.includes('wheelchair-vs-stretcher'));
+  assert.match(body.answer, /seated/i);
+  assert.match(body.answer, /lying down/i);
+  assert.match(body.answer, /secured/i);
+  assert.match(body.answer, /ambulance/i);
+  assert.match(body.answer, /general information/i, 'educational framing, not patient-specific advice');
+});
+
+test('core battery: ambulance transport — yes, BLS/ALS, scheduled, 911 guardrail', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('Do you offer ambulance transport?', '10.1.0.4');
+  assertCleanAnswer(body, 'Do you offer ambulance transport?');
+  assert.ok(body.sources.includes('ambulance'));
+  assert.match(body.answer, /^Yes/);
+  assert.match(body.answer, /BLS/);
+  assert.match(body.answer, /ALS/);
+  assert.match(body.answer, /911/);
+  assert.match(body.answer, /\(888\) 760-4990/);
+});
+
+test('core battery: areas — two-tier coverage, local region first', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('What areas do you serve?', '10.1.0.5');
+  assertCleanAnswer(body, 'What areas do you serve?');
+  assert.ok(body.sources.includes('areas-overview'));
+  assert.match(body.answer, /Maryland, Washington, DC, and Northern Virginia/);
+  assert.match(body.answer, /48 contiguous states/);
+  assert.match(body.answer, /Alaska, Hawaii/);
+});
+
+test('core battery: hours — Mon–Fri 7–7 plus the after-hours premium fact', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('What are your hours?', '10.1.0.6');
+  assertCleanAnswer(body, 'What are your hours?');
+  assert.ok(body.sources.includes('hours'));
+  assert.match(body.answer, /Monday\u2013Friday, 7 AM\u20137 PM/);
+  assert.match(body.answer, /30% after-hours premium/);
+});
+
+test('core battery: booking — how it works, answered in chat', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('How do I book?', '10.1.0.7');
+  assertCleanAnswer(body, 'How do I book?');
+  assert.ok(body.sources.includes('booking-how'));
+  assert.match(body.answer, /mynexusride\.com/);
+  assert.match(body.answer, /\(888\) 639-5766/);
+});
+
+test('core battery: early-morning pickup — yes, scheduled in advance', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const q = 'Can you pick up early in the morning?';
+  const { body } = await assistant.ask(q, '10.1.0.8');
+  assertCleanAnswer(body, q);
+  assert.ok(body.sources.includes('early-morning'));
+  assert.match(body.answer, /^Yes/);
+  assert.match(body.answer, /scheduled in advance/);
+});
+
+test('core battery: insurance — never claims acceptance, routes to a coverage check by phone', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('Do you take insurance?', '10.1.0.9');
+  assertCleanAnswer(body, 'Do you take insurance?');
+  assert.ok(body.sources.includes('insurance-payer'));
+  assert.ok(!/we (accept|take) (insurance|medicaid|medicare)/i.test(body.answer), 'must not claim insurance acceptance');
+  assert.ok(!/medicaid (covers|will cover)|medicare (covers|will cover)/i.test(body.answer), 'must not promise payer coverage');
+  assert.match(body.answer, /depends on the passenger\u2019s payer/);
+  assert.match(body.answer, /\(888\) 639-5766/);
+});
+
+test('core battery: Virginia and long-distance — covered, planned in advance', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const va = await assistant.ask('Do you go to Virginia?', '10.1.0.10');
+  assertCleanAnswer(va.body, 'Do you go to Virginia?');
+  assert.match(va.body.answer, /^Yes/);
+  assert.match(va.body.answer, /Virginia/);
+  const ld = await assistant.ask('Do you do long-distance trips out of state?', '10.1.0.11');
+  assertCleanAnswer(ld.body, 'Do you do long-distance trips out of state?');
+  assert.ok(ld.body.sources.includes('long-distance'));
+  assert.match(ld.body.answer, /48 contiguous states/);
+  assert.match(ld.body.answer, /in advance/);
+});
+
+test('core battery: Maryland named directly is answered as the local region', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('Do you offer rides in Maryland?', '10.1.0.12');
+  assertCleanAnswer(body, 'Do you offer rides in Maryland?');
+  assert.ok(body.sources.includes('area-maryland'));
+  assert.match(body.answer, /Maryland/);
+});
+
+test('core battery: a genuinely uncovered specific still gets the honest fallback', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  const { body } = await assistant.ask('Do you sell gift cards for rides?', '10.1.0.13');
+  assert.equal(body.mode, 'fallback');
+  assert.match(body.answer, /\(888\) 639-5766/);
+  assert.match(body.answer, /mynexusride\.com/);
+});
+
+test('core battery: with a model configured, the services question is composed from the knowledge base', async () => {
+  const seen = [];
+  const modelFetch = async (url, opts) => {
+    seen.push(JSON.parse(opts.body));
+    return {
+      ok: true,
+      json: async () => ({ output: [{ type: 'message', content: [{ type: 'output_text', text: 'Nexus provides wheelchair, stretcher, bariatric and ambulance transportation, plus dialysis and recurring rides — all planned, non-emergency trips with door-through-door support.' }] }] })
+    };
+  };
+  const env = { VISITOR_ASSISTANT_API_KEY: 'test-key', VISITOR_ASSISTANT_MODEL: 'test-model' };
+  const assistant = createAssistant({ fetchImpl: modelFetch, env });
+  const { body } = await assistant.ask('What services do you offer?', '10.1.0.14');
+  assert.equal(body.mode, 'model');
+  assert.match(body.answer, /wheelchair/i);
+  // The model was grounded on the knowledge base entry, not the open web.
+  const promptText = JSON.stringify(seen[0].input);
+  assert.match(promptText, /Knowledge base information:/);
+  assert.match(promptText, /door-through-door/);
+  // A model that invents a figure on this question is discarded for the composed answer.
+  const badFetch = async () => ({
+    ok: true,
+    json: async () => ({ output: [{ type: 'message', content: [{ type: 'output_text', text: 'Rides start at $40.' }] }] })
+  });
+  const a2 = createAssistant({ fetchImpl: badFetch, env });
+  const r2 = await a2.ask('What services do you offer?', '10.1.0.14');
+  assert.equal(r2.body.mode, 'composed');
+  assert.ok(r2.body.sources.includes('services-overview'));
+  assert.ok(!/\$\s?\d/.test(r2.body.answer));
+});
+
 test('Annapolis coverage answer is unchanged', async () => {
   const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
   const { body } = await assistant.ask('Do you serve Annapolis?', '10.0.0.4');
