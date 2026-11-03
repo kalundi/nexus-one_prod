@@ -787,6 +787,61 @@ function createHandler(deps) {
     return json(200, { answer: `I couldn't complete that change — the system said: ${clean(payload.error || 'the change was rejected')}. Nothing was saved; the trip is unchanged.`, mode: 'staff', staff: staffEnvelope(user, {}) });
   }
 
+  /* ------------------------------------------- site knowledge (how-tos)
+     Curated guidance about how the Nexus site itself works — pages,
+     features and workflows — grounded in the repo's pages and docs.
+     Scoped by role: an entry is only ever READ to a role that can
+     open that area. A guidance question about an area outside the
+     caller's access gets a redirect to what their role CAN do, never
+     the restricted content. */
+  const SITE_KNOWLEDGE = [
+    { id: 'dispatch', area: 'the Dispatch Center', roles: ['DISPATCHER', 'ADMIN', 'EXECUTIVE'], keys: ['dispatch board', 'dispatch center', 'trip board', 'the board work', 'work the board'], answer: 'The Dispatch Center (dispatch.html) is where trips are worked live — the board, assignments and driver status in one place. You can also ask me board questions right here: "what\'s unassigned?", "who\'s on duty?", or a trip reference.' },
+    { id: 'add-driver', area: 'Administration', roles: ['ADMIN', 'DISPATCHER'], keys: ['add a driver', 'new driver', 'add driver', 'create a driver', 'driver account', 'onboard a driver'], answer: 'Drivers are set up in the Administration workspace (admin.html), where user accounts, roles and employee records live: a driver needs an account with the DRIVER role and an employee record — that is what puts them on the dispatch roster, gives them a recurring shift pattern, and lets trips be assigned to them.' },
+    { id: 'accounts', area: 'Administration', roles: ['ADMIN'], keys: ['user accounts', 'reset a password', 'reset password', 'manage roles', 'permissions', 'role approvals', 'deactivate a user'], answer: 'User accounts, roles and access are managed in the Administration workspace (admin.html). Approved roles decide which workspaces a sign-in can open; the account menu also carries role switching for people with more than one approved role.' },
+    { id: 'pricing', area: 'Administration', roles: ['ADMIN'], keys: ['pricing manager', 'fare settings', 'change the rates', 'change rates', 'set the rates', 'pricing settings'], answer: 'Fares are set in the Pricing Manager in the Administration workspace (admin.html) — service base rates, per-mile rates, wait time and surcharges live there, and every estimate and booked price is calculated from those settings.' },
+    { id: 'fleet', area: 'Fleet Management', roles: ['DISPATCHER', 'ADMIN', 'EXECUTIVE'], keys: ['fleet management', 'vehicle list', 'add a vehicle', 'vehicle status page', 'fleet page'], answer: 'Fleet Management (fleet.html) is the vehicle list — units, types and status. Live positions are on LiveCare (livecare.html) and in the Dispatch Center, and you can ask me "where are the vehicles?" right here.' },
+    { id: 'livecare', area: 'LiveCare', roles: 'ALL', keys: ['livecare', 'live tracking', 'tracking map', 'track my ride', 'live map'], answer: 'LiveCare (livecare.html) is the live tracking map. Dispatch sees the whole fleet and every active trip; patients and caretakers see their own ride and driver once the trip is under way.' },
+    { id: 'billing', area: 'Billing', roles: ['BILLING', 'ADMIN', 'EXECUTIVE'], keys: ['billing page', 'revenue cycle', 'invoices', 'billing workspace', 'where are invoices'], answer: 'Revenue Cycle & Billing (billing.html) is where invoices, payments and balances live for the operation.' },
+    { id: 'facility-reports', area: 'the facility Reporting tab', roles: ['FACILITY'], keys: ['reports', 'reporting', 'report tab', 'summary of our trips', 'destination summary'], answer: 'Your Reporting tab is right in this portal, next to the Trip board. For the timeframe you pick it totals your facility\'s trips — completed vs upcoming, service mix, top destination cities and average booking lead time. It shows totals only, and only for your facility.' },
+    { id: 'facility-portal', area: 'the facility portal', roles: ['FACILITY'], keys: ['facility portal', 'this portal', 'message dispatch', 'portal work'], answer: 'This portal is your window into your facility\'s trips: the Trip board follows the timeframe you select, the Reporting tab totals them up, and each trip has a conversation where you can message dispatch. You can also just ask me "how many trips today?" here.' },
+    { id: 'driver-app', area: 'the Driver app', roles: ['DRIVER'], keys: ['driver app', 'driveflex', 'claim a shift', 'my assignments page'], answer: 'The Driver app (driver-app.html) is your home base — today\'s assignments with trip details, and DriveFlex for posted open shifts. You can also ask me "what are my trips today?" or "any open shifts?" right here.' },
+    { id: 'patient-app', area: 'the Patient app', roles: ['PATIENT', 'CARETAKER'], keys: ['patient app', 'my rides page', 'where are my rides'], answer: 'The Patient app (patient.html) holds your rides, and LiveCare shows your driver live once a trip starts. You can also just ask me "when is my next ride?" here.' },
+    { id: 'booking', area: 'Booking', roles: 'ALL', keys: ['book a ride', 'book a trip', 'how do i book', 'booking app', 'make a booking', 'book a transport'], answer: 'Rides are booked in the booking app (mynexusride.com, also linked as Book a Ride across the site) — pickup, drop-off, ride type and date, with multi-date booking for repeat appointments. Facilities book through their portal, and patients can book from the Patient app too.' },
+    { id: 'enterprise', area: 'the Enterprise Directory', roles: ['ADMIN'], keys: ['enterprise directory', 'enterprise actors', 'actor directory', 'the directory'], answer: 'The Enterprise Directory (enterprise.html) is the shared directory of the people, facilities and organizations Nexus works with — the Actor records behind accounts and relationships. Admins can deactivate or remove entries there when the safety checks allow it.' },
+    { id: 'keymark', area: 'KeyMark', roles: ['ADMIN', 'EXECUTIVE'], keys: ['keymark', 'epic connection', 'fhir', 'appointment feed', 'outreach queue'], answer: 'KeyMark (keymark.html) is the appointment-to-arrival integration — Epic/FHIR connections, the sync status, the outreach queue and arrival-risk scoring that turn appointments into booked rides.' },
+    { id: 'training', area: 'Nexus Academy', roles: ['ADMIN', 'DISPATCHER', 'DRIVER', 'BILLING', 'QA', 'EXECUTIVE', 'STAFF'], keys: ['training', 'policies', 'nexus academy', 'courses'], answer: 'Nexus Academy (training.html) holds policies and training — it is in every staff account menu under "Policies & training".' },
+    { id: 'qa', area: 'the QA workspace', roles: ['QA', 'ADMIN'], keys: ['qa workspace', 'quality review', 'qa page'], answer: 'The QA workspace (qa.html) is the quality review area for the operation.' },
+    { id: 'executive', area: 'the Executive workspace', roles: ['EXECUTIVE', 'ADMIN'], keys: ['executive workspace', 'executive dashboard', 'big picture', 'company overview'], answer: 'The Executive workspace (executive.html) is the high-level view — volumes, revenue and performance across the operation.' },
+  ];
+
+  function rolePointer(role) {
+    if (role === 'DRIVER') return 'your own trips, schedule and open shifts — try "what are my trips today?"';
+    if (role === 'FACILITY') return 'your facility\'s trips and reports — try "how many trips today?"';
+    if (role === 'PATIENT' || role === 'CARETAKER') return 'your own rides — try "when is my next ride?"';
+    if (ACTION_ROLES.includes(role) || role === 'EXECUTIVE') return 'the board, duty roster and trips — try "what\'s unassigned?"';
+    return 'the public site knowledge — services, areas, hours and booking';
+  }
+
+  function siteKnowledgeAnswer(user, state, text) {
+    const t = ` ${text.toLowerCase()} `;
+    const guidance = /^(how|where|what|can i|can we|is there|do we have|does)\b/i.test(text) || (text.includes('?') && text.length < 140);
+    if (!guidance) return null;
+    let best = null;
+    for (const entry of SITE_KNOWLEDGE) {
+      for (const key of entry.keys) {
+        if (t.includes(key) && (!best || key.length > best.key.length)) best = { entry, key };
+      }
+    }
+    if (!best) return null;
+    const { entry } = best;
+    const allowed = entry.roles === 'ALL' || entry.roles.includes(user.role);
+    state.intent = 'knowledge';
+    if (!allowed) {
+      return staffReply(user, state, `That lives in ${entry.area} — that's not part of your ${ROLE_LABELS[user.role] || user.role} access, so I can't walk you through it. What I can pull up for you here is ${rolePointer(user.role)}.`);
+    }
+    return staffReply(user, state, entry.answer);
+  }
+
   /* ------------------------------------------------------ role answers */
 
   function parseActionIntent(text) {
@@ -1104,6 +1159,9 @@ function createHandler(deps) {
       const opener = await roleOpener(user, today);
       return json(200, { answer: opener.greeting, mode: 'staff', staff: staffEnvelope(user, state), chips: opener.chips });
     }
+
+    const knowledge = siteKnowledgeAnswer(user, state, question);
+    if (knowledge) return knowledge;
 
     try {
       if (ACTION_ROLES.includes(role) || role === 'EXECUTIVE') {
