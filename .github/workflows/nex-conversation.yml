@@ -1,0 +1,38 @@
+name: Nex conversational integration
+on:
+  push:
+    branches:
+      - feature/nex-approved-knowledge-integration
+  pull_request:
+    paths:
+      - 'ask-nex.html'
+      - 'netlify/functions/_shared/visitor-*.cjs'
+      - 'netlify/functions/_shared/nex-*'
+      - 'tests/nex-approved-knowledge.test.cjs'
+      - 'tests/visitor-assistant.test.cjs'
+      - '.github/workflows/nex-conversation.yml'
+permissions:
+  contents: read
+jobs:
+  nex-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax check Ask Nex client
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const html=fs.readFileSync('ask-nex.html','utf8');
+          const script=html.match(/<script>([\s\S]*?)<\/script>/i);
+          if (!script) throw new Error('Ask Nex inline script not found');
+          new vm.Script(script[1], {filename:'ask-nex.html'});
+          NODE
+      - name: Nex knowledge and conversation tests
+        run: |
+          node --test tests/nex-approved-knowledge.test.cjs
+          node --test tests/visitor-assistant.test.cjs
