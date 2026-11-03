@@ -11,12 +11,14 @@ on:
       - 'netlify/functions/nex-insights.cjs'
       - 'netlify/functions/visitor-assistant.cjs'
       - 'nex-insights.html'
+      - 'auth-guard.js'
       - 'nex-insights.js'
       - 'admin-apps.js'
       - 'database/migrations/*nex*'
       - 'tests/nex-approved-knowledge.test.cjs'
       - 'tests/nex-intent-insights.test.cjs'
       - 'tests/nex-ai-suggestions.test.cjs'
+      - 'tests/nex-dashboard-auth.test.cjs'
       - 'tests/nex-conversation.spec.cjs'
       - 'tests/visitor-assistant.test.cjs'
       - 'playwright.nex.config.cjs'
@@ -70,6 +72,8 @@ jobs:
         run: node --test --test-reporter=spec tests/nex-intent-insights.test.cjs
       - name: Test AI insight safeguards
         run: node --test --test-reporter=spec tests/nex-ai-suggestions.test.cjs
+      - name: Test Nex dashboard auth and blank-page regression
+        run: node --test --test-reporter=spec tests/nex-dashboard-auth.test.cjs
       - name: Test existing Nex assistant behavior
         run: node --test --test-reporter=spec tests/visitor-assistant.test.cjs
   browser:
