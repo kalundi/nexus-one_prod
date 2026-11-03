@@ -132,6 +132,23 @@ test('unrelated slang and emoji do not invent an interstate ride', async () => {
   }
 });
 
+test('Nex guides grandchildren and caregivers booking for someone else', async () => {
+  const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
+  for (const question of [
+    'My grandma needs a ride to NYC',
+    'can my grandson arrange a transfer for grandma to NY?',
+    'I am trying to transport my dad to New York',
+    'Need a lift for my granny to NYC fr'
+  ]) {
+    const { body } = await assistant.ask(question, '10.0.0.29');
+    assert.ok(body.sources.includes('long-distance'), question);
+    assert.match(body.answer, /arranging this for a family member|someone in your care/);
+    assert.match(body.answer, /what city would they be leaving from/i);
+    assert.match(body.answer, /wheelchair|stretcher/i);
+    assert.doesNotMatch(body.answer, /share their (name|medical records) here\?/i);
+  }
+});
+
 test('a Maryland to Florida ride gets the inter-state yes', async () => {
   const assistant = createAssistant({ fetchImpl: noFetch, env: {} });
   const { body } = await assistant.ask('Can I get a ride from Maryland to Florida?', '10.0.0.5');
