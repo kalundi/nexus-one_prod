@@ -3,21 +3,21 @@
  const $=id=>document.getElementById(id),esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const headers=()=>({authorization:`Bearer ${sessionStorage.getItem('nexusAccessToken')||''}`,'content-type':'application/json'});
  const ROLES={ADMIN:'Administrator',DISPATCHER:'Dispatcher',DRIVER:'Driver',FACILITY:'Facility manager',STAFF:'Staff / attendant',BILLING:'Billing',QA:'Quality assurance',EXECUTIVE:'Executive',PATIENT:'Patient',CARETAKER:'Caretaker',...(window.NexusEmsRoles||{})};
- Object.entries(window.NexusEmsRoles||{}).forEach(([value,label])=>$('newRole').add(new Option(label,value)));
+ if($('newRole'))Object.entries(window.NexusEmsRoles||{}).forEach(([value,label])=>$('newRole').add(new Option(label,value)));
  const roleLabel=role=>role==='RIDER'?'Passenger':ROLES[role]||role;
  let users=[],functions={},groups=[],editingIds=[],selectedUser=null,saveInProgress=false,scheduleRequest=0;
  const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  function message(id,text,error=false){const el=$(id);if(!el)return;el.hidden=!text;el.className='msgBox '+(error?'err':'ok');el.textContent=text;}
  async function request(url,options={}){const r=await fetch(url,{headers:headers(),cache:'no-store',...options});const body=await r.json().catch(()=>({}));if(!r.ok)throw new Error(body.error||'Unable to complete this change.');return body;}
  const roleOptions=()=>Object.entries(ROLES).map(([key,label])=>`<option value="${key}">${label}</option>`).join('');
- $('userRoleFilter').insertAdjacentHTML('beforeend',roleOptions());$('editUserRole').innerHTML=roleOptions();
+ if($('userRoleFilter'))$('userRoleFilter').insertAdjacentHTML('beforeend',roleOptions());if($('editUserRole'))$('editUserRole').innerHTML=roleOptions();
  const isDriver=u=>u.role==='DRIVER'||u.roles?.includes('DRIVER');
  function driverOptions(){
   const select=$('scheduleDriverEmail'),selected=select.value;
   select.innerHTML='<option value="">All drivers / select a driver</option>'+users.filter(isDriver).map(u=>`<option value="${esc(u.email)}">${esc(u.userCode||'')} · ${esc(u.name||u.email)}${u.active?'':' (inactive)'}</option>`).join('');
   if([...select.options].some(o=>o.value===selected))select.value=selected;
  }
- function renderUsers(){
+ function renderUsers(){if(!$('userTableBody'))return;
   const search=$('userSearch').value.trim().toLowerCase(),role=$('userRoleFilter').value,status=$('userStatusFilter').value;
   const filtered=users.filter(u=>(!role||u.role===role||u.roles?.includes(role))&&(!status||u.active===(status==='active'))&&(!search||[u.name,u.email,u.phone,u.userCode,...(u.functions||[]).map(f=>functions[f]||f)].join(' ').toLowerCase().includes(search)));
   $('userListSummary').textContent=`${filtered.length} of ${users.length} people · ${users.filter(u=>u.active).length} active`;
@@ -43,10 +43,10 @@
   $('userAccountSchedule').hidden=!isDriver(u);message('userAccountMsg','');
   if(!$('userAccountDialog').open)$('userAccountDialog').showModal();
  }
- $('userTableBody').addEventListener('click',e=>{const b=e.target.closest('[data-manage-user]');if(b)openUser(b.dataset.manageUser);});
- ['userSearch','userRoleFilter','userStatusFilter'].forEach(id=>$(id).addEventListener(id==='userSearch'?'input':'change',renderUsers));
- $('closeUserAccount').addEventListener('click',()=>$('userAccountDialog').close());
- $('userAccountDialog').addEventListener('click',e=>{if(e.target===e.currentTarget){const box=e.currentTarget.getBoundingClientRect();if(e.clientX<box.left||e.clientX>box.right||e.clientY<box.top||e.clientY>box.bottom)e.currentTarget.close();}});
+ if($('userTableBody'))$('userTableBody').addEventListener('click',e=>{const b=e.target.closest('[data-manage-user]');if(b)openUser(b.dataset.manageUser);});
+ ['userSearch','userRoleFilter','userStatusFilter'].forEach(id=>{const el=$(id);if(el)el.addEventListener(id==='userSearch'?'input':'change',renderUsers);});
+ if($('closeUserAccount'))$('closeUserAccount').addEventListener('click',()=>$('userAccountDialog').close());
+ if($('userAccountDialog'))$('userAccountDialog').addEventListener('click',e=>{if(e.target===e.currentTarget){const box=e.currentTarget.getBoundingClientRect();if(e.clientX<box.left||e.clientX>box.right||e.clientY<box.top||e.clientY>box.bottom)e.currentTarget.close();}});
  async function updateAccount(payload){
   if(saveInProgress||!selectedUser)return;saveInProgress=true;
   if(selectedUser.demoOnly&&payload.phone==='')delete payload.phone;
@@ -56,13 +56,13 @@
    await loadUsers();openUser(id);message('userAccountMsg','Account updated. Availability and access use the updated account.');await loadDriverSchedule({silent:true});
   }catch(e){message('userAccountMsg',e.message,true);}finally{saveInProgress=false;['saveUserAccount','toggleUserAccount'].forEach(key=>$(key).disabled=false);}
  }
- $('userAccountForm').addEventListener('submit',e=>{e.preventDefault();updateAccount({name:$('editUserName').value.trim(),phone:$('editUserPhone').value.trim(),role:$('editUserRole').value,scopeId:window.NexusAdminFacilityAccess.editScope(),functions:[...$('editUserFunctions').querySelectorAll('input:checked')].map(el=>el.value)});});
- $('toggleUserAccount').addEventListener('click',()=>updateAccount({active:!(selectedUser.active&&selectedUser.employeeActive!==false)}));
- $('userAccountSchedule').addEventListener('click',()=>{
+ if($('userAccountForm'))$('userAccountForm').addEventListener('submit',e=>{e.preventDefault();updateAccount({name:$('editUserName').value.trim(),phone:$('editUserPhone').value.trim(),role:$('editUserRole').value,scopeId:window.NexusAdminFacilityAccess.editScope(),functions:[...$('editUserFunctions').querySelectorAll('input:checked')].map(el=>el.value)});});
+ if($('toggleUserAccount'))$('toggleUserAccount').addEventListener('click',()=>updateAccount({active:!(selectedUser.active&&selectedUser.employeeActive!==false)}));
+ if($('userAccountSchedule'))$('userAccountSchedule').addEventListener('click',()=>{
   const email=selectedUser.email;$('userAccountDialog').close();document.querySelector('[data-user-module-open="driverSchedulePanel"]').click();$('scheduleDriverEmail').value=email;resetSchedule();loadDriverSchedule();
   $('scheduleDriverEmail').focus({preventScroll:true});
  });
- $('resendUserAccount').addEventListener('click',async()=>{
+ if($('resendUserAccount'))$('resendUserAccount').addEventListener('click',async()=>{
   if(!selectedUser)return;
   if(selectedUser.demoOnly){const button=$('resendUserAccount');button.disabled=true;try{const issued=await request(`/api/admin/users/${encodeURIComponent(selectedUser.id)}/demo-password`,{method:'POST'});message('userAccountMsg',`New password for ${issued.email}: ${issued.password}. ${issued.message} Sign in at ${issued.loginUrl}`);}catch(e){message('userAccountMsg',e.message,true);}finally{button.disabled=false;}return;}
   if(!confirm(`Reissue temporary credentials and email ${selectedUser.email}?`))return;
@@ -70,7 +70,7 @@
   try{const data=await request(`/api/admin/users/${encodeURIComponent(selectedUser.id)}/resend-credentials`,{method:'POST'});message('userAccountMsg',data.emailDeliveryStatus==='sent'?'Temporary login emailed. It expires in two hours.':data.warning||'Temporary login reissued; email delivery was unavailable.',data.emailDeliveryStatus!=='sent');}
   catch(e){message('userAccountMsg',e.message,true);}finally{button.disabled=false;}
  });
- $('userAccountHistory').addEventListener('click',async()=>{
+ if($('userAccountHistory'))$('userAccountHistory').addEventListener('click',async()=>{
   $('auditType').value='CREDENTIALS_REISSUED';$('auditSearch').value=selectedUser.email;$('auditDetails').open=true;$('userAccountDialog').close();window.focusDashboardSection?.('auditSection');await window.loadAudit?.();
  });
  const DAYS=['','Mon','Tue','Wed','Thu','Fri','Sat','Sun'];

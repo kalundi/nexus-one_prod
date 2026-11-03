@@ -26,10 +26,10 @@ test('only approved roles can become the active session role',()=>{
  assert.match(auth,/status='APPROVED'/);
 });
 
-test('admin workflow reviews pending role requests',()=>{
- const api=read('netlify/functions/api.cjs'),admin=read('admin-app.js'),html=read('admin.html');
+test('enterprise hub reviews pending role requests',()=>{
+ const api=read('netlify/functions/api.cjs'),hub=read('enterprise.js'),html=read('enterprise.html');
  assert.match(api,/p\[1\]===\'role-requests\'/);
  assert.match(api,/requireUser\(bearer\(event\),\['ADMIN'\]\)/);
- assert.match(admin,/function decideRoleRequest/);
- assert.match(html,/id="roleRequestRows"/);
+ assert.match(hub,/function decideRequest/);
+ assert.match(html,/id="requestRows"/);
 });

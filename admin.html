@@ -147,7 +147,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
   <h1>Platform control center.</h1>
   <p>Manage users, configure pricing, review audit records and maintain organization settings from one secure workspace.</p></div>
   <div class="adminShortcuts">
-    <a class="adminShortcut primary" href="#userSection">Manage users</a>
+    <a class="adminShortcut primary" href="enterprise.html">Manage users</a>
     <a class="adminShortcut" href="/driveflex/dispatch">DriveFlex shifts</a>
     <a class="adminShortcut" href="#documentAccessModule">Secure documents</a>
     <a class="adminShortcut" href="#pricingSection">Pricing config</a>
@@ -188,11 +188,10 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
   </div>
   <div class="dashboardGrid" id="adminDashboardGrid">
     <a class="dashboardTile" href="/enterprise.html"><h3>Enterprise directory</h3><p>People, facilities, organizations, and business relationships.</p></a>
-    <button class="dashboardTile" type="button" data-section-target="userSection">
-      <span class="dashSignal normal" data-signal-for="userSection">Normal</span>
-      <h3>User management</h3>
-      <p>Accounts, roles, and access controls.</p>
-    </button>
+    <a class="dashboardTile" href="/enterprise.html">
+      <h3>People &amp; accounts</h3>
+      <p>Accounts, roles, and access — managed in the Enterprise Directory.</p>
+    </a>
     <button class="dashboardTile" type="button" data-section-target="pricingSection">
       <span class="dashSignal normal" data-signal-for="pricingSection">Normal</span>
       <h3>Nexus Pricing Manager</h3>
@@ -248,43 +247,13 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 
 <!-- User Management -->
 <section class="sectionTab" id="userSection">
-  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">User Administration</div><h2>User management</h2><p>Create accounts, manage roles, and activate or deactivate access across the platform.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="button" id="refreshUsers">Refresh list</button></div></div>
-  <div id="resetCredentialsMsg" hidden style="margin-bottom:14px;padding:12px 16px;border-radius:10px;font-size:14px"></div>
+  <div class="sectionTitle"><div><div class="eyebrow" style="color:var(--blue)">User Administration</div><h2>People &amp; accounts</h2><p>People and accounts are managed in the Enterprise Directory. Sign-in accounts, roles, access requests, and account activation all live there now. Driver schedules and secure documents remain below.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><a class="button" href="enterprise.html">Open the Enterprise Directory</a></div></div>
   <div class="userModuleDashboard" id="userModuleDashboard" aria-label="User operations workspace">
-    <button class="userModuleChip" type="button" data-user-module-open="userDirectoryModule"><strong>People</strong><small>Find users and manage access.</small></button>
-    <button class="userModuleChip" type="button" data-user-module-open="createUserModule"><strong>Add user</strong><small>Create credentials and onboard secure access.</small></button>
-    <button class="userModuleChip" type="button" data-user-module-open="roleRequestsModule"><strong>Access requests</strong><small>Verify and approve requested workforce roles.</small></button>
     <button class="userModuleChip" type="button" data-user-module-open="documentAccessModule"><strong>Secure documents</strong><small>Upload documents and grant customer access.</small></button>
     <button class="userModuleChip" type="button" data-user-module-open="driverSchedulePanel"><strong>Schedules</strong><small>Adjust shifts and availability.</small></button>
   </div>
   <div class="userModuleStack">
-    <details class="userModuleCard" id="createUserModule" data-user-module>
-      <summary>
-        <div class="userModuleTitle"><strong>User management</strong><small>Create new platform users and enforce 2-hour temporary-password policy.</small></div>
-        <span class="userModuleCaret" aria-hidden="true">&gt;</span>
-      </summary>
-      <div class="userModuleBody">
-        <div class="createUserForm" style="margin:0">
-          <h3>Create new user</h3>
-          <div class="formRow triple" style="grid-template-columns:1fr 1fr 1fr 1fr">
-            <div class="formField"><label for="newEmail">Email address *</label><input id="newEmail" type="email" placeholder="user@example.com" autocomplete="off"></div>
-            <div class="formField"><label for="newPhone">Phone number *</label><input id="newPhone" type="tel" placeholder="8886395766" autocomplete="off"></div>
-            <div class="formField"><label for="newName">Full name *</label><input id="newName" type="text" placeholder="Full name"></div>
-            <div class="formField"><label for="newRole">Role *</label><select id="newRole"><option value="">Select a role...</option><option value="ADMIN">Admin</option><option value="DISPATCHER">Dispatcher</option><option value="FACILITY">Facility</option><option value="STAFF">Staff / attendant (training)</option><option value="DRIVER">Driver</option><option value="BILLING">Billing</option><option value="QA">QA</option><option value="EXECUTIVE">Executive</option><option value="PATIENT">Patient</option><option value="CARETAKER">Caretaker</option></select></div>
-          </div>
-          <div class="formRow" style="margin-top:14px">
-            <div class="formField wide"><label>Temporary password policy</label><input type="text" value="System-generated temp password. User must change it within 2 hours." readonly></div>
-            <div class="formField wide" style="align-self:end"><button class="button primary" id="createUserBtn" style="width:100%">Create user</button></div>
-          </div>
-          <div id="createUserMsg" hidden></div><details id="standardAccountSupport" style="margin-top:18px"><summary>Standard test account support</summary><p class="scheduleHelp">Reissue access for the standard test accounts.</p><button class="button danger" id="resetCredentialsBtn" title="Resets standard non-production accounts">Reset standard accounts</button></details>
-        </div>
-      </div>
-    </details>
 
-    <details class="userModuleCard" id="roleRequestsModule" data-user-module>
-      <summary><div class="userModuleTitle"><strong>Role access requests</strong><small>Approve only after confirming the person, organization, and required scope.</small></div><span class="userModuleCaret" aria-hidden="true">&gt;</span></summary>
-      <div class="userModuleBody"><div class="tableWrap"><table class="table"><thead><tr><th>Applicant</th><th>Requested role</th><th>Status</th><th>Requested</th><th>Action</th></tr></thead><tbody id="roleRequestRows"><tr><td colspan="5">Loading access requests…</td></tr></tbody></table></div></div>
-    </details>
 
     <details class="userModuleCard" id="driverSchedulePanel" data-user-module>
       <summary>
@@ -354,21 +323,6 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
       </div></div>
     </details>
 
-    <details class="userModuleCard" id="userDirectoryModule" data-user-module open>
-      <summary>
-        <div class="userModuleTitle"><strong>People</strong><small>One permanent Nexus ID for every account and experience.</small></div>
-        <span class="userModuleCaret" aria-hidden="true">&gt;</span>
-      </summary>
-      <div class="userModuleBody">
-        <div class="userToolbar"><input id="userSearch" type="search" aria-label="Find a user" placeholder="Search name, email, phone or Nexus ID"><select id="userRoleFilter" aria-label="Filter by role"><option value="">All roles</option></select><select id="userStatusFilter" aria-label="Filter by account status"><option value="">All accounts</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
-        <p id="userListSummary" class="userCounts" aria-live="polite"></p>
-        <div id="userManagerMsg" hidden></div>
-        <div class="tableWrap"><table class="userTable userDirectoryTable" aria-label="User list">
-          <thead><tr><th>Nexus ID</th><th>Person</th><th>Role / functions</th><th>Account</th><th>Action</th></tr></thead>
-          <tbody id="userTableBody"><tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted)">Loading users...</td></tr></tbody>
-        </table></div>
-      </div>
-    </details>
   </div>
 </section>
 
@@ -430,7 +384,6 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <div class="formField"><label for="cancellationLeadHours">Cancellation policy: booking lead (hours)</label><input id="cancellationLeadHours" data-fare-rule="cancellationLeadHours" type="number" min="0" max="720" step="1"></div>
 <div class="formField"><label for="maxBookingDistanceMiles">Maximum booking distance (miles)</label><input id="maxBookingDistanceMiles" data-fare-rule="maxBookingDistanceMiles" type="number" min="5" max="500" step="1"></div></div></details>
 </section>
-<dialog id="userAccountDialog" class="userDialog" aria-labelledby="userAccountTitle"><div class="userDialogHead"><div><h3 id="userAccountTitle">Manage account</h3><p id="userAccountIdentity"></p></div><button class="button compact" type="button" id="closeUserAccount">Close</button></div><form id="userAccountForm"><div class="formRow"><div class="formField"><label for="editUserName">Full name</label><input id="editUserName" maxlength="160" required autocomplete="name"></div><div class="formField"><label for="editUserPhone">Phone number</label><input id="editUserPhone" type="tel" required autocomplete="tel"></div><div class="formField"><label for="editUserRole">Primary role</label><select id="editUserRole"></select></div><div class="formField"><label for="editUserScope">Driver / facility scope</label><input id="editUserScope" maxlength="120" placeholder="Assigned automatically for a new driver"></div></div><fieldset id="editUserFunctions" class="functionChoices"><legend>Operational functions</legend></fieldset><p id="userAccountAccess" class="scheduleHelp"></p><p id="userAccountCreated" class="scheduleHelp"></p><div id="userAccountMsg" hidden aria-live="polite"></div><div class="userDialogActions"><button class="button" id="toggleUserAccount" type="button">Deactivate account</button><button class="button primary" type="submit" id="saveUserAccount">Save changes</button></div></form><div class="userSecondaryActions"><button class="button" id="userAccountSchedule" type="button">Manage schedule</button><button class="button" id="resendUserAccount" type="button">Resend login</button><button class="button" id="userAccountHistory" type="button">Login history</button></div></dialog>
 
 <!-- Manage Trip -->
 <section class="sectionTab card" id="manageTripSection" style="margin-top:32px">
@@ -688,7 +641,7 @@ body.adminFocusMode .sectionTab.focusVisible{display:block;min-height:calc(100vh
 <div class="access"><button id="accessToggle" class="section508Button" aria-expanded="false" aria-controls="accessPanel" aria-label="Open Section 508 accessibility options"><span aria-hidden="true">&#9855;</span><span aria-hidden="true">508</span></button><div id="accessPanel" class="accessPanel" hidden><strong>Accessibility</strong><button id="large">Larger text</button><button id="contrast">High contrast</button><button id="motion">Reduce motion</button></div></div>
 <div id="adminToast" class="adminToast" role="status" aria-live="polite" hidden></div>
 <script src="./nexus-core.js"></script><script src="./platform.js?v=20261028-ems"></script>
-<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-smart-timing"><script src="./nexus-fare.js?v=20261016-vehicle-fuel"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="/nexus-ems-roles.js?v=1"></script><script src="./admin-facility-access.js?v=1"></script><script src="./admin-users.js?v=20261028-ems"></script><script src="./admin-app.js?v=20261028-facility-assignment"></script><script src="./admin-facility-timing.js?v=20261012-smart-timing"></script></body></html>
+<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-smart-timing"><script src="./nexus-fare.js?v=20261016-vehicle-fuel"></script><script src="./nexus-trip-timing.js?v=20261012-cruising-ceilings"></script><script src="/nexus-ems-roles.js?v=1"></script><script src="./admin-users.js?v=20261028-ems"></script><script src="./admin-app.js?v=20261028-facility-assignment"></script><script src="./admin-facility-timing.js?v=20261012-smart-timing"></script></body></html>
 
 
 
