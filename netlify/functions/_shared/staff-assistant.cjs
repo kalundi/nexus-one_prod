@@ -6,7 +6,10 @@
 //   - the role and scope come from requireUser() on the caller's DB
 //     session — never from the request body;
 //   - the legacy fallback session (which carries no session_id) never
-//     unlocks staff data; those callers get the public assistant;
+//     unlocks staff data; like any missing, malformed or expired
+//     session it gets a clean 401 from this endpoint (true guests use
+//     the standalone visitor function, and signed-in roles without a
+//     staff surface get the public assistant's answers);
 //   - every data read below is pinned to the caller's role: dispatch
 //     and admin see the board, a driver sees only trips pinned to
 //     them, a facility sees only its own facility_id, a patient or
@@ -71,12 +74,25 @@ function createHandler(deps) {
   const weatherCache = new Map(); // key -> { at, value }
 
   // The public assistant core, required lazily so the public path is
-  // untouched when this module is loaded.
+  // untouched when this module is loaded. Its real API is the same one
+  // the standalone visitor-assistant function uses:
+  // createAssistant({}).ask(question, ip, { state, history }) resolves
+  // to { status, body } — there is no createVisitorAssistant export and
+  // no .handler(event) on the returned object. (A previous version of
+  // this default called exactly that non-existent interface, so every
+  // production request that reached the public fallback threw a
+  // TypeError and surfaced as a 500; the test suites always injected a
+  // mock publicAsk, which is why it shipped unnoticed.)
   let publicCore = null;
   const publicAsk = deps.publicAsk || (async (event) => {
-    if (!publicCore) publicCore = require('./visitor-assistant-core.cjs').createVisitorAssistant();
-    const res = await publicCore.handler(event);
-    return { statusCode: res.statusCode, body: res.body };
+    if (!publicCore) publicCore = require('./visitor-assistant-core.cjs').createAssistant({ fetchImpl });
+    let payload = {};
+    try { payload = JSON.parse(event.body || '{}'); } catch { payload = {}; }
+    const result = await publicCore.ask(payload.question || '', clientIp(event), {
+      state: payload.state || null,
+      history: Array.isArray(payload.history) ? payload.history : [],
+    });
+    return { statusCode: result.status, body: JSON.stringify(result.body) };
   });
 
   /* ------------------------------------------------------------ utils */
@@ -744,7 +760,8 @@ function createHandler(deps) {
   async function handleConfirm(event) {
     const user = await resolveStaffUser(event);
     if (!user) return json(401, { error: 'Your session has expired — sign in again and I\'ll pick this back up.' });
-    const body = parseBody(event);
+    let body;
+    try { body = parseBody(event); } catch { return json(400, { error: 'Invalid JSON body' }); }
     const submittedKey = clean(body.token);
     const action = clean(body.action || 'confirm');
     const entry = submittedKey ? proposals.get(submittedKey) : null;
@@ -1089,13 +1106,18 @@ function createHandler(deps) {
   /* ------------------------------------------------------------ handler */
 
   async function handlePublicFallback(event, user, body) {
-    const res = await publicAsk({
-      httpMethod: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ question: body.question || '', state: body.state || null, history: Array.isArray(body.history) ? body.history : [] }),
-    });
+    // The public fallback must never throw: any failure in the public
+    // core lands on the canned answer below, not an error wall.
+    let res = null;
+    try {
+      res = await publicAsk({
+        httpMethod: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ question: body.question || '', state: body.state || null, history: Array.isArray(body.history) ? body.history : [] }),
+      });
+    } catch { res = null; }
     let parsed = null;
-    try { parsed = JSON.parse(res.body); } catch { parsed = null; }
+    try { parsed = res ? JSON.parse(res.body) : null; } catch { parsed = null; }
     if (!parsed || !parsed.answer) {
       return json(200, { answer: 'I can help with questions about Nexus services, areas, hours and booking. For anything else, call us at (888) 639-5766.', mode: 'fallback' });
     }
@@ -1113,7 +1135,7 @@ function createHandler(deps) {
       parsed.staff = staffEnvelope(user, {});
       if (!parsed.mode) parsed.mode = 'staff';
     }
-    return json(res.statusCode || 200, parsed);
+    return json((res && res.statusCode) || 200, parsed);
   }
 
   async function handler(event, parts, method) {
@@ -1123,15 +1145,17 @@ function createHandler(deps) {
     }
     if (sub === 'confirm') return handleConfirm(event);
 
-    const body = parseBody(event);
+    // Auth first — exactly like confirm. A missing, malformed, expired
+    // or legacy-fallback session gets the same clean 401 here: never a
+    // throw, and never the public fallback. Guests ask through the
+    // standalone visitor-assistant function, and the widget only calls
+    // this endpoint when it holds a session token, so an unauthenticated
+    // ask is always a stale or foreign session, not a guest question.
     const user = await resolveStaffUser(event);
+    if (!user) return json(401, { error: 'Your session has expired — sign in again and I\'ll pick this back up.' });
 
-    if (!user) {
-      if (rateLimited(`pub:${clientIp(event)}`, 40, 60000)) {
-        return json(429, { error: 'Too many questions in a row — give me a moment and try again.' });
-      }
-      return handlePublicFallback(event, null, body);
-    }
+    let body;
+    try { body = parseBody(event); } catch { return json(400, { error: 'Invalid JSON body' }); }
 
     if (rateLimited(`user:${user.id}`, 40, 60000)) {
       return json(429, { error: 'Too many questions in a row — give me a moment and try again.' });

@@ -118,19 +118,40 @@ async function setup() {
   return { db, handler, ask, audits };
 }
 
-test('guests and fallback sessions get public mode only', async () => {
+test('ask without a valid DB session is a clean 401, exactly like confirm', async () => {
   const { ask, db } = await setup();
   try {
+    // No token at all. Guests ask through the standalone visitor
+    // function; this endpoint is staff-only, so an unauthenticated ask
+    // is the same auth error confirm returns — never data, never a 500.
     const guest = await ask(null, { question: 'How many trips today?' });
-    assert.equal(guest.data.answer, 'PUBLIC-ANSWER');
-    assert.notEqual(guest.data.mode, 'staff');
-    const fallback = await ask('auth-fallback', { question: 'How many trips today?' });
-    assert.equal(fallback.data.answer, 'PUBLIC-ANSWER');
-    assert.notEqual(fallback.data.mode, 'staff');
+    assert.equal(guest.status, 401);
+    assert.match(guest.data.error, /session has expired/i);
+    assert.equal(guest.data.answer, undefined);
+    // Unknown / malformed token (requireUser rejects it).
     const badAuth = await ask('auth-nope', { question: 'How many trips today?' });
-    assert.equal(badAuth.data.answer, 'PUBLIC-ANSWER');
+    assert.equal(badAuth.status, 401);
+    assert.match(badAuth.data.error, /session has expired/i);
+    assert.equal(badAuth.data.answer, undefined);
+    // Legacy fallback session: requireUser resolves it, but it carries
+    // no session_id, so the staff endpoint stays locked — same 401.
+    const fallback = await ask('auth-fallback', { question: 'How many trips today?' });
+    assert.equal(fallback.status, 401);
+    assert.match(fallback.data.error, /session has expired/i);
+    // Parity anchor: confirm without a session returns the same 401.
+    const confirmGuest = await ask(null, { token: 'whatever' }, 'confirm');
+    assert.equal(confirmGuest.status, 401);
+    assert.equal(confirmGuest.data.error, guest.data.error);
+  } finally { await db.close(); }
+});
+
+test('signed-in role without a staff surface gets the public answer with its staff envelope', async () => {
+  const { ask, db } = await setup();
+  try {
     const billing = await ask('auth-billing', { question: 'How many trips today?' });
+    assert.equal(billing.status, 200);
     assert.equal(billing.data.answer, 'PUBLIC-ANSWER');
+    assert.equal(billing.data.staff.role, 'BILLING');
   } finally { await db.close(); }
 });
 
