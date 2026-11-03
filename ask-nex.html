@@ -28,7 +28,7 @@ button{font:inherit;cursor:pointer}button.primary{border:0;background:#075985;co
 .message.user{align-self:flex-end;background:#082f49;color:#fff;border-bottom-right-radius:4px}
 .message.assistant{align-self:flex-start;background:#fff;color:#102338;border:1px solid #d3e2eb;border-bottom-left-radius:4px}
 .message .speaker{display:block;font-weight:800;font-size:12px;margin-bottom:5px}
-.message a{color:#075985}.chat-sources{margin:10px 0 0;padding-left:20px}.chat-sources a{font-size:14px}
+.related-content{display:grid;gap:8px;margin-top:12px;padding:12px;background:#f3f8fa;border:1px solid #d2e1ea;border-radius:12px}.related-content strong{font-size:13px}.related-content a{font-size:14px;overflow-wrap:anywhere}.message a{color:#075985}.chat-sources{margin:10px 0 0;padding-left:20px}.chat-sources a{font-size:14px}
 .chat-empty{color:#445c6c;line-height:1.6;margin:auto 0}
 .chat-status{min-height:24px;color:#445c6c;font-size:14px}
 .response[aria-busy="true"]{opacity:.75}
@@ -127,6 +127,23 @@ li.appendChild(a);list.appendChild(li);
 });
 if(list.children.length)node.appendChild(list);
 }
+function addRelatedContent(node,items){
+if(!Array.isArray(items)||!items.length)return;
+var hosts=new Set(['mynexusride.com','www.mynexusride.com','nexusmt.com','www.nexusmt.com','youtube.com','www.youtube.com','youtu.be','instagram.com','www.instagram.com','tiktok.com','www.tiktok.com','facebook.com','www.facebook.com','bsky.app']);
+var box=document.createElement('div');box.className='related-content';
+var title=document.createElement('strong');title.textContent='Helpful Nexus links';box.appendChild(title);
+var count=0;
+items.slice(0,3).forEach(function(item){
+ if(!item||typeof item.title!=='string'||item.title.length>100||!['guide','video','social-post','social-channel'].includes(item.kind))return;
+ var link;
+ try{link=new URL(item.url);}catch{return;}
+ if(link.protocol!=='https:'||!hosts.has(link.hostname.toLowerCase())||link.username||link.password)return;
+ var a=document.createElement('a');a.href=link.href;a.target='_blank';a.rel='noopener noreferrer';
+ a.textContent=(item.kind==='video'?'Watch: ':item.kind==='social-post'?'View post: ':'')+item.title;
+ box.appendChild(a);count++;
+});
+if(count)node.appendChild(box);
+}
 async function ask(question){
 var q=String(question||'').trim().slice(0,500);
 if(!q||busy)return;
@@ -143,6 +160,7 @@ var data=await res.json();if(!res.ok)throw new Error(data.error||'Nex is unavail
 if(activeGeneration!==generation)return;
 reply.body.textContent=typeof data.answer==='string'?data.answer:'Nex could not find an answer.';
 addSources(reply.node,data.sources);
+addRelatedContent(reply.node,data.relatedContent);
 conversation.push({role:'user',text:q},{role:'assistant',text:reply.body.textContent});
 conversation=conversation.slice(-8);
 }catch(e){
