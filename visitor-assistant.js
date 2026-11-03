@@ -1691,7 +1691,12 @@
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(payload)
-        }).then(function (res) { return res.json().then(function (data) { return { res: res, data: data }; }); });
+        }).then(function (res) {
+          return res.json().then(
+            function (data) { return { res: res, data: data }; },
+            function () { throw { code: 'invalid-response' }; }
+          );
+        }, function () { throw { code: 'estimate-network' }; });
       })
       .then(function (out) {
         if (out.res.ok && out.data && out.data.mode === 'out_of_area') {
@@ -1740,7 +1745,11 @@
           ? 'The map service needed to measure driving distance is unavailable right now.'
           : reason === 'directions'
             ? 'Google Maps could not calculate a drivable route between those two addresses.'
-            : 'I could not finish calculating your estimate just now.';
+            : reason === 'estimate-network'
+              ? 'I could not connect to the Nexus estimate service.'
+              : reason === 'invalid-response'
+                ? 'The Nexus estimate service returned a response I could not read.'
+                : 'I could not finish calculating your estimate just now.';
         fillPending(pending, explanation + ' Please check the locations or get an exact quote in the booking app at ' + BOOKING_URL + ', or call ' + MAIN_PHONE + '.');
         endFlow();
       })
