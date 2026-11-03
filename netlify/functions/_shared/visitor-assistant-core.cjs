@@ -95,6 +95,7 @@ const STOPWORDS = new Set((
 ).split(' '));
 
 const PLACE_ALIASES = [
+  { entry: 'area-maryland', label: 'Maryland', names: ['maryland'] },
   { entry: 'area-montgomery-county', label: 'Montgomery County', names: ['montgomery county', 'clarksburg', 'rockville', 'bethesda', 'gaithersburg', 'germantown', 'silver spring'] },
   { entry: 'area-annapolis', label: 'Annapolis and Anne Arundel County', names: ['annapolis', 'anne arundel'] },
   { entry: 'area-dc', label: 'Washington, DC', names: ['washington dc', 'washington, dc', 'district of columbia', 'in dc', 'to dc'] },
@@ -178,6 +179,22 @@ function entryById(id) {
 
 function scoreEntry(entry, questionText, questionTokens) {
   let score = 0;
+  // Canonical-question phrase match. The token scoring below compares
+  // stopword-stripped token sets, which fails exactly on the questions
+  // the knowledge base itself lists: "What services do you offer?"
+  // strips to zero tokens (what/services/do/you/offer are all
+  // stopwords), so the entry written to answer it scored only the
+  // topic bonus and fell under the answer threshold. A visitor asking
+  // an entry's own listed question — verbatim or with extra words
+  // around it — is the strongest possible signal, so match the
+  // normalized phrases directly.
+  const asked = questionText.trim();
+  for (const q of entry.questions) {
+    const canonical = normalize(q);
+    if (canonical && asked === canonical) { score += 10; break; }
+    if (canonical.length >= 12 && asked.length >= 12 &&
+        (asked.includes(canonical) || canonical.includes(asked))) { score += 8; break; }
+  }
   const hay = ' ' + normalize(entry.questions.join(' ') + ' ' + entry.keywords.join(' ') + ' ' + entry.topic) + ' ';
   for (const kw of entry.keywords) {
     const k = normalize(kw);
@@ -240,6 +257,51 @@ function detectCoveredState(question) {
   return null;
 }
 
+// Services-overview intent, matched on the raw normalized text rather
+// than the stopword-stripped tokens: the natural phrasings of this
+// question ("What services do you offer?", "Tell me about your
+// services", "What do you do?") are built almost entirely from words
+// the tokenizer treats as filler, so scored retrieval cannot see
+// them. A question naming a specific service is NOT an overview
+// question, and neither is an availability question.
+const SPECIFIC_SERVICE_TERMS = [
+  'wheelchair', 'stretcher', 'bariatric', 'ambulance', 'dialysis',
+  'shuttle', 'discharge', 'ambulatory', 'livecare', 'live care'
+];
+
+function isServicesOverviewIntent(text) {
+  if (SPECIFIC_SERVICE_TERMS.some(t => text.includes(t))) return false;
+  if (hasAvailabilityIntent(text)) return false;
+  if (/\bwhat (do|does) (you|nexus|the company) (do|offer|provide)\b/.test(text)) return true;
+  if (/\bwhat (services|transportation|rides|options)\b/.test(text) &&
+      /\b(offer|provide|have|available|do|does|are there)\b/.test(text)) return true;
+  if (/\b(tell me|list|show me|describe|explain)\b/.test(text) &&
+      /\b(services|transportation|what you (do|offer)|your rides)\b/.test(text)) return true;
+  if (/\btypes of (rides|transportation|services)\b/.test(text)) return true;
+  if (/\bwhat kind of (rides|transportation|services)\b/.test(text)) return true;
+  if (/^(your |nexus |the )?services$/.test(text)) return true;
+  return false;
+}
+
+// Comparison intent: two or more ride types named with a comparing
+// frame ("difference between", "vs", "or", "which"). Answered from
+// the dedicated comparison entry — composing only the top retrieval
+// hit here would state one side of the difference and drop the other
+// (the second-entry rule only appends a different TOPIC, and every
+// ride-type entry shares the Services topic).
+const COMPARISON_SERVICE_IDS = { wheelchair: 'wheelchair', stretcher: 'stretcher', ambulance: 'ambulance', bariatric: 'bariatric' };
+
+function detectComparison(text) {
+  const named = Object.keys(COMPARISON_SERVICE_IDS).filter(s => text.includes(s));
+  if (/\bdifference between\b/.test(text) && named.length >= 1) {
+    return [...new Set(['wheelchair-vs-stretcher', ...named.map(s => COMPARISON_SERVICE_IDS[s])])];
+  }
+  if (named.length >= 2 && /\b(difference|different|vs|versus|compare|comparison|between|or|which)\b/.test(text)) {
+    return [...new Set(['wheelchair-vs-stretcher', ...named.map(s => COMPARISON_SERVICE_IDS[s])])];
+  }
+  return null;
+}
+
 function composeAnswer(question) {
   const text = normalize(question);
 
@@ -280,6 +342,22 @@ function composeAnswer(question) {
       `Yes — ${coveredState} is within Nexus\u2019s coverage. ` +
       entryById('long-distance').answer + ' ' + BOOKING_CTA;
     return { answer, sources: ['long-distance', 'areas-overview'], mode: 'composed' };
+  }
+
+  // "What services do you offer?" and its natural variants: answered
+  // from the overview entry directly (see isServicesOverviewIntent).
+  if (isServicesOverviewIntent(text)) {
+    const overview = entryById('services-overview');
+    return { answer: overview.answer + ' ' + BOOKING_CTA, sources: ['services-overview'], mode: 'composed' };
+  }
+
+  // "What's the difference between wheelchair and stretcher?":
+  // answered from the comparison entry, with the compared services'
+  // own entries as sources so the model layer sees the same facts.
+  const comparison = detectComparison(text);
+  if (comparison) {
+    const entry = entryById('wheelchair-vs-stretcher');
+    return { answer: entry.answer + ' ' + BOOKING_CTA, sources: comparison, mode: 'composed' };
   }
 
   const hits = retrieve(question);
@@ -380,7 +458,8 @@ const ESTIMATE_TOOL = {
 function modelInstructions() {
   return (
     'You are Nex, the Nexus Medical Transit Virtual Assistant on the company website, continuing a conversation with a visitor. ' +
-    'Answer using ONLY the website information provided below and the results of the estimate_ride tool. ' +
+    'Answer using ONLY the Nexus knowledge base information provided below and the results of the estimate_ride tool. ' +
+    'The knowledge base is authoritative for Nexus services, coverage, hours, and booking, and its general NEMT explanations may be used as written; never add facts about Nexus that are not in it. ' +
     'Rules: never state or estimate a price, fare, rate, or discount except a displayTotal the estimate_ride tool returned in this conversation (or the stored estimate summarized below) — quote it exactly as a rough estimate, never as a final quote; ' +
     'never give a phone number other than (888) 639-5766, (888) 760-4990, or 911; ' +
     'never ask for or repeat personal or medical details; if the provided information does not answer the question, say so and direct the visitor to call (888) 639-5766 or book at https://mynexusride.com; ' +
@@ -423,7 +502,7 @@ async function converseWithModel({ fetchImpl, env, question, history, state, com
   input.push({
     role: 'user',
     content:
-      (context ? `Website information:\n${context}\n\n` : '') +
+      (context ? `Knowledge base information:\n${context}\n\n` : '') +
       (summary ? `Conversation state:\n${summary}\n\n` : '') +
       `Visitor question: ${question}`
   });
