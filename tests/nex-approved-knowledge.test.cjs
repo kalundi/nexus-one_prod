@@ -48,3 +48,44 @@ test('Nex responds naturally to greetings without inventing website facts', asyn
   const service = await assistant.ask('Hi, do you offer wheelchair transportation?', 'service-test');
   assert.notEqual(service.body.mode, 'greeting', 'greetings must not intercept service questions');
 });
+
+test('Nex answers small talk and introductions without a model key', async () => {
+  const { createAssistant } = require('../netlify/functions/_shared/visitor-assistant-core.cjs');
+  const assistant = createAssistant({ env: {} });
+  for (const [question, expected] of [
+    ['Who are you?', /virtual assistant/i],
+    ['How are you?', /ready to help/i],
+    ['What can you do?', /wheelchair/i],
+    ['Okay', /what else/i],
+    ['Goodbye', /Thanks for chatting/i]
+  ]) {
+    const result = await assistant.ask(question, 'social-' + question);
+    assert.equal(result.status, 200, question);
+    assert.equal(result.body.mode, 'conversation', question);
+    assert.match(result.body.answer, expected, question);
+  }
+});
+test('Nex uses recent context for short transport and geographic follow-ups', async () => {
+  const { createAssistant } = require('../netlify/functions/_shared/visitor-assistant-core.cjs');
+  const assistant = createAssistant({ env: {} });
+  const history = [
+    { role: 'user', text: 'Do you offer wheelchair transportation?' },
+    { role: 'assistant', text: 'Yes, Nexus provides wheelchair transportation.' }
+  ];
+  const service = await assistant.ask('What about stretcher?', 'followup-service', { history });
+  assert.equal(service.status, 200);
+  assert.notEqual(service.body.mode, 'fallback');
+  assert.match(service.body.answer, /stretcher/i);
+  const area = await assistant.ask('What about Annapolis?', 'followup-area', { history });
+  assert.equal(area.status, 200);
+  assert.notEqual(area.body.mode, 'fallback');
+  assert.match(area.body.answer, /Annapolis/i);
+  const emergency = await assistant.ask('I have chest pain', 'followup-emergency', { history });
+  assert.equal(emergency.body.mode, 'safety');
+});
+test('Ask Nex keeps bounded in-page memory and never persists it', () => {
+  const page=fs.readFileSync(path.join(__dirname,'../ask-nex.html'),'utf8');
+  assert.match(page,/history:conversation.slice\(-8\)/);
+  assert.match(page,/conversation=conversation.slice\(-8\)/);
+  assert.doesNotMatch(page,/localStorage\.setItem|sessionStorage\.setItem/);
+});
