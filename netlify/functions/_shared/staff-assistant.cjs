@@ -34,6 +34,7 @@ const PENDING_STATUSES = ['SUBMITTED', 'REQUESTED', 'PENDING', 'PENDING_REVIEW',
 const REAL = "(upper(coalesce(b.status,'')) <> 'MOCK' AND upper(coalesce(b.booking_source,'')) NOT IN ('MOCK','DEMO'))";
 const TRIP_COLS = 'b.reference,b.name,b.service,b.pickup,b.destination,b.trip_date,b.trip_time,b.trip_type,b.return_trip_date,b.return_trip_time,b.status,b.driver_name,b.driver_user_id,b.driver_scope_id,b.vehicle_unit,b.facility_id,b.patient_user_id,b.pickup_lat,b.pickup_lng,b.destination_lat,b.destination_lng,b.route_fare_inputs,b.duplicate_of,b.booking_source,b.created_at';
 const NexInsightsChat = require('./nex-insights-chat.cjs');
+const NexInsightReviews = require('./nex-insight-reviews.cjs');
 const ACTION_ROLES = ['DISPATCHER', 'ADMIN'];
 const ROLE_LABELS = {
   ADMIN: 'Admin', DISPATCHER: 'Dispatch', DRIVER: 'Driver', FACILITY: 'Facility',
@@ -753,6 +754,14 @@ function createHandler(deps) {
     proposals.delete(submittedKey); // single-use, whatever happens next
     if (entry.userId !== user.id) return json(403, { error: 'That proposal belongs to a different signed-in user.' });
     if (entry.expires < now()) return json(400, { error: 'That proposal expired (they last about two minutes) — ask me again and I\'ll set it up fresh.' });
+    if(entry.kind==='nex-review'){
+      if(user.role!=='ADMIN')return json(403,{error:'Nex recommendations are administrator-only.'});
+      if(action==='cancel')return json(200,{answer:'No changes made to the recommendation.',mode:'staff',staff:staffEnvelope(user,{})});
+      const updated=await NexInsightReviews.setStatus(query,entry.ref,entry.fields.status,user.id);
+      if(!updated)return json(409,{error:'Recommendation already finalized or not found.'});
+      await audit('NEX_INSIGHT',entry.ref,'NEX_REVIEW_'+updated.status.toUpperCase(),{actor:user.id}).catch(()=>{});
+      return json(200,{answer:'Recommendation #'+entry.ref+' marked '+updated.status+'. No changes were published to the Nex knowledge base.',mode:'staff',staff:staffEnvelope(user,{})});
+    }
     if (!ACTION_ROLES.includes(user.role)) return json(403, { error: 'Your role can\'t make assignment changes.' });
     if (action === 'cancel') {
       await audit('BOOKING', entry.ref, 'ASSISTANT_CANCELLED', { actor: user.id, role: user.role, kind: entry.kind }).catch(() => {});
@@ -1159,6 +1168,30 @@ function createHandler(deps) {
     if (/^(hi|hello|hey|good (morning|afternoon|evening))\b[^?]*$/i.test(question) && question.length < 40) {
       const opener = await roleOpener(user, today);
       return json(200, { answer: opener.greeting, mode: 'staff', staff: staffEnvelope(user, state), chips: opener.chips });
+    }
+
+    const reviewAction=question.match(/\\b(?:mark|set|flag)\\s+(?:Nex\\s+)?(?:recommendation|suggestion|review)\\s*#?(\\d{1,15})\\s+(?:as\\s+)?(reviewed|dismissed)\\b/i);
+    const reviewQuery=/\\b(?:Nex\\s+)?(?:recommendation|suggestion|review)\\s*(?:queue|list|items?|pending)\\b|\\b(?:pending|saved)\\s+(?:Nex\\s+)?(?:recommendations|suggestions)\\b/i.test(question);
+    if(reviewAction||reviewQuery){
+      if(user.role!=='ADMIN')return staffReply(user,state,'Nex recommendation reviews are restricted to administrators.');
+      try{
+        if(reviewAction){
+          const item=await NexInsightReviews.get(query,reviewAction[1]);
+          if(!item)return staffReply(user,state,'That Nex recommendation was not found.');
+          if(item.status!=='pending')return staffReply(user,state,'Recommendation #'+item.id+' is already '+item.status+'.');
+          const status=reviewAction[2].toLowerCase();
+          const summary='Mark Nex recommendation #'+item.id+' '+status+' (review only; this will NOT publish any website knowledge)';
+          const token=issueProposal(user,{kind:'nex-review',ref:String(item.id),fields:{status},summary});
+          return staffReply(user,state,summary+'. Use the Confirm button to finish.',{proposal:{token,kind:'nex-review',ref:String(item.id),summary}});
+        }
+        const items=await NexInsightReviews.list(query,10);
+        const pending=items.filter(x=>x.status==='pending');
+        return staffReply(user,state,pending.length?
+          'Pending Nex recommendations: '+pending.map(x=>'#'+x.id+' ('+x.period_days+'-day report)').join(', ')+'. Ask me to mark a specific recommendation reviewed or dismissed; I will ask for confirmation.':
+          'No pending Nex recommendations among the latest saved items. Open Nex Insights in Admin Apps to generate or review drafts.');
+      }catch{
+        return staffReply(user,state,'The Nex review queue is unavailable. Verify that the review database migration has deployed.');
+      }
     }
 
     // Existing authenticated staff-chat session controls access; no request-body role is trusted.
