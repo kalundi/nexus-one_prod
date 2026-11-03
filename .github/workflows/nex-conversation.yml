@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - 'ask-nex.html'
+      - 'visitor-assistant.js'
       - 'netlify/functions/_shared/visitor-*.cjs'
       - 'netlify/functions/_shared/nex-*'
       - 'netlify/functions/nex-insights.cjs'
@@ -19,6 +20,7 @@ on:
       - 'database/migrations/*nex*'
       - 'admin-apps.js'
       - 'tests/nex-approved-knowledge.test.cjs'
+      - 'tests/nex-social-content.test.cjs'
       - 'tests/nex-intent-insights.test.cjs'
       - 'tests/nex-ai-suggestions.test.cjs'
       - 'tests/nex-insights-chat.test.cjs'
@@ -64,6 +66,8 @@ jobs:
           node --check netlify/functions/_shared/nex-insights-chat.cjs
           node --check netlify/functions/_shared/nex-insight-reviews.cjs
           node --check netlify/functions/_shared/nex-knowledge-drafts.cjs
+          node --check netlify/functions/_shared/nex-social-content.cjs
+          node --check visitor-assistant.js
           node --check netlify/functions/nex-knowledge-drafts.cjs
           node --check nex-knowledge-editor.js
           node --check netlify/functions/nex-insights.cjs
@@ -84,6 +88,8 @@ jobs:
           NODE
       - name: Test reviewed website knowledge and natural conversation
         run: node --test --test-reporter=spec tests/nex-approved-knowledge.test.cjs
+      - name: Test curated Nex booking and social links
+        run: node --test --test-reporter=spec tests/nex-social-content.test.cjs
       - name: Test private Nex intent analytics
         run: node --test --test-reporter=spec tests/nex-intent-insights.test.cjs
       - name: Test AI insight safeguards
