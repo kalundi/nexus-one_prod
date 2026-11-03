@@ -1325,8 +1325,9 @@ test('Nex placement: right-side variant is opt-in and left remains the default',
   assert.match(widgetSrc, /\.nvaBubble\.nvaRight\{[^}]*left:auto;right:64px/, 'the right welcome bubble sits beside the right tab');
   assert.match(widgetSrc, /\.nvaBubble\.nvaRight:before\{[^}]*right:-7px/, 'the right bubble arrow is mirrored');
   assert.match(platformSrc, /var optedIn=!!\(window\.NEXUS_VISITOR_ASSISTANT && window\.NEXUS_VISITOR_ASSISTANT\.enabled\);/, 'the loader reads the page opt-in');
-  assert.match(platformSrc, /appSurface\.test\(location\.pathname\) && !optedIn/, 'app surfaces stay excluded without the opt-in');
+  assert.match(platformSrc, /utilityPage\.test\(location\.pathname\) && !optedIn/, 'only the password and test-payment utility pages stay excluded without the opt-in');
   assert.doesNotMatch(platformSrc, /staffOrApp/, 'staff and back-office pages no longer exclude Nex (staff mode rollout)');
+  assert.doesNotMatch(platformSrc, /appSurface/, 'app pages no longer exclude Nex (everywhere rollout)');
   assert.ok(facilityHtml.indexOf("window.NEXUS_VISITOR_ASSISTANT={enabled:true,side:'right'}") < facilityHtml.indexOf('/platform.js'), 'facility.html sets the opt-in before platform.js loads');
 
   const left = loadWelcomeWidget({});

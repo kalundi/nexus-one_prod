@@ -5,11 +5,11 @@
  * Apart from the session-only welcome flag described below, the widget
  * keeps nothing: conversation lives in page memory only, and addresses
  * typed for a rough estimate are sent to the visitor-estimate function
- * for that calculation alone — never stored. Loaded on public pages by
- * the delimited loader block at the end of platform.js. Staff/back-office
- * surfaces stay excluded unless the page explicitly opts in by setting
- * window.NEXUS_VISITOR_ASSISTANT before platform.js runs; the facility
- * portal uses that opt-in and asks for the right-side placement below.
+ * for that calculation alone — never stored. Loaded by the delimited
+ * loader block at the end of platform.js (the driver and patient apps
+ * include this script directly, since they don't load platform.js).
+ * The facility portal opts into the right-side placement by setting
+ * window.NEXUS_VISITOR_ASSISTANT before platform.js runs.
  *
  * Entry welcome: on the first page view of a browser session, after a
  * short beat (1.5s, once the page is usable), a welcome bubble appears
@@ -46,6 +46,13 @@
  * estimate flow, or the welcome state. If keyboard focus is inside the
  * panel when it closes, focus returns to the Ask Nex tab; reopening
  * scrolls to the latest message.
+ *
+ * Surfaces: the widget loads on every Nexus page. Public and staff
+ * pages use the edge drawer (left by default, right in the facility
+ * portal); the three app pages (booking, patient, driver) use the
+ * compact app format described at APP_PAGE below. Signed-in users
+ * are answered by the API's staff assistant in their role; guests
+ * get the public answers, unchanged.
  *
  * Rough estimates: a price question (or the cost chip) starts a short
  * guided flow — pickup, drop-off, ride type, one way / round trip,
@@ -163,6 +170,12 @@
     ? window.NEXUS_VISITOR_ASSISTANT
     : {};
   var WIDGET_SIDE = WIDGET_CONFIG.side === 'right' ? 'right' : 'left';
+  // App pages (booking app, patient app, driver app) carry their own
+  // bottom navigation bars, so Nex switches to a compact app format
+  // there: a round button floating above the app's bar and the panel
+  // as a bottom sheet that never covers it. Same widget, same Nex —
+  // only the placement changes.
+  var APP_PAGE = /\/(driver-app|patient|booking-app)(\.html)?$/i.test((window.location && window.location.pathname) || '');
 
   var CSS = [
     '.nvaTab,.nvaPanel,.nvaPanel *{box-sizing:border-box}',
@@ -203,6 +216,16 @@
     '.nvaBubble.nvaRight:before{left:auto;right:-7px;border-left:0;border-bottom:0;border-right:1px solid #6e8ca3;border-top:1px solid #6e8ca3}',
     '.nvaPanel.nvaRight{left:auto;right:0;border-left:1px solid #d7e2e9;border-right:0;border-radius:22px 0 0 22px;box-shadow:-24px 30px 80px rgba(8,47,73,.30);transform:translate(112%,0)}',
     '.nvaPanel.nvaRight.open{transform:translate(0,0)}',
+    /* App format: the tab is a 52px round button floating above the
+       app's own bottom bar (never covering it or primary actions),
+       and the panel opens as a bottom sheet ending above that bar. */
+    '.nvaTab.nvaApp{left:12px;top:auto;bottom:84px;width:52px;height:52px;padding:0;border-radius:50%;flex-direction:row;justify-content:center;transform:none}',
+    '.nvaTab.nvaApp .nvaTabLabel{display:none}',
+    '.nvaTab.nvaApp .nvaTabAvatar{width:40px;height:40px}',
+    '.nvaTab.nvaApp.open{transform:none;opacity:0;pointer-events:none}',
+    '.nvaBubble.nvaApp{left:12px;top:auto;bottom:148px;transform:translateY(8px)}',
+    '.nvaBubble.nvaApp.show{transform:translateY(0)}',
+    '.nvaPanel.nvaApp{top:auto;bottom:84px;left:12px;height:min(560px,calc(100dvh - 180px));width:min(380px,calc(100vw - 24px));border:1px solid #d7e2e9;border-radius:22px;box-shadow:0 24px 60px rgba(8,47,73,.35)}',
     '.nvaHead{position:relative;display:flex;align-items:center;gap:11px;background:linear-gradient(126deg,#071f37 0%,#0d365b 56%,#0e5c8c 100%);color:#fff;padding:14px 56px 13px 16px}',
     '.nvaAvatar{width:46px;height:46px;border-radius:50%;object-fit:cover;background:#fff;border:2px solid rgba(255,255,255,.55);flex:none}',
     '.nvaHeadText{min-width:0}',
@@ -355,6 +378,11 @@
     tab.classList.add('nvaRight');
     panel.classList.add('nvaRight');
     bubble.classList.add('nvaRight');
+  }
+  if (APP_PAGE) {
+    tab.classList.add('nvaApp');
+    panel.classList.add('nvaApp');
+    bubble.classList.add('nvaApp');
   }
 
   // Separate polite announcer for the welcome: the bubble appearing

@@ -347,11 +347,10 @@ test('drivers and patients cannot run assignment actions', async () => {
   } finally { await db.close(); }
 });
 
-test('widget surface: loader enables Nex on staff pages, app surfaces stay for PR 2, no idle-close anywhere', () => {
+test('widget surface: loader enables Nex on staff pages, no idle-close anywhere', () => {
   const platform = fs.readFileSync('platform.js', 'utf8');
   assert.doesNotMatch(platform, /data-backoffice-workspace/);
   assert.doesNotMatch(platform, /staffOrApp/);
-  assert.match(platform, /driver-app\|patient\|booking-app/); // app surfaces still excluded in PR 1
   const widget = fs.readFileSync('visitor-assistant.js', 'utf8');
   assert.match(widget, /STAFF_ENDPOINT = '\/api\/assistant\/ask'/);
   assert.match(widget, /STAFF_CONFIRM_ENDPOINT = '\/api\/assistant\/confirm'/);
