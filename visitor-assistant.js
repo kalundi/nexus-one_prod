@@ -36,8 +36,8 @@
  *
  * Closing and session persistence: the open panel closes only when
  * the visitor closes it — with its X button, the tab again, Escape,
- * or a pointer press anywhere outside the panel/tab/bubble (except
- * inside an open host-page dialog or aria-modal). There is no
+ * or Escape. Clicking outside the chat does not close it, so users
+ * can compose without accidental dismissal. There is no
  * inactivity auto-close: an earlier 15-second idle timer was removed
  * outright (Nov 2, 2026) after it kept closing the panel on a visitor
  * mid-conversation, however narrowly the gating around it was drawn.
@@ -579,7 +579,6 @@
     tab.classList.toggle('open', open);
     tab.setAttribute('aria-expanded', String(open));
     if (open) {
-      outsidePressPanelFocus = false;
       // Opening Nex — by tab, bubble, or keyboard — settles the entry
       // welcome for the session, so it never pops over the chat.
       settleWelcome(true);
@@ -626,36 +625,8 @@
     else setOpen(true);
   });
   panel.querySelector('.nvaClose').addEventListener('click', closePanel);
-  // An outside press closes on the click that completes it, not on
-  // pointerdown: the browser moves focus out of the panel during
-  // pointerdown (to the pressed control, or to the body for a bare
-  // area), which would undo a focus return made that early. Whether
-  // focus was inside the panel is therefore recorded at pointerdown
-  // and honored when the click lands.
-  var outsidePressPanelFocus = false;
-  document.addEventListener('pointerdown', function (e) {
-    if (!panel.classList.contains('open')) return;
-    var target = e && e.target;
-    if (!target) return;
-    if (panel.contains(target)) { outsidePressPanelFocus = false; return; }
-    if (tab.contains(target) || bubble.contains(target)) { outsidePressPanelFocus = false; return; }
-    if (eventInsideHostModal(target)) { outsidePressPanelFocus = false; return; }
-    try {
-      outsidePressPanelFocus = Boolean(document.activeElement && panel.contains(document.activeElement));
-    } catch (err) {
-      outsidePressPanelFocus = false;
-    }
-  }, true);
-  document.addEventListener('click', function (e) {
-    if (!panel.classList.contains('open')) return;
-    var target = e && e.target;
-    if (!target) return;
-    if (panel.contains(target) || tab.contains(target) || bubble.contains(target)) { outsidePressPanelFocus = false; return; }
-    if (eventInsideHostModal(target)) { outsidePressPanelFocus = false; return; }
-    var restoreFocus = outsidePressPanelFocus;
-    outsidePressPanelFocus = false;
-    closePanel(restoreFocus);
-  }, true);
+  // Only deliberate controls close Nex. Background page clicks must not
+  // dismiss the drawer while a visitor is composing a message.
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
     if (panel.classList.contains('open')) { closePanel(); return; }
