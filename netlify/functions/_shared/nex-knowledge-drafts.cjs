@@ -24,7 +24,9 @@ async function save(queryFn,{reviewId,question,answer,source,actor}){
   candidate(question,answer,source,actor);
   if(!/^\d{1,15}$/.test(String(reviewId)))throw bad('Invalid review identifier');
   const r=await queryFn(
-    "INSERT INTO nex_knowledge_drafts(review_id,question,answer,source,created_by,updated_by) SELECT id,$2,$3,$4,$5,$5 FROM nex_insight_reviews WHERE id=$1 AND status='reviewed' RETURNING id,review_id,question,answer,source,state,revision",
+    "WITH inserted AS (INSERT INTO nex_knowledge_drafts(review_id,question,answer,source,created_by,updated_by) SELECT id,$2,$3,$4,$5,$5 FROM nex_insight_reviews WHERE id=$1 AND status='reviewed' RETURNING *) "+
+    ",history AS (INSERT INTO nex_knowledge_draft_history(draft_id,revision,question,answer,source,state,changed_by) SELECT id,revision,question,answer,source,state,$5 FROM inserted RETURNING id) "+
+    "SELECT id,review_id,question,answer,source,state,revision FROM inserted",
     [String(reviewId),String(question).trim(),String(answer).trim(),String(source).trim(),String(actor)]);
   if(!r.rows[0])throw bad('Review recommendation must be marked reviewed before drafting',409);
   return r.rows[0];
