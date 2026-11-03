@@ -1,6 +1,7 @@
 (()=>{'use strict';
  const apps=[
  ['Administration','Users, settings and system management','admin.html','ADMIN'],
+ ['Enterprise Directory','People, facilities, organizations, and business relationships','enterprise.html','ADMIN'],
  ['Dispatch','Schedule and manage transportation','dispatch.html','ADMIN'],
  ['DriveFlex dispatch','DriveFlex transportation operations','driveflex-dispatch.html','ADMIN'],
  ['Driver','Driver trips and vehicle updates','driver-app.html','ADMIN'],
