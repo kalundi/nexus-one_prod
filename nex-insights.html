@@ -8,6 +8,7 @@
 <p>Anonymous intent patterns from real Nex questions. No raw chat messages, personal details, IPs or transcripts are stored in this analytics feature.</p>
 <label for="range">Reporting period</label> <select id="range"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select>
 <button id="refresh" type="button">Refresh</button><p id="status" role="status">Loading…</p>
+<section class="card" style="padding:18px;margin:16px 0" aria-label="Nex integration readiness"><h2>Integration readiness</h2><p id="databaseStatus">Checking database migration…</p><p id="aiConfigStatus">Checking OpenAI configuration…</p><p id="latestRecordStatus">Checking event collection…</p></section>
 <section aria-label="Overview" style="display:flex;gap:16px;flex-wrap:wrap"><div class="card" style="padding:20px;flex:1">Questions analyzed<strong id="total" style="display:block;font-size:2em">—</strong></div><div class="card" style="padding:20px;flex:1">Unanswered<strong id="unanswered" style="display:block;font-size:2em">—</strong></div><div class="card" style="padding:20px;flex:1">Emergency routing<strong id="emergencies" style="display:block;font-size:2em">—</strong></div></section>
 <section class="card" style="padding:20px;margin-top:20px"><h2>Customer intent</h2><ul id="intents"></ul></section>
 <section class="card" style="padding:20px;margin-top:20px"><h2>Unanswered question patterns</h2><p>Recognized business keywords only; proposed knowledge updates require human approval.</p><ul id="gaps"></ul></section>
