@@ -1170,8 +1170,8 @@ function createHandler(deps) {
       return json(200, { answer: opener.greeting, mode: 'staff', staff: staffEnvelope(user, state), chips: opener.chips });
     }
 
-    const reviewAction=question.match(/\\b(?:mark|set|flag)\\s+(?:Nex\\s+)?(?:recommendation|suggestion|review)\\s*#?(\\d{1,15})\\s+(?:as\\s+)?(reviewed|dismissed)\\b/i);
-    const reviewQuery=/\\b(?:Nex\\s+)?(?:recommendation|suggestion|review)\\s*(?:queue|list|items?|pending)\\b|\\b(?:pending|saved)\\s+(?:Nex\\s+)?(?:recommendations|suggestions)\\b/i.test(question);
+    const reviewAction=question.match(/\b(?:mark|set|flag)\s+(?:Nex\s+)?(?:recommendation|suggestion|review)\s*#?(\d{1,15})\s+(?:as\s+)?(reviewed|dismissed)\b/i);
+    const reviewQuery=/\b(?:Nex\s+)?(?:recommendation|suggestion|review)\s*(?:queue|list|items?|pending)\b|\b(?:pending|saved)\s+(?:Nex\s+)?(?:recommendations|suggestions)\b/i.test(question);
     if(reviewAction||reviewQuery){
       if(user.role!=='ADMIN')return staffReply(user,state,'Nex recommendation reviews are restricted to administrators.');
       try{
