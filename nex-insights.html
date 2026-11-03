@@ -20,5 +20,24 @@
 <button id="refreshReviews" type="button">Refresh review queue</button>
 <p id="reviewStatus" role="status">Loading review queue…</p>
 <div id="reviewItems" aria-live="polite"></div></section>
+<section class="card" style="padding:20px;margin-top:20px" aria-labelledby="knowledgeDraftTitle">
+<h2 id="knowledgeDraftTitle">Nex knowledge approval workspace</h2>
+<p>Draft answers from reviewed recommendations. Every claim must be checked against the selected Nexus website page. Approval does not publish the answer; publication requires a separate reviewed GitHub change.</p>
+<form id="knowledgeDraftForm" style="display:grid;gap:10px;max-width:760px">
+<label for="knowledgeReviewId">Reviewed recommendation number</label>
+<input id="knowledgeReviewId" type="number" min="1" required placeholder="e.g. 12">
+<label for="knowledgeQuestion">Customer question</label>
+<textarea id="knowledgeQuestion" rows="2" minlength="12" maxlength="400" required></textarea>
+<label for="knowledgeAnswer">Approved-source answer</label>
+<textarea id="knowledgeAnswer" rows="5" minlength="25" maxlength="2200" required></textarea>
+<label for="knowledgeSource">Verified Nexus page</label><select id="knowledgeSource" required></select>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><button id="knowledgePreview" type="button">Preview and validate</button><button type="submit">Save draft</button><button id="knowledgeRefresh" type="button">Refresh drafts</button></div>
+</form>
+<p id="knowledgeStatus" role="status">Loading knowledge workspace…</p>
+<div id="knowledgePreviewArea" aria-live="polite"></div>
+<h3>Saved drafts and approvals</h3><div id="knowledgeDraftList"></div>
+<p>Publishing: export an approved entry, submit the change to the version-controlled Nex approved-knowledge JSON, run tests, and merge the GitHub pull request. No automatic publication or silent edits.</p>
+</section>
+<script src="/nex-knowledge-editor.js" defer></script>
 <p>Scope: Public visitor-assistant requests only. Staff assistant chats and booking form details are not collected. Analytics collection depends on database availability and migration.</p>
 </main><script src="/platform.js"></script></body></html>
