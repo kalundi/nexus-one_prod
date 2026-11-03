@@ -27,6 +27,7 @@ on:
       - 'netlify/functions/_shared/staff-assistant.cjs'
       - 'tests/nex-dashboard-auth.test.cjs'
       - 'tests/nex-conversation.spec.cjs'
+      - 'tests/nex-link-punctuation.test.cjs'
       - 'tests/nex-admin.spec.cjs'
       - 'tests/nex-authorization-contract.test.cjs'
       - 'tests/visitor-assistant.test.cjs'
@@ -100,6 +101,8 @@ jobs:
         run: node --test --test-reporter=spec tests/nex-insights-chat.test.cjs
       - name: Test Nex Directions retry and estimate errors
         run: node --test --test-reporter=spec tests/nex-estimate-directions.test.cjs
+      - name: Test Nex link punctuation in estimate answers
+        run: node --test --test-reporter=spec tests/nex-link-punctuation.test.cjs
       - name: Test existing Nex assistant behavior
         run: node --test --test-reporter=spec tests/visitor-assistant.test.cjs
   browser:
