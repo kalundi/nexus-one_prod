@@ -87,3 +87,27 @@ test('in-flight reset does not restore old answer',async({page})=>{
  await page.waitForTimeout(280);
  await expect(page.locator('.message')).toHaveCount(0);
 });
+
+
+test('booking explanation links to vetted Nexus resources and rejects fake social links',async({page})=>{
+ await page.route('**/.netlify/functions/visitor-assistant',route=>route.fulfill({
+  status:200,contentType:'application/json',
+  body:JSON.stringify({
+   answer:'Provide pickup, destination, appointment date and mobility needs; then request your ride.',
+   mode:'composed',sources:['booking-how'],
+   relatedContent:[
+    {id:'booking',kind:'guide',title:'Book a ride with Nexus',url:'https://mynexusride.com'},
+    {id:'youtube',kind:'social-channel',title:'Nexus on YouTube',url:'https://www.youtube.com/@nexus_m_t'},
+    {id:'fake',kind:'video',title:'Fake video',url:'https://youtube.com.evil.example/watch?v=x'}
+   ]
+  })
+ }));
+ await page.goto('/ask-nex.html');
+ await page.getByLabel('Ask a question about Nexus Medical Transit').fill('How does your booking work?');
+ await page.getByRole('button',{name:'Ask Nex'}).click();
+ await expect(page.locator('.message.assistant')).toContainText('Provide pickup');
+ await expect(page.locator('.related-content a')).toHaveCount(2);
+ await expect(page.locator('.related-content')).not.toContainText('Fake video');
+ await expect(page.locator('.related-content a').first()).toHaveAttribute('href','https://mynexusride.com/');
+ await expect(page.locator('.related-content a').nth(1)).toHaveAttribute('rel','noopener noreferrer');
+});
