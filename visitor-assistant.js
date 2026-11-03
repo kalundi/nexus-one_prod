@@ -417,8 +417,14 @@
 
   function renderText(text) {
     var safe = escapeHtml(text);
-    safe = safe.replace(/https:\/\/[^\s<]+/g, function (url) {
-      return '<a href="' + url + '" target="_blank" rel="noopener">' + url.replace('https://', '') + '</a>';
+    safe = safe.replace(/https:\/\/[^\s<]+/g, function (matched) {
+      // Prose punctuation is not part of the URL: e.g. mynexusride.com, or
+      // mynexusride.com. A trailing comma previously caused a broken booking link.
+      var url = matched.replace(/[.,!?;:]+$/g, '');
+      var punctuation = matched.slice(url.length);
+      if (!url) return matched;
+      return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' +
+        url.replace('https://', '') + '</a>' + punctuation;
     });
     safe = safe.replace(/\(888\) 639-5766/g, '<a href="tel:+18886395766">(888) 639-5766</a>');
     safe = safe.replace(/\(888\) 760-4990/g, '<a href="tel:+18887604990">(888) 760-4990</a>');
