@@ -11,7 +11,8 @@ function isInsightsQuery(text){
 }
 function daysFromQuestion(text){
  const q=String(text||'');
- const match=q.match(/\b(?:last|past|previous|over)\s+(\d{1,3})\s+days?\b/i);
+ const normalized=q.replace(/\b(seven|thirty|ninety|one)\b/gi,word=>({seven:'7',thirty:'30',ninety:'90',one:'1'})[word.toLowerCase()]);
+ const match=normalized.match(/\b(?:last|past|previous|over|for(?: the)?)\s+(\d{1,3})\s+days?\b/i);
  if(match)return Math.max(1,Math.min(90,Number(match[1])));
  if(/\b(?:today|24 hours?)\b/i.test(q))return 1;
  if(/\b(?:this|last|past)\s+week\b/i.test(q))return 7;

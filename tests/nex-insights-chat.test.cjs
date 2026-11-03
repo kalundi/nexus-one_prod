@@ -12,6 +12,9 @@ test('recognizes everyday questions about Nex performance',()=>{
 });
 test('reporting date windows are bounded and conversational',()=>{
  assert.equal(daysFromQuestion('Show Nex analytics from the past 7 days'),7);
+ assert.equal(daysFromQuestion('Show unanswered customer questions from the past seven days'),7);
+ assert.equal(daysFromQuestion('Show Nex stats over ninety days'),90);
+ assert.equal(daysFromQuestion('Report for the past thirty days'),30);
  assert.equal(daysFromQuestion('How many customer questions today?'),1);
  assert.equal(daysFromQuestion('Show Nex stats over 100 days'),90);
  assert.equal(daysFromQuestion('Any recent insights?'),30);
