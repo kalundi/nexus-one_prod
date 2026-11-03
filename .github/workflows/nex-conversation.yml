@@ -1,5 +1,6 @@
 name: Nex conversational integration
 on:
+  workflow_dispatch:
   push:
     branches: [feature/nex-approved-knowledge-integration]
   pull_request:
@@ -17,45 +18,66 @@ permissions:
   contents: read
 jobs:
   unit:
+    name: Nex unit / syntax
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Validate page script syntax
+          node-version: '22'
+      - name: Check source syntax
+        run: |
+          node --version
+          node --check netlify/functions/_shared/visitor-assistant-core.cjs
+          node --check netlify/functions/_shared/nex-reviewed-knowledge.cjs
+          node --check tests/nex-approved-knowledge.test.cjs
+      - name: Check Ask Nex page JavaScript
         run: |
           node - <<'NODE'
           const fs=require('node:fs'),vm=require('node:vm');
           const html=fs.readFileSync('ask-nex.html','utf8');
           const script=html.match(/<script>([\s\S]*?)<\/script>/i);
           if(!script) throw Error('Missing Ask Nex script');
-          new vm.Script(script[1]);
+          new vm.Script(script[1],{filename:'ask-nex.html'});
+          console.log('Ask Nex script syntax OK');
           NODE
-      - name: Nex knowledge and conversation unit tests
-        run: |
-          node --test tests/nex-approved-knowledge.test.cjs
-          node --test tests/visitor-assistant.test.cjs
+      - name: Test reviewed website knowledge and natural conversation
+        run: node --test --test-reporter=spec tests/nex-approved-knowledge.test.cjs
+      - name: Test existing Nex assistant behavior
+        run: node --test --test-reporter=spec tests/visitor-assistant.test.cjs
   browser:
+    name: Playwright ${{ matrix.browser }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium-desktop, mobile-webkit]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
-      - name: Desktop and mobile Nex Playwright tests
-        run: npx playwright test --config playwright.nex.config.cjs
-      - name: Upload failure traces and screenshots
-        if: failure()
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browser and OS dependencies
+        run: |
+          if [ "${{ matrix.browser }}" = "mobile-webkit" ]; then
+            npx playwright install --with-deps webkit
+          else
+            npx playwright install --with-deps chromium
+          fi
+      - name: Run browser tests
+        run: npx playwright test --config playwright.nex.config.cjs --project "${{ matrix.browser }}" --workers=1
+      - name: Save Playwright results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nex-playwright-report
+          name: nex-playwright-${{ matrix.browser }}
           path: |
             playwright-report/
             test-results/
+          if-no-files-found: ignore
           retention-days: 7
