@@ -49,3 +49,13 @@ test('Nex distinguishes map outage from route failure without leaking raw API er
  assert.match(code,/map service needed to measure driving distance/);
  assert.match(code,/Google Maps could not calculate a drivable route/);
 });
+
+
+test('API connection and malformed response failures are identified separately',()=>{
+ assert.match(code,/code: 'estimate-network'/);
+ assert.match(code,/code: 'invalid-response'/);
+ assert.match(code,/reason === 'estimate-network'/);
+ assert.match(code,/reason === 'invalid-response'/);
+ assert.match(code,/I could not connect to the Nexus estimate service/);
+ assert.match(code,/estimate service returned a response I could not read/);
+});
