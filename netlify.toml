@@ -163,6 +163,12 @@
   to = "/driveflex-dispatch.html"
   status = 200
 
+# Dedicated public Nex question-and-answer page.
+[[redirects]]
+  from = "/ask-nex"
+  to = "/ask-nex.html"
+  status = 200
+
 # Explicit page redirects — must come BEFORE the catch-all so /fleet loads fleet.html (not React index)
 [[redirects]]
   from = "/livecare"
