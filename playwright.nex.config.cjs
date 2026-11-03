@@ -1,7 +1,7 @@
 const {defineConfig,devices}=require('@playwright/test');
 module.exports=defineConfig({
   testDir:'./tests',
-  testMatch:'nex-conversation.spec.cjs',
+  testMatch:['nex-conversation.spec.cjs','nex-admin.spec.cjs'],
   timeout:30000,
   expect:{timeout:7000},
   fullyParallel:true,
