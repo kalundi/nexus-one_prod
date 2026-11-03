@@ -14,7 +14,8 @@
  * the conversation (the last rough estimate and recent turns), used
  * to answer follow-ups about the same trip; they are sanitized in
  * _shared/visitor-conversation.cjs, used for this request only, and
- * never logged or stored. No database.
+ * never logged or stored. An independent analytics table records only
+ * coarse intent categories and approved keyword tags, never message text.
  *
  * Works without any AI credentials (deterministic follow-ups +
  * retrieval + composed answers); if VISITOR_ASSISTANT_API_KEY /
@@ -26,6 +27,8 @@
 
 const { json, parseBody } = require('./_shared/http.cjs');
 const { createAssistant } = require('./_shared/visitor-assistant-core.cjs');
+const { query } = require('./_shared/db.cjs');
+const NexInsights = require('./_shared/nex-intent-insights.cjs');
 
 const assistant = createAssistant({});
 
@@ -42,6 +45,8 @@ exports.handler = async (event) => {
     }
     const body = parseBody(event);
     const result = await assistant.ask(body.question, clientIp(event), { state: body.state, history: body.history });
+    // Save only coarse, non-identifying intent signals; logging failures never block chat.
+    await NexInsights.store(query, body.question, result).catch(() => {});
     return json(result.status, result.body);
   } catch (error) {
     return json(Number(error.statusCode || 500), {

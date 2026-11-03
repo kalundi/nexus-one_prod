@@ -21,6 +21,7 @@
  ['KeyMark','KeyMark operations workspace','keymark.html','ADMIN'],
  ['Secure documents','Protected document workspace','secure-documents.html','ADMIN'],
  ['Training','Staff learning and certifications','training.html','ADMIN'],
+ ['Nex insights','Anonymous customer intent patterns and unanswered questions','nex-insights.html','ADMIN'],
  ['System health','Background monitoring and issue reports','admin-maintenance.html','ADMIN']
  ];
  let ready=false,busy=false;

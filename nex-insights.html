@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Nex Insights | Nexus Medical Transit</title>
+<style>html{visibility:hidden}body{visibility:hidden}</style>
+<link rel="stylesheet" href="/platform.css?v=66"><link rel="stylesheet" href="/responsive.css?v=5">
+<script src="/auth-guard.js"></script><script src="/nex-insights.js" defer></script></head>
+<body class="nexusStaff"><main class="shell" style="max-width:1050px;margin:40px auto;padding:20px">
+<a href="/admin-apps.html">← Admin workspaces</a><h1>Nex Conversation Intelligence</h1>
+<p>Anonymous intent patterns from real Nex questions. No raw chat messages, personal details, IPs or transcripts are stored in this analytics feature.</p>
+<label for="range">Reporting period</label> <select id="range"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select>
+<button id="refresh" type="button">Refresh</button><p id="status" role="status">Loading…</p>
+<section aria-label="Overview" style="display:flex;gap:16px;flex-wrap:wrap"><div class="card" style="padding:20px;flex:1">Questions analyzed<strong id="total" style="display:block;font-size:2em">—</strong></div><div class="card" style="padding:20px;flex:1">Unanswered<strong id="unanswered" style="display:block;font-size:2em">—</strong></div><div class="card" style="padding:20px;flex:1">Emergency routing<strong id="emergencies" style="display:block;font-size:2em">—</strong></div></section>
+<section class="card" style="padding:20px;margin-top:20px"><h2>Customer intent</h2><ul id="intents"></ul></section>
+<section class="card" style="padding:20px;margin-top:20px"><h2>Unanswered question patterns</h2><p>Recognized business keywords only; proposed knowledge updates require human approval.</p><ul id="gaps"></ul></section>
+<section class="card" style="padding:20px;margin-top:20px"><h2>Most frequent transportation concepts</h2><ul id="terms"></ul></section>
+<p>Scope: Public visitor-assistant requests only. Staff assistant chats and booking form details are not collected. Analytics collection depends on database availability and migration.</p>
+</main><script src="/platform.js"></script></body></html>

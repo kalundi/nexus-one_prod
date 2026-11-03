@@ -8,7 +8,14 @@ on:
       - 'ask-nex.html'
       - 'netlify/functions/_shared/visitor-*.cjs'
       - 'netlify/functions/_shared/nex-*'
+      - 'netlify/functions/nex-insights.cjs'
+      - 'netlify/functions/visitor-assistant.cjs'
+      - 'nex-insights.html'
+      - 'nex-insights.js'
+      - 'admin-apps.js'
+      - 'database/migrations/*nex*'
       - 'tests/nex-approved-knowledge.test.cjs'
+      - 'tests/nex-intent-insights.test.cjs'
       - 'tests/nex-conversation.spec.cjs'
       - 'tests/visitor-assistant.test.cjs'
       - 'playwright.nex.config.cjs'
@@ -40,6 +47,9 @@ jobs:
         run: |
           node --version
           node --check netlify/functions/_shared/visitor-assistant-core.cjs
+          node --check netlify/functions/_shared/nex-intent-insights.cjs
+          node --check netlify/functions/nex-insights.cjs
+          node --check nex-insights.js
           node --check netlify/functions/_shared/nex-reviewed-knowledge.cjs
           node --check tests/nex-approved-knowledge.test.cjs
       - name: Check Ask Nex page JavaScript
@@ -54,6 +64,8 @@ jobs:
           NODE
       - name: Test reviewed website knowledge and natural conversation
         run: node --test --test-reporter=spec tests/nex-approved-knowledge.test.cjs
+      - name: Test private Nex intent analytics
+        run: node --test --test-reporter=spec tests/nex-intent-insights.test.cjs
       - name: Test existing Nex assistant behavior
         run: node --test --test-reporter=spec tests/visitor-assistant.test.cjs
   browser:
