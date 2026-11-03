@@ -135,6 +135,21 @@
 
   var ENDPOINT = '/.netlify/functions/visitor-assistant';
   var ESTIMATE_ENDPOINT = '/.netlify/functions/visitor-estimate';
+  // Staff mode: when a Nexus session token exists in sessionStorage,
+  // questions go to the API's assistant route with the Authorization
+  // header, and the server answers in the signed-in user's role
+  // (dispatch board, own trips, facility trips, confirmed actions).
+  // The token's presence here only chooses the URL — the server
+  // re-verifies the session on every request. Without a token this
+  // widget behaves exactly as the public assistant always has.
+  var STAFF_ENDPOINT = '/api/assistant/ask';
+  var STAFF_CONFIRM_ENDPOINT = '/api/assistant/confirm';
+  function staffAuthValue() {
+    try { return window.sessionStorage.getItem('nexusAccessToken') || ''; } catch (err) { return ''; }
+  }
+  var staffActive = false;
+  var staffState = null;
+  var staffChipLabels = null;
   var BOOKING_URL = 'https://mynexusride.com';
   var MAIN_PHONE = '(888) 639-5766';
   var MAIN_PHONE_HREF = 'tel:+18886395766';
@@ -262,11 +277,22 @@
     '.nvaEstLabel{display:block;font:800 12px/1.3 Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#3d5a70}',
     '.nvaEstTotal{display:block;font:800 27px/1.15 Manrope,sans-serif;color:#082f49;margin:2px 0}',
     '.nvaEstMeta{display:block;font:600 13.5px/1.45 "Source Sans 3",sans-serif;color:#12212e}',
+    /* Staff-mode proposal card: an exact change Nex is offering to
+       make for a signed-in user. Nothing is saved until Confirm is
+       tapped; the buttons carry the same 44px target discipline as
+       the rest of the panel. */
+    '.nvaProposal{display:block;background:#f2f7fb;border:1px solid #6e8ca3;border-left:5px solid #9f0f0f;border-radius:10px;padding:10px 12px;margin:0 0 9px}',
+    '.nvaProposalText{margin:0 0 8px;font:600 14px/1.45 "Source Sans 3",sans-serif;color:#12212e}',
+    '.nvaProposalActions{display:flex;gap:8px;flex-wrap:wrap}',
+    '.nvaProposalConfirm,.nvaProposalCancel{min-height:44px;padding:8px 16px;border-radius:10px;font:800 14px Manrope,sans-serif;cursor:pointer}',
+    '.nvaProposalConfirm{border:2px solid #690505;background:#9f0f0f;color:#fff}',
+    '.nvaProposalCancel{border:1px solid #6e8ca3;background:#fff;color:#082f49}',
+    '.nvaProposalConfirm:disabled,.nvaProposalCancel:disabled{opacity:.55;cursor:wait}',
     /* Visible keyboard focus on every control (WCAG 2.4.7): a solid
        ring in the brand mid-blue on light surfaces; on the dark
        controls a white ring backed by a blue halo, so the indicator
        keeps 3:1 against both the control and what surrounds it. */
-    '.nvaChip:focus-visible,.nvaCall:focus-visible,.nvaInput:focus-visible,.nvaMsg a:focus-visible,.nvaEstActions a:focus-visible,.nvaPanel .nvaBookBtn:focus-visible{outline:3px solid #0e5c8c;outline-offset:2px}',
+    '.nvaChip:focus-visible,.nvaCall:focus-visible,.nvaInput:focus-visible,.nvaMsg a:focus-visible,.nvaEstActions a:focus-visible,.nvaProposalConfirm:focus-visible,.nvaProposalCancel:focus-visible,.nvaPanel .nvaBookBtn:focus-visible{outline:3px solid #0e5c8c;outline-offset:2px}',
     '.nvaTab:focus-visible,.nvaClose:focus-visible,.nvaSend:focus-visible{outline:3px solid #ffffff;outline-offset:2px;box-shadow:0 0 0 6px #0e5c8c}',
     '/* Full height at every width: the drawer always spans 100dvh. */',
     '@media (prefers-reduced-motion:reduce){.nvaPanel,.nvaTab,.nvaBubble{transition:none!important}.nvaTypingGif{display:none}.nvaBubbleAvatar{display:none}}'
@@ -532,12 +558,18 @@
       var reopening = greeted;
       if (!greeted) {
         greeted = true;
-        addMessage(
-          greetingOverride || ('Hi, I\u2019m Nex \u2014 the Nexus Medical Transit Virtual Assistant. I answer questions using the information on this website: our services, service areas, hours, booking, pricing estimates and availability, and LiveCare tracking. ' + COST_PROMPT),
-          'bot'
-        );
-        greetingOverride = null;
-        log.scrollTop = 0; // greet from the top; later messages scroll down
+        if (!greetingOverride && staffAuthValue()) {
+          // Signed in: the server greets this user in their role
+          // (their board, their next trip). Any failure falls back
+          // to the public greeting, so the panel never opens empty.
+          var greetPending = showTyping();
+          log.scrollTop = 0;
+          fetchStaffGreeting(greetPending);
+        } else {
+          addMessage(greetingOverride || publicGreetingText(), 'bot');
+          greetingOverride = null;
+          log.scrollTop = 0; // greet from the top; later messages scroll down
+        }
       } else if (reopening) {
         log.scrollTop = log.scrollHeight; // resume at the latest message
       }
@@ -788,6 +820,103 @@
       if (data.followup.which) pendingFollowupAddress = data.followup;
       else pendingAddressClarify = true;
     }
+    if (data.staff) {
+      staffActive = true;
+      if (data.staff.state) staffState = data.staff.state;
+      setStaffIndicator(data.staff);
+    }
+    if (data.proposal) renderProposalCard(data.proposal);
+  }
+
+  function setStaffIndicator(staff) {
+    var roleEl = panel.querySelector('.nvaRole');
+    if (roleEl && staff) {
+      roleEl.textContent = '\u00B7 ' + (staff.roleLabel || staff.role || '') + (staff.displayName ? ' \u2014 ' + staff.displayName : '');
+    }
+    var subEl = panel.querySelector('.nvaHeadText p');
+    if (subEl && staff) {
+      subEl.innerHTML = 'Signed in as ' + escapeHtml(staff.roleLabel || staff.role || '') + '. Emergencies: <strong>call 911</strong>.';
+    }
+  }
+
+  function publicGreetingText() {
+    return 'Hi, I\u2019m Nex \u2014 the Nexus Medical Transit Virtual Assistant. I answer questions using the information on this website: our services, service areas, hours, booking, pricing estimates and availability, and LiveCare tracking. ' + COST_PROMPT;
+  }
+
+  // Signed-in first open: ask the server for the user's own greeting
+  // (their board, their next trip, what needs them). Falls back to
+  // the public greeting on any failure so the panel never opens empty.
+  function fetchStaffGreeting(pendingMsg) {
+    var authHdr = staffAuthValue();
+    fetch(STAFF_ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + authHdr },
+      body: JSON.stringify({ greeting: true, staffState: staffState })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j || {} }; }); })
+      .then(function (out) {
+        var d = out.data;
+        if (out.ok && d.mode === 'staff' && d.greeting) {
+          staffActive = true;
+          if (d.staff) {
+            if (d.staff.state) staffState = d.staff.state;
+            setStaffIndicator(d.staff);
+          }
+          if (Array.isArray(d.chips) && d.chips.length) staffChipLabels = d.chips;
+          fillPending(pendingMsg, d.greeting);
+          renderChips();
+        } else {
+          fillPending(pendingMsg, publicGreetingText());
+        }
+      })
+      .catch(function () { fillPending(pendingMsg, publicGreetingText()); });
+  }
+
+  // A confirmed-change card. Confirm/Cancel POST the single-use
+  // token to the staff confirm route under the user's own session;
+  // the buttons disable immediately so a double tap can't double-send.
+  function renderProposalCard(proposal) {
+    var card = document.createElement('div');
+    card.className = 'nvaProposal';
+    var text = document.createElement('p');
+    text.className = 'nvaProposalText';
+    text.textContent = proposal.summary || 'Proposed change';
+    card.appendChild(text);
+    var row = document.createElement('div');
+    row.className = 'nvaProposalActions';
+    var confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'nvaProposalConfirm';
+    confirmBtn.textContent = 'Confirm';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'nvaProposalCancel';
+    cancelBtn.textContent = 'Cancel';
+    row.appendChild(confirmBtn);
+    row.appendChild(cancelBtn);
+    card.appendChild(row);
+    log.appendChild(card);
+    log.scrollTop = log.scrollHeight;
+    function settle(action) {
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      var authHdr = staffAuthValue();
+      fetch(STAFF_CONFIRM_ENDPOINT, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + authHdr },
+        body: JSON.stringify({ token: proposal.token, action: action })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { status: r.status, data: j || {} }; }); })
+        .then(function (out) {
+          if (out.data.staff && out.data.staff.state) staffState = out.data.staff.state;
+          if (out.data.answer) addMessage(out.data.answer, 'bot');
+          else if (out.data.error) addMessage(out.data.error, 'bot');
+          else addMessage('Something went wrong with that change \u2014 nothing was saved.', 'bot');
+        })
+        .catch(function () { addMessage('I couldn\u2019t reach the server to finish that \u2014 nothing was changed.', 'bot'); });
+    }
+    confirmBtn.addEventListener('click', function () { settle('confirm'); });
+    cancelBtn.addEventListener('click', function () { settle('cancel'); });
   }
 
   function ask(question) {
@@ -800,13 +929,17 @@
     input.value = '';
     var pending = showTyping();
     var startedAt = Date.now();
-    fetch(ENDPOINT, {
+    var authHdr = staffAuthValue();
+    var askHeaders = { 'content-type': 'application/json' };
+    if (authHdr) askHeaders.authorization = 'Bearer ' + authHdr;
+    fetch(authHdr ? STAFF_ENDPOINT : ENDPOINT, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: askHeaders,
       body: JSON.stringify({
         question: q,
         state: lastEstimate ? { lastEstimate: lastEstimate } : null,
-        history: chatHistory.slice(0, -1)
+        history: chatHistory.slice(0, -1),
+        staffState: authHdr ? staffState : undefined
       })
     })
       .then(function (res) { return res.json().then(function (data) { return { res: res, data: data }; }); })
@@ -885,8 +1018,12 @@
         action: function () { suggestionsHidden = false; renderChips(); }
       }];
     } else if (!flow) {
-      defs = [COST_PROMPT, 'What services do you offer?', 'What areas do you serve?', 'What are your hours?', 'How does booking work?']
-        .map(function (q) { return { label: q, action: function () { handleUserText(q); } }; });
+      if (staffActive && staffChipLabels && staffChipLabels.length) {
+        defs = staffChipLabels.map(function (q) { return { label: q, action: function () { handleUserText(q); } }; });
+      } else {
+        defs = [COST_PROMPT, 'What services do you offer?', 'What areas do you serve?', 'What are your hours?', 'How does booking work?']
+          .map(function (q) { return { label: q, action: function () { handleUserText(q); } }; });
+      }
     } else if (flow.step === 'placePickup' || flow.step === 'placeDropoff') {
       var placeWhich = flow.step === 'placePickup' ? 'pickup' : 'dropoff';
       defs = (flow.placeOptions || []).map(function (p) {
@@ -1620,6 +1757,11 @@
       return;
     }
     if (flow) { addMessage(q, 'user'); advanceFlow(q); return; }
+    // Staff mode: the server owns intent for signed-in users (board,
+    // duty, own trips, actions) — skip the public estimate routing.
+    // The estimate flow can't be active here (opening it clears staff
+    // mode routing only by starting a flow, handled above).
+    if (staffActive) { ask(q); return; }
     if (pendingAddressClarify) {
       // The assistant asked "pickup or drop-off?" for an address
       // change; read the reply as "<end>, <address>" (address may

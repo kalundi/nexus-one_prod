@@ -388,6 +388,12 @@ const SERVICE_VEHICLE_PREFS={
  broda:          ['WV-254-01','SH-254-01'],
  hospital_discharge:        ['SE-254-01','SUV-254-01','WV-254-01'],
 };
+// Nex staff mode: role-aware assistant for signed-in users. Role and
+// scope come only from the caller's DB session; action execution is
+// routed back through this same handler (invokeApi) so the bookings
+// PATCH / auto-assign endpoints validate under the caller's own
+// session exactly as they do for the trip editor.
+const handleStaffAssistant=require('./_shared/staff-assistant.cjs').createHandler({query,requireUser,bearer,json,parseBody,audit,mapBooking,readPlatformSettings,serviceVehiclePrefs:SERVICE_VEHICLE_PREFS,resolveServicePolicyKey,caretakerListTrips:require('./_shared/caretaker-access.cjs').listTrips,invokeApi:async(invokeEvent)=>handler(invokeEvent)});
 function fuelPreferenceUnits(booking,settings,prefs){
  const requested=NexusFare.resolveBookingInputs(mapBooking(booking),settings).fuelProfile;
  if(!requested)return prefs;
@@ -2196,6 +2202,7 @@ async function handler(event){
   const p=routePath(event),method=event.httpMethod;
   if(p[0]==='admin'&&p[1]==='actors')return await require('./_shared/enterprise-actors.cjs').createHandler({query,getPool,requireUser,bearer,json,parseBody})(event,p,method);
   if(p[0]==='facility-portal')return await handleFacilityPortal(event,p,method);
+  if(p[0]==='assistant')return await handleStaffAssistant(event,p,method);
   if(p.join('/')==='auth/login'&&method==='POST'&&String(parseBody(event).email||'').trim().toLowerCase()===DemoAccount.EMAIL)return await handleFacilityDemo(event,['facility-demo','login'],method);
   const maintenanceResponse=await handleMaintenance(event,p,method);
   if(maintenanceResponse)return maintenanceResponse;
