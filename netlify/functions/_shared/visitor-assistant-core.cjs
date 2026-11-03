@@ -302,6 +302,47 @@ function detectComparison(text) {
   return null;
 }
 
+// Small-talk and short follow-ups are handled before model retrieval so
+// visitors get a useful answer even when no model API key is configured.
+function conversationalReply(question, history) {
+  const text = normalize(question);
+  if (/^(?:who are you|what is your name|what's your name|are you a bot|are you ai|are you human)[?.!' ]*$/.test(text)) {
+    return 'I’m Nex, the virtual assistant for Nexus Medical Transit. I can explain our transportation services and help you find booking and ride-tracking information.';
+  }
+  if (/^(?:how are you|how's it going|how are things)[?.!' ]*$/.test(text)) {
+    return 'Thanks for asking! I’m here and ready to help. Are you looking for information about a ride or about Nexus services?';
+  }
+  if (/^(?:what can you do|how can you help|help|help me|what do you know)[?.!' ]*$/.test(text)) {
+    return 'I can answer questions about wheelchair, stretcher, ambulatory, and ambulance transportation; service areas; booking; and ride tracking. I can also help you start a rough ride estimate. What would you like to know?';
+  }
+  if (/^(?:ok|okay|got it|sounds good|great|awesome|cool|alright)[!.' ]*$/.test(text)) {
+    return 'Absolutely. What else would you like to know about Nexus transportation?';
+  }
+  if (/^(?:bye|goodbye|see you|talk later)[!.' ]*$/.test(text)) {
+    return 'Thanks for chatting with Nex! You’re welcome back whenever you have another transportation question.';
+  }
+  return null;
+}
+function contextualQuestion(question, history) {
+  const text = normalize(question);
+  const last = [...history].reverse().find(t => t.role === 'user' && t.text);
+  if (!last) return question;
+  // Only expand an explicitly named transportation service; never carry
+  // addresses or free-form personal information forward.
+  const bare = text.match(/^(?:(?:and|what about|how about) )?(wheelchair|stretcher|ambulatory|ambulance|bariatric)(?: (?:transportation|rides?))?[?.!' ]*$/);
+  if (bare) return 'Do you offer ' + bare[1] + ' transportation?';
+  const places = ['annapolis', 'bethesda', 'rockville', 'frederick', 'germantown',
+    'silver spring', 'gaithersburg', 'montgomery county', 'maryland',
+    'northern virginia', 'alexandria', 'arlington', 'washington dc'];
+  const location = text.replace(/^(?:and|what about|how about) /, '').replace(/[?.!]+$/, '').trim();
+  if (!places.includes(location)) return question;
+  const prev = normalize(last.text);
+  if (!/(ride|transport|service|cover|operate|pickup|pick up)/.test(prev)) return question;
+  const service = ['wheelchair', 'stretcher', 'ambulatory', 'ambulance', 'bariatric'].find(type => prev.includes(type));
+  if (!service) return 'Does Nexus provide transportation in ' + location + '?';
+  return 'Do you offer ' + service + ' transportation in ' + location + '?';
+}
+
 function composeAnswer(question) {
   const text = normalize(question);
 
@@ -722,7 +763,11 @@ function createAssistant({ fetchImpl = fetch, env = process.env, now = Date.now,
       } catch { /* fall through to the composed answer */ }
     }
 
-    const composed = composeAnswer(clean);
+    // Keep social turns grounded and avoid sending them to the model.
+    const social = conversationalReply(clean, history);
+    if (social) return { status: 200, body: { answer: social, sources: [], mode: 'conversation', state } };
+    const groundedQuestion = contextualQuestion(clean, history);
+    const composed = composeAnswer(groundedQuestion);
     let answer = composed.answer;
     let mode = composed.mode;
     let estimateBody = null;
