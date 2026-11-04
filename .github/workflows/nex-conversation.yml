@@ -76,6 +76,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install Node dependencies for Nex tests
+        run: npm ci
       - name: Check source syntax
         run: |
           node --version
