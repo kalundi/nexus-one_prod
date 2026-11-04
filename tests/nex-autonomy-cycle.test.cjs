@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {PAGES,scan,normalizePage,digest}=require('../netlify/functions/_shared/nex-site-watch.cjs');
-const {utcWeek,suggestGaps}=require('../netlify/functions/_shared/nex-gap-watch.cjs');
+const {utcWeek,suggestGaps,suggestWeekly}=require('../netlify/functions/_shared/nex-gap-watch.cjs');
 const {guidance}=require('../netlify/functions/_shared/nex-workflow-guides.cjs');
 const {index,recommendations}=require('../netlify/functions/_shared/nex-media-index.cjs');
 const {relatedFor}=require('../netlify/functions/_shared/nex-social-content.cjs');
@@ -97,9 +97,15 @@ test('daily cycle saves only check statuses and never publishes approved FAQs',a
    throw Error('Unexpected query');
   },
   fetchImpl:async()=>response(textPage),
-  logger:{warn:()=>{}}
+  logger:{warn:()=>{}},env:{}
  });
  assert.equal(result.status,'healthy');
  assert.ok(saved);
  assert.doesNotMatch(JSON.stringify(saved),/patient|pickup address|individual conversation/i);
+});
+
+test('weekly AI briefing remains disabled without explicit protected configuration',async()=>{
+ const output=await suggestWeekly(async()=>{throw Error('No SQL or AI calls permitted');},{env:{},fetchImpl:()=>{throw Error('No external AI request permitted');}});
+ assert.equal(output.status,'disabled');
+ assert.equal(output.created,0);
 });
