@@ -52,7 +52,7 @@ function relatedFor(question,sources=[],catalog=CATALOG){
  const targeted=selected.filter(x=>x.kind==='video'||x.kind==='social-post');
  const guide=selected.find(x=>x.kind==='guide');
  const profile=selected.find(x=>x.kind==='social-channel');
- const items=targeted.length ? [...targeted.slice(0,2),...(guide?[guide]:[])].slice(0,3)
+ const items=targeted.length ? [...targeted.slice(0,1),...(guide?[guide]:[]),...(profile?[profile]:[])].slice(0,3)
    : [guide,profile].filter(Boolean);
  return items.map(x=>({id:x.id,kind:x.kind,platform:x.platform||null,title:x.title,url:x.url,steps:topic==='booking'&&x.kind==='video'?[...BOOKING_STEPS]:undefined}));
 }
