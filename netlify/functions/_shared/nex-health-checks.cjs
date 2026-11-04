@@ -13,7 +13,7 @@ function timeoutFetch(fetchImpl,ms){
  return async function(url,opts={}){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),ms);
-  try{return await fetchImpl(url,{...opts,signal:controller.signal,redirect:'follow'});}
+  try{return await fetchImpl(url,{...opts,signal:controller.signal,redirect:'manual'});}
   finally{clearTimeout(timer);}
  };
 }
@@ -21,7 +21,7 @@ function isAllowedBase(value){
  try{
   const u=new URL(value);
   return u.protocol==='https:' && !u.username && !u.password &&
-    (u.hostname==='nexusmt.com'||u.hostname==='www.nexusmt.com'||u.hostname.endsWith('.netlify.app'));
+    (u.hostname==='nexusmt.com'||u.hostname==='www.nexusmt.com');
  }catch{return false;}
 }
 function checkContentType(headers,kind){
