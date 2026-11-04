@@ -39,7 +39,7 @@ async function fetchPage(path,{fetchImpl=fetch,timeoutMs=8000,baseUrl='https://n
 async function scan({queryFn,fetchImpl=fetch,baseUrl='https://nexusmt.com'}={}){
  if(typeof queryFn!=='function')throw Error('Database adapter required');
  const checks=[],changes=[];
- for(const path of PAGES){
+ await Promise.all(PAGES.map(async(path)=>{
   try{
    const hash=await fetchPage(path,{fetchImpl,baseUrl});
    const old=await queryFn('SELECT digest FROM nex_autonomy_snapshots WHERE path=$1',[path]);
@@ -69,7 +69,7 @@ async function scan({queryFn,fetchImpl=fetch,baseUrl='https://nexusmt.com'}={}){
   }catch{
    checks.push({id:'website:'+path,ok:false,changed:false});
   }
- }
- return {checks,changes,scanned:PAGES.length};
+ }));
+ return {checks:checks.sort((a,b)=>a.id.localeCompare(b.id)),changes:changes.sort((a,b)=>a.path.localeCompare(b.path)),scanned:PAGES.length};
 }
 module.exports={PAGES,normalizePage,digest,fetchPage,scan};
