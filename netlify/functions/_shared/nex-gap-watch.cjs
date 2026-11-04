@@ -21,9 +21,10 @@ async function suggestGaps(queryFn,clock=new Date()){
   const sig='gap:'+utcWeek(clock)+':'+terms.join(',');
   const text='Nex received '+count+' unanswered questions in the past 7 days containing the recognized topic labels '+terms.join(', ')+'. Review approved Nexus public pages and consider a new verified FAQ or an intent-recognition improvement. These are question counts, not people, confirmed trips or validated demand. Human approval and separate publication are required.';
   const r=await queryFn(
-   "WITH signal AS (INSERT INTO nex_autonomy_signals(signal_key) VALUES($1) ON CONFLICT DO NOTHING RETURNING signal_key), "+
-   "review AS (INSERT INTO nex_insight_reviews(created_by,period_days,suggestion) SELECT 'nex-gap-watch',7,$2 FROM signal RETURNING id), "+
-   "linked AS (UPDATE nex_autonomy_signals SET review_id=(SELECT id FROM review) WHERE signal_key=(SELECT signal_key FROM signal) RETURNING review_id) SELECT review_id FROM linked",
+   "WITH review AS (INSERT INTO nex_insight_reviews(created_by,period_days,suggestion) "+
+   "SELECT 'nex-gap-watch',7,$2 WHERE NOT EXISTS (SELECT 1 FROM nex_autonomy_signals WHERE signal_key=$1) RETURNING id), "+
+   "signal AS (INSERT INTO nex_autonomy_signals(signal_key,review_id) SELECT $1,id FROM review ON CONFLICT DO NOTHING RETURNING review_id) "+
+   "SELECT review_id FROM signal",
    [sig,text]);
   if(r.rows.length)created++;
  }
