@@ -30,7 +30,7 @@ test('invalid monitor base is rejected to avoid untrusted outbound fetch',async(
  assert.equal(isAllowedBase('http://nexusmt.com'),false);
  assert.equal(isAllowedBase('https://nexusmt.com.evil.com'),false);
  assert.equal(isAllowedBase('https://user:pass@nexusmt.com'),false);
- assert.equal(isAllowedBase('https://example.netlify.app'),true);
+ assert.equal(isAllowedBase('https://example.netlify.app'),false);
  const result=await run({baseUrl:'https://nexusmt.com.evil.com',fetchImpl:()=>{throw Error('must not fetch');}});
  assert.equal(result.status,'degraded');
  assert.ok(result.checks.some(x=>x.id==='site-base-config'&&!x.ok));
