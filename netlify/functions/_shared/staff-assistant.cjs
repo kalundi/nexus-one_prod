@@ -35,6 +35,7 @@ const REAL = "(upper(coalesce(b.status,'')) <> 'MOCK' AND upper(coalesce(b.booki
 const TRIP_COLS = 'b.reference,b.name,b.service,b.pickup,b.destination,b.trip_date,b.trip_time,b.trip_type,b.return_trip_date,b.return_trip_time,b.status,b.driver_name,b.driver_user_id,b.driver_scope_id,b.vehicle_unit,b.facility_id,b.patient_user_id,b.pickup_lat,b.pickup_lng,b.destination_lat,b.destination_lng,b.route_fare_inputs,b.duplicate_of,b.booking_source,b.created_at';
 const NexInsightsChat = require('./nex-insights-chat.cjs');
 const NexInsightReviews = require('./nex-insight-reviews.cjs');
+const {isPublicIntent}=require('./nex-public-role-intent.cjs');
 const ACTION_ROLES = ['DISPATCHER', 'ADMIN'];
 const ROLE_LABELS = {
   ADMIN: 'Admin', DISPATCHER: 'Dispatch', DRIVER: 'Driver', FACILITY: 'Facility',
@@ -1204,6 +1205,10 @@ function createHandler(deps) {
         return staffReply(user, state, 'Nex analytics are temporarily unavailable. Check the authenticated Nex Insights dashboard or ask an administrator to review the deployment.');
       }
     }
+
+    // All signed-in roles inherit visitor knowledge; protected staff requests
+    // continue through authenticated role- and scope-checked handlers.
+    if (isPublicIntent(question, state)) return handlePublicFallback(event, user, body);
 
     const knowledge = siteKnowledgeAnswer(user, state, question);
     if (knowledge) return knowledge;

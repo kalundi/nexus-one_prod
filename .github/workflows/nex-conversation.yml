@@ -29,6 +29,9 @@ on:
       - 'netlify/functions/_shared/staff-assistant.cjs'
       - 'tests/nex-dashboard-auth.test.cjs'
       - 'tests/nex-conversation.spec.cjs'
+      - 'tests/nex-click-outside-preserve-session.test.cjs'
+      - 'tests/nex-staff-estimate-routing.test.cjs'
+      - 'tests/nex-public-role-inheritance.test.cjs'
       - 'tests/nex-link-punctuation.test.cjs'
       - 'tests/nex-admin.spec.cjs'
       - 'tests/nex-authorization-contract.test.cjs'
@@ -65,6 +68,7 @@ jobs:
           node --check netlify/functions/_shared/nex-intent-insights.cjs
           node --check netlify/functions/_shared/nex-ai-suggestions.cjs
           node --check netlify/functions/_shared/nex-insights-chat.cjs
+          node --check netlify/functions/_shared/nex-public-role-intent.cjs
           node --check netlify/functions/_shared/nex-insight-reviews.cjs
           node --check netlify/functions/_shared/nex-knowledge-drafts.cjs
           node --check netlify/functions/_shared/nex-social-content.cjs
@@ -109,6 +113,12 @@ jobs:
         run: node --test --test-reporter=spec tests/nex-estimate-directions.test.cjs
       - name: Test Nex link punctuation in estimate answers
         run: node --test --test-reporter=spec tests/nex-link-punctuation.test.cjs
+      - name: Test Nex public content and role permissions
+        run: node --test --test-reporter=spec tests/nex-public-role-inheritance.test.cjs
+      - name: Test Nex estimate for signed-in staff
+        run: node --test --test-reporter=spec tests/nex-staff-estimate-routing.test.cjs
+      - name: Test Nex outside click session preservation
+        run: node --test --test-reporter=spec tests/nex-click-outside-preserve-session.test.cjs
       - name: Test existing Nex assistant behavior
         run: node --test --test-reporter=spec tests/visitor-assistant.test.cjs
   browser:
