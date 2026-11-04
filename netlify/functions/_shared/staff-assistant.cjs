@@ -77,9 +77,16 @@ function createHandler(deps) {
   // untouched when this module is loaded.
   let publicCore = null;
   const publicAsk = deps.publicAsk || (async (event) => {
-    if (!publicCore) publicCore = require('./visitor-assistant-core.cjs').createVisitorAssistant();
-    const res = await publicCore.handler(event);
-    return { statusCode: res.statusCode, body: res.body };
+    // The visitor module exports createAssistant().ask(), not
+    // createVisitorAssistant().handler(). Keep the same public knowledge,
+    // rate limits and follow-up state contract as the anonymous endpoint.
+    if (!publicCore) publicCore = require('./visitor-assistant-core.cjs').createAssistant();
+    const request = JSON.parse(event.body || '{}');
+    const result = await publicCore.ask(request.question, 'signed-in-public', {
+      state: request.state,
+      history: request.history
+    });
+    return { statusCode: result.status, body: JSON.stringify(result.body) };
   });
 
   /* ------------------------------------------------------------ utils */
