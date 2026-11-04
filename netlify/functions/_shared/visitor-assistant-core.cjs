@@ -420,6 +420,17 @@ function contextualQuestion(question, history) {
   return 'Do you offer ' + service + ' transportation in ' + location + '?';
 }
 
+// A booking how-to question should be resolved to the approved FAQ even
+// when the question's exact phrasing is absent from its canonical examples.
+// Avoid treating private reservation lookups, pricing, or staff actions as how-tos.
+function isBookingHowIntent(question) {
+  const t=normalize(question);
+  if (/\b(?:my|our|that|this) (?:trip|ride|booking|reservation)\b/.test(t) &&
+      /\b(?:status|driver|assigned|cancel|change|track|where|when)\b/.test(t)) return false;
+  if (/\b(?:price|pricing|cost|fare|quote|estimate|how much)\b/.test(t)) return false;
+  return /\b(?:how (?:does|do|can|to|is) (?:your |the |nexus |i |we )?(?:booking|book|schedule|reserve|reservation)(?: a | my | the | our )?(?:ride|trip|transportation)?(?: work| process)?|booking (?:work|works|process|steps|procedure)|(?:steps|instructions|process) (?:to|for|of) (?:book|booking|schedule|scheduling)|(?:how|where) (?:do|can) i (?:book|schedule|reserve)|book(?:ing)? (?:a |my |the )?ride (?:online|with nexus)?)\b/.test(t);
+}
+
 function composeAnswer(question) {
   const interpreted = interpretVisitorLanguage(question);
   const text = normalize(interpreted);
@@ -437,6 +448,13 @@ function composeAnswer(question) {
   }
   if (/^(?:thanks|thank you|thank you nex|thanks nex|thx)[!.' ]*$/.test(text)) {
     return { answer: 'You\u2019re welcome! Is there anything else I can help you with?', sources: [], mode: 'courtesy' };
+  }
+
+  // Shared, verified booking guidance across synonymous how-to questions.
+  // This is also the source key used by Nex's curated video recommendations.
+  if (isBookingHowIntent(text)) {
+    const booking = entryById('booking-how');
+    return { answer: booking.answer, sources: ['booking-how'], mode: 'composed' };
   }
 
   // Price questions are pinned to the pricing entry: no retrieval drift,
@@ -895,4 +913,4 @@ function createAssistant({ fetchImpl = fetch, env = process.env, now = Date.now,
   return { ask, aiConnected: Boolean(aiConfig(env).key && aiConfig(env).model) };
 }
 
-module.exports = { createAssistant, composeAnswer, retrieve, guardrailOk, EMERGENCY_ANSWER, FALLBACK_ANSWER };
+module.exports = { createAssistant, composeAnswer, retrieve, isBookingHowIntent, guardrailOk, EMERGENCY_ANSWER, FALLBACK_ANSWER };
