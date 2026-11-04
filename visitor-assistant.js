@@ -1006,7 +1006,7 @@
     cancelBtn.addEventListener('click', function () { settle('cancel'); });
   }
 
-  function ask(question) {
+  function ask(question, publicEstimateFollowup) {
     var q = String(question || '').trim();
     if (!q || busy) return;
     busy = true;
@@ -1019,7 +1019,7 @@
     var authHdr = staffAuthValue();
     var askHeaders = { 'content-type': 'application/json' };
     if (authHdr) askHeaders.authorization = 'Bearer ' + authHdr;
-    fetch(authHdr ? STAFF_ENDPOINT : ENDPOINT, {
+    fetch(publicEstimateFollowup ? ENDPOINT : (authHdr ? STAFF_ENDPOINT : ENDPOINT), {
       method: 'POST',
       headers: askHeaders,
       body: JSON.stringify({
@@ -1109,6 +1109,16 @@
     } else if (!flow) {
       if (staffActive && staffChipLabels && staffChipLabels.length) {
         defs = staffChipLabels.map(function (q) { return { label: q, action: function () { handleUserText(q); } }; });
+        // Signed-in roles inherit public Nex shortcuts alongside role-specific ones.
+        ['What services do you offer?', 'What areas do you serve?', 'How does booking work?'].forEach(function (publicQuestion) {
+          if (!staffChipLabels.some(function (q) { return q.toLowerCase() === publicQuestion.toLowerCase(); })) {
+            defs.push({ label: publicQuestion, action: function () { handleUserText(publicQuestion); } });
+          }
+        });
+        // Staff still have access to the same customer ride quote workflow.
+        if (!staffChipLabels.some(function (q) { return wantsRideEstimate(q); })) {
+          defs.push({ label: 'I need an estimate', action: function () { handleUserText('I need an estimate'); } });
+        }
       } else {
         defs = [COST_PROMPT, 'What services do you offer?', 'What areas do you serve?', 'What are your hours?', 'How does booking work?']
           .map(function (q) { return { label: q, action: function () { handleUserText(q); } }; });
@@ -1856,6 +1866,19 @@
   var EMERGENCY_RE = /\b(911|emergency|hurt|injur|unconscious|not breathing|chest pain|heart attack|stroke|bleed|accident|dying|overdose|choking|seizure|suicide|passed out|collapsed|unresponsive)\b/i;
   var PRICE_RE = /(cost|price|pricing|how much|fare|rates?|charge|quote|fees?|expensive|afford|per mile)|\bestimates?\b/i;
 
+  // Signed-in users must be able to request a *customer ride quote* without
+  // their role-aware Nex misclassifying it as a dispatch-board question.
+  // Do not intercept fleet, payroll, historical pricing or board analytics.
+  function wantsRideEstimate(q) {
+    var t = String(q || '').trim();
+    if (/\b(board|payroll|invoice|revenue|fleet|historical|analytics|performance|budget)\b/i.test(t)) return false;
+    return /\b(?:i (?:need|want|would like)|can (?:i|you)|could you|please|let(?:'s| us)|give me|get me|start|make|calculate|work out|provide)\b.{0,55}\b(?:an?\s+)?(?:rough\s+)?(?:estimate|quote|ride cost|fare estimate)\b/i.test(t) ||
+      /\b(?:estimate|quote|price)\s+(?:a |my |this |the )?(?:ride|trip|transport|transfer)\b/i.test(t) ||
+      /\bhow much (?:would|will|does|do|is|for)\b.{0,65}\b(?:ride|trip|transport|transfer)\b/i.test(t) ||
+      t === COST_PROMPT;
+  }
+
+
   // Narrow client-side mirror of the server's follow-up detection
   // (netlify/functions/_shared/visitor-conversation.cjs). With a
   // priced trip in memory, a message that reads as a one-change
@@ -1897,11 +1920,6 @@
       return;
     }
     if (flow) { addMessage(q, 'user'); advanceFlow(q); return; }
-    // Staff mode: the server owns intent for signed-in users (board,
-    // duty, own trips, actions) — skip the public estimate routing.
-    // The estimate flow can't be active here (opening it clears staff
-    // mode routing only by starting a flow, handled above).
-    if (staffActive) { ask(q); return; }
     if (pendingAddressClarify) {
       // The assistant asked "pickup or drop-off?" for an address
       // change; read the reply as "<end>, <address>" (address may
@@ -1916,9 +1934,18 @@
         if (!addr) addMessage('Got it \u2014 what\u2019s the new ' + (whichC === 'pickup' ? 'pickup' : 'drop-off') + ' address? A street address with city and state works, or a place name like \u201cCostco in Germantown\u201d.', 'bot');
         return;
       }
-      ask(q);
+      ask(q, Boolean(lastEstimate));
       return;
     }
+    // Explicit ride estimates are a shared customer-facing capability,
+    // including for signed-in admins, dispatchers and other staff.
+    // Keep staff role/session state intact when opening the wizard.
+    // A stored quote's change requests must reach the public repricing engine,
+    // not the dispatch-board assistant (which cannot re-price trips).
+    if (lastEstimate && looksLikeFollowUp(q)) { ask(q, true); return; }
+    if (wantsRideEstimate(q)) { addMessage(q, 'user'); startEstimateFlow(); return; }
+    // All other staff requests retain authenticated, role-aware routing.
+    if (staffActive) { ask(q); return; }
     if (looksLikeFollowUp(q)) { ask(q); return; }
     if (PRICE_RE.test(q)) { addMessage(q, 'user'); startEstimateFlow(); return; }
     ask(q);
