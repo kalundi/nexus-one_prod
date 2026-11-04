@@ -36,6 +36,7 @@ const TRIP_COLS = 'b.reference,b.name,b.service,b.pickup,b.destination,b.trip_da
 const NexInsightsChat = require('./nex-insights-chat.cjs');
 const NexInsightReviews = require('./nex-insight-reviews.cjs');
 const {isPublicIntent}=require('./nex-public-role-intent.cjs');
+const {guidance:workflowGuidance}=require('./nex-workflow-guides.cjs');
 const ACTION_ROLES = ['DISPATCHER', 'ADMIN'];
 const ROLE_LABELS = {
   ADMIN: 'Admin', DISPATCHER: 'Dispatch', DRIVER: 'Driver', FACILITY: 'Facility',
@@ -1213,6 +1214,11 @@ function createHandler(deps) {
         return staffReply(user, state, 'Nex analytics are temporarily unavailable. Check the authenticated Nex Insights dashboard or ask an administrator to review the deployment.');
       }
     }
+
+    // Permissioned informational guidance only: never executes a booking or
+    // assignment and never grants operations outside the authenticated role.
+    const guided=workflowGuidance(question,user.role);
+    if(guided)return staffReply(user,state,guided.answer+' Open '+guided.page+' for the next step.');
 
     // All signed-in roles inherit visitor knowledge; protected staff requests
     // continue through authenticated role- and scope-checked handlers.
