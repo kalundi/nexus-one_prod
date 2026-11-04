@@ -58,10 +58,11 @@ async function scan({queryFn,fetchImpl=fetch,baseUrl='https://nexusmt.com'}={}){
    // One CTE links a unique content revision to a pending human review item.
    const suggestion='Public website page '+path+' changed since its last checked version. Review the page against existing Nex FAQ answers, service policies and linked tutorial media. Verify facts before drafting or publishing any updates.';
    const row=await queryFn(
-    "WITH changed AS (INSERT INTO nex_autonomy_changes(path,previous_digest,digest) VALUES($1,$2,$3) ON CONFLICT(path,digest) DO NOTHING RETURNING id), "+
-    "review AS (INSERT INTO nex_insight_reviews(created_by,period_days,suggestion) SELECT 'nex-site-watch',7,$4 FROM changed RETURNING id), "+
-    "linked AS (UPDATE nex_autonomy_changes SET review_id=(SELECT id FROM review) WHERE id=(SELECT id FROM changed) RETURNING id,review_id) "+
-    "SELECT id,review_id FROM linked",
+    "WITH review AS (INSERT INTO nex_insight_reviews(created_by,period_days,suggestion) "+
+    "SELECT 'nex-site-watch',7,$4 WHERE NOT EXISTS (SELECT 1 FROM nex_autonomy_changes WHERE path=$1 AND digest=$3) RETURNING id), "+
+    "changed AS (INSERT INTO nex_autonomy_changes(path,previous_digest,digest,review_id) "+
+    "SELECT $1,$2,$3,id FROM review ON CONFLICT(path,digest) DO NOTHING RETURNING id,review_id) "+
+    "SELECT id,review_id FROM changed",
     [path,previous,hash,suggestion]);
    await queryFn('UPDATE nex_autonomy_snapshots SET digest=$2,checked_at=now(),changed_at=now() WHERE path=$1',[path,hash]);
    if(row.rows.length)changes.push({path,reviewId:row.rows[0].review_id});
