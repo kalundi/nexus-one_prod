@@ -111,3 +111,30 @@ test('booking explanation links to vetted Nexus resources and rejects fake socia
  await expect(page.locator('.related-content a').first()).toHaveAttribute('href','https://mynexusride.com/');
  await expect(page.locator('.related-content a').nth(1)).toHaveAttribute('rel','noopener noreferrer');
 });
+
+
+test('Nex shows narrated booking walkthrough, steps and booking link in conversation',async({page})=>{
+ await page.route('**/.netlify/functions/visitor-assistant',route=>route.fulfill({
+  status:200,contentType:'application/json',body:JSON.stringify({
+   answer:'Enter your pickup, destination, date, time and transportation needs. Nexus confirms availability for your request.',
+   sources:['booking-how'],mode:'composed',
+   relatedContent:[
+    {id:'booking-walkthrough-v6',kind:'video',platform:'Nexus',title:'How to book a Nexus ride — video walkthrough',
+     url:'https://nexusmt.com/assets/nexus-booking-app-walkthrough-v6-narrated.mp4',
+     steps:['Select your service.','Enter pickup and destination.','Provide pickup time.','Submit your booking request.','Follow trip updates.']},
+    {id:'booking-page',kind:'guide',title:'Book a ride with Nexus',url:'https://mynexusride.com'},
+    {id:'youtube-channel',kind:'social-channel',title:'Nexus on YouTube',url:'https://www.youtube.com/@nexus_m_t'}
+   ]
+  })
+ }));
+ await page.goto('/ask-nex.html');
+ await page.getByLabel('Ask a question about Nexus Medical Transit').fill('How does your booking work?');
+ await page.getByRole('button',{name:'Ask Nex'}).click();
+ const reply=page.locator('.message.assistant');
+ await expect(reply.locator('video')).toHaveCount(1);
+ await expect(reply.locator('video')).toHaveAttribute('preload','none');
+ await expect(reply.locator('video source')).toHaveAttribute('src','https://nexusmt.com/assets/nexus-booking-app-walkthrough-v6-narrated.mp4');
+ await expect(reply.locator('.related-steps li')).toHaveCount(5);
+ await expect(reply.locator('a[href="https://mynexusride.com/"]')).toHaveCount(1);
+ await expect(reply.locator('a[href="https://www.youtube.com/@nexus_m_t"]')).toHaveCount(1);
+});
