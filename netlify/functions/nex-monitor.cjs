@@ -8,7 +8,7 @@ function cleanReport(report){
  return {status:report.status,checkedAt:report.checkedAt,
   checks:(report.checks||[]).filter(x=>CHECK_IDS.has(x.id)).map(x=>({id:x.id,ok:x.ok===true}))};
 }
-function makeHandler({runner=run,fetchImpl=fetch,env=process.env,logger=console}={}){
+function makeHandler({runner=run,fetchImpl=fetch,env=process.env,logger=console,queryFn=null}={}){
  return async function handler(){
   let report;
   try{
@@ -17,6 +17,14 @@ function makeHandler({runner=run,fetchImpl=fetch,env=process.env,logger=console}
    report={status:'degraded',checkedAt:new Date().toISOString(),checks:[{id:'site-base-config',ok:false}]};
   }
   const result=cleanReport(report);
+  // Save coded synthetic outcomes for the admin health dashboard. DB
+  // availability is not required for log/alert-based monitoring to operate.
+  try{
+   const write=queryFn||require('./_shared/db.cjs').query;
+   await write('INSERT INTO nex_autonomy_runs(status,checks,changed_pages) VALUES($1,$2::jsonb,0)',[
+    result.status,JSON.stringify(result.checks)
+   ]);
+  }catch{logger.warn('[NEX_MONITOR] health history write unavailable');}
   if(result.status!=='healthy'){
    logger.warn('[NEX_MONITOR] degraded: '+result.checks.filter(x=>!x.ok).map(x=>x.id).join(','));
    const webhook=env.NEX_MONITOR_ALERT_WEBHOOK_URL;
