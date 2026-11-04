@@ -713,8 +713,18 @@
     else setOpen(true);
   });
   panel.querySelector('.nvaClose').addEventListener('click', closePanel);
-  // Only deliberate controls close Nex. Background page clicks must not
-  // dismiss the drawer while a visitor is composing a message.
+  // Tapping outside the panel collapses Nex without clearing the current
+  // page's conversation, draft input, estimate wizard, or signed-in role state.
+  // Pointer events inside the panel (including video playback) are ignored.
+  // We never preventDefault: the outside tap must still reach the underlying UI.
+  document.addEventListener('pointerdown', function (event) {
+    if (!panel.classList.contains('open')) return;
+    var target = event.target;
+    if (!target || panel.contains(target) || tab.contains(target) || bubble.contains(target)) return;
+    if (eventInsideHostModal(target)) return;
+    closePanel(false);
+  }, true);
+  // Escape also closes Nex. Closing never discards conversation state.
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
     if (panel.classList.contains('open')) { closePanel(); return; }
