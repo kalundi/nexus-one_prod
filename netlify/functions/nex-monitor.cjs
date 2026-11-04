@@ -12,7 +12,7 @@ function makeHandler({runner=run,fetchImpl=fetch,env=process.env,logger=console}
  return async function handler(){
   let report;
   try{
-   report=await runner({baseUrl:env.NEX_MONITOR_BASE_URL||env.URL||'https://nexusmt.com',fetchImpl});
+   report=await runner({baseUrl:env.NEX_MONITOR_BASE_URL||'https://nexusmt.com',fetchImpl});
   }catch{
    report={status:'degraded',checkedAt:new Date().toISOString(),checks:[{id:'site-base-config',ok:false}]};
   }
