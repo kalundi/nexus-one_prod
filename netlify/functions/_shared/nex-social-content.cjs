@@ -1,6 +1,7 @@
 'use strict';
 // Public, manually curated Nexus content: never choose search results or AI-invented links.
 // Add specific videos/posts only after verifying the live URL, relevance, and permission.
+const {recommendations:feedMedia}=require('./nex-media-index.cjs');
 const CATALOG=Object.freeze([
  // First-party narrated booking walkthrough, present in this repository and social content feed.
  // Runtime availability is checked by the browser; no unverified social post is claimed.
@@ -46,7 +47,8 @@ function topicFor(question,sources=[]){
 function relatedFor(question,sources=[],catalog=CATALOG){
  const topic=topicFor(question,sources);
  if(!topic)return [];
- const selected=catalog.filter(item=>item.topic===topic && isTrusted(item))
+ const socialFeed=topic==='booking'?[]:feedMedia(topic,1).map(media=>({...media,verified:true,priority:18}));
+ const selected=[...socialFeed,...catalog].filter(item=>item.topic===topic && isTrusted(item))
    .sort((a,b)=>b.priority-a.priority);
  // Specific verified content wins over generic social profiles, with one official booking/service guide.
  const targeted=selected.filter(x=>x.kind==='video'||x.kind==='social-post');

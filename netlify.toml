@@ -59,6 +59,16 @@
 [functions.social-publisher]
   schedule = "0 14 * * *"
 
+# Nex reliability monitor: synthetic public answers and asset checks every 6 hours.
+# Optional NEX_MONITOR_ALERT_WEBHOOK_URL delivers only failed check identifiers.
+# Never invokes authenticated staff or patient endpoints.
+[functions.nex-monitor]
+  schedule = "15 */6 * * *"
+
+# Public website and anonymous intent change detection; human review only.
+[functions.nex-autonomy-cycle]
+  schedule = "35 5 * * *"
+
 # Public visitor Q&A assistant (visitor-qa-bot): HTTP-invoked only, no schedule.
 # Answers from netlify/functions/_shared/visitor-knowledge.cjs. Optional model
 # phrasing activates when VISITOR_ASSISTANT_API_KEY + VISITOR_ASSISTANT_MODEL
