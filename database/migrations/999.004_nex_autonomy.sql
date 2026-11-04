@@ -15,6 +15,11 @@ CREATE TABLE IF NOT EXISTS nex_autonomy_changes (
  review_id bigint REFERENCES nex_insight_reviews(id),
  UNIQUE(path,digest)
 );
+CREATE TABLE IF NOT EXISTS nex_autonomy_signals (
+ signal_key text PRIMARY KEY,
+ raised_at timestamptz NOT NULL DEFAULT now(),
+ review_id bigint REFERENCES nex_insight_reviews(id)
+);
 CREATE TABLE IF NOT EXISTS nex_autonomy_runs (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  run_at timestamptz NOT NULL DEFAULT now(),
@@ -26,7 +31,7 @@ CREATE INDEX IF NOT EXISTS nex_autonomy_runs_time ON nex_autonomy_runs(run_at DE
 CREATE INDEX IF NOT EXISTS nex_autonomy_changes_time ON nex_autonomy_changes(discovered_at DESC);
 DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
-  REVOKE ALL ON nex_autonomy_snapshots,nex_autonomy_changes,nex_autonomy_runs FROM anon;
+  REVOKE ALL ON nex_autonomy_snapshots,nex_autonomy_changes,nex_autonomy_runs,nex_autonomy_signals FROM anon;
  END IF;
  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
   REVOKE ALL ON nex_autonomy_snapshots,nex_autonomy_changes,nex_autonomy_runs FROM authenticated;
