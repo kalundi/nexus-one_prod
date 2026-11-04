@@ -21,6 +21,15 @@ on:
       - 'admin-apps.js'
       - 'tests/nex-approved-knowledge.test.cjs'
       - 'tests/nex-self-monitoring.test.cjs'
+      - 'database/migrations/999.004_nex_autonomy.sql'
+      - 'tests/nex-autonomy-cycle.test.cjs'
+      - 'nex-autonomy-dashboard.js'
+      - 'netlify/functions/_shared/nex-media-index.cjs'
+      - 'netlify/functions/_shared/nex-workflow-guides.cjs'
+      - 'netlify/functions/_shared/nex-gap-watch.cjs'
+      - 'netlify/functions/_shared/nex-site-watch.cjs'
+      - 'netlify/functions/nex-autonomy-status.cjs'
+      - 'netlify/functions/nex-autonomy-cycle.cjs'
       - 'netlify/functions/nex-monitor.cjs'
       - 'netlify/functions/_shared/nex-health-checks.cjs'
       - 'netlify.toml'
@@ -80,6 +89,14 @@ jobs:
           node --check netlify/functions/_shared/nex-social-content.cjs
           node --check netlify/functions/_shared/nex-health-checks.cjs
           node --check netlify/functions/nex-monitor.cjs
+          node --check tests/nex-autonomy-cycle.test.cjs
+          node --check nex-autonomy-dashboard.js
+          node --check netlify/functions/_shared/nex-media-index.cjs
+          node --check netlify/functions/_shared/nex-workflow-guides.cjs
+          node --check netlify/functions/_shared/nex-gap-watch.cjs
+          node --check netlify/functions/_shared/nex-site-watch.cjs
+          node --check netlify/functions/nex-autonomy-status.cjs
+          node --check netlify/functions/nex-autonomy-cycle.cjs
           node --check visitor-assistant.js
           node --check netlify/functions/nex-knowledge-drafts.cjs
           node --check nex-knowledge-editor.js
@@ -99,6 +116,8 @@ jobs:
           new vm.Script(script[1],{filename:'ask-nex.html'});
           console.log('Ask Nex script syntax OK');
           NODE
+      - name: Test Nex continuous website learning and workflow guardrails
+        run: node --test --test-reporter=spec tests/nex-autonomy-cycle.test.cjs
       - name: Test Nex reliability monitor and alerts
         run: node --test --test-reporter=spec tests/nex-self-monitoring.test.cjs
       - name: Test reviewed website knowledge and natural conversation
