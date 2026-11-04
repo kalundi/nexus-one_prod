@@ -82,7 +82,7 @@ function createHandler(deps) {
     // rate limits and follow-up state contract as the anonymous endpoint.
     if (!publicCore) publicCore = require('./visitor-assistant-core.cjs').createAssistant();
     const request = JSON.parse(event.body || '{}');
-    const result = await publicCore.ask(request.question, 'signed-in-public', {
+    const result = await publicCore.ask(request.question, event.nexPublicSubject || 'signed-in-public', {
       state: request.state,
       history: request.history
     });
@@ -1109,6 +1109,7 @@ function createHandler(deps) {
   async function handlePublicFallback(event, user, body) {
     const res = await publicAsk({
       httpMethod: 'POST',
+      nexPublicSubject: user && user.id ? 'signed-in:'+String(user.id) : 'public-fallback',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ question: body.question || '', state: body.state || null, history: Array.isArray(body.history) ? body.history : [] }),
     });
