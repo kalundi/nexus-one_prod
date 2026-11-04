@@ -43,6 +43,8 @@ on:
       - 'tests/nex-dashboard-auth.test.cjs'
       - 'tests/nex-conversation.spec.cjs'
       - 'tests/nex-booking-intent-grounding.test.cjs'
+      - 'tests/nex-live-website-retrieval.test.cjs'
+      - 'netlify/functions/_shared/nex-live-website-retrieval.cjs'
       - 'tests/nex-authenticated-public-fallback.test.cjs'
       - 'tests/nex-click-outside-preserve-session.test.cjs'
       - 'tests/nex-staff-estimate-routing.test.cjs'
@@ -82,6 +84,7 @@ jobs:
         run: |
           node --version
           node --check netlify/functions/_shared/visitor-assistant-core.cjs
+          node --check netlify/functions/_shared/nex-live-website-retrieval.cjs
           node --check netlify/functions/_shared/nex-intent-insights.cjs
           node --check netlify/functions/_shared/nex-ai-suggestions.cjs
           node --check netlify/functions/_shared/nex-insights-chat.cjs
@@ -154,6 +157,8 @@ jobs:
         run: node --test --test-reporter=spec tests/nex-authenticated-public-fallback.test.cjs
       - name: Test grounded booking process answers and video selection
         run: node --test --test-reporter=spec tests/nex-booking-intent-grounding.test.cjs
+      - name: Test approved live website retrieval and social media answers
+        run: node --test --test-reporter=spec tests/nex-live-website-retrieval.test.cjs
       - name: Test existing Nex assistant behavior
         run: node --test --test-reporter=spec tests/visitor-assistant.test.cjs
   browser:

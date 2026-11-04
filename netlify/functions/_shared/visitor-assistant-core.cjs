@@ -44,6 +44,7 @@ const {
 } = require('./visitor-conversation.cjs');
 
 const {relatedFor:relatedNexContent}=require('./nex-social-content.cjs');
+const {answerFromWebsite}=require('./nex-live-website-retrieval.cjs');
 const BOOKING_CTA = `You can book online at ${CONTACT.bookingUrl} or call ${CONTACT.mainPhoneDisplay}.`;
 const FALLBACK_ANSWER =
   `I don\u2019t have that in the information on our website, and I don\u2019t want to guess. ` +
@@ -864,6 +865,21 @@ function createAssistant({ fetchImpl = fetch, env = process.env, now = Date.now,
     if (social) return { status: 200, body: { answer: social, sources: [], mode: 'conversation', state } };
     const groundedQuestion = contextualQuestion(clean, history);
     const composed = composeAnswer(groundedQuestion);
+    // Retrieval is now part of answering, not only an offline change watcher.
+    // For unsupported FAQs, read approved public pages on demand. Public
+    // page snippets are treated as untrusted data, never model instructions.
+    if (composed.mode==='fallback') {
+      try {
+        const live=await answerFromWebsite(groundedQuestion,{fetchImpl});
+        if(live) {
+          return {status:200,body:{
+            answer:live.answer,mode:live.mode,sources:live.sources,state,
+            relatedContent:live.mode==='website-social'?
+              relatedNexContent('How does Nexus social media work?',[]):undefined
+          }};
+        }
+      }catch{/* site fetch failure leaves the accurate, bounded fallback */}
+    }
     let answer = composed.answer;
     let mode = composed.mode;
     let estimateBody = null;

@@ -14,9 +14,10 @@ const TERMS = Object.freeze({
   'pricing': /\b(price|pricing|cost|quote|estimate|rates?|how much)\b/i,
   'insurance': /\b(insurance|medicaid|medicare|coverage|broker)\b/i,
   'accessibility': /\b(accessible|mobility|cannot walk|can't walk|wheelchair|stretcher)\b/i,
+  'social': /\b(?:social media|facebook|instagram|youtube|tik ?tok|bluesky|follow nexus)\b/i,
   'greeting': /^(hi|hey|hello|good morning|good evening|thanks|thank you)[!. ]*$/i
 });
-const VALID_MODES = new Set(['composed','model','fallback','safety','greeting','courtesy','conversation','followup-reset','followup-address','followup-estimate','model-estimate']);
+const VALID_MODES = new Set(['composed','model','fallback','safety','greeting','courtesy','conversation','followup-reset','followup-address','followup-estimate','model-estimate','website-social','website-retrieval']);
 const VALID_SOURCES = new Set(require('./visitor-knowledge.cjs').ENTRIES.map(e=>e.id));
 function classify(question, mode, sources) {
   const text=String(question||'').slice(0,500);
@@ -27,6 +28,7 @@ function classify(question, mode, sources) {
   if(responseMode==='safety')intent='emergency';
   else if(responseMode==='fallback')intent='unanswered';
   else if(terms.includes('pricing'))intent='pricing';
+  else if(terms.includes('social'))intent='social';
   else if(terms.includes('booking'))intent='booking';
   else if(terms.includes('insurance'))intent='insurance';
   else if(terms.includes('interstate'))intent='interstate';
