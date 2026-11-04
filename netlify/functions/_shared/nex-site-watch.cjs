@@ -47,12 +47,12 @@ async function scan({queryFn,fetchImpl=fetch,baseUrl='https://nexusmt.com'}={}){
    if(!previous){
     await queryFn('INSERT INTO nex_autonomy_snapshots(path,digest) VALUES($1,$2) ON CONFLICT(path) DO NOTHING',[path,hash]);
     checks.push({id:'website:'+path,ok:true,changed:false,baseline:true});
-    continue;
+    return;
    }
    if(previous===hash){
     await queryFn('UPDATE nex_autonomy_snapshots SET checked_at=now() WHERE path=$1',[path]);
     checks.push({id:'website:'+path,ok:true,changed:false});
-    continue;
+    return;
    }
    // Persist only page identity and hashes; never persist HTML or user-submitted text.
    // One CTE links a unique content revision to a pending human review item.
