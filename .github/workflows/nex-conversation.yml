@@ -29,6 +29,7 @@ on:
       - 'netlify/functions/_shared/staff-assistant.cjs'
       - 'tests/nex-dashboard-auth.test.cjs'
       - 'tests/nex-conversation.spec.cjs'
+      - 'tests/nex-booking-intent-grounding.test.cjs'
       - 'tests/nex-authenticated-public-fallback.test.cjs'
       - 'tests/nex-click-outside-preserve-session.test.cjs'
       - 'tests/nex-staff-estimate-routing.test.cjs'
@@ -122,6 +123,8 @@ jobs:
         run: node --test --test-reporter=spec tests/nex-click-outside-preserve-session.test.cjs
       - name: Test authenticated public Nex FAQ and booking video fallback
         run: node --test --test-reporter=spec tests/nex-authenticated-public-fallback.test.cjs
+      - name: Test grounded booking process answers and video selection
+        run: node --test --test-reporter=spec tests/nex-booking-intent-grounding.test.cjs
       - name: Test existing Nex assistant behavior
         run: node --test --test-reporter=spec tests/visitor-assistant.test.cjs
   browser:
