@@ -3,9 +3,9 @@
 // or performs trips, payments, healthcare decisions, or staff actions.
 const {query}=require('./_shared/db.cjs');
 const {scan}=require('./_shared/nex-site-watch.cjs');
-const {suggestGaps}=require('./_shared/nex-gap-watch.cjs');
+const {suggestGaps,suggestWeekly}=require('./_shared/nex-gap-watch.cjs');
 const {json}=require('./_shared/http.cjs');
-async function runCycle({queryFn=query,fetchImpl=fetch,now=()=>new Date(),logger=console}={}){
+async function runCycle({queryFn=query,fetchImpl=fetch,now=()=>new Date(),logger=console,env=process.env}={}){
  const checks=[],summaries={changedPages:0,newReviews:0};
  try{
   const site=await scan({queryFn,fetchImpl});
@@ -18,6 +18,11 @@ async function runCycle({queryFn=query,fetchImpl=fetch,now=()=>new Date(),logger
   summaries.newReviews+=gaps.created;
   checks.push({id:'gap-watch',ok:true});
  }catch{checks.push({id:'gap-watch',ok:false});}
+ try{
+  const ai=await suggestWeekly(queryFn,{clock:now(),env,fetchImpl});
+  summaries.newReviews+=ai.created;
+  checks.push({id:'weekly-ai-review',ok:true});
+ }catch{checks.push({id:'weekly-ai-review',ok:false});}
  const status=checks.length&&checks.every(x=>x.ok)?'healthy':'degraded';
  try{
   await queryFn('INSERT INTO nex_autonomy_runs(status,checks,changed_pages) VALUES($1,$2::jsonb,$3)',[
