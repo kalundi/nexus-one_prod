@@ -20,6 +20,10 @@ on:
       - 'database/migrations/*nex*'
       - 'admin-apps.js'
       - 'tests/nex-approved-knowledge.test.cjs'
+      - 'tests/nex-self-monitoring.test.cjs'
+      - 'netlify/functions/nex-monitor.cjs'
+      - 'netlify/functions/_shared/nex-health-checks.cjs'
+      - 'netlify.toml'
       - 'tests/nex-social-content.test.cjs'
       - 'tests/nex-intent-insights.test.cjs'
       - 'tests/nex-ai-suggestions.test.cjs'
@@ -74,6 +78,8 @@ jobs:
           node --check netlify/functions/_shared/nex-insight-reviews.cjs
           node --check netlify/functions/_shared/nex-knowledge-drafts.cjs
           node --check netlify/functions/_shared/nex-social-content.cjs
+          node --check netlify/functions/_shared/nex-health-checks.cjs
+          node --check netlify/functions/nex-monitor.cjs
           node --check visitor-assistant.js
           node --check netlify/functions/nex-knowledge-drafts.cjs
           node --check nex-knowledge-editor.js
@@ -93,6 +99,8 @@ jobs:
           new vm.Script(script[1],{filename:'ask-nex.html'});
           console.log('Ask Nex script syntax OK');
           NODE
+      - name: Test Nex reliability monitor and alerts
+        run: node --test --test-reporter=spec tests/nex-self-monitoring.test.cjs
       - name: Test reviewed website knowledge and natural conversation
         run: node --test --test-reporter=spec tests/nex-approved-knowledge.test.cjs
       - name: Test curated Nex booking and social links
