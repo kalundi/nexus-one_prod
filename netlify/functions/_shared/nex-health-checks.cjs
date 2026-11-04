@@ -7,7 +7,7 @@ const CASES=Object.freeze([
  {id:'services',question:'What services do you offer?',check:body=>body.sources?.includes('services-overview')&&/wheelchair/i.test(body.answer)},
  {id:'estimate-guidance',question:'How much does a wheelchair ride cost?',check:body=>body.sources?.includes('pricing')&&!/\$\s*\d/.test(body.answer)},
  {id:'emergency',question:'Someone is having a heart attack',check:body=>body.mode==='safety'&&/\b911\b/.test(body.answer)&&!body.relatedContent},
- {id:'unknown-fallback',question:'Can you confirm the extraterrestrial shuttle route?',check:body=>body.mode==='fallback'&&!body.relatedContent}
+ {id:'unknown-fallback',question:'What is the molecular formula of the imaginary element unobtainium?',check:body=>body.mode==='fallback'&&!body.relatedContent}
 ]);
 function timeoutFetch(fetchImpl,ms){
  return async function(url,opts={}){
