@@ -8,7 +8,7 @@ Nex can proactively monitor its public knowledge, create *pending* improvements,
 |---|---|---|
 | 157 | Reliability probes | Every six hours: deterministic public booking, services, price guidance, emergency fallback, Ask Nex availability, narrated MP4 MIME type |
 | 158 | Website learning | Once daily: fetch allowlisted public Nexus source pages and compare normalized text hashes; record first baseline without triggering a review |
-| 159 | Improvement proposals | Public page changes and recurring *anonymous, aggregated* unanswered intents generate deduplicated pending suggestions in the existing administrator review queue |
+| 159 | Improvement proposals | Public page changes and recurring *anonymous, aggregated* unanswered intents generate deduplicated pending suggestions. An optional once-weekly AI brief can also draft suggestions from these aggregates, never raw chat |
 | 160 | Business workflow guidance | Authenticated Nex explains next steps for allowed driver, dispatch, facility, and admin workflows; actual actions still require existing permissions and confirmations |
 | 161 | Social media index | Uses the repository's editorial social feed to select first-party video assets by topic; the chat uses its existing inline video player and safe fallback |
 | 162 | Performance dashboard | Admin-only `nex-insights.html` panel shows recent coded health runs, changed public pages, review signals and indexed media counts |
@@ -27,6 +27,10 @@ If a database migration is missing or a probe fails, the automation reports degr
 Set **optional** protected Netlify variable `NEX_MONITOR_ALERT_WEBHOOK_URL` to receive an alert when synthetic checks degrade. The webhook receives only bounded failed check identifiers. A missing webhook leaves monitoring in logs and the admin dashboard.
 
 For new pages, the first successful fetch becomes the baseline. A changed hash thereafter creates a pending review suggestion. A site-content hash does **not** prove the content is correct, only that the text changed.
+
+## Optional weekly AI review
+
+Set the protected Netlify variable `NEX_AUTONOMY_AI_ENABLED=true` **only after** confirming the monitoring tests, database migration and AI model credentials. The scheduled cycle can then request at most one successfully saved AI brief per UTC week from the existing `nex-ai-suggestions.cjs` service using anonymous aggregate counts. The output goes into the pending administrator review queue and is never automatically added to published knowledge. If disabled or unconfigured, the daily deterministic drift/intent monitoring continues without AI calls.
 
 ## Editorial and operational approval
 
