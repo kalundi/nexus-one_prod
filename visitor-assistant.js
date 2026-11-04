@@ -238,6 +238,11 @@
     '.nvaRelatedContent{display:grid;gap:7px;margin-top:12px;padding:12px;border:1px solid #cbdce6;border-radius:12px;background:#f3f8fa}',
     '.nvaRelatedContent strong{font-size:13px;color:#16364a}',
     '.nvaRelatedContent a{display:block;font-size:13px;line-height:1.4;overflow-wrap:anywhere;text-decoration:underline;color:#075985}',
+    '.nvaRelatedVideo{display:block;width:100%;max-width:100%;aspect-ratio:9/16;max-height:400px;border-radius:10px;background:#082f49;object-fit:contain}',
+    '.nvaVideoTitle{display:block;font-size:13px;font-weight:700;color:#16364a}',
+    '.nvaBookingSteps{margin:0;padding-left:22px;font-size:13px;line-height:1.5;color:#16364a}',
+    '.nvaBookingSteps li{margin:4px 0}',
+    '.nvaVideoFallback{font-size:12px;margin:0;color:#475569}',
     '.nvaMsg{max-width:88%;padding:11px 13px;border-radius:15px;white-space:pre-wrap;word-wrap:break-word}',
     '.nvaMsg.bot{align-self:flex-start;background:#eef6fb;border:1px solid #d7e6f0;border-bottom-left-radius:5px}',
     '.nvaMsg.user{align-self:flex-end;background:#082f49;color:#fff;border-bottom-right-radius:5px}',
@@ -472,15 +477,17 @@
 
 
   // Only render curated HTTPS Nexus domains/channels. No remote embeds or autoplay.
+  // In-chat, click-to-play first-party video. No autoplay or third-party cookies.
   function renderRelatedNexContent(message, items) {
     if (!message || !Array.isArray(items) || !items.length) return;
     var allowed = ['mynexusride.com','www.mynexusride.com','nexusmt.com','www.nexusmt.com',
       'youtube.com','www.youtube.com','youtu.be','instagram.com','www.instagram.com',
       'tiktok.com','www.tiktok.com','facebook.com','www.facebook.com','bsky.app'];
-    var wrap = document.createElement('div');
+    var wrap = document.createElement('section');
     wrap.className = 'nvaRelatedContent';
+    wrap.setAttribute('aria-label', 'Helpful Nexus booking resources');
     var heading = document.createElement('strong');
-    heading.textContent = 'Helpful Nexus links';
+    heading.textContent = 'Helpful Nexus resources';
     wrap.appendChild(heading);
     var added = 0;
     items.slice(0,3).forEach(function(item){
@@ -490,16 +497,55 @@
       try { parsed = new URL(item.url); } catch (error) { return; }
       if(parsed.protocol !== 'https:' || allowed.indexOf(parsed.hostname.toLowerCase()) < 0 ||
          parsed.username || parsed.password) return;
+      var videoAllowed = item.kind === 'video' && parsed.hostname.toLowerCase() === 'nexusmt.com' &&
+        /^\/assets\/[a-z0-9-]+\.mp4$/i.test(parsed.pathname) && !parsed.search && !parsed.hash;
+      if (videoAllowed) {
+        var caption = document.createElement('span');
+        caption.className = 'nvaVideoTitle';
+        caption.textContent = item.title;
+        var player = document.createElement('video');
+        player.className = 'nvaRelatedVideo';
+        player.controls = true;
+        player.playsInline = true;
+        player.preload = 'none';
+        player.setAttribute('aria-label', item.title);
+        var src = document.createElement('source');
+        src.src = parsed.href;
+        src.type = 'video/mp4';
+        player.appendChild(src);
+        var unavailable = document.createElement('p');
+        unavailable.className = 'nvaVideoFallback';
+        unavailable.hidden = true;
+        unavailable.textContent = 'The video is unavailable here. You can still follow the booking steps below.';
+        player.addEventListener('error', function(){player.hidden=true;unavailable.hidden=false;},true);
+        wrap.appendChild(caption);
+        wrap.appendChild(player);
+        wrap.appendChild(unavailable);
+        if(Array.isArray(item.steps) && item.steps.length) {
+          var stepsLabel=document.createElement('strong');
+          stepsLabel.textContent='How booking works';
+          var stepsList=document.createElement('ol');
+          stepsList.className='nvaBookingSteps';
+          item.steps.slice(0,6).forEach(function(step){
+            if(typeof step!=='string'||step.length>240)return;
+            var li=document.createElement('li');
+            li.textContent=step;
+            stepsList.appendChild(li);
+          });
+          if(stepsList.children.length){wrap.appendChild(stepsLabel);wrap.appendChild(stepsList);}
+        }
+      }
       var link = document.createElement('a');
       link.href = parsed.href;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      link.textContent = (item.kind === 'video' ? 'Watch: ' :
+      link.textContent = (videoAllowed ? 'Open video separately: ' :
+        item.kind === 'video' ? 'Watch: ' :
         item.kind === 'social-post' ? 'View post: ' : '') + item.title;
       wrap.appendChild(link);
       added++;
     });
-    if (added) message.appendChild(wrap);
+    if(added) message.appendChild(wrap);
     log.scrollTop = log.scrollHeight;
   }
 
