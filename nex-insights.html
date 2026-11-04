@@ -20,6 +20,17 @@
 <button id="refreshReviews" type="button">Refresh review queue</button>
 <p id="reviewStatus" role="status">Loading review queue…</p>
 <div id="reviewItems" aria-live="polite"></div></section>
+<section class="card" style="padding:20px;margin-top:20px" aria-labelledby="autonomyTitle">
+<h2 id="autonomyTitle">Nex autonomy health and review activity</h2>
+<p>Public website checks, approved media availability, anonymous knowledge-gap trends and suggested changes. No private conversations or patient data are recorded here. All publishing and consequential operations still require authorized approval.</p>
+<button id="refreshAutonomy" type="button">Refresh autonomous health</button>
+<p id="autonomyStatus" role="status">Checking Nex autonomy…</p>
+<h3>Recent health runs</h3><ul id="autonomyRuns"></ul>
+<h3>Detected website changes</h3><ul id="autonomyChanges"></ul>
+<h3>Knowledge improvement signals</h3><ul id="autonomySignals"></ul>
+<p id="autonomyMedia"></p>
+</section>
+<script src="/nex-autonomy-dashboard.js" defer></script>
 <section class="card" style="padding:20px;margin-top:20px" aria-labelledby="knowledgeDraftTitle">
 <h2 id="knowledgeDraftTitle">Nex knowledge approval workspace</h2>
 <p>Draft answers from reviewed recommendations. Every claim must be checked against the selected Nexus website page. Approval does not publish the answer; publication requires a separate reviewed GitHub change.</p>
