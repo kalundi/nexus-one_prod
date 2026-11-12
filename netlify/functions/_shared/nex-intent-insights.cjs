@@ -43,6 +43,21 @@ async function store(queryFn, question, response) {
   const data=classify(question,response.body.mode,response.body.sources);
   await queryFn('INSERT INTO nex_intent_events(response_mode,intent,terms,sources) VALUES($1,$2,$3::text[],$4::text[])',[data.responseMode,data.intent,data.terms,data.sources]);
 }
+const SERVICE_TERMS = Object.freeze({
+  'wheelchair':'wheelchair',
+  'stretcher':'stretcher',
+  'bls':'ambulance',
+  'ambulance':'ambulance',
+  'amb':'ambulance'
+});
+// Estimate-wizard requests are answered by the estimate endpoint, not the
+// Q&A endpoint, so they are recorded here instead. Only the service
+// category is kept — never addresses, dates, times, miles, or prices.
+async function storeEstimate(queryFn, service, mode) {
+  const term=SERVICE_TERMS[String(service||'').trim().toLowerCase()];
+  const responseMode=mode==='out_of_area'?'estimate-out-of-area':'estimate';
+  await queryFn('INSERT INTO nex_intent_events(response_mode,intent,terms,sources) VALUES($1,$2,$3::text[],$4::text[])',[responseMode,'pricing',term?[term]:[],[]]);
+}
 async function report(queryFn,days=30) {
   const daysSafe=Math.min(90,Math.max(1,Number(days)||30));
   const [overview,intents,gaps,terms]=await Promise.all([
@@ -78,4 +93,4 @@ async function readiness(queryFn,env=process.env) {
   };
 }
 
-module.exports={TERMS,classify,store,report,readiness};
+module.exports={TERMS,classify,store,storeEstimate,report,readiness};

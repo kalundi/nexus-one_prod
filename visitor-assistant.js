@@ -662,8 +662,19 @@
     if (restoreFocus) tab.focus();
   }
 
+  // Anonymous usage events for Google Analytics (window.nexusTrack is
+  // defined by nexus-analytics.js). Event names only — never message
+  // text, addresses, or any other visitor detail.
+  function trackNex(eventName) {
+    try {
+      if (typeof window !== 'undefined' && typeof window.nexusTrack === 'function') window.nexusTrack(eventName);
+    } catch (e) { /* analytics must never break the chat */ }
+  }
+
   function setOpen(open) {
+    var wasOpen = panel.classList.contains('open');
     panel.classList.toggle('open', open);
+    if (open && !wasOpen) trackNex('nex_open');
     tab.classList.toggle('open', open);
     tab.setAttribute('aria-expanded', String(open));
     if (open) {
@@ -1201,6 +1212,7 @@
   }
 
   function startEstimateFlow() {
+    trackNex('nex_estimate_started');
     flow = { step: 'pickup', pickup: '', dropoff: '', service: '', tripType: '', date: '', time: '', pendingDate: '', geoFails: { pickup: 0, dropoff: 0 }, pickupPlace: null, dropoffPlace: null, placeOptions: null, route: null };
     renderChips();
     addMessage('I can work out a rough estimate right here \u2014 no need to open the booking app first. I just need a few details. (Availability itself is confirmed when you book.)\n\n' + STEP_PROMPTS.pickup, 'bot');
