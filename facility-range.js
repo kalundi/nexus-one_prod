@@ -111,6 +111,29 @@
     }
     return {year,month,label:MONTHS[month]+' '+year,weeks};
   }
+  // ---- Period pickers ----
+  // The pop-up calendar shows the unit the timeframe names: months of a
+  // year for Month, quarters for Quarter, a page of years for Year. Each
+  // entry's anchor is the period's first day, so rangeFor(anchor, period)
+  // resolves a tap to exactly that period.
+  // monthsOfYear(2026) -> [{anchor:'2026-01-01',label:'Jan',name:'January'},...]
+  function monthsOfYear(year){
+    year=Number(year);if(!Number.isInteger(year)||year<1)return null;
+    return MONTHS.map((name,index)=>({anchor:iso(new Date(Date.UTC(year,index,1))),label:MONTHS_SHORT[index],name}));
+  }
+  // quartersOfYear(2026) -> [{anchor:'2026-01-01',label:'Q1',span:'Jan – Mar'},...]
+  function quartersOfYear(year){
+    year=Number(year);if(!Number.isInteger(year)||year<1)return null;
+    return [0,1,2,3].map(quarter=>({anchor:iso(new Date(Date.UTC(year,quarter*3,1))),label:'Q'+(quarter+1),span:MONTHS_SHORT[quarter*3]+' – '+MONTHS_SHORT[quarter*3+2]}));
+  }
+  // yearWindow(2026) -> {start:2020,years:[2020,...,2031],label:'2020 – 2031'}
+  // Twelve-year pages aligned on multiples of 12, so paging forward or
+  // back from any year lands on the neighbouring page.
+  function yearWindow(year){
+    year=Number(year);if(!Number.isInteger(year)||year<1)return null;
+    const start=Math.floor(year/12)*12;
+    return {start,years:Array.from({length:12},(_,index)=>start+index),label:start+' – '+(start+11)};
+  }
   const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const fullDateLabel=value=>{const date=parse(value);return date?DAYS[date.getUTCDay()]+', '+MONTHS[date.getUTCMonth()]+' '+date.getUTCDate()+', '+date.getUTCFullYear():'';};
   const shortDateLabel=value=>{const date=parse(value);return date?DAYS_SHORT[date.getUTCDay()]+', '+dayMonth(date):'';};
@@ -188,5 +211,5 @@
     if(sorted.length<=3)return sorted.map(rangeSummary).join(' · ');
     return sorted.length+' ranges: '+dayMonthYear(parse(sorted[0].from))+' → '+dayMonthYear(parse(sorted[sorted.length-1].to));
   }
-  return {PERIODS,rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,rangeSummary,rangeKey,sameRange,toggleRange,dateInRanges,rangesParam,selectionSummary,fullDateLabel,shortDateLabel,validDate:value=>parse(value)!==null};
+  return {PERIODS,rangeFor,resolveBlocks,describeBlocks,monthGrid,monthsOfYear,quartersOfYear,yearWindow,describeDates,rangeSummary,rangeKey,sameRange,toggleRange,dateInRanges,rangesParam,selectionSummary,fullDateLabel,shortDateLabel,validDate:value=>parse(value)!==null};
 });

@@ -9,32 +9,79 @@
  const time=value=>String(value||'').slice(0,5)||'Not set';
  const timestamp=value=>value?new Date(value).toLocaleString('en-US',{timeZone:'America/New_York',dateStyle:'medium',timeStyle:'short'})+' ET':'';
  function notice(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);}
- let selected=[],timeframe='day',calendarMonth='',calendarOpen=false,selectionDirty=false,focusDay='';
+ let selected=[],timeframe='day',calendarMonth='',pickerYear=0,calendarOpen=false,selectionDirty=false,focusDay='';
  function todayRange(){const range=window.NexusFacilityRange,today=context?.today||'';if(!range||!today)return null;const resolved=range.rangeFor(today,timeframe);return resolved?{anchor:today,...resolved}:null;}
  function seedSelection(){const initial=todayRange();selected=initial?[initial]:[];focusDay=initial?initial.anchor:'';}
  function renderRange(){
   const range=window.NexusFacilityRange;
-  $('serviceDateButton').textContent=range?range.describeDates(selected.map(entry=>entry.anchor)):'';
-  $('serviceRange').textContent=range?range.selectionSummary(selected):'';
+  if(!range){$('serviceDateButton').textContent='';$('serviceRange').textContent='';return;}
+  // The Service Date control speaks in the chosen timeframe's own unit:
+  // days list their dates; a week, month, quarter or year names its span.
+  // Several picked periods keep the first span on the button and count
+  // the rest; the line under the filter always words the whole union.
+  if(timeframe==='day'||selected.length<=1)$('serviceDateButton').textContent=timeframe==='day'?range.describeDates(selected.map(entry=>entry.anchor)):range.selectionSummary(selected);
+  else{const sorted=[...selected].sort((a,b)=>a.from<b.from?-1:1);$('serviceDateButton').textContent=range.selectionSummary([sorted[0]])+' +'+(sorted.length-1)+' more';}
+  $('serviceRange').textContent=range.selectionSummary(selected);
  }
  function renderCalendar(){
   const range=window.NexusFacilityRange,grid=$('calGrid');if(!range||!grid)return;
   const today=context?.today||'';
-  if(!calendarMonth)calendarMonth=(focusDay||today).slice(0,7);
-  const parts=calendarMonth.split('-').map(Number),view=range.monthGrid(parts[0],parts[1]-1);
-  if(!view)return;
-  // Rebuilding the grid replaces the day buttons, so remember which
-  // one held focus and hand it back afterwards: a keyboard manager
-  // toggling days must not lose their place to the page body.
-  const active=document.activeElement,focusDate=active&&grid.contains(active)?active.dataset?.date:'';
-  $('calMonth').textContent=view.label;
-  grid.innerHTML=view.weeks.map(week=>'<div class="calWeek">'+week.map(cell=>{
-   if(!cell)return '<span class="calBlank" aria-hidden="true"></span>';
-   const isSelected=range.dateInRanges(selected,cell.date),isToday=cell.date===today;
-   const aria=range.fullDateLabel(cell.date)+(isToday?', today':'');
-   return '<button type="button" class="calDay'+(isSelected?' selected':'')+(isToday?' today':'')+'" data-date="'+cell.date+'" aria-pressed="'+isSelected+'" aria-label="'+aria+'">'+cell.day+'</button>';
-  }).join('')+'</div>').join('');
-  if(focusDate)grid.querySelector('[data-date="'+focusDate+'"]')?.focus();
+  // Rebuilding the grid replaces the pick buttons, so remember which one
+  // held focus and hand it back afterwards: a keyboard manager toggling
+  // periods must not lose their place to the page body. Every pick
+  // control carries data-anchor (its period's first day); day cells also
+  // keep data-date.
+  const active=document.activeElement,focusAnchor=active&&grid.contains(active)?(active.dataset?.anchor||active.dataset?.date||''):'';
+  const weekdays=$('calWeekdays'),isPicked=resolved=>Boolean(resolved)&&selected.some(entry=>range.sameRange(entry,resolved));
+  let head='';
+  if(timeframe==='month'||timeframe==='quarter'){
+   // The picker shows the timeframe's own unit: the months or the
+   // quarters of one year, and the arrows page years.
+   if(!pickerYear)pickerYear=Number((focusDay||selected[0]?.from||today).slice(0,4))||2026;
+   head=String(pickerYear);if(weekdays)weekdays.hidden=true;
+   const items=timeframe==='month'?range.monthsOfYear(pickerYear):range.quartersOfYear(pickerYear);
+   if(!items)return;
+   grid.innerHTML='<div class="calPeriods '+timeframe+'s">'+items.map(item=>{
+    const resolved=range.rangeFor(item.anchor,timeframe),picked=isPicked(resolved);
+    const aria=timeframe==='month'?item.name+' '+pickerYear:resolved.label;
+    return '<button type="button" class="calPeriod'+(picked?' selected':'')+'" data-anchor="'+item.anchor+'" aria-pressed="'+picked+'" aria-label="'+aria+'"><strong>'+item.label+'</strong>'+(item.span?'<span>'+item.span+'</span>':'')+'</button>';
+   }).join('')+'</div>';
+  }else if(timeframe==='year'){
+   if(!pickerYear)pickerYear=Number((focusDay||selected[0]?.from||today).slice(0,4))||2026;
+   const win=range.yearWindow(pickerYear);if(!win)return;
+   head=win.label;if(weekdays)weekdays.hidden=true;
+   grid.innerHTML='<div class="calPeriods years">'+win.years.map(year=>{
+    const anchor=year+'-01-01',resolved=range.rangeFor(anchor,'year'),picked=isPicked(resolved);
+    return '<button type="button" class="calPeriod'+(picked?' selected':'')+'" data-anchor="'+anchor+'" aria-pressed="'+picked+'" aria-label="'+year+'"><strong>'+year+'</strong></button>';
+   }).join('')+'</div>';
+  }else{
+   if(weekdays)weekdays.hidden=false;
+   if(!calendarMonth)calendarMonth=(focusDay||today).slice(0,7);
+   const parts=calendarMonth.split('-').map(Number),view=range.monthGrid(parts[0],parts[1]-1);
+   if(!view)return;
+   head=view.label;
+   if(timeframe==='week'){
+    // A week is picked as one unit: each row of the month grid is a
+    // single toggle for its Sunday–Saturday span.
+    grid.innerHTML=view.weeks.map(week=>{
+     const first=week.find(Boolean);if(!first)return '<div class="calWeek">'+week.map(()=>'<span class="calBlank" aria-hidden="true"></span>').join('')+'</div>';
+     const resolved=range.rangeFor(first.date,'week'),picked=isPicked(resolved);
+     const cells=week.map(cell=>cell?'<span class="calDayNum'+(cell.date===today?' today':'')+'">'+cell.day+'</span>':'<span class="calDayNum blank" aria-hidden="true"></span>').join('');
+     return '<button type="button" class="calWeekRow'+(picked?' selected':'')+'" data-anchor="'+resolved.from+'" aria-pressed="'+picked+'" aria-label="Week of '+resolved.label+'">'+cells+'</button>';
+    }).join('');
+   }else{
+    grid.innerHTML=view.weeks.map(week=>'<div class="calWeek">'+week.map(cell=>{
+     if(!cell)return '<span class="calBlank" aria-hidden="true"></span>';
+     const isSelected=range.dateInRanges(selected,cell.date),isToday=cell.date===today;
+     const aria=range.fullDateLabel(cell.date)+(isToday?', today':'');
+     return '<button type="button" class="calDay'+(isSelected?' selected':'')+(isToday?' today':'')+'" data-date="'+cell.date+'" data-anchor="'+cell.date+'" aria-pressed="'+isSelected+'" aria-label="'+aria+'">'+cell.day+'</button>';
+    }).join('')+'</div>').join('');
+   }
+  }
+  $('calMonth').textContent=head;
+  const step=timeframe==='day'||timeframe==='week'?'month':timeframe==='year'?'years':'year';
+  $('calPrev').setAttribute('aria-label','Previous '+step);$('calNext').setAttribute('aria-label','Next '+step);
+  if(focusAnchor)grid.querySelector('[data-anchor="'+focusAnchor+'"]')?.focus();
  }
  // The calendar is a pop-up: hidden (and taking no layout space) until the
  // Service Date control opens it. Days are toggles, so the pop-up stays
@@ -43,7 +90,7 @@
  // applies the picked ranges and reloads the board.
  function setCalendarOpen(open){
   calendarOpen=open;$('serviceCalendarPop').hidden=!open;$('serviceDateButton').setAttribute('aria-expanded',String(open));
-  if(open){calendarMonth=(focusDay||selected[0]?.from||context?.today||'').slice(0,7);renderCalendar();}
+  if(open){const anchor=focusDay||selected[0]?.from||context?.today||'';calendarMonth=anchor.slice(0,7);pickerYear=Number(anchor.slice(0,4))||pickerYear;renderCalendar();}
  }
  function closeCalendar(refocus=false){
   if(!calendarOpen)return;
@@ -64,6 +111,14 @@
  function shiftMonth(delta){
   const parts=calendarMonth.split('-').map(Number);if(parts.length!==2||!parts[0])return;
   calendarMonth=new Date(Date.UTC(parts[0],parts[1]-1+delta,1)).toISOString().slice(0,7);renderCalendar();
+ }
+ // The pop-up's arrows page by the unit on show: months for the day and
+ // week grids, years for the month and quarter grids, twelve years for
+ // the year grid.
+ function shiftPicker(delta){
+  if(timeframe==='month'||timeframe==='quarter'){pickerYear+=delta;renderCalendar();return;}
+  if(timeframe==='year'){pickerYear+=delta*12;renderCalendar();return;}
+  shiftMonth(delta);
  }
  function clearMap(){mapVersion++;lastRoute='';if(renderer)renderer.setMap(null);renderer=null;map=null;$('routeMap').replaceChildren();$('mapAttribution').textContent='';}
  function clearPrivate(){revision++;conversationVersion++;trips=[];summary=null;locations=[];drafts.clear();request=null;selectedMessage='';selectedRoute='';pendingLocation='';if($('bookingDialog').open)$('bookingDialog').close();clearMap();['tripRows','locationList','messages','tripActivity','routeTrip','messageTrip'].forEach(id=>$(id).replaceChildren());$('messageText').value='';$('routeDetails').textContent='';$('directionsLink').hidden=true;$('facilityBookingFrame').src='about:blank';$('facilityBookingFrame').hidden=true;}
@@ -123,7 +178,19 @@
  async function changeScope(){clearPrivate();facility=context.manager?context.facilities[0]?.id||'':$('facilitySelect').value;page=0;$('facilityBookingFrame').dataset.facility='';const f=context.facilities.find(f=>f.id===facility);$('facilityName').textContent=f?.name||'Select a facility';$('facilityAddress').textContent=f?.address||'';if(facility)await refresh();}
  document.addEventListener('click',event=>{const trigger=event.target.closest('[data-view],.bookRideSign,a[href^="/booking-app.html"]');if(!trigger||$('bookingDialog').contains(trigger))return;event.preventDefault();openView(trigger.dataset.view||'booking');});
  $('closeBookingDialog').addEventListener('click',()=>$('bookingDialog').close());
- $('refresh').addEventListener('click',()=>{lastRoute='';refresh();});$('serviceDateButton').addEventListener('click',()=>{if(calendarOpen)closeCalendar();else setCalendarOpen(true);});$('serviceTimeframe').addEventListener('change',()=>{timeframe=$('serviceTimeframe').value;});$('calGrid').addEventListener('click',event=>{const day=event.target.closest('[data-date]');if(day)toggleDate(day.dataset.date);});$('calDone').addEventListener('click',()=>closeCalendar(true));$('clearRanges').addEventListener('click',()=>{seedSelection();selectionDirty=false;rangeChanged();});$('calPrev').addEventListener('click',()=>shiftMonth(-1));$('calNext').addEventListener('click',()=>shiftMonth(1));document.addEventListener('click',event=>{if(!calendarOpen)return;const path=event.composedPath?event.composedPath():[];const inside=path.some(node=>node&&node.classList&&node.classList.contains('serviceDateWrap'))||Boolean(event.target.closest&&event.target.closest('.serviceDateWrap'));if(!inside)closeCalendar();});document.addEventListener('keydown',event=>{if(event.key==='Escape'&&calendarOpen){event.preventDefault();closeCalendar(true);}});$('tripSearch').addEventListener('input',renderTrips);$('statusFilter').addEventListener('change',renderTrips);$('facilitySelect').addEventListener('change',changeScope);
+ $('refresh').addEventListener('click',()=>{lastRoute='';refresh();});$('serviceDateButton').addEventListener('click',()=>{if(calendarOpen)closeCalendar();else setCalendarOpen(true);});$('serviceTimeframe').addEventListener('change',()=>{
+ timeframe=$('serviceTimeframe').value;
+ // Selecting a timeframe re-points the Service Date control at that
+ // timeframe: the current anchor (the last day picked, else the first
+ // selected range, else today) re-resolves to the new period, so Week
+ // shows this week, Quarter this quarter, and the board refilters at
+ // once instead of waiting for the next calendar tap.
+ const anchor=focusDay||selected[0]?.from||context?.today||'',range=window.NexusFacilityRange,resolved=range&&anchor?range.rangeFor(anchor,timeframe):null;
+ selected=resolved?[{anchor,...resolved}]:[];if(!selected.length)seedSelection();else focusDay=anchor;
+ pickerYear=Number(anchor.slice(0,4))||pickerYear;calendarMonth=anchor.slice(0,7);selectionDirty=false;
+ rangeChanged();if(calendarOpen)renderCalendar();
+});
+$('calGrid').addEventListener('click',event=>{const day=event.target.closest('[data-date]');if(day&&timeframe==='day'){toggleDate(day.dataset.date);return;}const pick=event.target.closest('[data-anchor]');if(pick)toggleDate(pick.dataset.anchor);});$('calDone').addEventListener('click',()=>closeCalendar(true));$('clearRanges').addEventListener('click',()=>{seedSelection();selectionDirty=false;rangeChanged();});$('calPrev').addEventListener('click',()=>shiftPicker(-1));$('calNext').addEventListener('click',()=>shiftPicker(1));document.addEventListener('click',event=>{if(!calendarOpen)return;const path=event.composedPath?event.composedPath():[];const inside=path.some(node=>node&&node.classList&&node.classList.contains('serviceDateWrap'))||Boolean(event.target.closest&&event.target.closest('.serviceDateWrap'));if(!inside)closeCalendar();});document.addEventListener('keydown',event=>{if(event.key==='Escape'&&calendarOpen){event.preventDefault();closeCalendar(true);}});$('tripSearch').addEventListener('input',renderTrips);$('statusFilter').addEventListener('change',renderTrips);$('facilitySelect').addEventListener('change',changeScope);
  $('previousPage').addEventListener('click',()=>{if(page){page--;revision++;refresh();}});$('nextPage').addEventListener('click',()=>{if(hasMore){page++;revision++;refresh();}});
  $('tripRows').addEventListener('click',event=>{const route=event.target.closest('[data-route]'),message=event.target.closest('[data-message]');if(route){selectedRoute=route.dataset.route;$('routeTrip').value=selectedRoute;openView('routes');}if(message){setConversation(message.dataset.message);$('messageTrip').value=selectedMessage;openView('communications');}});
  $('routeTrip').addEventListener('change',()=>{selectedRoute=$('routeTrip').value;renderRoute();});$('routeLeg').addEventListener('change',renderRoute);$('messageTrip').addEventListener('change',()=>{setConversation($('messageTrip').value);loadConversation();});
