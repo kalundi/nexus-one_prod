@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const {classify,store,report,readiness}=require('../netlify/functions/_shared/nex-intent-insights.cjs');
+const {classify,store,storeEstimate,report,readiness}=require('../netlify/functions/_shared/nex-intent-insights.cjs');
 test('classifies family questions without retaining their contents',()=>{
  const text='Can u xfer my mum to NYC? Email her at example@email.com, phone 301-555-1234';
  const result=classify(text,'composed',['long-distance']);
@@ -53,4 +53,18 @@ test('readiness flags analytics table where DB user cannot insert',async()=>{
  assert.equal(result.databaseReady,true);
  assert.equal(result.writePermissionReady,false);
  assert.equal(result.eventCount,8);
+});
+
+test('records a completed estimate as pricing with only the service category',async()=>{
+ let sql,params;await storeEstimate(async(s,p)=>{sql=s;params=p;return {rows:[]}},'wheelchair','estimate');
+ assert.match(sql,/INSERT INTO nex_intent_events/);assert.deepEqual(params,['estimate','pricing',['wheelchair'],[]]);
+});
+test('records an out-of-area estimate under its own mode with the ambulance category',async()=>{
+ let params;await storeEstimate(async(s,p)=>{params=p;return {rows:[]}},'bls','out_of_area');
+ assert.deepEqual(params,['estimate-out-of-area','pricing',['ambulance'],[]]);
+});
+test('records a service without a concept label with no terms and no trip detail',async()=>{
+ let params;await storeEstimate(async(s,p)=>{params=p;return {rows:[]}},'Ambulatory','estimate');
+ assert.deepEqual(params,['estimate','pricing',[],[]]);
+ assert.ok(!JSON.stringify(params).includes('Main'));
 });
