@@ -33,3 +33,24 @@ body:has(.facilityBookingDialog[open]){overflow:hidden}.portal [hidden],[hidden]
 .portal .serviceCalendarPop .calDay:focus-visible{outline:3px solid #2d68a5;outline-offset:2px}
 .portal .calFoot{display:flex;justify-content:flex-end;margin-top:10px}.portal .calDone{min-height:44px}
 @media(max-width:760px){.portal .serviceCalendarPop{width:min(336px,calc(100vw - 76px))}}
+/* Period pickers: the pop-up shows the timeframe's own unit. A week is
+   one row toggle over the month grid; months, quarters and years are
+   period tiles. Scoped under .serviceCalendarPop for the same reason as
+   the day cells above — the portal-wide button rule must not pad them. */
+.portal .serviceCalendarPop .calWeekRow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:100%;padding:4px;margin:0 0 4px;border:1px solid #c9d6e2;border-radius:10px;background:#fff;cursor:pointer}
+.portal .serviceCalendarPop .calWeekRow:hover{border-color:#0e5c8c}
+.portal .serviceCalendarPop .calWeekRow.selected{background:#0b3f5f;border-color:#0b3f5f}
+.portal .serviceCalendarPop .calDayNum{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;min-height:32px;font-size:14px;font-weight:600;line-height:1;white-space:nowrap;color:#29475f}
+.portal .serviceCalendarPop .calWeekRow.selected .calDayNum{color:#fff;font-weight:800}
+.portal .serviceCalendarPop .calDayNum.today{font-weight:800;text-decoration:underline;text-underline-offset:3px}
+.portal .serviceCalendarPop .calDayNum.blank{visibility:hidden}
+.portal .calPeriods{display:grid;gap:6px}
+.portal .calPeriods.months{grid-template-columns:repeat(3,1fr)}
+.portal .calPeriods.quarters{grid-template-columns:repeat(2,1fr)}
+.portal .calPeriods.years{grid-template-columns:repeat(3,1fr)}
+.portal .serviceCalendarPop .calPeriod{min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px;border:1px solid #c9d6e2;border-radius:10px;background:#fff;color:#29475f;font-weight:700;cursor:pointer}
+.portal .serviceCalendarPop .calPeriod span{font-size:12px;font-weight:600;color:#55708a}
+.portal .serviceCalendarPop .calPeriod:hover{border-color:#0e5c8c}
+.portal .serviceCalendarPop .calPeriod.selected{background:#0b3f5f;border-color:#0b3f5f;color:#fff}
+.portal .serviceCalendarPop .calPeriod.selected span{color:#d7e6f5}
+.portal .serviceCalendarPop .calWeekRow:focus-visible,.portal .serviceCalendarPop .calPeriod:focus-visible{outline:3px solid #2d68a5;outline-offset:2px}

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const {rangeFor,resolveBlocks,describeBlocks,monthGrid,describeDates,rangeSummary,toggleRange,dateInRanges,rangesParam,selectionSummary,fullDateLabel,shortDateLabel,validDate}=require('../facility-range.js');
+const {rangeFor,resolveBlocks,describeBlocks,monthGrid,monthsOfYear,quartersOfYear,yearWindow,describeDates,rangeSummary,toggleRange,dateInRanges,rangesParam,selectionSummary,fullDateLabel,shortDateLabel,validDate}=require('../facility-range.js');
 
 test('worked example: anchor Sun Nov 1, 2026 produces all five ranges',()=>{
  assert.deepEqual(rangeFor('2026-11-01','day'),{period:'day',from:'2026-11-01',to:'2026-11-01',label:'Sun, Nov 1, 2026'});
@@ -91,6 +91,27 @@ test('month grid lays out Sunday-first weeks with blanks outside the month',()=>
  assert.equal(monthGrid(2026,12),null);
  assert.equal(monthGrid('2026',10).label,'November 2026');
  assert.equal(monthGrid(2026,-1),null);
+});
+
+test('period pickers list the months, quarters and years a timeframe selects',()=>{
+ const months=monthsOfYear(2026);
+ assert.equal(months.length,12);
+ assert.deepEqual(months[0],{anchor:'2026-01-01',label:'Jan',name:'January'});
+ assert.deepEqual(months[10],{anchor:'2026-11-01',label:'Nov',name:'November'});
+ // A month tile's anchor resolves to exactly that month.
+ assert.deepEqual(rangeFor(months[10].anchor,'month'),{period:'month',from:'2026-11-01',to:'2026-11-30',label:'November 2026'});
+ const quarters=quartersOfYear(2026);
+ assert.deepEqual(quarters.map(q=>q.label),['Q1','Q2','Q3','Q4']);
+ assert.deepEqual(quarters[3],{anchor:'2026-10-01',label:'Q4',span:'Oct – Dec'});
+ assert.deepEqual(rangeFor(quarters[3].anchor,'quarter'),{period:'quarter',from:'2026-10-01',to:'2026-12-31',label:'Q4 2026 · Oct 1 – Dec 31'});
+ const win=yearWindow(2026);
+ assert.equal(win.start,2016);assert.equal(win.label,'2016 – 2027');
+ assert.deepEqual(win.years,[2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026,2027]);
+ // Windows align on multiples of twelve: 2019 shares 2026's window and
+ // paging twelve years forward lands on the neighbouring window.
+ assert.equal(yearWindow(2019).start,2016);assert.equal(yearWindow(2028).start,2028);
+ assert.deepEqual(rangeFor('2026-01-01','year'),{period:'year',from:'2026-01-01',to:'2026-12-31',label:'2026 · Jan 1 – Dec 31'});
+ assert.equal(monthsOfYear('x'),null);assert.equal(quartersOfYear(NaN),null);assert.equal(yearWindow(''),null);
 });
 
 test('describeDates words a date selection for the summary line',()=>{
@@ -192,4 +213,16 @@ test('facility portal filters by timeframe and a multi-pick pop-up calendar',()=
  assert.ok(css.includes('.serviceCalendarPop'),'pop-up styles ship with the portal');
  assert.ok(css.includes('.calDay'),'calendar day styles ship with the portal');
  assert.ok(css.includes('.calDay.selected'),'the anchor day is visibly marked in the calendar styles');
+ // The picker follows the timeframe: weeks are picked as whole rows,
+ // months, quarters and years as their own tiles, and changing the
+ // timeframe re-resolves the current anchor and refilters at once.
+ assert.ok(portal.includes('monthsOfYear'),'the month picker must list the months of a year');
+ assert.ok(portal.includes('quartersOfYear'),'the quarter picker must list the quarters of a year');
+ assert.ok(portal.includes('yearWindow'),'the year picker must page twelve years at a time');
+ assert.ok(portal.includes('calWeekRow'),'the week picker must render each week as one toggle row');
+ assert.ok(portal.includes('calPeriod'),'the month, quarter and year pickers must render period tiles');
+ assert.ok(portal.includes('shiftPicker'),'the pop-up arrows must page by the unit on show');
+ assert.ok(portal.includes('rangeFor(anchor,timeframe)'),'changing the timeframe must re-resolve the current anchor to the new period');
+ assert.ok(css.includes('.calWeekRow'),'week row styles ship with the portal');
+ assert.ok(css.includes('.calPeriod'),'period tile styles ship with the portal');
 });
