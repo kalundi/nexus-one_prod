@@ -12,9 +12,9 @@ test('syncConfig honors configured mailbox filters', () => {
   process.env.GRAPH_MAIL_SYNC_FOLDER = 'Broker Confirmations';
 
   assert.deepEqual(syncConfig(), {
-    sender: 'driverdeveloper@gotandt.com',
+    sender: '*',
     subjectContains: 'trip confirmation',
-    folder: 'Broker Confirmations'
+    folder: 'all'
   });
 });
 
@@ -22,11 +22,13 @@ test('syncConfig query parameters override environment defaults', () => {
   assert.equal(syncConfig({ sender: 'override@example.com' }).sender, 'override@example.com');
 });
 
-test('buildFilter uses the real broker sender by default', () => {
+test('buildFilter includes confirmations from all brokers by default', () => {
   const filter = buildFilter({ since: '2026-08-01T00:00:00.000Z' });
   assert.match(filter, /driverdeveloper@gotandt\.com/);
   assert.doesNotMatch(filter, /xxxx@gotandt\.com/);
   assert.match(filter, /hasAttachments eq true/);
+  assert.equal(syncConfig().folder, 'all');
+  assert.equal(senderMatches({from:{emailAddress:{address:'confirmation@gotandt.com'}}}, syncConfig().sender), true);
 });
 
 test('buildFilter supports a broker-domain sender restriction', () => {
@@ -55,4 +57,11 @@ test('broker pickup time is combined with its trip date for timestamptz columns'
   assert.equal(buildPickupTimestamp('2026-08-26', '10:35 AM'), '2026-08-26 10:35:00');
   assert.equal(buildPickupTimestamp('2026-08-26', '10:35:00'), '2026-08-26 10:35:00');
   assert.equal(buildPickupTimestamp('', '10:35:00'), null);
+});
+
+
+test('mailbox-wide mode uses the Graph messages collection instead of Inbox', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'netlify', 'functions', '_shared', 'ms-graph.cjs'), 'utf8');
+  assert.match(source, /targetFolder\.toLowerCase\(\)==='all'/);
+  assert.match(source, /\?\`\/users\/\$\{encodeGraphPathSegment\(mailbox\)\}\/messages\`/);
 });
