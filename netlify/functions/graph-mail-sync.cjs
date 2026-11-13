@@ -16,9 +16,9 @@ const MAX_MESSAGE_ATTEMPTS=3;
 const MAX_RETRIES_PER_RUN=50;
 
 const DEFAULT_SINCE='2026-07-31T00:00:00Z';
-const DEFAULT_SENDER='driverdeveloper@gotandt.com';
+const DEFAULT_SENDER='*';
 const DEFAULT_SUBJECT='confirmation';
-const DEFAULT_FOLDER='Inbox';
+const DEFAULT_FOLDER='all';
 
 function jsonResponse(statusCode,body){
  return {statusCode,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)};
@@ -30,9 +30,11 @@ function clean(value){
 
 function syncConfig(queryParams={}){
  return {
-  sender:clean(queryParams.sender||process.env.GRAPH_MAIL_SYNC_SENDER||DEFAULT_SENDER),
+  // Do not inherit the legacy single-broker sender setting for scheduled polling.
+  sender:clean(queryParams.sender||DEFAULT_SENDER),
   subjectContains:clean(queryParams.subjectContains||process.env.GRAPH_MAIL_SYNC_SUBJECT_CONTAINS||DEFAULT_SUBJECT),
-  folder:clean(queryParams.folder||process.env.GRAPH_MAIL_SYNC_FOLDER||DEFAULT_FOLDER)||DEFAULT_FOLDER
+  // Do not inherit legacy Inbox-only folder configuration.
+  folder:clean(queryParams.folder||DEFAULT_FOLDER)||DEFAULT_FOLDER
  };
 }
 
@@ -203,7 +205,11 @@ exports.handler=async(event)=>{
   // a failing message no longer pins it (it is retried from state instead).
   // When the per-run cap cut a page short, only advance to the last
   // processed message so the remainder is listed again next run.
-  const savedSince=capped?(lastProcessedAt||since):newestSince;
+  // Re-read a short overlap to catch late-moving mailbox items and messages
+  // sharing an identical received timestamp; the webhook is idempotent.
+  const overlapMs=24*60*60*1000;
+  const candidateSince=capped?(lastProcessedAt||since):newestSince;
+  const savedSince=new Date(Math.max(new Date(DEFAULT_SINCE).getTime(),new Date(candidateSince).getTime()-overlapMs)).toISOString();
   await setSyncState({since:savedSince,updatedAt:new Date().toISOString(),lastFailureCount:failed.length,failedMessages,deadLetterMessageIds});
   return jsonResponse(200,{since,processed:results.length,totalMessages:total,latestSince:newestSince,savedSince,failed:failed.length,retried,retryRecovered,deadLettered:deadLetterMessageIds.length,results});
  }catch(error){
