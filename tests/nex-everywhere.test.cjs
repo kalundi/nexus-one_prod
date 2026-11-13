@@ -20,15 +20,28 @@ test('widget surface: Nex loads everywhere except the password/payment utility p
   assert.doesNotMatch(loaderBlock, /bookingForm/);
 });
 
-test('widget app format: round button above the app bar, bottom-sheet panel, 44px+ targets', () => {
+test('widget app format: round button above the app bar, full-height panel, 44px+ targets', () => {
   const widget = fs.readFileSync('visitor-assistant.js', 'utf8');
   assert.match(widget, /APP_PAGE = \/\\\/\(driver-app\|patient\|booking-app\)/);
   assert.match(widget, /tab\.classList\.add\('nvaApp'\)/);
   assert.match(widget, /panel\.classList\.add\('nvaApp'\)/);
   assert.match(widget, /\.nvaTab\.nvaApp\{[^}]*bottom:84px[^}]*width:52px;height:52px/);
-  assert.match(widget, /\.nvaPanel\.nvaApp\{[^}]*bottom:84px/);
-  assert.match(widget, /\.nvaPanel\.nvaApp\{[^}]*height:min\(560px,calc\(100dvh - 180px\)\)/);
+  // The panel opens full height like the drawer everywhere else
+  // (Anthony, Nov 13, 2026) — no bottom-sheet offsets remain.
+  assert.match(widget, /\.nvaPanel\.nvaApp\{top:0;bottom:auto;left:0;height:100dvh\}/);
+  assert.doesNotMatch(widget, /\.nvaPanel\.nvaApp\{[^}]*bottom:84px/);
+  assert.doesNotMatch(widget, /100dvh - 180px/);
   assert.doesNotMatch(widget, /PANEL_IDLE_CLOSE_MS|idleCloseMs/);
+});
+
+test('widget welcome: no pop-up on the booking app at phone width; desktop keeps it', () => {
+  const widget = fs.readFileSync('visitor-assistant.js', 'utf8');
+  assert.match(widget, /BOOKING_PAGE = \/\\\/booking-app/);
+  assert.match(widget, /MOBILE_VIEW = Boolean\(window\.matchMedia && window\.matchMedia\('\(max-width: 760px\)'\)\.matches\)/);
+  // The welcome is settled without being scheduled only in that one
+  // case; every other page view still schedules showWelcome.
+  assert.match(widget, /welcomeSeenBefore\(\) \|\| \(BOOKING_PAGE && MOBILE_VIEW\)/);
+  assert.match(widget, /welcomeTimer = setTimeout\(showWelcome, 1500\)/);
 });
 
 const KNOWLEDGE_USERS = {

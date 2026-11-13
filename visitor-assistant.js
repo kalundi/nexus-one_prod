@@ -27,6 +27,12 @@
  * waits and polls for it to close; if blocking UI stays open for the
  * whole polling window it skips that page view without setting the
  * session flag, so a later page view may still welcome the visitor.
+ * One exception (Anthony, Nov 13, 2026): on the booking app at a
+ * phone-sized width there is no pop-up welcome at all — the chat
+ * button simply waits for the visitor to tap it. Desktop widths on
+ * the booking app, and every other page, keep the welcome as above.
+ * The session flag is not set by the exception, so the same session
+ * at a desktop width can still be welcomed.
  *
  * Placement: by default, a slim edge tab on the LEFT side of the screen
  * (Nex's waiting avatar). Clicking it slides the chat panel in from the
@@ -172,10 +178,17 @@
   var WIDGET_SIDE = WIDGET_CONFIG.side === 'right' ? 'right' : 'left';
   // App pages (booking app, patient app, driver app) carry their own
   // bottom navigation bars, so Nex switches to a compact app format
-  // there: a round button floating above the app's bar and the panel
-  // as a bottom sheet that never covers it. Same widget, same Nex —
-  // only the placement changes.
+  // there: a round button floating above the app's bar. The panel
+  // itself opens full height, the same drawer as everywhere else
+  // (Anthony, Nov 13, 2026 — it used to open as a bottom sheet that
+  // stopped above the bar). Same widget, same Nex — only the
+  // placement changes.
   var APP_PAGE = /\/(driver-app|patient|booking-app)(\.html)?$/i.test((window.location && window.location.pathname) || '');
+  var BOOKING_PAGE = /\/booking-app(\.html)?$/i.test((window.location && window.location.pathname) || '');
+  // Phone-sized width, evaluated once when the widget loads (the
+  // platform's own mobile layout switches at the same 760px line).
+  // Used only for the booking app's no-pop-up rule below.
+  var MOBILE_VIEW = Boolean(window.matchMedia && window.matchMedia('(max-width: 760px)').matches);
 
   var CSS = [
     '.nvaTab,.nvaPanel,.nvaPanel *{box-sizing:border-box}',
@@ -217,15 +230,18 @@
     '.nvaPanel.nvaRight{left:auto;right:0;border-left:1px solid #d7e2e9;border-right:0;border-radius:22px 0 0 22px;box-shadow:-24px 30px 80px rgba(8,47,73,.30);transform:translate(112%,0)}',
     '.nvaPanel.nvaRight.open{transform:translate(0,0)}',
     /* App format: the tab is a 52px round button floating above the
-       app's own bottom bar (never covering it or primary actions),
-       and the panel opens as a bottom sheet ending above that bar. */
+       app's own bottom bar (never covering it or primary actions).
+       The panel opens full height — top to bottom of the viewable
+       page, exactly like the drawer on every other page — so the
+       base panel rule supplies its borders, corners and shadow and
+       only the bottom-sheet offsets are undone here. */
     '.nvaTab.nvaApp{left:12px;top:auto;bottom:84px;width:52px;height:52px;padding:0;border-radius:50%;flex-direction:row;justify-content:center;transform:none}',
     '.nvaTab.nvaApp .nvaTabLabel{display:none}',
     '.nvaTab.nvaApp .nvaTabAvatar{width:40px;height:40px}',
     '.nvaTab.nvaApp.open{transform:none;opacity:0;pointer-events:none}',
     '.nvaBubble.nvaApp{left:12px;top:auto;bottom:148px;transform:translateY(8px)}',
     '.nvaBubble.nvaApp.show{transform:translateY(0)}',
-    '.nvaPanel.nvaApp{top:auto;bottom:84px;left:12px;height:min(560px,calc(100dvh - 180px));width:min(380px,calc(100vw - 24px));border:1px solid #d7e2e9;border-radius:22px;box-shadow:0 24px 60px rgba(8,47,73,.35)}',
+    '.nvaPanel.nvaApp{top:0;bottom:auto;left:0;height:100dvh}',
     '.nvaHead{position:relative;display:flex;align-items:center;gap:11px;background:linear-gradient(126deg,#071f37 0%,#0d365b 56%,#0e5c8c 100%);color:#fff;padding:14px 56px 13px 16px}',
     '.nvaAvatar{width:46px;height:46px;border-radius:50%;object-fit:cover;background:#fff;border:2px solid rgba(255,255,255,.55);flex:none}',
     '.nvaHeadText{min-width:0}',
@@ -848,7 +864,11 @@
   });
   bubbleClose.addEventListener('click', dismissWelcome);
 
-  if (welcomeSeenBefore()) {
+  if (welcomeSeenBefore() || (BOOKING_PAGE && MOBILE_VIEW)) {
+    // Booking app on a phone: no pop-up welcome (Anthony, Nov 13,
+    // 2026) — the round chat button waits for a tap. The session flag
+    // is deliberately NOT set here, so the same session at a desktop
+    // width can still be welcomed there.
     welcomeSettled = true;
   } else {
     welcomeTimer = setTimeout(showWelcome, 1500);
