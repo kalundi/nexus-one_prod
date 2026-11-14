@@ -235,10 +235,10 @@ exports.handler=async(event)=>{
   // processed message so the remainder is listed again next run.
   // Re-read a short overlap to catch late-moving mailbox items and messages
   // sharing an identical received timestamp; the webhook is idempotent.
-  const overlapMs=24*60*60*1000;
+  const overlapMs=10*60*1000;
   const candidateSince=capped?(lastProcessedAt||since):newestSince;
   const savedSince=total>0
-   ?new Date(Math.max(new Date(since).getTime(),new Date(candidateSince).getTime()-overlapMs)).toISOString()
+   ?(capped?candidateSince:new Date(Math.max(new Date(since).getTime(),new Date(candidateSince).getTime()-overlapMs)).toISOString())
    :since;
   await setSyncState({since:savedSince,updatedAt:new Date().toISOString(),lastFailureCount:failed.length,failedMessages,deadLetterMessageIds});
   return jsonResponse(200,{since,processed:results.length,totalMessages:total,latestSince:newestSince,savedSince,failed:failed.length,retried,retryRecovered,deadLettered:deadLetterMessageIds.length,results});
