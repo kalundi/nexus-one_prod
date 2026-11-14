@@ -47,6 +47,8 @@ test('mailbox-wide Graph path supports custom and nested folders', () => {
   assert.ok(source.includes("targetFolder.toLowerCase()==='all'"));
   assert.ok(source.includes('/messages`'));
   assert.ok(source.includes('/mailFolders/'));
+  assert.ok(source.includes('IdType="ImmutableId"'));
+
 });
 
 test('trip intake links repeat confirmation messages to existing referral', () => {
