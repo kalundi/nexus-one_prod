@@ -94,12 +94,30 @@ function createMonitor({query, fetchImpl = fetch, env = process.env, now = Date.
     if (!claimed.rows.length) return { skipped: true, reason: 'A check is running or ran less than a minute ago', ...await snapshot() };
     try {
       const results = [];
+      // Content checks (targets with a marker: pages and modules) fetch site
+      // content, and those fetches register as pageviews in Netlify Analytics
+      // — at a five-minute cadence the monitor becomes the site's largest
+      // "visitor". Content checks therefore run only in the first
+      // five-minute slot of each hour; the API protection checks (no marker,
+      // expected 401) still run every cycle. Checks not probed in a run keep
+      // their previous report entries, including their original checkedAt.
+      const includeContent = new Date(now()).getUTCMinutes() < 5;
+      const dueTargets = TARGETS.filter(t => includeContent || !t[3]);
       // Bounded parallelism keeps checks within the scheduled function window.
-      for (let i=0;i<TARGETS.length;i+=5) results.push(...await Promise.all(TARGETS.slice(i,i+5).map(t => probe(t,fetchImpl,now))));
+      for (let i=0;i<dueTargets.length;i+=5) results.push(...await Promise.all(dueTargets.slice(i,i+5).map(t => probe(t,fetchImpl,now))));
       try { await query('SELECT 1 AS maintenance_database_probe'); results.push({id:'database',label:'Database connectivity',status:'pass',detail:'Read-only query succeeded'}); }
       catch { results.push({id:'database',label:'Database connectivity',status:'fail',detail:'Read-only database query failed'}); }
       results.push({id:'maps-config',label:'Maps configuration',status:(env.GOOGLE_MAPS_BROWSER_KEY||GOOGLE_MAPS_BROWSER_KEY)?'pass':'warn',detail:(env.GOOGLE_MAPS_BROWSER_KEY||GOOGLE_MAPS_BROWSER_KEY)?'Browser key present; provider validity and road rendering are not tested':'Google Maps browser key is not configured'});
-      const report = reduceReport(claimed.rows[0].report,results,now());
+      const fresh = reduceReport(claimed.rows[0].report,results,now());
+      // Carry forward entries for checks not probed in this run (the hourly
+      // content checks), preserving target order; run-scoped checks such as
+      // database and maps-config always come from the fresh results.
+      const probedIds = new Set(fresh.checks.map(c => c.id));
+      const carried = (claimed.rows[0].report.checks || []).filter(c => !probedIds.has(c.id));
+      const report = carried.length ? { ...fresh, checks: [
+        ...TARGETS.map(t => fresh.checks.find(c => c.id === t[0]) || carried.find(c => c.id === t[0])).filter(Boolean),
+        ...fresh.checks.filter(c => !TARGETS.some(t => t[0] === c.id))
+      ] } : fresh;
       await query(`UPDATE maintenance_monitor SET report=$1::jsonb,lease_token=NULL,lease_until=NULL,
         acknowledgements=(SELECT COALESCE(jsonb_object_agg(key,value),'{}'::jsonb) FROM jsonb_each(acknowledgements) WHERE key=ANY($3::text[]))
         WHERE id=1 AND lease_token=$2`,[JSON.stringify(report),token,report.checks.filter(c=>c.incidentAt).map(c=>`${c.id}:${c.incidentAt}`)]);
