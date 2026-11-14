@@ -70,6 +70,8 @@ async function graphFetch(path,options={}){
   headers:{
    authorization:`Bearer ${token}`,
    'content-type':'application/json',
+   // Message IDs remain stable when an Outlook rule moves mail between folders.
+   Prefer:'IdType="ImmutableId"',
    ...(options.headers||{})
   }
  });
@@ -90,6 +92,8 @@ async function graphFetchUrl(url,options={}){
   headers:{
    authorization:`Bearer ${token}`,
    'content-type':'application/json',
+   // Message IDs remain stable when an Outlook rule moves mail between folders.
+   Prefer:'IdType="ImmutableId"',
    ...(options.headers||{})
   }
  });
