@@ -67,7 +67,7 @@ function buildFilter({since,subjectContains=DEFAULT_SUBJECT,sender=DEFAULT_SENDE
  const senderDomain=normalizedSender.match(/^\*?(@[a-z0-9.-]+)$/i)?.[1]||'';
  const escapedSender=String(normalizedSender).replace(/'/g,"''");
  const senderClause=!hasSender||senderDomain?'':` and from/emailAddress/address eq '${escapedSender}'`;
- return `receivedDateTime ge ${safeSince} and contains(subject,'${String(subjectContains).replace(/'/g,"''")}')${senderClause} and hasAttachments eq true`;
+ return `receivedDateTime ge ${safeSince} and contains(subject,'${String(subjectContains).replace(/'/g,"''")}')${senderClause}`;
 }
 
 function senderMatches(message,senderFilter){
@@ -76,6 +76,33 @@ function senderMatches(message,senderFilter){
  const address=clean(message?.from?.emailAddress?.address).toLowerCase();
  const domain=filter.match(/^\*?(@[a-z0-9.-]+)$/i)?.[1]||'';
  return domain?address.endsWith(domain):address===filter;
+}
+
+// Only registered brokers (or explicitly approved broker domains) may
+// create bookings from the mailbox-wide polling source. Otherwise unrelated
+// confirmation emails could be forwarded to the trip intake endpoint.
+function brokerSenderApproved(message,domains){
+ const address=clean(message?.from?.emailAddress?.address).toLowerCase();
+ const domain=address.split('@')[1];
+ return Boolean(domain&&domains.has(domain));
+}
+
+async function approvedBrokerDomains(){
+ const domains=new Set(['gotandt.com']);
+ for(const item of clean(process.env.GRAPH_MAIL_SYNC_ALLOWED_BROKER_DOMAINS).split(/[\\s,;]+/)){
+  const domain=item.toLowerCase().replace(/^\\*@?/,'');
+  if(/^[a-z0-9.-]+\\.[a-z]{2,}$/.test(domain))domains.add(domain);
+ }
+ // The brokers table is managed through the existing Nexus admin workflow.
+ // A sender from the same registered broker domain is permitted (e.g. a
+ // confirmations mailbox instead of the primary broker contact).
+ const found=await query('SELECT contact_email FROM brokers WHERE contact_email IS NOT NULL');
+ for(const row of found.rows||[]){
+  const email=clean(row.contact_email).toLowerCase();
+  const domain=email.split('@')[1];
+  if(domain&&/^[a-z0-9.-]+\\.[a-z]{2,}$/.test(domain))domains.add(domain);
+ }
+ return domains;
 }
 
 async function processMessage(message,folder=DEFAULT_FOLDER){
@@ -125,6 +152,7 @@ exports.handler=async(event)=>{
   const method=event.httpMethod||'GET';
   const queryParams=event.queryStringParameters||{};
   const config=syncConfig(queryParams);
+  const approvedDomains=await approvedBrokerDomains();
   const syncState=await getSyncState();
   const since=parseSince(queryParams.since||queryParams.start||syncState.since||process.env.GRAPH_MAIL_SYNC_SINCE||DEFAULT_SINCE);
   if(method!=='GET'&&method!=='POST'){
@@ -147,7 +175,7 @@ exports.handler=async(event)=>{
    retried+=1;
    try{
     const message=await getMessage({messageId,folder:config.folder});
-    if(!senderMatches(message,config.sender)){
+    if(!senderMatches(message,config.sender)||!brokerSenderApproved(message,approvedDomains)){
      delete failedMessages[messageId];
      continue;
     }
@@ -183,7 +211,7 @@ exports.handler=async(event)=>{
     if(message.receivedDateTime&&new Date(message.receivedDateTime)>new Date(newestSince)){
      newestSince=message.receivedDateTime;
     }
-    if(!senderMatches(message,config.sender))continue;
+    if(!senderMatches(message,config.sender)||!brokerSenderApproved(message,approvedDomains))continue;
     total+=1;
     try{
      const outcome=await processMessage(message,config.folder);
@@ -225,3 +253,4 @@ exports.MAX_MESSAGE_ATTEMPTS=MAX_MESSAGE_ATTEMPTS;
 exports.buildFilter=buildFilter;
 exports.syncConfig=syncConfig;
 exports.senderMatches=senderMatches;
+exports.brokerSenderApproved=brokerSenderApproved;
