@@ -70,6 +70,8 @@ async function graphFetch(path,options={}){
   headers:{
    authorization:`Bearer ${token}`,
    'content-type':'application/json',
+   // Message IDs remain stable when an Outlook rule moves mail between folders.
+   Prefer:'IdType="ImmutableId"',
    ...(options.headers||{})
   }
  });
@@ -90,6 +92,8 @@ async function graphFetchUrl(url,options={}){
   headers:{
    authorization:`Bearer ${token}`,
    'content-type':'application/json',
+   // Message IDs remain stable when an Outlook rule moves mail between folders.
+   Prefer:'IdType="ImmutableId"',
    ...(options.headers||{})
   }
  });
@@ -115,7 +119,12 @@ async function listMessages({since,folder='Inbox',top=25,filter=''}){
  params.set('$orderby','receivedDateTime asc');
  if(filter)params.set('$filter',filter);
  const targetFolder=clean(folder)||'Inbox';
- const path=`/users/${encodeGraphPathSegment(mailbox)}/mailFolders/${encodeGraphPathSegment(targetFolder)}/messages?${params.toString()}`;
+ // The mailbox-level messages collection covers Inbox, all custom/nested folders,
+ // and messages moved by Outlook rules before the scheduled poll runs.
+ const collection=targetFolder==='*'||targetFolder.toLowerCase()==='all'
+  ?`/users/${encodeGraphPathSegment(mailbox)}/messages`
+  :`/users/${encodeGraphPathSegment(mailbox)}/mailFolders/${encodeGraphPathSegment(targetFolder)}/messages`;
+ const path=`${collection}?${params.toString()}`;
  return graphFetch(path);
 }
 

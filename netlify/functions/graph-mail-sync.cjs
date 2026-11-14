@@ -16,9 +16,9 @@ const MAX_MESSAGE_ATTEMPTS=3;
 const MAX_RETRIES_PER_RUN=50;
 
 const DEFAULT_SINCE='2026-07-31T00:00:00Z';
-const DEFAULT_SENDER='driverdeveloper@gotandt.com';
+const DEFAULT_SENDER='*';
 const DEFAULT_SUBJECT='confirmation';
-const DEFAULT_FOLDER='Inbox';
+const DEFAULT_FOLDER='all';
 
 function jsonResponse(statusCode,body){
  return {statusCode,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)};
@@ -30,9 +30,11 @@ function clean(value){
 
 function syncConfig(queryParams={}){
  return {
-  sender:clean(queryParams.sender||process.env.GRAPH_MAIL_SYNC_SENDER||DEFAULT_SENDER),
+  // Do not inherit the legacy single-broker sender setting for scheduled polling.
+  sender:clean(queryParams.sender||DEFAULT_SENDER),
   subjectContains:clean(queryParams.subjectContains||process.env.GRAPH_MAIL_SYNC_SUBJECT_CONTAINS||DEFAULT_SUBJECT),
-  folder:clean(queryParams.folder||process.env.GRAPH_MAIL_SYNC_FOLDER||DEFAULT_FOLDER)||DEFAULT_FOLDER
+  // Do not inherit legacy Inbox-only folder configuration.
+  folder:clean(queryParams.folder||DEFAULT_FOLDER)||DEFAULT_FOLDER
  };
 }
 
@@ -65,7 +67,7 @@ function buildFilter({since,subjectContains=DEFAULT_SUBJECT,sender=DEFAULT_SENDE
  const senderDomain=normalizedSender.match(/^\*?(@[a-z0-9.-]+)$/i)?.[1]||'';
  const escapedSender=String(normalizedSender).replace(/'/g,"''");
  const senderClause=!hasSender||senderDomain?'':` and from/emailAddress/address eq '${escapedSender}'`;
- return `receivedDateTime ge ${safeSince} and contains(subject,'${String(subjectContains).replace(/'/g,"''")}')${senderClause} and hasAttachments eq true`;
+ return `receivedDateTime ge ${safeSince} and contains(subject,'${String(subjectContains).replace(/'/g,"''")}')${senderClause}`;
 }
 
 function senderMatches(message,senderFilter){
@@ -74,6 +76,35 @@ function senderMatches(message,senderFilter){
  const address=clean(message?.from?.emailAddress?.address).toLowerCase();
  const domain=filter.match(/^\*?(@[a-z0-9.-]+)$/i)?.[1]||'';
  return domain?address.endsWith(domain):address===filter;
+}
+
+// Only registered brokers (or explicitly approved broker domains) may
+// create bookings from the mailbox-wide polling source. Otherwise unrelated
+// confirmation emails could be forwarded to the trip intake endpoint.
+function brokerSenderApproved(message,domains){
+ const address=clean(message?.from?.emailAddress?.address).toLowerCase();
+ const domain=address.split('@')[1];
+ return Boolean(domain&&domains.has(domain));
+}
+
+async function approvedBrokerDomains(){
+ const domains=new Set(['gotandt.com']);
+ for(const item of clean(process.env.GRAPH_MAIL_SYNC_ALLOWED_BROKER_DOMAINS).split(/[\\s,;]+/)){
+  const domain=item.toLowerCase().replace(/^\\*@?/,'');
+  if(/^[a-z0-9.-]+\\.[a-z]{2,}$/.test(domain))domains.add(domain);
+ }
+ // The brokers table is managed through the existing Nexus admin workflow.
+ // A sender from the same registered broker domain is permitted (e.g. a
+ // confirmations mailbox instead of the primary broker contact).
+ const found=await query('SELECT contact_email FROM brokers WHERE contact_email IS NOT NULL');
+ for(const row of found.rows||[]){
+  const email=clean(row.contact_email).toLowerCase();
+  const domain=email.split('@')[1];
+  // Do not wildcard every sender on popular personal email providers.
+  const consumerDomains=new Set(['gmail.com','outlook.com','hotmail.com','yahoo.com','aol.com','icloud.com','live.com','msn.com','proton.me','protonmail.com']);
+  if(domain&&!consumerDomains.has(domain)&&/^[a-z0-9.-]+\\.[a-z]{2,}$/.test(domain))domains.add(domain);
+ }
+ return domains;
 }
 
 async function processMessage(message,folder=DEFAULT_FOLDER){
@@ -123,6 +154,7 @@ exports.handler=async(event)=>{
   const method=event.httpMethod||'GET';
   const queryParams=event.queryStringParameters||{};
   const config=syncConfig(queryParams);
+  const approvedDomains=await approvedBrokerDomains();
   const syncState=await getSyncState();
   const since=parseSince(queryParams.since||queryParams.start||syncState.since||process.env.GRAPH_MAIL_SYNC_SINCE||DEFAULT_SINCE);
   if(method!=='GET'&&method!=='POST'){
@@ -145,7 +177,7 @@ exports.handler=async(event)=>{
    retried+=1;
    try{
     const message=await getMessage({messageId,folder:config.folder});
-    if(!senderMatches(message,config.sender)){
+    if(!senderMatches(message,config.sender)||!brokerSenderApproved(message,approvedDomains)){
      delete failedMessages[messageId];
      continue;
     }
@@ -181,7 +213,7 @@ exports.handler=async(event)=>{
     if(message.receivedDateTime&&new Date(message.receivedDateTime)>new Date(newestSince)){
      newestSince=message.receivedDateTime;
     }
-    if(!senderMatches(message,config.sender))continue;
+    if(!senderMatches(message,config.sender)||!brokerSenderApproved(message,approvedDomains))continue;
     total+=1;
     try{
      const outcome=await processMessage(message,config.folder);
@@ -203,7 +235,13 @@ exports.handler=async(event)=>{
   // a failing message no longer pins it (it is retried from state instead).
   // When the per-run cap cut a page short, only advance to the last
   // processed message so the remainder is listed again next run.
-  const savedSince=capped?(lastProcessedAt||since):newestSince;
+  // Re-read a short overlap to catch late-moving mailbox items and messages
+  // sharing an identical received timestamp; the webhook is idempotent.
+  const overlapMs=10*60*1000;
+  const candidateSince=capped?(lastProcessedAt||since):newestSince;
+  const savedSince=total>0
+   ?(capped?candidateSince:new Date(Math.max(new Date(since).getTime(),new Date(candidateSince).getTime()-overlapMs)).toISOString())
+   :since;
   await setSyncState({since:savedSince,updatedAt:new Date().toISOString(),lastFailureCount:failed.length,failedMessages,deadLetterMessageIds});
   return jsonResponse(200,{since,processed:results.length,totalMessages:total,latestSince:newestSince,savedSince,failed:failed.length,retried,retryRecovered,deadLettered:deadLetterMessageIds.length,results});
  }catch(error){
@@ -217,3 +255,4 @@ exports.MAX_MESSAGE_ATTEMPTS=MAX_MESSAGE_ATTEMPTS;
 exports.buildFilter=buildFilter;
 exports.syncConfig=syncConfig;
 exports.senderMatches=senderMatches;
+exports.brokerSenderApproved=brokerSenderApproved;
