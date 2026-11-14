@@ -1109,6 +1109,38 @@ async function insertBrokerRequest({brokerId,brokerName,service,pickup,destinati
  return result.rows[0];
 }
 
+// Multiple confirmation emails can use different CRM numbers and message IDs
+// for one referral. Find the existing canonical booking before creating another.
+async function findBookingByBrokerReferral({referralId,tripDate,patientName}){
+ const referral=clean(referralId,120),name=clean(patientName,160);
+ if(!referral||!tripDate||!name)return null;
+ const sql=`SELECT b.* FROM broker_requests r
+  JOIN bookings b ON b.reference=r.booking_reference
+  WHERE lower(trim(r.referral_id))=lower($1)
+    AND r.trip_date=$2::date
+    AND regexp_replace(lower(coalesce(r.patient_name,'')),'[^a-z0-9]','','g')=
+        regexp_replace(lower($3),'[^a-z0-9]','','g')
+    AND upper(coalesce(b.booking_source,''))='BROKER'
+  ORDER BY CASE WHEN b.duplicate_of IS NULL THEN 0 ELSE 1 END,b.created_at ASC LIMIT 1`;
+ const linked=await query(sql,[referral,tripDate,name]);
+ let booking=linked.rows?.[0]||null;
+ if(!booking){
+  // Recover bookings that predate the broker_requests source link.
+  const older=await query(`SELECT * FROM bookings b
+   WHERE upper(coalesce(b.booking_source,''))='BROKER' AND b.trip_date=$2::date
+    AND regexp_replace(lower(coalesce(b.name,'')),'[^a-z0-9]','','g')=
+        regexp_replace(lower($3),'[^a-z0-9]','','g')
+    AND position(lower('Referral ID: '||$1) in lower(coalesce(b.notes,'')))>0
+   ORDER BY CASE WHEN b.duplicate_of IS NULL THEN 0 ELSE 1 END,b.created_at ASC LIMIT 1`,[referral,tripDate,name]);
+  booking=older.rows?.[0]||null;
+ }
+ if(booking?.duplicate_of){
+  const canonical=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[booking.duplicate_of]);
+  booking=canonical.rows?.[0]||booking;
+ }
+ return booking;
+}
+
 function buildBrokerBookingNotes(parsed,{brokerRate,platformRate,tripCostEstimate}){
  return [
   'Broker confirmation intake created from inbound email attachment.',
@@ -1451,6 +1483,14 @@ exports.handler=async(event)=>{
     booking=canonical.rows[0]||booking;
    }
   }
+  if(!booking&&hasConfirmationSubject&&parsed.referral_id){
+   booking=await findBookingByBrokerReferral({
+    referralId:parsed.referral_id,tripDate,patientName:parsed.patient_name
+   });
+   if(booking){
+    await query('UPDATE broker_requests SET booking_reference=$2,updated_at=now() WHERE id=$1',[request.id,booking.reference]);
+   }
+  }
   if(booking&&attachments.length>0){
    await saveBookingAttachments({
     bookingReference:booking.reference,
@@ -1458,7 +1498,7 @@ exports.handler=async(event)=>{
     attachments
    });
   }
-  if(booking&&!request.isReplay&&hasConfirmationSubject&&attachments.length>0&&!parsed.subject_fallback){
+  if(booking&&!request.isReplay&&hasConfirmationSubject&&attachments.length>0&&!parsed.subject_fallback&&String(booking.status||'').toUpperCase()==='PENDING_DISPATCH_CONFIRMATION'){
    booking=await enrichExistingBookingFromBrokerRequest({
     bookingReference:booking.reference,
     parsed,
