@@ -1,0 +1,30 @@
+name: Broker mail intake tests
+on:
+  pull_request:
+    paths:
+      - 'netlify/functions/graph-mail-sync.cjs'
+      - 'netlify/functions/_shared/ms-graph.cjs'
+      - 'netlify/functions/broker-email-webhook.cjs'
+      - 'tests/graph-mail-sync.test.cjs'
+      - '.github/workflows/broker-mail-intake-tests.yml'
+  push:
+    branches:
+      - main
+      - fix/broker-mailbox-wide-confirmations-20261113
+permissions:
+  contents: read
+jobs:
+  broker-mail-intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --check netlify/functions/graph-mail-sync.cjs
+      - run: node --check netlify/functions/_shared/ms-graph.cjs
+      - run: node --check netlify/functions/broker-email-webhook.cjs
+      - run: node --test tests/graph-mail-sync.test.cjs
