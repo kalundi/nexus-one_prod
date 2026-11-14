@@ -19,6 +19,9 @@
   included_files = ["netlify/functions/_private-documents/**"]
 
 # Read-only production health checks; public HTTP invocation is disabled by scheduling.
+# The function still runs every 5 minutes for the API protection checks, but
+# page/module content checks run only in the first slot of each hour so the
+# monitor's own fetches do not inflate Netlify Analytics pageviews.
 [functions.maintenance-monitor]
   schedule = "*/5 * * * *"
 

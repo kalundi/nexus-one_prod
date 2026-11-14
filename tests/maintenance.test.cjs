@@ -19,7 +19,7 @@ function fixtureFetcher({bad=false,aiText='Review the failed check.'}={}){
 }
 async function fixture(run){const db=new PGlite();try{await run(db,(...args)=>db.query(...args));}finally{await db.close();}}
 test('real SQL persists reports, cooldown and lease prevent repeated runs, acknowledgment survives subsequent samples',()=>fixture(async(db,query)=>{
- let bad=true;const monitor=M.createMonitor({query,env:{GOOGLE_MAPS_BROWSER_KEY:'SECRET'},fetchImpl:(...args)=>fixtureFetcher({bad})(...args)});
+ let bad=true;const monitor=M.createMonitor({query,env:{GOOGLE_MAPS_BROWSER_KEY:'SECRET'},now:()=>Date.UTC(2026,10,14,12,0,0),fetchImpl:(...args)=>fixtureFetcher({bad})(...args)});
  assert.equal((await monitor.snapshot()).checks.length,0);
  let report=await monitor.run();assert.equal(report.checks.filter(c=>c.status==='fail').length,M.TARGETS.length);assert.equal(JSON.stringify(report).includes('SECRET'),false);
  assert.equal((await monitor.run()).skipped,true);
@@ -38,13 +38,13 @@ test('real SQL persists reports, cooldown and lease prevent repeated runs, ackno
 test('missing AI is explicit; connected AI sends only synthetic findings with bounded stateless request and hourly limit',()=>fixture(async(db,query)=>{
  const missing=M.createMonitor({query,env:{},fetchImpl:fixtureFetcher()});await assert.rejects(missing.investigate(),e=>e.statusCode===503);
  let payload;
- const monitor=M.createMonitor({query,env:{OPENAI_API_KEY:'DO-NOT-EXPOSE',OPENAI_MODEL:'configured-model'},fetchImpl:async(url,options)=>{if(url.includes('api.openai.com'))payload=JSON.parse(options.body);return fixtureFetcher({bad:true})(url,options);}});
+ const monitor=M.createMonitor({query,env:{OPENAI_API_KEY:'DO-NOT-EXPOSE',OPENAI_MODEL:'configured-model'},now:()=>Date.UTC(2026,10,14,12,0,0),fetchImpl:async(url,options)=>{if(url.includes('api.openai.com'))payload=JSON.parse(options.body);return fixtureFetcher({bad:true})(url,options);}});
  await monitor.run();let report=await monitor.investigate();assert.equal(report.investigation.status,'Review required');assert.equal(report.aiConnected,true);assert.equal(JSON.stringify(report).includes('DO-NOT-EXPOSE'),false);
  assert.equal(payload.store,false);assert.equal(payload.max_output_tokens,1600);assert.equal(payload.tools,undefined);assert.equal(payload.model,'configured-model');assert.equal(payload.input.includes('DO-NOT-EXPOSE'),false);
  await assert.rejects(monitor.investigate(),e=>e.statusCode===429);
 }));
 test('AI provider failure preserves reports and does not expose provider errors',()=>fixture(async(db,query)=>{
- const monitor=M.createMonitor({query,env:{MAINTENANCE_AI_API_KEY:'secret',MAINTENANCE_AI_MODEL:'model'},fetchImpl:async(url,options)=>url.includes('api.openai.com')?new Response('secret provider details',{status:500}):fixtureFetcher({bad:true})(url,options)});
+ const monitor=M.createMonitor({query,env:{MAINTENANCE_AI_API_KEY:'secret',MAINTENANCE_AI_MODEL:'model'},now:()=>Date.UTC(2026,10,14,12,0,0),fetchImpl:async(url,options)=>url.includes('api.openai.com')?new Response('secret provider details',{status:500}):fixtureFetcher({bad:true})(url,options)});
  await monitor.run();await assert.rejects(monitor.investigate(),e=>e.statusCode===502&&!e.message.includes('secret'));assert.ok((await monitor.snapshot()).checkedAt);
 }));
 test('admin API rejects anonymous and non-admin roles before any monitor access',async()=>{
@@ -65,9 +65,29 @@ test('scheduled handler runs only for published production deploys with a schedu
  await handler(request(),{deploy:{context:'production',published:true}});assert.equal(calls,1);
 });
 test('redirects, wrong content, and network exceptions fail without retaining sensitive response bodies',()=>fixture(async(db,query)=>{
- const monitor=M.createMonitor({query,env:{},fetchImpl:async(url)=>{
+ const monitor=M.createMonitor({query,env:{},now:()=>Date.UTC(2026,10,14,12,0,0),fetchImpl:async(url)=>{
   if(url.endsWith('booking-app.html'))return new Response('PRIVATE RESPONSE BODY',{status:302});
   if(url.endsWith('livecare.html'))throw Error('PRIVATE EXCEPTION');
   return new Response('Wrong content',{status:200,headers:{'content-type':'text/html'}});
  }});const report=await monitor.run();assert.equal(report.checks[0].status,'fail');assert.equal(report.checks[1].status,'fail');assert.equal(JSON.stringify(report).includes('PRIVATE'),false);
+}));
+test('content checks run only in the first slot of the hour while API checks run every cycle, and unprobed checks carry forward',()=>fixture(async(db,query)=>{
+ let current=Date.UTC(2026,10,14,12,0,0);
+ const fetched=[];const base=fixtureFetcher({});
+ const monitor=M.createMonitor({query,env:{},now:()=>current,fetchImpl:async(url,options)=>{fetched.push(url);return base(url,options);}});
+ let report=await monitor.run();
+ assert.equal(fetched.length,M.TARGETS.length);
+ assert.equal(report.checks.length,M.TARGETS.length+2);
+ const contentIds=M.TARGETS.filter(t=>t[3]).map(t=>t[0]);
+ const firstCheckedAt=Object.fromEntries(report.checks.map(c=>[c.id,c.checkedAt]));
+ fetched.length=0;current+=30*60*1000;
+ await query("UPDATE maintenance_monitor SET last_started=now()-interval '2 minutes'");
+ report=await monitor.run();
+ assert.deepEqual(fetched.map(u=>u.replace('https://nexusmt.com','')),M.TARGETS.filter(t=>!t[3]).map(t=>t[2]));
+ assert.equal(report.checks.length,M.TARGETS.length+2);
+ for(const id of contentIds){const c=report.checks.find(x=>x.id===id);assert.ok(c,`${id} carried forward`);assert.equal(c.checkedAt,firstCheckedAt[id]);}
+ fetched.length=0;current+=30*60*1000;
+ await query("UPDATE maintenance_monitor SET last_started=now()-interval '2 minutes'");
+ report=await monitor.run();
+ assert.equal(fetched.length,M.TARGETS.length);
 }));
