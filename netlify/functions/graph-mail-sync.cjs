@@ -100,7 +100,9 @@ async function approvedBrokerDomains(){
  for(const row of found.rows||[]){
   const email=clean(row.contact_email).toLowerCase();
   const domain=email.split('@')[1];
-  if(domain&&/^[a-z0-9.-]+\\.[a-z]{2,}$/.test(domain))domains.add(domain);
+  // Do not wildcard every sender on popular personal email providers.
+  const consumerDomains=new Set(['gmail.com','outlook.com','hotmail.com','yahoo.com','aol.com','icloud.com','live.com','msn.com','proton.me','protonmail.com']);
+  if(domain&&!consumerDomains.has(domain)&&/^[a-z0-9.-]+\\.[a-z]{2,}$/.test(domain))domains.add(domain);
  }
  return domains;
 }
