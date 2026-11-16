@@ -14,7 +14,7 @@ async function sendEmail(to,subject,html,options={}){
  const payload={From:from.includes('<')?from:`${options.fromName||'Nexus Medical Transit'} <${from}>`,To:recipients.join(','),Subject:subject,HtmlBody:html,MessageStream:config.stream};
  if(options.broadcast)payload.HtmlBody+='\n<p><a href="{{{ pm:unsubscribe }}}">Unsubscribe</a></p>';
  if(options.replyTo)payload.ReplyTo=options.replyTo;
- if(options.attachments?.length)payload.Attachments=options.attachments.map(a=>({Name:a.filename||'attachment.txt',Content:String(a.content||''),ContentType:a.type||'application/octet-stream'})).filter(a=>a.Content);
+ if(options.attachments?.length)payload.Attachments=options.attachments.map(a=>{const attachment={Name:a.filename||'attachment.txt',Content:String(a.content||''),ContentType:a.type||'application/octet-stream'};if(a.contentId)attachment.ContentID=String(a.contentId);return attachment;}).filter(a=>a.Content);
  const response=await fetch('https://api.postmarkapp.com/email',{method:'POST',signal:AbortSignal.timeout(15000),headers:{'X-Postmark-Server-Token':config.token,Accept:'application/json','Content-Type':'application/json'},body:JSON.stringify(payload)});
  const result=await response.json().catch(()=>null);
  if(!response.ok||result?.ErrorCode!==0||!result?.MessageID)throw Object.assign(new Error(`Postmark request failed (${response.status}; code ${Number(result?.ErrorCode)||'unknown'})`),{providerStatus:response.status,providerCode:Number(result?.ErrorCode)||null});

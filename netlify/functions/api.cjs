@@ -1204,9 +1204,18 @@ async function ensureBookingPromotionsSchema(){
  await query(`INSERT INTO booking_promotions(code_hash,display_code,description,service,trip_date,fixed_total,percent_off) VALUES ${rows.join(',')} ON CONFLICT(code_hash) DO NOTHING`,params);
 }
 
-const {OUTREACH_CAMPAIGN,outreachHtml}=require('./_shared/outreach-content.cjs');
+const {OUTREACH_CAMPAIGN,EMERGENCY_PLAN_ROUND,outreachHtml}=require('./_shared/outreach-content.cjs');
 const Outreach=require('./_shared/outreach-automation.cjs');
 const outreachAutomation=Outreach.createAutomation({query});
+const outreachRoundAutomation=Outreach.createAutomation({query,campaignDef:EMERGENCY_PLAN_ROUND});
+async function outreachDashboardWithRounds(){
+ const data=await outreachAutomation.dashboard();
+ try{
+  const round=await outreachRoundAutomation.dashboard();
+  data.rounds=[{id:round.campaign.id,name:round.campaign.name,subject:round.campaign.subject,status:round.campaign.status,sendWindow:round.campaign.sendWindow,previewHtml:round.previewHtml,automation:{enabled:round.automation.enabled,initialSent:round.automation.initialSent,replied:round.automation.replied,suppressed:round.automation.suppressed,lastRunAt:round.automation.lastRunAt,error:round.automation.error,dailyInitialLimit:round.automation.dailyInitialLimit}}];
+ }catch{data.rounds=[];}
+ return data;
+}
 async function sendOutreachTestEmail(){return Email.sendEmail(OUTREACH_CAMPAIGN.testRecipient,`TEST — ${OUTREACH_CAMPAIGN.subject}`,outreachHtml('Test Recipient','Test Facility'),{broadcast:true,fromEmail:OUTREACH_CAMPAIGN.fromEmail,fromName:OUTREACH_CAMPAIGN.fromName,replyTo:OUTREACH_CAMPAIGN.replyTo});}
 async function ensurePasswordResetColumns(){
  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false').catch(()=>{});
@@ -2282,7 +2291,7 @@ async function handler(event){
   if(p[0]==='admin'&&p[1]==='outreach-campaigns'&&p[2]==='pilot'){
    const me=await requireUser(bearer(event),['ADMIN']);
    const outreach=outreachAutomation;
-   if(method==='GET'&&p.length===3)return json(200,await outreach.dashboard());
+   if(method==='GET'&&p.length===3)return json(200,await outreachDashboardWithRounds());
    if(method==='POST'&&p[3]==='automation'){
     const body=parseBody(event);if(typeof body.enabled!=='boolean')return json(400,{error:'Choose whether automatic outreach is enabled.'});
     await outreach.setEnabled(body.enabled);

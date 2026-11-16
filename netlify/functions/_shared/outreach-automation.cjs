@@ -1,17 +1,19 @@
 const Email=require('./email.cjs');
 const Graph=require('./ms-graph.cjs');
 const audience=require('../../../data/montgomery-tier-a-outreach-pilot.json');
-const {OUTREACH_CAMPAIGN:campaign,outreachHtml}=require('./outreach-content.cjs');
+const {OUTREACH_CAMPAIGN:moduleCampaign,outreachHtml,SIGNATURE_CARD_CID}=require('./outreach-content.cjs');
+const {SIGNATURE_CARD_BASE64}=require('./outreach-signature-image.cjs');
 const {randomUUID}=require('node:crypto');
 const normalize=value=>String(value??'').trim().toLowerCase();
-const clock=new Intl.DateTimeFormat('en-CA',{timeZone:campaign.timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23',weekday:'short'});
+const clock=new Intl.DateTimeFormat('en-CA',{timeZone:moduleCampaign.timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23',weekday:'short'});
 function localClock(date){const p=Object.fromEntries(clock.formatToParts(date).map(p=>[p.type,p.value]));return {date:`${p.year}-${p.month}-${p.day}`,day:p.weekday,minutes:Number(p.hour)*60+Number(p.minute)};}
-function inSendWindow(date){const p=localClock(date);return ['Tue','Wed','Thu'].includes(p.day)&&p.minutes>=570&&p.minutes<=630;}
-function followUpDate(sentAt){const p=localClock(new Date(sentAt)),date=new Date(p.date+'T12:00:00Z');let days=0;while(days<campaign.followUpBusinessDays){date.setUTCDate(date.getUTCDate()+1);if(![0,6].includes(date.getUTCDay()))days++;}return date.toISOString().slice(0,10);}
-function nextWindow(date){for(let i=0;i<8*24*60;i++){const next=new Date(Math.ceil((+date+1)/60000)*60000+i*60000);if(inSendWindow(next))return next.toISOString();}return null;}
-function replyMatches(message,initial){return normalize(message.from?.emailAddress?.address)===normalize(initial.email)&&new Date(message.receivedDateTime)>=new Date(initial.sent_at)&&normalize(message.subject).includes(normalize(campaign.subject));}
+function inSendWindow(date,def=moduleCampaign){const p=localClock(date);const days=Array.isArray(def?.sendDays)&&def.sendDays.length?def.sendDays:['Tue','Wed','Thu'];return days.includes(p.day)&&p.minutes>=570&&p.minutes<=630;}
+function followUpDate(sentAt){const p=localClock(new Date(sentAt)),date=new Date(p.date+'T12:00:00Z');let days=0;while(days<moduleCampaign.followUpBusinessDays){date.setUTCDate(date.getUTCDate()+1);if(![0,6].includes(date.getUTCDay()))days++;}return date.toISOString().slice(0,10);}
+function nextWindow(date,def=moduleCampaign){for(let i=0;i<8*24*60;i++){const next=new Date(Math.ceil((+date+1)/60000)*60000+i*60000);if(inSendWindow(next,def))return next.toISOString();}return null;}
+function replyMatches(message,initial,subject=moduleCampaign.subject){return normalize(message.from?.emailAddress?.address)===normalize(initial.email)&&new Date(message.receivedDateTime)>=new Date(initial.sent_at)&&normalize(message.subject).includes(normalize(subject));}
 
-function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients=audience.recipients,now=()=>new Date()}={}){
+function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients=audience.recipients,now=()=>new Date(),campaignDef}={}){
+ const campaign=campaignDef||moduleCampaign;
  if(!graphToken)graphToken=async()=>{
   const credentials=Graph.requireGraphCredentials();
   const response=await fetcher(`https://login.microsoftonline.com/${encodeURIComponent(credentials.tenantId)}/oauth2/v2.0/token`,{method:'POST',signal:AbortSignal.timeout(5000),headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:credentials.clientId,client_secret:credentials.clientSecret,grant_type:'client_credentials',scope:'https://graph.microsoft.com/.default'})});
@@ -31,7 +33,7 @@ function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients
    await query(`REVOKE ALL ON TABLE ${table} FROM PUBLIC`);
    await query(`REVOKE ALL ON TABLE ${table} FROM anon,authenticated`).catch(()=>{});
   }
-  await query('INSERT INTO outreach_automation(campaign_id) VALUES($1) ON CONFLICT DO NOTHING',[campaign.id]);
+  await query('INSERT INTO outreach_automation(campaign_id,enabled) VALUES($1,$2) ON CONFLICT DO NOTHING',[campaign.id,campaign.startEnabled===true]);
  })().catch(error=>{schema=null;throw error;}));}
  async function state(){return (await query('SELECT * FROM outreach_automation WHERE campaign_id=$1',[campaign.id])).rows[0];}
  async function postmark(path){
@@ -66,7 +68,7 @@ function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients
     // including a contact who changes the reply subject to "Unsubscribe".
     const leading=String(message.bodyPreview||'').split(/\n(?:From:|On .+wrote:|Hello )/i)[0].slice(0,600);
     const optOut=/\b(unsubscribe|remove me|do not (?:email|contact)|stop (?:emailing|contacting))\b/i.test(leading)||/^(?:re:\s*)?(unsubscribe|remove me|stop emailing)\b/i.test(String(message.subject||''));
-    if(!replyMatches(message,sent)&&!optOut)continue;
+    if(!replyMatches(message,sent,campaign.subject)&&!optOut)continue;
     await query(`UPDATE outreach_deliveries SET replied_at=COALESCE(replied_at,$3) WHERE campaign_id=$1 AND lower(email)=$2 AND stage='INITIAL'`,[campaign.id,address,message.receivedDateTime]);
     if(optOut)await suppress(address,'Recipient requested no further email');
    }
@@ -105,11 +107,11 @@ function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients
   });
   const configured=email.isConfigured({broadcast:true}),blocked=!configured||automation.last_error||automation.delivery_blocked;
   const status=!automation.enabled?'PAUSED':blocked?'BLOCKED':automation.connections_checked_at?'AUTOMATIC':'CHECKING CONNECTIONS';
-  return {campaign:{...campaign,status,sendEnabled:automation.enabled},selection:audience.selection,eligibleCount:audience.eligibleCount,recipients:rows,previewHtml:outreachHtml(rows[0]?.contactName,rows[0]?.facility),followUpPreviewHtml:outreachHtml(rows[0]?.contactName,rows[0]?.facility,true),delivery:{emailProvider:'Postmark',postmark:configured?'configured':'not-configured',sender:campaign.fromEmail},automation:{enabled:automation.enabled,lastRunAt:automation.last_run_at,replyCheckedAt:automation.reply_checked_at,connectionsCheckedAt:automation.connections_checked_at,error:automation.last_error||(!configured?'Configure a valid Postmark token and Broadcast stream.':null),nextCheckAt:nextWindow(now()),dailyInitialLimit:25,dailyFollowUpLimit:25,followUpsPerProspect:1,initialSent:deliveries.filter(r=>r.stage==='INITIAL'&&r.status==='SENT').length,followUpsSent:deliveries.filter(r=>r.stage==='FOLLOW_UP'&&r.status==='SENT').length,replied:rows.filter(r=>r.status==='REPLIED').length,suppressed:rows.filter(r=>r.status==='SUPPRESSED').length}};
+  return {campaign:{...campaign,status,sendEnabled:automation.enabled},selection:audience.selection,eligibleCount:audience.eligibleCount,recipients:rows,previewHtml:outreachHtml(rows[0]?.contactName,rows[0]?.facility,false,campaign),followUpPreviewHtml:campaign.followUpMessage?outreachHtml(rows[0]?.contactName,rows[0]?.facility,true,campaign):null,delivery:{emailProvider:'Postmark',postmark:configured?'configured':'not-configured',sender:campaign.fromEmail},automation:{enabled:automation.enabled,lastRunAt:automation.last_run_at,replyCheckedAt:automation.reply_checked_at,connectionsCheckedAt:automation.connections_checked_at,error:automation.last_error||(!configured?'Configure a valid Postmark token and Broadcast stream.':null),nextCheckAt:nextWindow(now(),campaign),dailyInitialLimit:25,dailyFollowUpLimit:25,followUpsPerProspect:1,initialSent:deliveries.filter(r=>r.stage==='INITIAL'&&r.status==='SENT').length,followUpsSent:deliveries.filter(r=>r.stage==='FOLLOW_UP'&&r.status==='SENT').length,replied:rows.filter(r=>r.status==='REPLIED').length,suppressed:rows.filter(r=>r.status==='SUPPRESSED').length}};
  }
  async function run(){
   const wallStarted=Date.now();await ensureSchema();let automation=await state();if(!automation.enabled)return {processed:0,reason:'Automatic outreach is paused'};
-  if(!inSendWindow(now()))return {processed:0,reason:'Outside Tuesday–Thursday 9:30–10:30 AM Eastern'};
+  if(!inSendWindow(now(),campaign))return {processed:0,reason:`Outside the send window (${campaign.sendWindow||'Tuesday-Thursday, 9:30-10:30 AM'} Eastern)`};
   const lease=randomUUID(),started=now();
   const claimed=await query(`UPDATE outreach_automation SET lease_id=$2,lease_until=$3,last_run_at=$4 WHERE campaign_id=$1 AND enabled=true AND (lease_until IS NULL OR lease_until<$4) RETURNING campaign_id`,[campaign.id,lease,new Date(+started+120000).toISOString(),started.toISOString()]);
   if(!claimed.rows.length)return {processed:0,reason:'Another outreach worker is running'};
@@ -123,7 +125,7 @@ function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients
    const today=localClock(now()).date,used={INITIAL:0,FOLLOW_UP:0};
    for(const row of deliveries){const attempted=row.claimed_at||row.sent_at;if(attempted&&localClock(new Date(attempted)).date===today&&row.stage in used)used[row.stage]++;}
    const tasks=[];
-   for(const recipient of recipients){
+   if(campaign.followUpMessage)for(const recipient of recipients){
     const address=normalize(recipient.email),initial=index.get(address+'/INITIAL');
     if(initial?.status==='SENT'&&!initial.replied_at&&initial.sent_at&&followUpDate(initial.sent_at)<=today&&!index.has(address+'/FOLLOW_UP'))tasks.push({recipient,stage:'FOLLOW_UP'});
    }
@@ -134,7 +136,7 @@ function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients
     if(processed>=1||Date.now()-wallStarted>9000)break;
     if(used[stage]>=25)continue;
     // Check pause, suppression and replies again immediately before claiming.
-    if(!inSendWindow(now())||!(await state()).enabled)break;
+    if(!inSendWindow(now(),campaign)||!(await state()).enabled)break;
     const address=normalize(recipient.email);if(recipient.optOut===true)continue;
     const stopped=await query(`SELECT 1 FROM outreach_suppressions WHERE lower(email)=$1 UNION ALL SELECT 1 FROM outreach_deliveries WHERE campaign_id=$2 AND lower(email)=$1 AND replied_at IS NOT NULL LIMIT 1`,[address,campaign.id]);
     if(stopped.rows.length)continue;
@@ -142,7 +144,9 @@ function createAutomation({query,email=Email,fetcher=fetch,graphToken,recipients
     if(!delivery.rows.length)continue;processed++;used[stage]++;
     let result;
     try{
-     result=await email.sendEmail(address,stage==='FOLLOW_UP'?'Re: '+campaign.subject:campaign.subject,outreachHtml(recipient.contactName,recipient.facility,stage==='FOLLOW_UP'),{broadcast:true,fromEmail:campaign.fromEmail,fromName:campaign.fromName,replyTo:campaign.replyTo});
+     const sendOptions={broadcast:true,fromEmail:campaign.fromEmail,fromName:campaign.fromName,replyTo:campaign.replyTo};
+     if(campaign.signatureImage)sendOptions.attachments=[{filename:'nexus-email-signature-fletcher-kalundi.png',content:SIGNATURE_CARD_BASE64,type:'image/png',contentId:'cid:'+SIGNATURE_CARD_CID}];
+     result=await email.sendEmail(address,stage==='FOLLOW_UP'?'Re: '+campaign.subject:campaign.subject,outreachHtml(recipient.contactName,recipient.facility,stage==='FOLLOW_UP',campaign),sendOptions);
      if(result.status!=='sent')throw Error('Postmark Broadcast is not configured.');
     }catch(error){
      const inactive=error.providerCode===406;
