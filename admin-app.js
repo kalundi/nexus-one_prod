@@ -1477,9 +1477,18 @@ async function loadOutreachCampaign(){
   const roundAutomation=round.automation||{};
   document.getElementById('outreachRoundSubject').value=round.subject;
   document.getElementById('outreachRoundStatus').value=round.status;
-  document.getElementById('outreachRoundSummary').textContent=`Round emails sent: ${roundAutomation.initialSent||0} of ${(data.recipients||[]).filter(item=>item.status!=='SUPPRESSED').length} non-suppressed prospects. Replied: ${roundAutomation.replied||0}. Suppressed: ${roundAutomation.suppressed||0}. Last run: ${date(roundAutomation.lastRunAt)}. ${roundAutomation.enabled?'Sending any day, 9:30–10:30 AM Eastern, up to '+(roundAutomation.dailyInitialLimit||25)+' per day.':'Round automation is paused.'}`;
+  document.getElementById('outreachRoundSummary').textContent=`Round emails sent: ${roundAutomation.initialSent||0} of ${(data.recipients||[]).filter(item=>item.status!=='SUPPRESSED').length} non-suppressed prospects. Replied: ${roundAutomation.replied||0}. Suppressed: ${roundAutomation.suppressed||0}. Last run: ${date(roundAutomation.lastRunAt)}. ${roundAutomation.enabled?'Sending '+round.sendWindow+' Eastern, up to '+(roundAutomation.dailyInitialLimit||25)+' per day after the launch.':'Round automation is paused.'}`;
   const roundError=document.getElementById('outreachRoundError');roundError.hidden=!roundAutomation.error;roundError.textContent=roundAutomation.error||'';
   document.getElementById('outreachRoundPreview').innerHTML=round.previewHtml;
+ }
+ const followup=(data.rounds||[])[1];
+ if(followup){
+  const followupAutomation=followup.automation||{};
+  document.getElementById('outreachFollowupSubject').value=followup.subject;
+  document.getElementById('outreachFollowupStatus').value=followup.status;
+  document.getElementById('outreachFollowupSummary').textContent=`Follow-up broadcast emails sent: ${followupAutomation.initialSent||0}. Replied: ${followupAutomation.replied||0}. Suppressed: ${followupAutomation.suppressed||0}. Last run: ${date(followupAutomation.lastRunAt)}. ${followupAutomation.enabled?'Scheduled: '+followup.sendWindow+' Eastern, to non-suppressed prospects who have not replied to the emergency-plan broadcast.':'Follow-up broadcast automation is paused.'}`;
+  const followupError=document.getElementById('outreachFollowupError');followupError.hidden=!followupAutomation.error;followupError.textContent=followupAutomation.error||'';
+  document.getElementById('outreachFollowupPreview').innerHTML=followup.previewHtml;
  }
  rows.innerHTML=data.recipients.map(item=>`<tr><td>${item.sequence}</td><td><strong>${escapeHtml(item.facility)}</strong><br><small>${escapeHtml(item.providerType)}</small></td><td>${escapeHtml(item.contactName)}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(item.phone||'—')}</td><td>${item.score}</td><td><span class="pill muted">${escapeHtml(item.status)}</span><br><small>Follow-up: ${escapeHtml(item.followUpStatus||'PENDING')}${item.followUpDue?' · due '+escapeHtml(item.followUpDue):''}</small>${item.error?'<br><small>'+escapeHtml(item.error)+'</small>':''}</td></tr>`).join('');
 }

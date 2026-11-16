@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{PGlite}=require('@electric-sql/pglite');
-const {createAutomation,inSendWindow,followUpDate,nextWindow}=require('../netlify/functions/_shared/outreach-automation.cjs');
-const {OUTREACH_CAMPAIGN:campaign,EMERGENCY_PLAN_ROUND:roundCampaign,outreachHtml}=require('../netlify/functions/_shared/outreach-content.cjs');
+const {createAutomation,inSendWindow,launchWindowActive,followUpDate,nextWindow}=require('../netlify/functions/_shared/outreach-automation.cjs');
+const {OUTREACH_CAMPAIGN:campaign,EMERGENCY_PLAN_ROUND:roundCampaign,WEDNESDAY_AGREEMENT_BROADCAST:wednesdayCampaign,outreachHtml}=require('../netlify/functions/_shared/outreach-content.cjs');
 const {SIGNATURE_CARD_BASE64}=require('../netlify/functions/_shared/outreach-signature-image.cjs');
 const audience=require('../data/montgomery-tier-a-outreach-pilot.json');
 const day='2026-10-27T13:30:00.000Z';
@@ -16,6 +16,15 @@ async function setup(t,{date=day,recipients=audience.recipients,messages=[],supp
  await automation.ensureSchema();
  const seed=async(recipient,sentAt='2026-10-19T14:00:00Z')=>db.query(`INSERT INTO outreach_deliveries(campaign_id,prospect_id,email,stage,status,sent_at) VALUES($1,$2,$3,'INITIAL','SENT',$4)`,[campaign.id,recipient.prospectId,recipient.email,sentAt]);
  return {db,automation,calls,requests,seed,setDate:date=>{current=new Date(date);}};
+}
+function buildBroadcast(db,{recipients,suppressed=[],now,campaignDef}){
+ const calls=[];
+ const email={configuration:()=>({token:'test-token',from:'fletcher@nexusmt.com',stream:'broadcasts'}),isConfigured:()=>true,sendEmail:async(...args)=>{calls.push(args);return {status:'sent',messageId:'bcast-'+calls.length,providerStatus:200};}};
+ const automation=createAutomation({query:(...args)=>db.query(...args),email,recipients,now,graphToken:async()=>'test-graph-token',fetcher:async url=>{
+  const data=url.includes('graph.microsoft.com')?{value:[]}:url.endsWith('/server')?{DeliveryType:'Live'}:url.endsWith('/suppressions/dump')?{Suppressions:suppressed.map(EmailAddress=>({EmailAddress,SuppressionReason:'ManualSuppression'}))}:{MessageStreamType:'Broadcasts',ArchivedAt:null};
+  return {ok:true,status:200,json:async()=>data};
+ },campaignDef});
+ return {automation,calls};
 }
 test('all 262 eligible contacts are unique and retain the original 25 recipient records',()=>{
  assert.equal(audience.recipients.length,262);assert.equal(audience.eligibleCount,262);assert.equal(new Set(audience.recipients.map(r=>r.email)).size,262);
@@ -101,6 +110,67 @@ test('emergency-plan round sends to already-emailed prospects, excludes suppress
  assert.equal(pilotCalls.length,0);
  const roundState=await round.dashboard();assert.equal(roundState.automation.initialSent,4);assert.equal(roundState.automation.followUpsSent,0);assert.equal(roundState.followUpPreviewHtml,null);
  current=new Date('2026-11-30T14:30:00.000Z');await round.run();await round.run();assert.equal(calls.length,4);
+});
+test('emergency-plan round launch sends the whole broadcast immediately outside the window, then normal rules resume',async t=>{
+ const recipients=audience.recipients.slice(0,30),mondayAfternoon='2026-11-16T20:30:00.000Z';// Monday 3:30 PM Eastern
+ assert.equal(inSendWindow(new Date(mondayAfternoon),roundCampaign),false);
+ assert.equal(launchWindowActive(new Date(mondayAfternoon),roundCampaign),true);
+ assert.equal(launchWindowActive(new Date('2026-11-18T20:30:00.000Z'),roundCampaign),false);
+ const {db}=await setup(t,{recipients,date:mondayAfternoon});
+ let current=new Date(mondayAfternoon);
+ const {automation,calls}=buildBroadcast(db,{recipients,now:()=>current,campaignDef:roundCampaign});
+ await automation.ensureSchema();
+ await automation.run();assert.equal(calls.length,15);// one launch batch, outside the window
+ await automation.run();assert.equal(calls.length,30);// second batch passes the usual 25/day cap: the launch lifts it
+ assert.ok(calls.every(c=>c[1]===roundCampaign.subject));
+ await automation.run();assert.equal(calls.length,30);// launch complete: nothing left, no more sends that day
+ const state=await automation.dashboard();assert.equal(state.automation.initialSent,30);
+});
+test('after the launch dates pass, an unsent round recipient waits for the window and the one-per-run pace',async t=>{
+ const recipients=audience.recipients.slice(0,2),wednesdayAfternoon='2026-11-18T20:30:00.000Z';// Wednesday 3:30 PM Eastern, launch over
+ const {db}=await setup(t,{recipients,date:wednesdayAfternoon});
+ let current=new Date(wednesdayAfternoon);
+ const {automation,calls}=buildBroadcast(db,{recipients,now:()=>current,campaignDef:roundCampaign});
+ await automation.ensureSchema();
+ const result=await automation.run();assert.equal(calls.length,0);assert.match(result.reason,/Outside the send window/);
+ current=new Date('2026-11-19T14:30:00.000Z');// Thursday 9:30 AM Eastern, inside the window
+ await automation.run();assert.equal(calls.length,1);
+ await automation.run();assert.equal(calls.length,2);
+ await automation.run();assert.equal(calls.length,2);
+});
+test('Wednesday follow-up broadcast content: exact subject, header line, COMAR references and image signature',()=>{
+ assert.equal(wednesdayCampaign.subject,'Still time to get your transportation agreement on file');
+ assert.deepEqual(wednesdayCampaign.sendDates,['2026-11-18']);
+ assert.equal(wednesdayCampaign.excludeRepliesFromCampaignId,roundCampaign.id);
+ assert.equal(inSendWindow(new Date('2026-11-18T14:30:00.000Z'),wednesdayCampaign),true);// Wed Nov 18, 9:30 AM Eastern
+ assert.equal(inSendWindow(new Date('2026-11-17T14:30:00.000Z'),wednesdayCampaign),false);// Tuesday: too early
+ assert.equal(inSendWindow(new Date('2026-11-25T14:30:00.000Z'),wednesdayCampaign),false);// the next Wednesday is not a send date
+ const html=outreachHtml('Grace Lee','Example Facility',false,wednesdayCampaign);
+ assert.ok(html.includes('Nexus Medical Transit — your dedicated transportation partner'));
+ assert.ok(html.includes('Hello Grace Lee,'));assert.ok(html.includes('short follow-up to my note on Monday'));
+ assert.ok(html.includes('COMAR 10.07.02.40 / COMAR 10.07.14.47'));assert.ok(html.includes('OHCQ reminded facilities of this in July'));
+ assert.ok(html.includes('dedicated transportation partner'));assert.ok(html.includes('(888) 639-5766'));assert.ok(html.includes('mynexusride.com'));
+ assert.ok(html.includes('No volume commitment, no exclusivity.'));
+ assert.ok(html.includes('<img src="cid:nexus-signature-card"'));assert.ok(html.includes('alt="Fletcher Kalundi, Chief Accessibility Officer (CAO), Nexus Medical Transit LLC. Book a Ride: (888) 639-5766.'));
+});
+test('Wednesday broadcast goes only on Nov 18 and excludes suppressed addresses and emergency-round repliers',async t=>{
+ const recipients=audience.recipients.slice(0,5),tuesday='2026-11-17T14:30:00.000Z';
+ const {db}=await setup(t,{recipients,date:tuesday});
+ // Emergency-plan round history: recipient 0 replied, recipient 1 received it silently.
+ await db.query(`INSERT INTO outreach_deliveries(campaign_id,prospect_id,email,stage,status,sent_at,replied_at) VALUES($1,$2,$3,'INITIAL','SENT','2026-11-16T20:31:00Z','2026-11-17T15:00:00Z')`,[roundCampaign.id,recipients[0].prospectId,recipients[0].email]);
+ await db.query(`INSERT INTO outreach_deliveries(campaign_id,prospect_id,email,stage,status,sent_at) VALUES($1,$2,$3,'INITIAL','SENT','2026-11-16T20:32:00Z')`,[roundCampaign.id,recipients[1].prospectId,recipients[1].email]);
+ let current=new Date(tuesday);
+ const {automation,calls}=buildBroadcast(db,{recipients,suppressed:[recipients[2].email],now:()=>current,campaignDef:wednesdayCampaign});
+ await automation.ensureSchema();
+ await automation.run();assert.equal(calls.length,0);// Tuesday: the single send date has not arrived
+ current=new Date('2026-11-18T14:30:00.000Z');// Wednesday 9:30 AM Eastern
+ await automation.run();
+ assert.deepEqual(calls.map(c=>c[0]).sort(),[recipients[1].email,recipients[3].email,recipients[4].email].sort());
+ assert.ok(calls.every(c=>c[1]===wednesdayCampaign.subject));
+ assert.ok(calls.every(c=>c[2].includes('cid:nexus-signature-card')&&c[3].attachments?.[0]?.contentId==='cid:nexus-signature-card'));
+ await automation.run();assert.equal(calls.length,3);
+ const state=await automation.dashboard();assert.equal(state.automation.initialSent,3);assert.equal(state.followUpPreviewHtml,null);
+ current=new Date('2026-11-19T14:30:00.000Z');await automation.run();assert.equal(calls.length,3);// no second day of sending
 });
 test('follow-ups wait for five business days and do not loop after the one follow-up',async t=>{
  const recipients=audience.recipients.slice(0,1),{automation,calls,seed,setDate}=await setup(t,{recipients});await seed(recipients[0],'2026-10-22T14:00:00Z');await automation.setEnabled(true);
