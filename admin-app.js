@@ -1472,6 +1472,15 @@ async function loadOutreachCampaign(){
  document.getElementById('outreachSender').value=`${data.campaign.fromName} <${data.campaign.fromEmail}>`;
  document.getElementById('outreachPreview').innerHTML=data.previewHtml;
  document.getElementById('outreachFollowUpPreview').innerHTML=data.followUpPreviewHtml;
+ const round=(data.rounds||[])[0];
+ if(round){
+  const roundAutomation=round.automation||{};
+  document.getElementById('outreachRoundSubject').value=round.subject;
+  document.getElementById('outreachRoundStatus').value=round.status;
+  document.getElementById('outreachRoundSummary').textContent=`Round emails sent: ${roundAutomation.initialSent||0} of ${(data.recipients||[]).filter(item=>item.status!=='SUPPRESSED').length} non-suppressed prospects. Replied: ${roundAutomation.replied||0}. Suppressed: ${roundAutomation.suppressed||0}. Last run: ${date(roundAutomation.lastRunAt)}. ${roundAutomation.enabled?'Sending any day, 9:30–10:30 AM Eastern, up to '+(roundAutomation.dailyInitialLimit||25)+' per day.':'Round automation is paused.'}`;
+  const roundError=document.getElementById('outreachRoundError');roundError.hidden=!roundAutomation.error;roundError.textContent=roundAutomation.error||'';
+  document.getElementById('outreachRoundPreview').innerHTML=round.previewHtml;
+ }
  rows.innerHTML=data.recipients.map(item=>`<tr><td>${item.sequence}</td><td><strong>${escapeHtml(item.facility)}</strong><br><small>${escapeHtml(item.providerType)}</small></td><td>${escapeHtml(item.contactName)}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(item.phone||'—')}</td><td>${item.score}</td><td><span class="pill muted">${escapeHtml(item.status)}</span><br><small>Follow-up: ${escapeHtml(item.followUpStatus||'PENDING')}${item.followUpDue?' · due '+escapeHtml(item.followUpDue):''}</small>${item.error?'<br><small>'+escapeHtml(item.error)+'</small>':''}</td></tr>`).join('');
 }
 async function sendOutreachTest(){

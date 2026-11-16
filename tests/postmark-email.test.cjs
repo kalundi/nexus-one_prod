@@ -18,6 +18,10 @@ test('Postmark transport uses server credentials, preserves attachments and reje
    process.env.POSTMARK_BROADCAST_MESSAGE_STREAM='broadcasts';await Email.sendEmail('a@example.com','Outreach','<p>Hello</p>',{broadcast:true});
    const body=JSON.parse(calls[1].body);assert.equal(body.MessageStream,'broadcasts');assert.match(body.HtmlBody,/\{\{\{ pm:unsubscribe \}\}\}/);
   });
+  await t.test('inline image attachments carry their ContentID for cid references',async()=>{
+   await Email.sendEmail('a@example.com','Round','<p><img src="cid:card"></p>',{broadcast:true,attachments:[{filename:'card.png',type:'image/png',content:'aW1n',contentId:'cid:card'}]});
+   const body=JSON.parse(calls[2].body);assert.deepEqual(body.Attachments,[{Name:'card.png',Content:'aW1n',ContentType:'image/png',ContentID:'cid:card'}]);
+  });
   await t.test('HTTP errors, Postmark error codes and malformed responses cannot claim success',async()=>{
    for(const [status,body] of [[401,{ErrorCode:10,Message:'private response'}],[422,{ErrorCode:400,Message:'private response'}],[200,{ErrorCode:406,Message:'private response'}],[200,{}]]){
     global.fetch=async()=>Response.json(body,{status});

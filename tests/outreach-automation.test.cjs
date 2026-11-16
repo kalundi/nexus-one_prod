@@ -1,6 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{PGlite}=require('@electric-sql/pglite');
 const {createAutomation,inSendWindow,followUpDate,nextWindow}=require('../netlify/functions/_shared/outreach-automation.cjs');
-const {OUTREACH_CAMPAIGN:campaign,outreachHtml}=require('../netlify/functions/_shared/outreach-content.cjs');
+const {OUTREACH_CAMPAIGN:campaign,EMERGENCY_PLAN_ROUND:roundCampaign,outreachHtml}=require('../netlify/functions/_shared/outreach-content.cjs');
+const {SIGNATURE_CARD_BASE64}=require('../netlify/functions/_shared/outreach-signature-image.cjs');
 const audience=require('../data/montgomery-tier-a-outreach-pilot.json');
 const day='2026-10-27T13:30:00.000Z';
 async function setup(t,{date=day,recipients=audience.recipients,messages=[],suppressed=[],configured=true,send,query:wrap}={}){
@@ -66,6 +67,40 @@ test('uncertain delivery or failed persistence retains the unique claim and is n
  let fail=true;const recipients=audience.recipients.slice(0,1);
  const {automation,calls,db}=await setup(t,{recipients,query:base=>async(sql,params)=>{if(fail&&sql.startsWith("UPDATE outreach_deliveries SET status='SENT'")){fail=false;throw Error('Database interrupted');}return base(sql,params);}});
  await automation.setEnabled(true);await automation.run();await automation.run();assert.equal(calls.length,1);assert.equal((await db.query('SELECT status FROM outreach_deliveries')).rows[0].status,'SENDING');
+});
+test('emergency-plan round content: exact subject, header line, COMAR references and image signature with text fallback',()=>{
+ assert.equal(roundCampaign.subject,'Your dedicated transportation partner — with an agreement on file for your emergency plan');
+ const html=outreachHtml('Grace Lee','Example Facility',false,roundCampaign);
+ assert.ok(html.includes('Nexus Medical Transit — your dedicated transportation partner'));
+ assert.ok(html.includes('Hello Grace Lee,'));assert.ok(html.includes('COMAR 10.07.02.40'));assert.ok(html.includes('COMAR 10.07.14.47'));
+ assert.ok(html.includes('mynexusride.com'));assert.ok(html.includes('(888) 760-4990'));
+ assert.ok(html.includes('<img src="cid:nexus-signature-card"'));assert.ok(html.includes('alt="Fletcher Kalundi, Chief Accessibility Officer (CAO), Nexus Medical Transit LLC. Book a Ride: (888) 639-5766.'));
+ assert.ok(html.includes('Chief Accessibility Officer (CAO)<br>'));assert.ok(!html.includes('WMATC Certificate No. 4152'));
+ const pilotHtml=outreachHtml('Grace Lee','Example Facility');
+ assert.ok(!pilotHtml.includes('cid:nexus-signature-card'));assert.ok(pilotHtml.includes('WMATC Certificate No. 4152'));
+ assert.ok(Buffer.from(SIGNATURE_CARD_BASE64,'base64').length>100000);
+});
+test('emergency-plan round sends to already-emailed prospects, excludes suppressed, attaches the signature card and never follows up',async t=>{
+ const recipients=audience.recipients.slice(0,5),monday='2026-11-16T14:30:00.000Z';
+ assert.equal(inSendWindow(new Date(monday)),false);assert.equal(inSendWindow(new Date(monday),roundCampaign),true);
+ const {db,seed,calls:pilotCalls}=await setup(t,{recipients,date:monday,suppressed:[recipients[2].email]});
+ for(const r of recipients)await seed(r);
+ const calls=[];let current=new Date(monday);
+ const email={configuration:()=>({token:'test-token',from:'fletcher@nexusmt.com',stream:'broadcasts'}),isConfigured:()=>true,sendEmail:async(...args)=>{calls.push(args);return {status:'sent',messageId:'round-'+calls.length,providerStatus:200};}};
+ const round=createAutomation({query:(...args)=>db.query(...args),email,recipients,now:()=>current,graphToken:async()=>'test-graph-token',fetcher:async url=>{
+  const data=url.includes('graph.microsoft.com')?{value:[]}:url.endsWith('/server')?{DeliveryType:'Live'}:url.endsWith('/suppressions/dump')?{Suppressions:[{EmailAddress:recipients[2].email,SuppressionReason:'ManualSuppression'}]}:{MessageStreamType:'Broadcasts',ArchivedAt:null};
+  return {ok:true,status:200,json:async()=>data};
+ },campaignDef:roundCampaign});
+ await round.ensureSchema();
+ // startEnabled: the owner-approved round runs without a separate enable step.
+ for(let i=0;i<6;i++)await round.run();
+ assert.deepEqual(calls.map(c=>c[0]).sort(),recipients.filter(r=>r!==recipients[2]).map(r=>r.email).sort());
+ assert.ok(calls.every(c=>c[1]===roundCampaign.subject));
+ assert.ok(calls.every(c=>c[2].includes('cid:nexus-signature-card')&&c[2].includes('COMAR 10.07.02.40')));
+ assert.ok(calls.every(c=>c[3].broadcast===true&&c[3].attachments?.length===1&&c[3].attachments[0].contentId==='cid:nexus-signature-card'&&c[3].attachments[0].content===SIGNATURE_CARD_BASE64));
+ assert.equal(pilotCalls.length,0);
+ const roundState=await round.dashboard();assert.equal(roundState.automation.initialSent,4);assert.equal(roundState.automation.followUpsSent,0);assert.equal(roundState.followUpPreviewHtml,null);
+ current=new Date('2026-11-30T14:30:00.000Z');await round.run();await round.run();assert.equal(calls.length,4);
 });
 test('follow-ups wait for five business days and do not loop after the one follow-up',async t=>{
  const recipients=audience.recipients.slice(0,1),{automation,calls,seed,setDate}=await setup(t,{recipients});await seed(recipients[0],'2026-10-22T14:00:00Z');await automation.setEnabled(true);
