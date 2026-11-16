@@ -1204,16 +1204,17 @@ async function ensureBookingPromotionsSchema(){
  await query(`INSERT INTO booking_promotions(code_hash,display_code,description,service,trip_date,fixed_total,percent_off) VALUES ${rows.join(',')} ON CONFLICT(code_hash) DO NOTHING`,params);
 }
 
-const {OUTREACH_CAMPAIGN,EMERGENCY_PLAN_ROUND,outreachHtml}=require('./_shared/outreach-content.cjs');
+const {OUTREACH_CAMPAIGN,EMERGENCY_PLAN_ROUND,WEDNESDAY_AGREEMENT_BROADCAST,outreachHtml}=require('./_shared/outreach-content.cjs');
 const Outreach=require('./_shared/outreach-automation.cjs');
 const outreachAutomation=Outreach.createAutomation({query});
 const outreachRoundAutomation=Outreach.createAutomation({query,campaignDef:EMERGENCY_PLAN_ROUND});
+const outreachWednesdayAutomation=Outreach.createAutomation({query,campaignDef:WEDNESDAY_AGREEMENT_BROADCAST});
+function outreachRoundSummary(round){return {id:round.campaign.id,name:round.campaign.name,subject:round.campaign.subject,status:round.campaign.status,sendWindow:round.campaign.sendWindow,sendDates:round.campaign.sendDates||null,previewHtml:round.previewHtml,automation:{enabled:round.automation.enabled,initialSent:round.automation.initialSent,replied:round.automation.replied,suppressed:round.automation.suppressed,lastRunAt:round.automation.lastRunAt,error:round.automation.error,dailyInitialLimit:round.automation.dailyInitialLimit}};}
 async function outreachDashboardWithRounds(){
  const data=await outreachAutomation.dashboard();
- try{
-  const round=await outreachRoundAutomation.dashboard();
-  data.rounds=[{id:round.campaign.id,name:round.campaign.name,subject:round.campaign.subject,status:round.campaign.status,sendWindow:round.campaign.sendWindow,previewHtml:round.previewHtml,automation:{enabled:round.automation.enabled,initialSent:round.automation.initialSent,replied:round.automation.replied,suppressed:round.automation.suppressed,lastRunAt:round.automation.lastRunAt,error:round.automation.error,dailyInitialLimit:round.automation.dailyInitialLimit}}];
- }catch{data.rounds=[];}
+ data.rounds=[];
+ try{data.rounds.push(outreachRoundSummary(await outreachRoundAutomation.dashboard()));}catch{}
+ try{data.rounds.push(outreachRoundSummary(await outreachWednesdayAutomation.dashboard()));}catch{}
  return data;
 }
 async function sendOutreachTestEmail(){return Email.sendEmail(OUTREACH_CAMPAIGN.testRecipient,`TEST — ${OUTREACH_CAMPAIGN.subject}`,outreachHtml('Test Recipient','Test Facility'),{broadcast:true,fromEmail:OUTREACH_CAMPAIGN.fromEmail,fromName:OUTREACH_CAMPAIGN.fromName,replyTo:OUTREACH_CAMPAIGN.replyTo});}
