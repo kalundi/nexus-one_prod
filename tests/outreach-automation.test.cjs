@@ -89,6 +89,16 @@ test('emergency-plan round content: exact subject, header line, COMAR references
  assert.ok(!pilotHtml.includes('cid:nexus-signature-card'));assert.ok(pilotHtml.includes('WMATC Certificate No. 4152'));
  assert.ok(Buffer.from(SIGNATURE_CARD_BASE64,'base64').length>100000);
 });
+test('signature card loads from the assets data file byte-identical to the approved card',()=>{
+ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+ const assetPath=path.join(__dirname,'..','netlify','functions','_shared','assets','nexus-signature-card.b64');
+ const fileBase64=fs.readFileSync(assetPath,'utf8').replace(/\s+/g,'');
+ assert.equal(fileBase64,SIGNATURE_CARD_BASE64);
+ const png=Buffer.from(SIGNATURE_CARD_BASE64,'base64');
+ assert.equal(png.length,401745);
+ assert.equal(crypto.createHash('sha256').update(png).digest('hex'),'a216a35c32308db5c4a01e317bf0f029cb14dca1363801ca65f655d5a98da33f');
+ assert.ok(png.subarray(0,8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a])));
+});
 test('emergency-plan round sends to already-emailed prospects, excludes suppressed, attaches the signature card and never follows up',async t=>{
  const recipients=audience.recipients.slice(0,5),monday='2026-11-16T14:30:00.000Z';
  assert.equal(inSendWindow(new Date(monday)),false);assert.equal(inSendWindow(new Date(monday),roundCampaign),true);

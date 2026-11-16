@@ -16,7 +16,7 @@
   # To configure Teams: Admin_NMT channel → (...) → Connectors → Incoming Webhook → copy URL → add as TEAMS_WEBHOOK_URL in Netlify site settings
 
 [functions.api]
-  included_files = ["netlify/functions/_private-documents/**"]
+  included_files = ["netlify/functions/_private-documents/**", "netlify/functions/_shared/assets/**"]
 
 # Read-only production health checks; public HTTP invocation is disabled by scheduling.
 # The function still runs every 5 minutes for the API protection checks, but
@@ -105,6 +105,7 @@
 # daily quotas, reply/opt-out checks and unique delivery claims.
 [functions.outreach-campaign-daily]
   schedule = "* 13-15 * * 2-4"
+  included_files = ["netlify/functions/_shared/assets/**"]
 
 # Emergency-plan agreement broadcast round: ticks every minute so the
 # owner-directed launch (Mon Nov 16, 2026) fires promptly after deploy, outside
@@ -113,6 +114,7 @@
 # outreach-automation; outside the launch the minute ticks are cheap no-ops.
 [functions.outreach-round-daily]
   schedule = "* * * * *"
+  included_files = ["netlify/functions/_shared/assets/**"]
 
 # Emergency-plan agreement follow-up broadcast: a separate one-day broadcast on
 # Wednesday, November 18, 2026. Same minute ticks during the possible UTC hours;
@@ -120,6 +122,7 @@
 # emergency-round reply exclusion are enforced in outreach-automation.
 [functions.outreach-wednesday-daily]
   schedule = "* 13-15 * * *"
+  included_files = ["netlify/functions/_shared/assets/**"]
 
 # Poll active Epic, Oracle Health, MEDITECH, or other FHIR R4 connections.
 [functions.keymark-fhir-sync]
