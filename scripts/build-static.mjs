@@ -22,6 +22,11 @@ for(const item of await readdir(dist,{withFileTypes:true})){
   html=html.replace(/<\/body>/i,'<script src="/offline-resilience.js" defer></script></body>');
   await writeFile(file,html);
  }
+ if(!html.includes('/seasonal-theme.js')){
+  html=html.replace(/<\/head>/i,'<link rel="stylesheet" href="/seasonal-theme.css"></head>');
+  html=html.replace(/<\/body>/i,'<script src="/seasonal-theme.js" defer></script></body>');
+  await writeFile(file,html);
+ }
 }
 console.log('Static application copied to dist.');
 // Patch Google Maps API key configuration
