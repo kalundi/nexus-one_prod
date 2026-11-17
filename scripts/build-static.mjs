@@ -23,8 +23,8 @@ for(const item of await readdir(dist,{withFileTypes:true})){
   await writeFile(file,html);
  }
  if(!html.includes('/seasonal-theme.js')){
-  html=html.replace(/<\/head>/i,'<link rel="stylesheet" href="/seasonal-theme.css?v=5"></head>');
-  html=html.replace(/<\/body>/i,'<script src="/seasonal-theme.js" defer></script></body>');
+  html=html.replace(/<\/head>/i,'<link rel="stylesheet" href="/seasonal-theme.css?v=6"></head>');
+  html=html.replace(/<\/body>/i,'<script src="/seasonal-theme.js?v=6" defer></script></body>');
   await writeFile(file,html);
  }
 }
