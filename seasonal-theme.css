@@ -115,3 +115,36 @@
     font-size: 0.85rem;
   }
 }
+
+/* ---- Christmas color treatment: the site's own colors shift for the season ---- */
+
+html.xmas-on body {
+  background: #faf5ec;
+}
+
+html.xmas-on header {
+  background: linear-gradient(90deg, #fdf3e3 0%, #f3e9d2 45%, #e7f0e4 100%);
+  box-shadow:
+    inset 0 -4px 0 #14532d,
+    inset 0 -8px 0 #f5b942,
+    inset 0 -12px 0 #b42335;
+}
+
+html.xmas-on header .nav .navCta,
+html.xmas-on header .nav .bookRide {
+  background: linear-gradient(135deg, #1d7a4f, #14532d) !important;
+  box-shadow: 0 10px 24px rgba(20, 83, 45, 0.28) !important;
+}
+
+html.xmas-on .bookRideSign {
+  border-color: #f5b942 !important;
+}
+
+html.xmas-on footer {
+  background: linear-gradient(160deg, #7c1d24 0%, #4a0e18 100%) !important;
+}
+
+html.xmas-on ::selection {
+  background: #b42335;
+  color: #ffffff;
+}

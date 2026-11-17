@@ -23,7 +23,7 @@
     if (!document.querySelector('link[href*="seasonal-theme.css"]')) {
       var link = document.createElement('link');
       link.rel = 'stylesheet';
-      link.href = '/seasonal-theme.css';
+      link.href = '/seasonal-theme.css?v=2';
       document.head.appendChild(link);
     }
 
