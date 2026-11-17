@@ -27,20 +27,21 @@
     if (!document.querySelector('link[href*="seasonal-theme.css"]')) {
       var link = document.createElement('link');
       link.rel = 'stylesheet';
-      link.href = '/seasonal-theme.css?v=5';
+      link.href = '/seasonal-theme.css?v=6';
       document.head.appendChild(link);
     }
 
     var bannerDone = false;
     function addBanner() {
       if (bannerDone) return;
-      var header = document.querySelector('header');
-      if (!header) return;
-      bannerDone = true;
 
       // App pages get the slim Classic Garland greeting strip instead of
-      // the marketing banner, and no footer note.
+      // the marketing banner, and no footer note. The strip goes at the
+      // very top of the body: several apps show a login view first and
+      // their <header> only appears after sign-in, so anchoring to the
+      // header would hide the strip exactly where patients land.
       if (isAppPage) {
+        bannerDone = true;
         document.documentElement.classList.add('xmas-app');
         if (!document.querySelector('.xmas-app-strip')) {
           var strip = document.createElement('div');
@@ -49,10 +50,14 @@
           strip.textContent = isPatientFacing
             ? '\uD83C\uDF84 Home for the Holidays \u2014 We\u2019ll Get You There'
             : '\uD83C\uDF84 Happy Holidays from Nexus Medical Transit';
-          header.parentNode.insertBefore(strip, header);
+          document.body.insertBefore(strip, document.body.firstChild);
         }
         return;
       }
+
+      var header = document.querySelector('header');
+      if (!header) return;
+      bannerDone = true;
 
       var dismissed = false;
       try { dismissed = sessionStorage.getItem('xmasBannerOff') === '1'; } catch (e) {}
