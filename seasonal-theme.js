@@ -10,7 +10,11 @@
   if (now < START || now >= END) return;
 
   var path = window.location.pathname.toLowerCase();
-  var isStaffApp = /driver|dispatch|admin/.test(path);
+  var page = path.split('/').pop();
+  var APP_PAGES = ['booking-app.html', 'patient.html', 'driver-app.html', 'dispatch.html', 'driveflex-dispatch.html', 'livecare.html', 'livecare-demo.html', 'facility.html', 'facility-demo.html', 'admin.html', 'admin-maintenance.html', 'billing.html', 'qa.html', 'enterprise.html', 'operations.html', 'executive.html', 'ai-operations.html', 'keymark.html', 'fleet.html', 'training.html', 'caretaker.html', 'secure-documents.html', 'set-password.html', 'nex-insights.html', 'apps.html'];
+  var isAppPage = APP_PAGES.indexOf(page) !== -1;
+  var isPatientFacing = /booking-app|patient|caretaker/.test(page);
+  var isStaffApp = isAppPage && !isPatientFacing;
 
   function ready(fn) {
     if (document.readyState !== 'loading') fn();
@@ -23,7 +27,7 @@
     if (!document.querySelector('link[href*="seasonal-theme.css"]')) {
       var link = document.createElement('link');
       link.rel = 'stylesheet';
-      link.href = '/seasonal-theme.css?v=4';
+      link.href = '/seasonal-theme.css?v=5';
       document.head.appendChild(link);
     }
 
@@ -33,6 +37,22 @@
       var header = document.querySelector('header');
       if (!header) return;
       bannerDone = true;
+
+      // App pages get the slim Classic Garland greeting strip instead of
+      // the marketing banner, and no footer note.
+      if (isAppPage) {
+        document.documentElement.classList.add('xmas-app');
+        if (!document.querySelector('.xmas-app-strip')) {
+          var strip = document.createElement('div');
+          strip.className = 'xmas-app-strip';
+          strip.setAttribute('role', 'note');
+          strip.textContent = isPatientFacing
+            ? '\uD83C\uDF84 Home for the Holidays \u2014 We\u2019ll Get You There'
+            : '\uD83C\uDF84 Happy Holidays from Nexus Medical Transit';
+          header.parentNode.insertBefore(strip, header);
+        }
+        return;
+      }
 
       var dismissed = false;
       try { dismissed = sessionStorage.getItem('xmasBannerOff') === '1'; } catch (e) {}
