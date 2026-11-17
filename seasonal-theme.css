@@ -156,3 +156,52 @@ html.xmas-on header img.logo,
 html.xmas-on header .logo img {
   mix-blend-mode: multiply;
 }
+
+/* ---- Visibility fixes (Nov 17): text that the cream/cranberry shift washed out ---- */
+
+/* Booking app: its .top header is a dark navy app header with white title,
+   logo and tagline — the blanket cream header above made them invisible.
+   Keep it navy for the season, with the garland stripe along its base. */
+html.xmas-on .phone > header.top {
+  background: #081a2c !important;
+  box-shadow:
+    0 12px 30px rgba(8, 26, 44, 0.18),
+    inset 0 -4px 0 #14532d,
+    inset 0 -8px 0 #f5b942,
+    inset 0 -12px 0 #b42335;
+}
+
+/* Field placeholders were light grey on white — darken while the theme is on. */
+html.xmas-on ::placeholder {
+  color: #5f6f7d !important;
+  opacity: 1;
+}
+
+/* Disabled buttons (e.g. Book My Ride before the estimate is confirmed):
+   slate text on pale grey-blue was hard to read. */
+html.xmas-on button:disabled {
+  color: #33475c !important;
+}
+
+/* Booking progress steps not yet reached: darken icons/numbers/labels. */
+html.xmas-on .journeyStep:not(.current):not(.complete) {
+  color: #3d4f61 !important;
+}
+
+/* Sign-in / sign-up dialog eyebrow ("Secure Nexus access") is pale aqua,
+   designed for dark panels — it sits on a white card and washed out. */
+html.xmas-on .nexusLoginDialog .eyebrow {
+  color: #0e5a6b !important;
+}
+
+/* Footer small print was pale blue-grey; on the cranberry footer it needs white. */
+html.xmas-on footer small,
+html.xmas-on .footer small {
+  color: #ffe9ec !important;
+}
+
+/* LiveCare map status panel: "Available" rendered grey while the other
+   statuses are white on the dark panel — match them. */
+html.xmas-on .mapLegend.verticalStatusPanel button[data-status-filter="AVAILABLE"] {
+  color: #ffffff !important;
+}
