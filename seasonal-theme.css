@@ -148,3 +148,11 @@ html.xmas-on ::selection {
   background: #b42335;
   color: #ffffff;
 }
+
+/* Logo blend: the logo art sits in a white box; multiply drops the white
+   into the cream header so the logo looks transparent for the season. */
+html.xmas-on header .brand img,
+html.xmas-on header img.logo,
+html.xmas-on header .logo img {
+  mix-blend-mode: multiply;
+}
