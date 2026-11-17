@@ -205,3 +205,57 @@ html.xmas-on .footer small {
 html.xmas-on .mapLegend.verticalStatusPanel button[data-status-filter="AVAILABLE"] {
   color: #ffffff !important;
 }
+
+/* ---- Apps: Classic Garland (Nov 17) — the app look Anthony picked ---- */
+
+/* Slim greeting strip the script places above app headers: navy with a
+   garland stripe along its base, matching the booking header treatment. */
+.xmas-app-strip {
+  position: relative;
+  background: #081a2c;
+  color: #ffffff;
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
+  padding: 8px 12px 13px;
+}
+
+.xmas-app-strip::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+  background: repeating-linear-gradient(
+    90deg,
+    #b42335 0 16px,
+    #f5b942 16px 32px,
+    #0a7a55 32px 48px,
+    #ffffff 48px 64px
+  );
+}
+
+/* Patient/driver top bar: the navy inner bar carries the garland stripe;
+   the outer bar stays transparent so the app background shows through
+   (the blanket cream header above would otherwise wash the bar out). */
+html.xmas-on header.topBar {
+  background: transparent;
+  box-shadow: none;
+}
+
+html.xmas-on .topBarInner {
+  box-shadow:
+    0 16px 34px rgba(7, 42, 63, 0.28),
+    inset 0 -4px 0 #14532d,
+    inset 0 -8px 0 #f5b942,
+    inset 0 -12px 0 #b42335;
+}
+
+/* Booking app: primary action buttons go cranberry for the season.
+   Disabled buttons keep their pale disabled look. */
+html.xmas-on .phone .primary:not(:disabled) {
+  background: linear-gradient(135deg, #c22633, #8f1d2c);
+  box-shadow: 0 10px 22px rgba(143, 29, 44, 0.28);
+}
