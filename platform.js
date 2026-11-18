@@ -232,12 +232,23 @@ if(access && panel){
 		if(accessPinnedOpen) return;
 		setAccessOpen(false);
 	};
-	access.addEventListener('mouseenter',openFromHover);
 	access.addEventListener('focus',()=>setAccessOpen(true));
-	panel.addEventListener('mouseenter',openFromHover);
-	access.addEventListener('mouseleave',closeFromHover);
-	panel.addEventListener('mouseleave',closeFromHover);
-	accessRoot?.addEventListener('pointerleave',closeFromHover);
+	// Hover open/close is bound only for a real hover-capable fine
+	// pointer (a mouse/trackpad). Touch taps synthesize mouseenter
+	// before the click; if that pre-opened the panel, the click that
+	// follows would read as a second toggle and the button would
+	// appear dead on phones. On touch, the click alone pins the panel
+	// open or closed. platform.js is the ONLY behavior owner for this
+	// widget — trustedsite.js injects presentation styles only and
+	// must never synthesize clicks on this toggle (Nov 18, 2026).
+	const hoverCapable=Boolean(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
+	if(hoverCapable){
+		access.addEventListener('mouseenter',openFromHover);
+		panel.addEventListener('mouseenter',openFromHover);
+		access.addEventListener('mouseleave',closeFromHover);
+		panel.addEventListener('mouseleave',closeFromHover);
+		accessRoot?.addEventListener('pointerleave',closeFromHover);
+	}
 
 	document.addEventListener('click',(event)=>{
 		if(!panel.classList.contains('open')) return;

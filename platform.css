@@ -56,6 +56,8 @@
 .accessPanel button{border:1px solid #c8dced;background:#fff;color:#0d3353;border-radius:11px;padding:10px 12px;text-align:left;font:800 13px/1.2 Manrope,"Source Sans 3","Segoe UI",sans-serif!important;cursor:pointer;letter-spacing:.02em;text-transform:uppercase}
 .accessPanel button:hover,.accessPanel button:focus-visible{border-color:var(--blue);background:#ecf6ff;outline:0}
 @media(max-width:640px){.nexusLanguageControl{right:10px!important;bottom:78px!important}.access{right:10px;top:auto;bottom:22%;transform:none}.accessPanel{right:0;top:auto;bottom:64px;transform:none}}
+/* Phone widths: trim the 508 toggle (64x52 -> 54x48) so it takes less of the small screen; still above the 44px minimum touch target. The panel itself stays hidden until the toggle is used. */
+@media(max-width:760px){.section508Button{min-width:54px!important;height:48px!important}}
 
 
 /* Build 010 global navigation language control */
