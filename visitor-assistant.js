@@ -27,12 +27,13 @@
  * waits and polls for it to close; if blocking UI stays open for the
  * whole polling window it skips that page view without setting the
  * session flag, so a later page view may still welcome the visitor.
- * One exception (Anthony, Nov 13, 2026): on the booking app at a
- * phone-sized width there is no pop-up welcome at all — the chat
- * button simply waits for the visitor to tap it. Desktop widths on
- * the booking app, and every other page, keep the welcome as above.
- * The session flag is not set by the exception, so the same session
- * at a desktop width can still be welcomed.
+ * One exception (Anthony, Nov 13, 2026, extended to every page on
+ * Nov 18, 2026): at a phone-sized width there is no pop-up welcome
+ * at all, on any page — the chat tab simply waits for the visitor
+ * to tap it, so the bot never pops up by itself on a phone. Desktop
+ * widths keep the welcome as above. The session flag is not set by
+ * the exception, so the same session at a desktop width can still
+ * be welcomed.
  *
  * Placement: by default, a slim edge tab on the LEFT side of the screen
  * (Nex's waiting avatar). Clicking it slides the chat panel in from the
@@ -184,10 +185,10 @@
   // stopped above the bar). Same widget, same Nex — only the
   // placement changes.
   var APP_PAGE = /\/(driver-app|patient|booking-app)(\.html)?$/i.test((window.location && window.location.pathname) || '');
-  var BOOKING_PAGE = /\/booking-app(\.html)?$/i.test((window.location && window.location.pathname) || '');
   // Phone-sized width, evaluated once when the widget loads (the
   // platform's own mobile layout switches at the same 760px line).
-  // Used only for the booking app's no-pop-up rule below.
+  // Drives the no-pop-up rule below: at this width, on every page,
+  // the welcome bubble never appears on its own (Nov 18, 2026).
   var MOBILE_VIEW = Boolean(window.matchMedia && window.matchMedia('(max-width: 760px)').matches);
 
   var CSS = [
@@ -342,7 +343,13 @@
     '.nvaChip:focus-visible,.nvaCall:focus-visible,.nvaInput:focus-visible,.nvaMsg a:focus-visible,.nvaEstActions a:focus-visible,.nvaProposalConfirm:focus-visible,.nvaProposalCancel:focus-visible,.nvaPanel .nvaBookBtn:focus-visible{outline:3px solid #0e5c8c;outline-offset:2px}',
     '.nvaTab:focus-visible,.nvaClose:focus-visible,.nvaSend:focus-visible{outline:3px solid #ffffff;outline-offset:2px;box-shadow:0 0 0 6px #0e5c8c}',
     '/* Full height at every width: the drawer always spans 100dvh. */',
-    '@media (prefers-reduced-motion:reduce){.nvaPanel,.nvaTab,.nvaBubble{transition:none!important}.nvaTypingGif{display:none}.nvaBubbleAvatar{display:none}}'
+    '@media (prefers-reduced-motion:reduce){.nvaPanel,.nvaTab,.nvaBubble{transition:none!important}.nvaTypingGif{display:none}.nvaBubbleAvatar{display:none}}',
+    /* Phone widths: a slimmer edge tab, so the launcher takes as
+       little of the small screen as possible while remaining a
+       comfortable touch target (48px wide, roughly 70px tall). The
+       round app-page button already sits at 52px and is unchanged,
+       and the panel and welcome bubble stay hidden until called. */
+    '@media (max-width:760px){.nvaTab:not(.nvaApp){width:48px;padding:10px 2px 9px}.nvaTab:not(.nvaApp) .nvaTabAvatar{width:32px;height:32px}.nvaTab:not(.nvaApp) .nvaTabLabel{font-size:10.5px}}'
   ].join('\n');
 
   var style = document.createElement('style');
@@ -864,10 +871,12 @@
   });
   bubbleClose.addEventListener('click', dismissWelcome);
 
-  if (welcomeSeenBefore() || (BOOKING_PAGE && MOBILE_VIEW)) {
-    // Booking app on a phone: no pop-up welcome (Anthony, Nov 13,
-    // 2026) — the round chat button waits for a tap. The session flag
-    // is deliberately NOT set here, so the same session at a desktop
+  if (welcomeSeenBefore() || MOBILE_VIEW) {
+    // Phone-sized width on ANY page: no pop-up welcome (Anthony,
+    // Nov 18, 2026 — extending the Nov 13, 2026 booking-app-only
+    // rule). The chat tab simply waits for the visitor to tap it, so
+    // the bot never pops up by itself on a phone. The session flag is
+    // deliberately NOT set here, so the same session at a desktop
     // width can still be welcomed there.
     welcomeSettled = true;
   } else {
