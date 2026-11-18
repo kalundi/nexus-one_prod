@@ -178,6 +178,12 @@
   status = 200
   force = true
 
+[[redirects]]
+  from = "/webhooks/pawluxe/ivr"
+  to = "/.netlify/functions/pawluxe-ivr"
+  status = 200
+  force = true
+
 # DriveFlex runs on nexusmt.com and reuses existing Nexus pages and sign-in.
 [[redirects]]
   from = "/driveflex"
