@@ -2209,8 +2209,9 @@ function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary',regi
  const actionParams=new URLSearchParams({attempt:String(attempt||'primary')});
  if(region)actionParams.set('region',String(region));
  const actionUrl=xmlEscape(voiceRouteUrl('dispatch-fallback',actionParams.toString(),voiceConfig.lang));
+ const whisperUrl=xmlEscape(voiceRouteUrl('dispatch-whisper',actionParams.toString(),voiceConfig.lang));
  const dialNumber=xmlEscape(targetNumber);
- return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(message,voiceConfig)}\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(message,voiceConfig)}\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    <Number url="${whisperUrl}" method="POST">${dialNumber}</Number>\n  </Dial>\n</Response>`;
 }
 
 const NEXUS_GREETING_URLS=[
@@ -3122,6 +3123,18 @@ async function handler(event){
    }
    const selfServeBody=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('We were unable to reach anyone. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('voicemail','source=dispatch-fallback',config.lang))}</Redirect>\n</Response>`;
    return xmlResponse(200,selfServeBody);
+  }
+  if(p[0]==='voice'&&p[1]==='dispatch-whisper'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
+   const handleUrl=xmlEscape(voiceRouteUrl('dispatch-whisper-handle','',config.lang));
+   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather numDigits="1" timeout="8" action="${handleUrl}" method="POST">\n    ${sayTag('You have a call from Nexus Medical Transit. Press 1 to accept.',config)}\n  </Gather>\n  <Hangup />\n</Response>`;
+   return xmlResponse(200,body);
+  }
+  if(p[0]==='voice'&&p[1]==='dispatch-whisper-handle'&&(method==='POST'||method==='GET')){
+   const params=parseWebhookBody(event);
+   const digits=clean(params.Digits||params.digits||'');
+   if(digits==='1')return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response />');
+   return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Hangup />\n</Response>');
   }
   if(p[0]==='voice'&&p[1]==='self-serve'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig(event.queryStringParameters?.lang);
