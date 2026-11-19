@@ -4,9 +4,10 @@
 // Menu: 1 = animal consultant (rings the consultant line), 2 = shop,
 // 3 = book pet care, 4 = membership, 5 = holiday, 6 = hours/info,
 // 7 = voicemail, 9 = repeat menu.
-// Voicemail-bound callers are transferred to the voicemail line
-// (VOICEMAIL_NUMBER); if that line does not answer, the caller falls
-// back to leaving a recorded message here so no caller is lost.
+// Voicemail-bound callers first hear the recorded greeting in
+// English, French, and Spanish, then are transferred to the voicemail
+// line (VOICEMAIL_NUMBER); if that line does not answer, the caller
+// falls back to leaving a recorded message here so no caller is lost.
 // No input anywhere falls through to voicemail so no caller is lost.
 const {verifyTwilioSignature}=require('./_shared/sms-consent.cjs');
 
@@ -14,6 +15,12 @@ const CONSULTANT_NUMBER='+13015007946';
 const VOICEMAIL_NUMBER='+12272452912';
 const VOICE='Polly.Joanna';
 const PATH='/webhooks/pawluxe/ivr';
+const GREETING_URLS=[
+ 'https://nexusmt.com/assets/voicemail/pawluxe-voicemail-greeting-holiday-en.mp3',
+ 'https://nexusmt.com/assets/voicemail/pawluxe-voicemail-greeting-holiday-fr.mp3',
+ 'https://nexusmt.com/assets/voicemail/pawluxe-voicemail-greeting-holiday-es.mp3'
+];
+const playGreetings=()=>GREETING_URLS.map(url=>`<Play>${url}</Play>`).join('');
 
 const xml=body=>({statusCode:200,headers:{'content-type':'text/xml; charset=utf-8','cache-control':'no-store'},body:`<?xml version="1.0" encoding="UTF-8"?><Response>${body||''}</Response>`});
 const say=text=>`<Say voice="${VOICE}">${text}</Say>`;
@@ -36,7 +43,7 @@ function voicemailTwiml(intro){
 }
 
 function voicemailTransferTwiml(intro){
- return say(intro)
+ return playGreetings()
   +`<Dial timeout="25" action="${selfUrl('aftervm')}" method="POST">${VOICEMAIL_NUMBER}</Dial>`;
 }
 
