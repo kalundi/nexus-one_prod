@@ -1777,6 +1777,14 @@ const VOICE_STRINGS={
   "fr": "Appuyez sur le 1 pour la répartition. Appuyez sur le 2 pour l'aide à la réservation. Appuyez sur le 3 pour les zones de service et les heures d'ouverture. Appuyez sur le 4 pour les services d'ambulance.",
   "es": "Presione 1 para despacho. Presione 2 para ayuda con reservas. Presione 3 para áreas de servicio y horario de atención. Presione 4 para servicios de ambulancia."
  },
+ "Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours. Press 4 for ambulance services. Press 5 to leave a voicemail.": {
+  "fr": "Ou utilisez le clavier. Appuyez sur le 1 pour la répartition. Appuyez sur le 2 pour l'aide aux demandes de transport. Appuyez sur le 3 pour les zones de service et les heures d'ouverture. Appuyez sur le 4 pour les services d'ambulance. Appuyez sur le 5 pour laisser un message vocal.",
+  "es": "O use el teclado. Presione 1 para despacho. Presione 2 para ayuda con solicitudes de transporte. Presione 3 para áreas de servicio y horarios. Presione 4 para servicios de ambulancia. Presione 5 para dejar un mensaje de voz."
+ },
+ "Press 1 for dispatch. Press 2 for booking help. Press 3 for service areas and business hours. Press 4 for ambulance services. Press 5 to leave a voicemail.": {
+  "fr": "Appuyez sur le 1 pour la répartition. Appuyez sur le 2 pour l'aide à la réservation. Appuyez sur le 3 pour les zones de service et les heures d'ouverture. Appuyez sur le 4 pour les services d'ambulance. Appuyez sur le 5 pour laisser un message vocal.",
+  "es": "Presione 1 para despacho. Presione 2 para ayuda con reservas. Presione 3 para áreas de servicio y horarios. Presione 4 para servicios de ambulancia. Presione 5 para dejar un mensaje de voz."
+ },
  "Take your time. I am listening.": {
   "fr": "Prenez votre temps. Je vous écoute.",
   "es": "Tómese su tiempo. Lo estoy escuchando."
@@ -2003,8 +2011,8 @@ function getVoiceConfig(lang='en'){
  const voiceMenuRetryPrompt=clean(process.env.VOICE_MENU_RETRY_PROMPT||'Sorry, I did not catch that. Please take your time and say your request after the tone.');
  const voiceMenuHelpPromptInitial=clean(process.env.VOICE_MENU_HELP_PROMPT_INITIAL||'You can say dispatch, representative, or human at any time.');
  const voiceMenuHelpPromptRetry=clean(process.env.VOICE_MENU_HELP_PROMPT_RETRY||'You can say dispatch, booking help, or service hours.');
- const voiceMenuKeypadPromptInitial=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_INITIAL||'Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours. Press 4 for ambulance services.');
- const voiceMenuKeypadPromptRetry=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_RETRY||'Press 1 for dispatch. Press 2 for booking help. Press 3 for service areas and business hours. Press 4 for ambulance services.');
+ const voiceMenuKeypadPromptInitial=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_INITIAL||'Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours. Press 4 for ambulance services. Press 5 to leave a voicemail.');
+ const voiceMenuKeypadPromptRetry=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_RETRY||'Press 1 for dispatch. Press 2 for booking help. Press 3 for service areas and business hours. Press 4 for ambulance services. Press 5 to leave a voicemail.');
  const voiceMenuListenPrompt=clean(process.env.VOICE_MENU_LISTEN_PROMPT||'Take your time. I am listening.');
  const voiceMenuGatherTimeout=parseBoundedInt(process.env.VOICE_MENU_GATHER_TIMEOUT,10,4,20);
  const voiceMenuSpeechTimeout=parseBoundedInt(process.env.VOICE_MENU_SPEECH_TIMEOUT,5,2,12);
@@ -2935,6 +2943,10 @@ async function handler(event){
   }
   if(/(billing|invoice|payment|balance|statement|claim)/i.test(intentText)){
    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can help with billing questions.',config)}\n  <Pause length="1" />\n  ${sayTag('For account-specific billing support, I can connect you with a Nexus representative now.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch','',config.lang))}</Redirect>\n</Response>`;
+   return xmlResponse(200,body);
+  }
+  if(digits==='5'||/(voicemail|leave a message)/i.test(speech)){
+   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('voicemail','source=menu',config.lang))}</Redirect>\n</Response>`;
    return xmlResponse(200,body);
   }
   if(digits==='2'||/(book|booking|ride|transport|request|schedule|dialysis|wheelchair|stretcher|bariatric|ambulatory)/i.test(intentText)){
