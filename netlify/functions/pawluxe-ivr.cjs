@@ -160,12 +160,22 @@ function buildTwiml({digits,step,dialCallStatus,base,lang}={}){
    +'</Gather>'
    +`<Redirect method="POST">${selfUrl('voicemail')}</Redirect>`;
  }
+ if(step==='whisper'){
+  return `<Gather numDigits="1" timeout="8" action="${selfUrl('whisperhandle')}" method="POST">`
+   +say('You have a call from Pawluxe Club. Press 1 to accept.','en')
+   +'</Gather>'
+   +'<Hangup/>';
+ }
+ if(step==='whisperhandle'){
+  if(digits==='1')return '';
+  return '<Hangup/>';
+ }
  if(!step&&!digits&&!lang){
   return languageMenu();
  }
  if(digits==='1'){
   return say(T().connecting)
-   +`<Dial timeout="25" action="${selfUrl('afterdial')}" method="POST">${CONSULTANT_NUMBER}</Dial>`;
+   +`<Dial timeout="25" action="${selfUrl('afterdial')}" method="POST"><Number url="${selfUrl('whisper')}" method="POST">${CONSULTANT_NUMBER}</Number></Dial>`;
  }
  if(digits&&T().info[digits]){
   return say(T().info[digits])+`<Redirect method="POST">${selfUrl('postinfo')}</Redirect>`;
