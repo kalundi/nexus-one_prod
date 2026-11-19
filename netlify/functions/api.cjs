@@ -2120,6 +2120,12 @@ function voiceEntryTwiml(){
  const fallthrough=xmlEscape(voiceRouteUrl('incoming-call','lang=en'));
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather numDigits="1" timeout="6" action="${action}" method="POST">\n    ${sayTag('Welcome to Nexus Medical Transit. For English, press 1.',config)}\n    <Say voice="Polly.Celine" language="fr-FR">Pour le français, appuyez sur le 2.</Say>\n    <Say voice="Polly.Lucia" language="es-ES">Para español, oprima el 3.</Say>\n  </Gather>\n  <Redirect method="POST">${fallthrough}</Redirect>\n</Response>`;
 }
+function voiceAmbulanceEntryTwiml(){
+ const config=getVoiceConfig('en');
+ const action=xmlEscape(voiceRouteUrl('ambulance-lang'));
+ const fallthrough=xmlEscape(voiceRouteUrl('ambulance-menu','lang=en'));
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather numDigits="1" timeout="6" action="${action}" method="POST">\n    ${sayTag('Welcome to Nexus Medical Transit ambulance services. For English, press 1.',config)}\n    <Say voice="Polly.Celine" language="fr-FR">Pour le français, appuyez sur le 2.</Say>\n    <Say voice="Polly.Lucia" language="es-ES">Para español, oprima el 3.</Say>\n  </Gather>\n  <Redirect method="POST">${fallthrough}</Redirect>\n</Response>`;
+}
 const SELF_SERVE_BOOKING_URL='https://mynexusride.com';
 const SELF_SERVE_BOOKING_SMS=`Nexus Medical Transit: Sorry we missed your call. You can book your trip anytime at ${SELF_SERVE_BOOKING_URL} and you'll get a confirmation by text and email. Questions? Call (888) 639-5766. Msg & data rates may apply. Reply HELP for help. Reply STOP to opt out.`;
 const SELF_SERVE_MENU_PROMPT='Before you go, here are two quicker options. Press 1, and I will text the booking link to this phone, so you can book your trip online anytime. Press 2 to hear how booking works. Or press 3 to leave a voicemail, and we will return your call.';
@@ -2860,6 +2866,12 @@ async function handler(event){
    const lang=voiceLangFromDigits(digits);
    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('incoming-call',`lang=${lang}`))}</Redirect>\n</Response>`);
   }
+  if(p[0]==='voice'&&p[1]==='ambulance-lang'&&(method==='POST'||method==='GET')){
+   const params=parseWebhookBody(event);
+   const digits=clean(params.Digits||params.digits||'');
+   const lang=voiceLangFromDigits(digits);
+   return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('ambulance-menu',`lang=${lang}`))}</Redirect>\n</Response>`);
+  }
   if(p[0]==='voice'&&p[1]==='assistant-instructions'&&method==='GET'){
   const knowledge=buildVoiceKnowledgePack();
   return json(200,{
@@ -2910,7 +2922,7 @@ async function handler(event){
       return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(`Dispatch is temporarily unavailable. Please call us at ${config.supportPhone}.`,config)}\n</Response>`);
    }
    if(digits==='4'||/(ambulance)/i.test(speech)){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('ambulance-menu','',config.lang))}</Redirect>\n</Response>`;
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('ambulance-menu',`lang=${encodeURIComponent(config.lang)}`))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
   if(/(trip\s*status|check\s*my\s*trip|where\s*is\s*my\s*ride|where\s*is\s*the\s*driver|eta)/i.test(intentText)){
@@ -3039,7 +3051,11 @@ async function handler(event){
    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Sorry, I did not catch that.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${retryUrl}</Redirect>\n</Response>`);
   }
   if(p[0]==='voice'&&p[1]==='ambulance-menu'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig(event.queryStringParameters?.lang);
+   const rawLang=event.queryStringParameters?.lang;
+   if(rawLang===undefined||rawLang===null||clean(rawLang)===''){
+    return xmlResponse(200,voiceAmbulanceEntryTwiml());
+   }
+   const config=getVoiceConfig(rawLang);
    const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
    return xmlResponse(200,voiceAmbulanceMenuTwiml(config,retry));
   }
