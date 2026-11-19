@@ -1875,11 +1875,20 @@ const NEXUS_GREETING_URLS=[
  'https://nexusmt.com/assets/voicemail/nexus-voicemail-greeting-holiday-fr.mp3',
  'https://nexusmt.com/assets/voicemail/nexus-voicemail-greeting-holiday-es.mp3'
 ];
-function voiceVoicemailTwiml(config,source=''){
- const sourceParam=clean(source)?`source=${encodeURIComponent(clean(source))}`:'';
+function voicemailRecordTail(config,sourceParam,greetingUrl){
  const recordAction=xmlEscape(voiceRouteUrl('voicemail-complete',sourceParam));
  const transcribeCallback=xmlEscape(voiceRouteUrl('voicemail-transcription',sourceParam));
- return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${NEXUS_GREETING_URLS.map(url=>`<Play>${url}</Play>`).join('\n  ')}\n  ${sayTag('Please leave your name, your callback number, and a brief message after the tone. Please don\'t share medical details in your message. We will return your call as soon as possible.',config)}\n  <Record action="${recordAction}" method="POST" transcribe="true" transcribeCallback="${transcribeCallback}" recordingStatusCallback="${transcribeCallback}" recordingStatusCallbackMethod="POST" maxLength="120" playBeep="true" />\n</Response>`;
+ return `<Play>${greetingUrl}</Play>\n  ${sayTag('Please leave your name, your callback number, and a brief message after the tone. Please don\'t share medical details in your message. We will return your call as soon as possible.',config)}\n  <Record action="${recordAction}" method="POST" transcribe="true" transcribeCallback="${transcribeCallback}" recordingStatusCallback="${transcribeCallback}" recordingStatusCallbackMethod="POST" maxLength="120" playBeep="true" />`;
+}
+function voiceVoicemailTwiml(config,source=''){
+ const sourceParam=clean(source)?`source=${encodeURIComponent(clean(source))}`:'';
+ const langAction=xmlEscape(voiceRouteUrl('voicemail-lang',sourceParam));
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather numDigits="1" timeout="6" action="${langAction}" method="POST">\n    ${sayTag('For English, press 1.',config)}\n    <Say voice="Polly.Celine" language="fr-FR">Pour le français, appuyez sur le 2.</Say>\n    <Say voice="Polly.Lucia" language="es-ES">Para español, oprima el 3.</Say>\n  </Gather>\n  ${voicemailRecordTail(config,sourceParam,NEXUS_GREETING_URLS[0])}\n</Response>`;
+}
+function voiceVoicemailLangTwiml(config,source='',digits=''){
+ const sourceParam=clean(source)?`source=${encodeURIComponent(clean(source))}`:'';
+ const greetingUrl=digits==='2'?NEXUS_GREETING_URLS[1]:digits==='3'?NEXUS_GREETING_URLS[2]:NEXUS_GREETING_URLS[0];
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${voicemailRecordTail(config,sourceParam,greetingUrl)}\n</Response>`;
 }
 const SELF_SERVE_BOOKING_URL='https://mynexusride.com';
 const SELF_SERVE_BOOKING_SMS=`Nexus Medical Transit: Sorry we missed your call. You can book your trip anytime at ${SELF_SERVE_BOOKING_URL} and you'll get a confirmation by text and email. Questions? Call (888) 639-5766. Msg & data rates may apply. Reply HELP for help. Reply STOP to opt out.`;
@@ -2827,6 +2836,13 @@ async function handler(event){
    const config=getVoiceConfig();
    const source=clean(event.queryStringParameters?.source||'');
    return xmlResponse(200,voiceVoicemailTwiml(config,source));
+  }
+  if(p[0]==='voice'&&p[1]==='voicemail-lang'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig();
+   const params=parseWebhookBody(event);
+   const source=clean(event.queryStringParameters?.source||params.source||'');
+   const digits=clean(params.Digits||params.digits||'');
+   return xmlResponse(200,voiceVoicemailLangTwiml(config,source,digits));
   }
   if(p[0]==='voice'&&p[1]==='voicemail-complete'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig();

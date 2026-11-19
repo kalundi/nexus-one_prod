@@ -4,8 +4,9 @@
 // Menu: 1 = animal consultant (rings the consultant line), 2 = shop,
 // 3 = book pet care, 4 = membership, 5 = holiday, 6 = hours/info,
 // 7 = voicemail, 9 = repeat menu.
-// Voicemail-bound callers first hear the recorded greeting in
-// English, French, and Spanish, then are transferred to the voicemail
+// Voicemail-bound callers choose their greeting language (1 = English,
+// 2 = French, 3 = Spanish; no input defaults to English) and hear only
+// that one recorded greeting, then are transferred to the voicemail
 // line (VOICEMAIL_NUMBER); if that line does not answer, the caller
 // falls back to leaving a recorded message here so no caller is lost.
 // No input anywhere falls through to voicemail so no caller is lost.
@@ -20,7 +21,6 @@ const GREETING_URLS=[
  'https://nexusmt.com/assets/voicemail/pawluxe-voicemail-greeting-holiday-fr.mp3',
  'https://nexusmt.com/assets/voicemail/pawluxe-voicemail-greeting-holiday-es.mp3'
 ];
-const playGreetings=()=>GREETING_URLS.map(url=>`<Play>${url}</Play>`).join('');
 
 const xml=body=>({statusCode:200,headers:{'content-type':'text/xml; charset=utf-8','cache-control':'no-store'},body:`<?xml version="1.0" encoding="UTF-8"?><Response>${body||''}</Response>`});
 const say=text=>`<Say voice="${VOICE}">${text}</Say>`;
@@ -43,7 +43,12 @@ function voicemailTwiml(intro){
 }
 
 function voicemailTransferTwiml(intro){
- return playGreetings()
+ return `<Gather numDigits="1" timeout="6" action="${selfUrl('vmlang')}" method="POST">`
+  +say('For English, press 1.')
+  +'<Say voice="Polly.Celine" language="fr-FR">Pour le français, appuyez sur le 2.</Say>'
+  +'<Say voice="Polly.Lucia" language="es-ES">Para español, oprima el 3.</Say>'
+  +'</Gather>'
+  +`<Play>${GREETING_URLS[0]}</Play>`
   +`<Dial timeout="25" action="${selfUrl('aftervm')}" method="POST">${VOICEMAIL_NUMBER}</Dial>`;
 }
 
@@ -59,6 +64,11 @@ function buildTwiml({digits,step,dialCallStatus,base}={}){
  }
  if(step==='voicemail'){
   return voicemailTransferTwiml('Please hold while we connect you.');
+ }
+ if(step==='vmlang'){
+  const url=digits==='2'?GREETING_URLS[1]:digits==='3'?GREETING_URLS[2]:GREETING_URLS[0];
+  return `<Play>${url}</Play>`
+   +`<Dial timeout="25" action="${selfUrl('aftervm')}" method="POST">${VOICEMAIL_NUMBER}</Dial>`;
  }
  if(step==='thanks'){
   return say('Thank you for calling Pawluxe Club. Your message is in, and we will call you back within 24 hours. In the meantime, shop new arrivals and book care anytime at pawluxe dot club. Happy Howlidays!')+'<Hangup/>';
