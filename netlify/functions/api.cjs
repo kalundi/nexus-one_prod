@@ -2316,7 +2316,8 @@ function getDispatchDialTargets(config,fromNumber,preferredRegion=''){
   primary=primaryFallback||mdPrimary||dcPrimary;
   secondary=secondaryFallback||(primary!==mdPrimary?mdPrimary:'')||(primary!==dcPrimary?dcPrimary:'')||mdSecondary||dcSecondary;
  }
- if(secondary&&secondary===primary)secondary='';
+ const digitsOnly=(v)=>{const d=String(v||'').replace(/\D/g,'');return d.length===11&&d.charAt(0)==='1'?d.slice(1):d;};
+ if(secondary&&digitsOnly(secondary)===digitsOnly(primary))secondary='';
  return {region,primary,secondary};
 }
 function voiceOpeningScript(config){
@@ -3108,7 +3109,16 @@ async function handler(event){
     const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
     const targets=getDispatchDialTargets(config,callerFrom,regionHint);
    if(dialStatus==='completed'){
-    return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Hangup />\n</Response>');
+    const parentSid=clean(params.CallSid||params.callSid||'');
+    const childSid=clean(params.DialCallSid||params.dialCallSid||'');
+    let accepted=false;
+    if(parentSid||childSid){
+     const acc=await query(`SELECT call_sid FROM voice_dispatch_accepts WHERE call_sid=$1 OR call_sid=$2 LIMIT 1`,[parentSid,childSid]).catch(()=>null);
+     accepted=Boolean(acc&&acc.rows&&acc.rows.length);
+    }
+    if(accepted){
+     return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Hangup />\n</Response>');
+    }
    }
     if(attempt!=='secondary'&&targets.secondary){
     const body=dispatchDialTwiml({
@@ -3133,7 +3143,14 @@ async function handler(event){
   if(p[0]==='voice'&&p[1]==='dispatch-whisper-handle'&&(method==='POST'||method==='GET')){
    const params=parseWebhookBody(event);
    const digits=clean(params.Digits||params.digits||'');
-   if(digits==='1')return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response />');
+   if(digits==='1'){
+    const parentSid=clean(params.ParentCallSid||params.parentCallSid||params.CallSid||params.callSid||'');
+    if(parentSid){
+     await query(`CREATE TABLE IF NOT EXISTS voice_dispatch_accepts(call_sid TEXT PRIMARY KEY,accepted_at TIMESTAMPTZ NOT NULL DEFAULT now())`).catch(()=>null);
+     await query(`INSERT INTO voice_dispatch_accepts(call_sid) VALUES($1) ON CONFLICT(call_sid) DO NOTHING`,[parentSid]).catch(()=>null);
+    }
+    return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response />');
+   }
    return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Hangup />\n</Response>');
   }
   if(p[0]==='voice'&&p[1]==='self-serve'&&(method==='POST'||method==='GET')){
