@@ -7,6 +7,7 @@ test('reports endpoint returns facility-scoped aggregates with board-consistent 
   await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
    CREATE TABLE users(id uuid PRIMARY KEY); INSERT INTO users VALUES('${manager}'),('${dispatcher}');
    CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
+   CREATE TABLE user_facilities(user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,facility_code text NOT NULL REFERENCES facilities(facility_code) ON DELETE CASCADE,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,facility_code));
    INSERT INTO facilities VALUES('FC-A','Care A','100 Facility Lane',true),('FC-B','Care B','200 Facility Lane',true);
    CREATE TABLE bookings(reference text PRIMARY KEY,facility_id text,booking_source text,name text,service text,pickup text,destination text,trip_date date,trip_time time,notes text,status text,payment_status text,driver_name text,vehicle_unit text,trip_type text,return_trip_date date,return_trip_time time,created_at timestamptz,updated_at timestamptz);`);
   await db.exec(fs.readFileSync('database/migrations/094.001_facility_portal.sql','utf8'));

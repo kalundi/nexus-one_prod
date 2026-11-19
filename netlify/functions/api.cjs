@@ -53,7 +53,7 @@ const handleFacilityDemo=require('./_shared/facility-demo.cjs').createHandler({q
 const DemoAccount=require('./_shared/facility-demo-account.cjs');
 const EMS_ROLES=Object.keys(require('../../nexus-ems-roles.js'));
 const EMS_ACCESS=require('../../nexus-ems-roles.js').access;
-const {requireActiveFacility}=require('./_shared/facility-access.cjs');
+const {requireActiveFacility,facilityCodesForUser}=require('./_shared/facility-access.cjs');
 const handleFacilityPortal=require('./_shared/facility-portal.cjs').createHandler({query,requireUser,bearer,json,parseBody});
 const {syncBookingCalendar,cancelBookingCalendar}=require('./_shared/booking-calendar.cjs');
 const montgomeryOutreachPilot=require('../../data/montgomery-tier-a-outreach-pilot.json');
@@ -1491,7 +1491,7 @@ async function sendPaymentTripConfirmation(row,options={}){
 async function issueFacilityCompletionInvoice(row){
  if(clean(row.booking_source).toUpperCase()!=='FACILITY'||clean(row.payer_type).toUpperCase()!=='FACILITY'||row.facility_invoice_sent_at)return null;
  const fare=Number(row.estimated_fare||0),facilityCode=clean(row.facility_id)||null;
- const managers=facilityCode?await query("SELECT email FROM users WHERE role='FACILITY' AND scope_id=$1 AND active=true",[facilityCode]).catch(()=>({rows:[]})):{rows:[]};
+ const managers=facilityCode?await query("SELECT email FROM users WHERE role='FACILITY' AND active=true AND (scope_id=$1 OR id IN (SELECT user_id FROM user_facilities WHERE facility_code=$1))",[facilityCode]).catch(()=>({rows:[]})):{rows:[]};
  const recipients=[...new Set(managers.rows.map(x=>clean(x.email)).filter(Boolean))];
  if(!recipients.length&&clean(row.email))recipients.push(clean(row.email));
  const invoiceNumber=`INV-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${clean(row.reference).replace(/^NMT-/,'')}`;
@@ -1566,7 +1566,7 @@ async function sendTripStakeholderUpdate(beforeRow,afterRow,actor,editNote='',op
 
   const facilityEmails=[];
   if(clean(after.facilityId)){
-   const facilityUsers=await query(`SELECT email FROM users WHERE role='FACILITY' AND active=true AND scope_id=$1`,[after.facilityId]).catch(()=>({rows:[]}));
+   const facilityUsers=await query(`SELECT email FROM users WHERE role='FACILITY' AND active=true AND (scope_id=$1 OR id IN (SELECT user_id FROM user_facilities WHERE facility_code=$1))`,[after.facilityId]).catch(()=>({rows:[]}));
    for(const row of facilityUsers.rows||[])if(clean(row.email))facilityEmails.push(clean(row.email));
   }
 
@@ -4260,7 +4260,7 @@ async function handler(event){
      const u=await requireUser(bearer(event));
      let sql='SELECT * FROM bookings',params=[];
      if(u.role==='CARETAKER')return json(200,{trips:await Promise.all((await require('./_shared/caretaker-access.cjs').listTrips(u.id)).map(mapPatientBooking))});
-     if(u.role==='FACILITY'){sql+=' WHERE facility_id=$1';params=[u.scope_id]}
+     if(u.role==='FACILITY'){sql+=' WHERE facility_id = ANY($1::text[])';params=[await facilityCodesForUser(query,u)]}
      else if(u.role==='DRIVER'){sql+=' WHERE driver_user_id=$2::uuid OR (driver_user_id IS NULL AND driver_scope_id=$1)';params=[u.scope_id,u.id]}
      else if(u.role==='PATIENT'){
       const patientPhone=String(u.phone||'').replace(/\D/g,'');
@@ -5004,6 +5004,7 @@ async function handler(event){
     if(decision==='APPROVED'&&request.role==='FACILITY')await requireActiveFacility(q,scopeId);
     updated=await q(`UPDATE user_role_requests SET status=$2,scope_id=$3,reviewed_at=now(),reviewed_by=$4,notes=$5 WHERE id=$1 RETURNING *`,[requestId,decision,scopeId,me.id,clean(b.notes)||null]);
     if(decision==='APPROVED'&&request.role==='FACILITY')await q("UPDATE users SET scope_id=$2,updated_at=now() WHERE id=$1 AND role='FACILITY'",[request.user_id,scopeId]);
+    if(decision==='APPROVED'&&request.role==='FACILITY')await q('INSERT INTO user_facilities(user_id,facility_code) VALUES($1,$2) ON CONFLICT DO NOTHING',[request.user_id,scopeId]);
     await client.query('COMMIT');
    }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
    await audit('USER_ROLE',requestId,decision,{userId:request.user_id,email:request.email,role:request.role,scopeId,by:me.email});
@@ -5471,8 +5472,8 @@ async function handler(event){
    const r=await query(sql,params);
    return json(200,{entries:r.rows.map(e=>({id:String(e.id||''),entityType:e.entity_type,entityId:String(e.entity_id||''),action:e.action,changes:e.changes,createdAt:e.created_at}))});
   }
-  if(p[0]==='facilities'&&method==='GET'){const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','FACILITY']);const r=await query(u.role==='FACILITY'?'SELECT * FROM facilities WHERE facility_code=$1':'SELECT * FROM facilities ORDER BY name',[...(u.role==='FACILITY'?[u.scope_id]:[])]);return json(200,{facilities:r.rows})}
-  if(p[0]==='patients'&&method==='GET'){const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','FACILITY']);const r=await query(u.role==='FACILITY'?'SELECT * FROM patients WHERE facility_code=$1 AND active=true ORDER BY display_name':'SELECT * FROM patients WHERE active=true ORDER BY display_name',[...(u.role==='FACILITY'?[u.scope_id]:[])]);return json(200,{patients:r.rows})}
+  if(p[0]==='facilities'&&method==='GET'){const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','FACILITY']);const codes=u.role==='FACILITY'?await facilityCodesForUser(query,u):null;const r=await query(codes?'SELECT * FROM facilities WHERE facility_code = ANY($1::text[]) ORDER BY (facility_code=$2) DESC,name':'SELECT * FROM facilities ORDER BY name',codes?[codes,u.scope_id]:[]);return json(200,{facilities:r.rows})}
+  if(p[0]==='patients'&&method==='GET'){const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','FACILITY']);const codes=u.role==='FACILITY'?await facilityCodesForUser(query,u):null;const r=await query(codes?'SELECT * FROM patients WHERE facility_code = ANY($1::text[]) AND active=true ORDER BY display_name':'SELECT * FROM patients WHERE active=true ORDER BY display_name',codes?[codes]:[]);return json(200,{patients:r.rows})}
   // Update trip details/status.
   // - Authenticated DRIVER/DISPATCHER/ADMIN path: status/vehicle updates via token.
   // - Passenger path: requires booking phone verification and allows contact/detail edits.

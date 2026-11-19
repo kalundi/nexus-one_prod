@@ -7,6 +7,7 @@ test('production facility operations enforce scope, persist conversations and ra
   await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
    CREATE TABLE users(id uuid PRIMARY KEY); INSERT INTO users VALUES('${manager}'),('${dispatcher}');
    CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
+   CREATE TABLE user_facilities(user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,facility_code text NOT NULL REFERENCES facilities(facility_code) ON DELETE CASCADE,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,facility_code));
    INSERT INTO facilities VALUES('FC-A','Care A','100 Facility Lane',true),('FC-B','Care B','200 Facility Lane',true),('FC-X','Closed','300 Facility Lane',false);
    CREATE TABLE bookings(reference text PRIMARY KEY,facility_id text,booking_source text,name text,service text,pickup text,destination text,trip_date date,trip_time time,notes text,status text,payment_status text,driver_name text,vehicle_unit text,trip_type text,return_trip_date date,return_trip_time time,updated_at timestamptz);
    CREATE TABLE trip_status_history(id uuid DEFAULT gen_random_uuid(),booking_reference text,status text,status_label text,note text,created_at timestamptz DEFAULT now());
@@ -65,6 +66,7 @@ test('trips endpoint serves date ranges with range-wide summary counts and uncha
   await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
    CREATE TABLE users(id uuid PRIMARY KEY); INSERT INTO users VALUES('${manager}');
    CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
+   CREATE TABLE user_facilities(user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,facility_code text NOT NULL REFERENCES facilities(facility_code) ON DELETE CASCADE,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,facility_code));
    INSERT INTO facilities VALUES('FC-A','Care A','100 Facility Lane',true),('FC-B','Care B','200 Facility Lane',true);
    CREATE TABLE bookings(reference text PRIMARY KEY,facility_id text,booking_source text,name text,service text,pickup text,destination text,trip_date date,trip_time time,notes text,status text,payment_status text,driver_name text,vehicle_unit text,trip_type text,return_trip_date date,return_trip_time time,updated_at timestamptz);`);
   await db.exec(fs.readFileSync('database/migrations/084.001_patient_schedule_duplicates.sql','utf8').split('CREATE OR REPLACE FUNCTION booking_appointment_time')[1].split('CREATE OR REPLACE FUNCTION booking_referral_key')[0].replace(/^/, 'CREATE OR REPLACE FUNCTION booking_appointment_time'));
@@ -113,6 +115,7 @@ test('trips endpoint unions multiple ranges once per trip, paginates and summari
   await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
    CREATE TABLE users(id uuid PRIMARY KEY); INSERT INTO users VALUES('${manager}');
    CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
+   CREATE TABLE user_facilities(user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,facility_code text NOT NULL REFERENCES facilities(facility_code) ON DELETE CASCADE,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,facility_code));
    INSERT INTO facilities VALUES('FC-A','Care A','100 Facility Lane',true),('FC-B','Care B','200 Facility Lane',true);
    CREATE TABLE bookings(reference text PRIMARY KEY,facility_id text,booking_source text,name text,service text,pickup text,destination text,trip_date date,trip_time time,notes text,status text,payment_status text,driver_name text,vehicle_unit text,trip_type text,return_trip_date date,return_trip_time time,updated_at timestamptz);`);
   await db.exec(fs.readFileSync('database/migrations/084.001_patient_schedule_duplicates.sql','utf8').split('CREATE OR REPLACE FUNCTION booking_appointment_time')[1].split('CREATE OR REPLACE FUNCTION booking_referral_key')[0].replace(/^/, 'CREATE OR REPLACE FUNCTION booking_appointment_time'));
@@ -182,6 +185,7 @@ test('trips endpoint serves a selected date set with set-wide summary, dedupe, p
   await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
    CREATE TABLE users(id uuid PRIMARY KEY); INSERT INTO users VALUES('${manager}');
    CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
+   CREATE TABLE user_facilities(user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,facility_code text NOT NULL REFERENCES facilities(facility_code) ON DELETE CASCADE,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,facility_code));
    INSERT INTO facilities VALUES('FC-A','Care A','100 Facility Lane',true),('FC-B','Care B','200 Facility Lane',true);
    CREATE TABLE bookings(reference text PRIMARY KEY,facility_id text,booking_source text,name text,service text,pickup text,destination text,trip_date date,trip_time time,notes text,status text,payment_status text,driver_name text,vehicle_unit text,trip_type text,return_trip_date date,return_trip_time time,updated_at timestamptz);`);
   await db.exec(fs.readFileSync('database/migrations/084.001_patient_schedule_duplicates.sql','utf8').split('CREATE OR REPLACE FUNCTION booking_appointment_time')[1].split('CREATE OR REPLACE FUNCTION booking_referral_key')[0].replace(/^/, 'CREATE OR REPLACE FUNCTION booking_appointment_time'));
@@ -248,5 +252,60 @@ test('trips endpoint serves a selected date set with set-wide summary, dedupe, p
   assert.equal(legacyDate.statusCode,200);
   assert.equal(legacyDate.body.dates,undefined);
   assert.deepEqual(legacyDate.body.trips.map(t=>t.reference),['DAY-B']);
+ }finally{await db.close();}
+});
+
+test('a manager linked to multiple facilities sees each home and is rejected outside the set',async()=>{
+ const db=new PGlite(),manager='11111111-1111-4111-8111-111111111111';
+ try{
+  await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
+   CREATE TABLE users(id uuid PRIMARY KEY); INSERT INTO users VALUES('${manager}');
+   CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
+   CREATE TABLE user_facilities(user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,facility_code text NOT NULL REFERENCES facilities(facility_code) ON DELETE CASCADE,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,facility_code));
+   INSERT INTO facilities VALUES('FC-A','Zebra Care','100 Facility Lane',true),('FC-B','Aardvark Care','200 Facility Lane',true),('FC-C','Other Care','300 Facility Lane',true);
+   INSERT INTO user_facilities(user_id,facility_code) VALUES('${manager}','FC-A'),('${manager}','FC-B');
+   CREATE TABLE bookings(reference text PRIMARY KEY,facility_id text,booking_source text,name text,service text,pickup text,destination text,trip_date date,trip_time time,notes text,status text,payment_status text,driver_name text,vehicle_unit text,trip_type text,return_trip_date date,return_trip_time time,updated_at timestamptz);
+   CREATE TABLE trip_status_history(id uuid DEFAULT gen_random_uuid(),booking_reference text,status text,status_label text,note text,created_at timestamptz DEFAULT now());
+   INSERT INTO bookings(reference,facility_id,booking_source,name,pickup,destination,trip_date,trip_time,status,payment_status) VALUES
+   ('A1','FC-A','CUSTOMER','Passenger One','100 Facility Lane','Hospital Road','2026-01-01','08:00','COMPLETED','PAID_IN_FULL'),
+   ('B1','FC-B','CUSTOMER','Passenger Two','200 Facility Lane','Clinic Lane','2026-01-01','09:00','COMPLETED','PAID_IN_FULL'),
+   ('C1','FC-C','CUSTOMER','Passenger Three','300 Facility Lane','Other Clinic','2026-01-01','10:00','COMPLETED','PAID_IN_FULL');`);
+  await db.exec(fs.readFileSync('database/migrations/084.001_patient_schedule_duplicates.sql','utf8').split('CREATE OR REPLACE FUNCTION booking_appointment_time')[1].split('CREATE OR REPLACE FUNCTION booking_referral_key')[0].replace(/^/, 'CREATE OR REPLACE FUNCTION booking_appointment_time'));
+  await db.exec(fs.readFileSync('database/migrations/094.001_facility_portal.sql','utf8'));
+  const users={manager:{id:manager,role:'FACILITY',scope_id:'FC-A',display_name:'Manager A'}};
+  const handler=createHandler({query:(...args)=>db.query(...args),requireUser:async token=>{if(!users[token])throw Object.assign(Error('Authentication required'),{statusCode:401});return users[token];},bearer:e=>e.headers.authorization,json:(statusCode,body)=>({statusCode,body}),parseBody:e=>JSON.parse(e.body)});
+  const call=async(path,params={})=>{const [endpoint,reference]=path.split('/');try{return await handler({headers:{authorization:'manager'},queryStringParameters:params,body:'{}'},['facility-portal',endpoint,...(reference?[reference]:[])],'GET');}catch(error){return {statusCode:error.statusCode||500,body:{error:error.message}};}};
+  // Context lists both homes, the primary (scope) facility first even
+  // though the linked home sorts earlier by name.
+  assert.deepEqual((await call('context')).body.facilities.map(f=>f.id),['FC-A','FC-B']);
+  // The default board is the primary facility; naming the linked home
+  // switches the board to it, including its trip conversations.
+  assert.deepEqual((await call('trips',{date:'2026-01-01'})).body.trips.map(t=>t.reference),['A1']);
+  assert.deepEqual((await call('trips',{facility:'FC-B',date:'2026-01-01'})).body.trips.map(t=>t.reference),['B1']);
+  assert.equal((await call('communications/B1',{facility:'FC-B'})).statusCode,200);
+  // A facility outside the linked set is forbidden on every operation.
+  for(const endpoint of ['context','trips','locations','reports'])assert.equal((await call(endpoint,{facility:'FC-C',date:'2026-01-01'})).statusCode,403,endpoint);
+  assert.equal((await call('communications/C1',{facility:'FC-C'})).statusCode,403);
+ }finally{await db.close();}
+});
+
+test('migration 101 links existing managers to their scope facility, skips non-facility scopes and registers the Bright Hands homes',async()=>{
+ const db=new PGlite(),manager='11111111-1111-4111-8111-111111111111',demo='22222222-2222-4222-8222-222222222222',driver='33333333-3333-4333-8333-333333333333';
+ try{
+  await db.exec(`CREATE TABLE schema_migrations(version text PRIMARY KEY,description text);
+   CREATE TABLE users(id uuid PRIMARY KEY,email text,role text,scope_id text);
+   CREATE TABLE facilities(facility_code text PRIMARY KEY,name text NOT NULL,address text,contact_name text,contact_email text,contact_phone text,billing_type text,active boolean NOT NULL DEFAULT true,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now());
+   INSERT INTO facilities(facility_code,name) VALUES('FC-A','Care A');
+   INSERT INTO users VALUES('${manager}','manager@example.test','FACILITY','FC-A'),('${demo}','demo@example.test','FACILITY','futurecare-annapolis-demo'),('${driver}','driver@example.test','DRIVER','FC-A');`);
+  const migration=fs.readFileSync('database/migrations/101.001_multi_facility_managers.sql','utf8');
+  await db.exec(migration);await db.exec(migration);
+  assert.deepEqual((await db.query('SELECT user_id,facility_code FROM user_facilities')).rows,[{user_id:manager,facility_code:'FC-A'}]);
+  const homes=(await db.query("SELECT facility_code,address,billing_type,active FROM facilities WHERE facility_code LIKE 'bright-hands%' ORDER BY facility_code")).rows;
+  assert.deepEqual(homes.map(h=>h.facility_code),['bright-hands-assisted-living','bright-hands-assisted-living-ii','bright-hands-assisted-living-iii']);
+  assert.ok(homes.every(h=>h.billing_type===null&&h.active===true));
+  assert.equal(homes[0].address,'14109 Burning Bush Lane, Silver Spring, MD 20906');
+  assert.equal(homes[1].address,'9720 Breckenridge Place, Montgomery Village, MD 20886');
+  assert.equal(homes[2].address,'808 East Franklin Avenue, Silver Spring, MD 20901');
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM schema_migrations WHERE version='101.001'")).rows[0].n,1);
  }finally{await db.close();}
 });
