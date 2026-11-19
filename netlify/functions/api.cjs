@@ -1777,6 +1777,26 @@ const VOICE_STRINGS={
   "fr": "Appuyez sur le 1 pour la répartition. Appuyez sur le 2 pour l'aide à la réservation. Appuyez sur le 3 pour les zones de service et les heures d'ouverture. Appuyez sur le 4 pour les services d'ambulance.",
   "es": "Presione 1 para despacho. Presione 2 para ayuda con reservas. Presione 3 para áreas de servicio y horario de atención. Presione 4 para servicios de ambulancia."
  },
+ "Please tell me what you need, or press 1 to speak with someone.": {
+  "fr": "Dites-moi ce qu'il vous faut, ou appuyez sur le 1 pour parler à quelqu'un.",
+  "es": "Dígame qué necesita, o presione 1 para hablar con alguien."
+ },
+ "If you would like to speak with someone, just say so, or press 1 at any time.": {
+  "fr": "Si vous souhaitez parler à quelqu'un, dites-le, ou appuyez sur le 1 à tout moment.",
+  "es": "Si desea hablar con alguien, solo dígalo, o presione 1 en cualquier momento."
+ },
+ "If you would like to speak with someone, say so or press 1. You can also say booking help or service hours.": {
+  "fr": "Si vous souhaitez parler à quelqu'un, dites-le ou appuyez sur le 1. Vous pouvez aussi dire aide à la réservation ou heures de service.",
+  "es": "Si desea hablar con alguien, dígalo o presione 1. También puede decir ayuda con reservas u horario de servicio."
+ },
+ "Or use the keypad. Press 1 to speak with someone. Press 2 for transportation request help. Press 3 for service areas and business hours. Press 4 for ambulance services. Press 5 to leave a voicemail.": {
+  "fr": "Ou utilisez le clavier. Appuyez sur le 1 pour parler à quelqu'un. Appuyez sur le 2 pour l'aide aux demandes de transport. Appuyez sur le 3 pour les zones de service et les heures d'ouverture. Appuyez sur le 4 pour les services d'ambulance. Appuyez sur le 5 pour laisser un message vocal.",
+  "es": "O use el teclado. Presione 1 para hablar con alguien. Presione 2 para ayuda con solicitudes de transporte. Presione 3 para áreas de servicio y horarios. Presione 4 para servicios de ambulancia. Presione 5 para dejar un mensaje de voz."
+ },
+ "Press 1 to speak with someone. Press 2 for booking help. Press 3 for service areas and business hours. Press 4 for ambulance services. Press 5 to leave a voicemail.": {
+  "fr": "Appuyez sur le 1 pour parler à quelqu'un. Appuyez sur le 2 pour l'aide à la réservation. Appuyez sur le 3 pour les zones de service et les heures d'ouverture. Appuyez sur le 4 pour les services d'ambulance. Appuyez sur le 5 pour laisser un message vocal.",
+  "es": "Presione 1 para hablar con alguien. Presione 2 para ayuda con reservas. Presione 3 para áreas de servicio y horarios. Presione 4 para servicios de ambulancia. Presione 5 para dejar un mensaje de voz."
+ },
  "Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours. Press 4 for ambulance services. Press 5 to leave a voicemail.": {
   "fr": "Ou utilisez le clavier. Appuyez sur le 1 pour la répartition. Appuyez sur le 2 pour l'aide aux demandes de transport. Appuyez sur le 3 pour les zones de service et les heures d'ouverture. Appuyez sur le 4 pour les services d'ambulance. Appuyez sur le 5 pour laisser un message vocal.",
   "es": "O use el teclado. Presione 1 para despacho. Presione 2 para ayuda con solicitudes de transporte. Presione 3 para áreas de servicio y horarios. Presione 4 para servicios de ambulancia. Presione 5 para dejar un mensaje de voz."
@@ -2007,12 +2027,12 @@ function getVoiceConfig(lang='en'){
  const streamUrl=clean(process.env.TWILIO_MEDIA_STREAM_URL||'');
  const voiceName=clean(process.env.TWILIO_VOICE_NAME||'Polly.Joanna-Neural');
  const voiceLanguage=clean(process.env.TWILIO_VOICE_LANGUAGE||'en-US');
- const voiceMenuInitialPrompt=clean(process.env.VOICE_MENU_INITIAL_PROMPT||'Please tell me what you need, or press 1 for dispatch.');
+ const voiceMenuInitialPrompt=clean(process.env.VOICE_MENU_INITIAL_PROMPT||'Please tell me what you need, or press 1 to speak with someone.');
  const voiceMenuRetryPrompt=clean(process.env.VOICE_MENU_RETRY_PROMPT||'Sorry, I did not catch that. Please take your time and say your request after the tone.');
- const voiceMenuHelpPromptInitial=clean(process.env.VOICE_MENU_HELP_PROMPT_INITIAL||'You can say dispatch, representative, or human at any time.');
- const voiceMenuHelpPromptRetry=clean(process.env.VOICE_MENU_HELP_PROMPT_RETRY||'You can say dispatch, booking help, or service hours.');
- const voiceMenuKeypadPromptInitial=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_INITIAL||'Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours. Press 4 for ambulance services. Press 5 to leave a voicemail.');
- const voiceMenuKeypadPromptRetry=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_RETRY||'Press 1 for dispatch. Press 2 for booking help. Press 3 for service areas and business hours. Press 4 for ambulance services. Press 5 to leave a voicemail.');
+ const voiceMenuHelpPromptInitial=clean(process.env.VOICE_MENU_HELP_PROMPT_INITIAL||'If you would like to speak with someone, just say so, or press 1 at any time.');
+ const voiceMenuHelpPromptRetry=clean(process.env.VOICE_MENU_HELP_PROMPT_RETRY||'If you would like to speak with someone, say so or press 1. You can also say booking help or service hours.');
+ const voiceMenuKeypadPromptInitial=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_INITIAL||'Or use the keypad. Press 1 to speak with someone. Press 2 for transportation request help. Press 3 for service areas and business hours. Press 4 for ambulance services. Press 5 to leave a voicemail.');
+ const voiceMenuKeypadPromptRetry=clean(process.env.VOICE_MENU_KEYPAD_PROMPT_RETRY||'Press 1 to speak with someone. Press 2 for booking help. Press 3 for service areas and business hours. Press 4 for ambulance services. Press 5 to leave a voicemail.');
  const voiceMenuListenPrompt=clean(process.env.VOICE_MENU_LISTEN_PROMPT||'Take your time. I am listening.');
  const voiceMenuGatherTimeout=parseBoundedInt(process.env.VOICE_MENU_GATHER_TIMEOUT,10,4,20);
  const voiceMenuSpeechTimeout=parseBoundedInt(process.env.VOICE_MENU_SPEECH_TIMEOUT,5,2,12);
@@ -2857,7 +2877,7 @@ async function handler(event){
     VALUES(NULLIF($1,''),'INBOUND',$2,$3,'RECEIVED') ON CONFLICT(twilio_call_sid) DO UPDATE SET call_status='RECEIVED',updated_at=now()`,[callSid,toE164(callerFrom),toE164(calledNumber)]).catch(error=>console.error('Unable to record inbound voice call',error.message));
    const openNow=isBusinessHoursOpen(config);
    if(!openNow&&config.afterHoursVoicemail){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. You\'ve reached the Nexus Medical Transit virtual assistant. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('self-serve','source=after-hours',config.lang))}</Redirect>\n</Response>`;
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. You\'ve reached the Nexus Medical Transit virtual assistant. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('voicemail','source=after-hours',config.lang))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
   const opening=voiceOpeningScript(config);
@@ -3017,7 +3037,7 @@ async function handler(event){
     });
     return xmlResponse(200,body);
    }
-   const selfServeBody=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('We were unable to reach dispatch. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('self-serve','source=dispatch-fallback',config.lang))}</Redirect>\n</Response>`;
+   const selfServeBody=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('We were unable to reach dispatch. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('voicemail','source=dispatch-fallback',config.lang))}</Redirect>\n</Response>`;
    return xmlResponse(200,selfServeBody);
   }
   if(p[0]==='voice'&&p[1]==='self-serve'&&(method==='POST'||method==='GET')){
