@@ -97,7 +97,10 @@ const selfUrl=step=>{
  const parts=[];
  if(step)parts.push(`step=${step}`);
  if(LANG==='fr'||LANG==='es')parts.push(`lang=${LANG}`);
- return `${BASE}${PATH}${parts.length?`?${parts.join('&')}`:''}`;
+ // selfUrl is only ever embedded in TwiML, where a raw & is invalid XML
+ // (Twilio error 12100) — escape it for the XML parser; Twilio decodes
+ // &amp; back to & before requesting the URL.
+ return `${BASE}${PATH}${parts.length?`?${parts.join('&')}`:''}`.replace(/&/g,'&amp;');
 };
 const T=()=>STRINGS[LANG];
 
