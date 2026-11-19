@@ -14,6 +14,7 @@
 // message here so no caller is lost.
 // No input anywhere falls through to voicemail so no caller is lost.
 const {verifyTwilioSignature}=require('./_shared/sms-consent.cjs');
+const {query}=require('./_shared/db.cjs');
 
 const CONSULTANT_NUMBER='+13015007946';
 const VOICEMAIL_NUMBER='+12272452912';
@@ -215,7 +216,24 @@ exports.handler=async event=>{
   ||verifyTwilioSignature({url:webhookUrl(event,'',''),params:mergedParams,signature,token});
  if(!signatureValid)return {statusCode:403,body:'Invalid Twilio signature'};
  const site=String(process.env.URL||'https://nexusmt.com').replace(/\/$/,'');
- return xml(buildTwiml({digits:params.Digits||'',step,dialCallStatus:params.DialCallStatus||'',base:site,lang}));
+ // Call screening hangs up the consultant leg when nobody presses 1, but
+ // Twilio reports that Dial as 'completed' — the failure fixed on the Nexus
+ // line in PR #187. Track explicit acceptances in the shared
+ // voice_dispatch_accepts table: a 'completed' afterdial only hangs up when
+ // the consultant actually accepted; otherwise the caller goes to voicemail.
+ if(step==='whisperhandle'&&(params.Digits||'')==='1'){
+  const parentSid=params.ParentCallSid||params.CallSid||'';
+  if(parentSid){
+   await query(`CREATE TABLE IF NOT EXISTS voice_dispatch_accepts(call_sid TEXT PRIMARY KEY,accepted_at TIMESTAMPTZ NOT NULL DEFAULT now())`).catch(()=>null);
+   await query(`INSERT INTO voice_dispatch_accepts(call_sid) VALUES($1) ON CONFLICT(call_sid) DO NOTHING`,[parentSid]).catch(()=>null);
+  }
+ }
+ let dialCallStatus=params.DialCallStatus||'';
+ if(step==='afterdial'&&dialCallStatus.toLowerCase()==='completed'){
+  const acc=await query(`SELECT call_sid FROM voice_dispatch_accepts WHERE call_sid=$1 OR call_sid=$2 LIMIT 1`,[params.CallSid||'',params.DialCallSid||'']).catch(()=>null);
+  if(!(acc&&acc.rows&&acc.rows.length))dialCallStatus='no-answer';
+ }
+ return xml(buildTwiml({digits:params.Digits||'',step,dialCallStatus,base:site,lang}));
 };
 
 module.exports.buildTwiml=buildTwiml;
