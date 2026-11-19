@@ -1752,7 +1752,235 @@ function isBusinessHoursOpen(config){
  const minutes=(now.hour*60)+now.minute;
  return minutes>=config.businessStartMinutes&&minutes<=config.businessEndMinutes;
 }
-function getVoiceConfig(){
+const VOICE_STRINGS={
+ "Please tell me what you need, or press 1 for dispatch.": {
+  "fr": "Dites-moi ce dont vous avez besoin, ou appuyez sur le 1 pour la répartition.",
+  "es": "Por favor dígame qué necesita, o presione 1 para despacho."
+ },
+ "Sorry, I did not catch that. Please take your time and say your request after the tone.": {
+  "fr": "Désolé, je n'ai pas bien compris. Prenez votre temps et dites votre demande après le signal sonore.",
+  "es": "Lo siento, no entendí. Tómese su tiempo y diga su solicitud después del tono."
+ },
+ "You can say dispatch, representative, or human at any time.": {
+  "fr": "Vous pouvez dire « dispatch », « representative » ou « human » à tout moment.",
+  "es": "Puede decir « dispatch », « representative » o « human » en cualquier momento."
+ },
+ "You can say dispatch, booking help, or service hours.": {
+  "fr": "Vous pouvez dire « dispatch », « booking help » ou « service hours ».",
+  "es": "Puede decir « dispatch », « booking help » o « service hours »."
+ },
+ "Or use the keypad. Press 1 for dispatch. Press 2 for transportation request help. Press 3 for service areas and business hours. Press 4 for ambulance services.": {
+  "fr": "Ou utilisez le clavier. Appuyez sur le 1 pour la répartition. Appuyez sur le 2 pour l'aide aux demandes de transport. Appuyez sur le 3 pour les zones de service et les heures d'ouverture. Appuyez sur le 4 pour les services d'ambulance.",
+  "es": "O use el teclado. Presione 1 para despacho. Presione 2 para ayuda con solicitudes de transporte. Presione 3 para áreas de servicio y horario de atención. Presione 4 para servicios de ambulancia."
+ },
+ "Press 1 for dispatch. Press 2 for booking help. Press 3 for service areas and business hours. Press 4 for ambulance services.": {
+  "fr": "Appuyez sur le 1 pour la répartition. Appuyez sur le 2 pour l'aide à la réservation. Appuyez sur le 3 pour les zones de service et les heures d'ouverture. Appuyez sur le 4 pour les services d'ambulance.",
+  "es": "Presione 1 para despacho. Presione 2 para ayuda con reservas. Presione 3 para áreas de servicio y horario de atención. Presione 4 para servicios de ambulancia."
+ },
+ "Take your time. I am listening.": {
+  "fr": "Prenez votre temps. Je vous écoute.",
+  "es": "Tómese su tiempo. Lo estoy escuchando."
+ },
+ "Thank you for calling Nexus Medical Transit. You've reached Tony, the Nexus Medical Transit Virtual Assistant. I'm here to help you schedule transportation, check the status of an existing trip, answer questions about our services, or connect you with the appropriate team. How may I assist you today?": {
+  "fr": "Merci d'avoir appelé Nexus Medical Transit. Vous êtes en communication avec Tony, l'assistant virtuel de Nexus Medical Transit. Je suis là pour vous aider à planifier un transport, vérifier l'état d'un trajet existant, répondre à vos questions sur nos services ou vous mettre en relation avec la bonne équipe. Comment puis-je vous aider aujourd'hui?",
+  "es": "Gracias por llamar a Nexus Medical Transit. Se ha comunicado con Tony, el asistente virtual de Nexus Medical Transit. Estoy aquí para ayudarle a programar transporte, verificar el estado de un viaje existente, responder preguntas sobre nuestros servicios o conectarlo con el equipo adecuado. ¿Cómo puedo ayudarle hoy?"
+ },
+ "Thank you for calling Nexus Medical Transit. You've reached Tony, the Nexus Medical Transit Virtual Assistant. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.": {
+  "fr": "Merci d'avoir appelé Nexus Medical Transit. Vous êtes en communication avec Tony, l'assistant virtuel de Nexus Medical Transit. Notre équipe de répartition est actuellement indisponible. Veuillez laisser un message vocal après le signal sonore et nous vous rappellerons.",
+  "es": "Gracias por llamar a Nexus Medical Transit. Se ha comunicado con Tony, el asistente virtual de Nexus Medical Transit. Nuestro equipo de despacho no está disponible en este momento. Por favor deje un mensaje de voz después del tono y le devolveremos la llamada."
+ },
+ " For privacy, I can only collect general callback information until a Nexus representative joins the call.": {
+  "fr": " Par souci de confidentialité, je ne peux recueillir que des informations générales de rappel jusqu'à ce qu'un représentant de Nexus se joigne à l'appel.",
+  "es": " Por privacidad, solo puedo recopilar información general de contacto hasta que un representante de Nexus se una a la llamada."
+ },
+ "Please hold while I connect you with Nexus dispatch.": {
+  "fr": "Veuillez patienter pendant que je vous mets en relation avec la répartition de Nexus.",
+  "es": "Por favor espere mientras lo conecto con el despacho de Nexus."
+ },
+ "Please hold while I connect you with the Washington D C regional dispatch center.": {
+  "fr": "Veuillez patienter pendant que je vous mets en relation avec le centre de répartition régional de Washington D C.",
+  "es": "Por favor espere mientras lo conecto con el centro de despacho regional de Washington D C."
+ },
+ "Please hold while I connect you with the Maryland regional dispatch center.": {
+  "fr": "Veuillez patienter pendant que je vous mets en relation avec le centre de répartition régional du Maryland.",
+  "es": "Por favor espere mientras lo conecto con el centro de despacho regional de Maryland."
+ },
+ "Dispatch is temporarily unavailable. Please leave a voicemail and we will return your call.": {
+  "fr": "La répartition est temporairement indisponible. Veuillez laisser un message vocal et nous vous rappellerons.",
+  "es": "El despacho no está disponible temporalmente. Por favor deje un mensaje de voz y le devolveremos la llamada."
+ },
+ "I can help with trip status.": {
+  "fr": "Je peux vous aider avec l'état de votre trajet.",
+  "es": "Puedo ayudarle con el estado de su viaje."
+ },
+ "For active trip issues or if a driver cannot be located, I will connect you with dispatch now.": {
+  "fr": "Pour les problèmes de trajet en cours ou si un chauffeur est introuvable, je vous mets en relation avec la répartition dès maintenant.",
+  "es": "Para problemas con un viaje en curso o si no se puede localizar a un conductor, lo conectaré con despacho ahora."
+ },
+ "Thank you. I can route facility and hospital scheduling requests to the appropriate Nexus team.": {
+  "fr": "Merci. Je peux acheminer les demandes de planification des établissements et des hôpitaux à la bonne équipe Nexus.",
+  "es": "Gracias. Puedo dirigir las solicitudes de programación de centros y hospitales al equipo adecuado de Nexus."
+ },
+ "Please hold while I connect you with dispatch for time-sensitive coordination.": {
+  "fr": "Veuillez patienter pendant que je vous mets en relation avec la répartition pour une coordination urgente.",
+  "es": "Por favor espere mientras lo conecto con despacho para una coordinación urgente."
+ },
+ "I can help with billing questions.": {
+  "fr": "Je peux vous aider avec les questions de facturation.",
+  "es": "Puedo ayudarle con preguntas de facturación."
+ },
+ "For account-specific billing support, I can connect you with a Nexus representative now.": {
+  "fr": "Pour une aide à la facturation liée à votre compte, je peux vous mettre en relation avec un représentant de Nexus dès maintenant.",
+  "es": "Para ayuda de facturación específica de su cuenta, puedo conectarlo con un representante de Nexus ahora."
+ },
+ "I can submit a general callback request, or you can book online at m-y-n-e-x-u-s-r-i-d-e dot com.": {
+  "fr": "Je peux soumettre une demande générale de rappel, ou vous pouvez réserver en ligne à m-y-n-e-x-u-s-r-i-d-e point com.",
+  "es": "Puedo enviar una solicitud general de devolución de llamada, o puede reservar en línea en m-y-n-e-x-u-s-r-i-d-e punto com."
+ },
+ "Please note that this is not a confirmed reservation until a Nexus representative confirms availability, pickup details, and pricing.": {
+  "fr": "Veuillez noter qu'il ne s'agit pas d'une réservation confirmée tant qu'un représentant de Nexus n'a pas confirmé la disponibilité, les détails de la prise en charge et le tarif.",
+  "es": "Tenga en cuenta que esto no es una reserva confirmada hasta que un representante de Nexus confirme la disponibilidad, los detalles de recogida y el precio."
+ },
+ "If you would like to speak to dispatch now, say dispatch or press 1.": {
+  "fr": "Si vous souhaitez parler à la répartition maintenant, dites « dispatch » ou appuyez sur le 1.",
+  "es": "Si desea hablar con despacho ahora, diga « dispatch » o presione 1."
+ },
+ "Nexus Medical Transit provides ambulatory, wheelchair, stretcher, and bariatric transportation services.": {
+  "fr": "Nexus Medical Transit offre des services de transport ambulatoire, en fauteuil roulant, en civière et bariatrique.",
+  "es": "Nexus Medical Transit ofrece servicios de transporte ambulatorio, en silla de ruedas, en camilla y bariátrico."
+ },
+ "For current service areas and business hours, please visit nexusmt dot com. You can also say dispatch, representative, or human to speak with our team.": {
+  "fr": "Pour les zones de service et les heures d'ouverture actuelles, veuillez visiter nexusmt point com. Vous pouvez aussi dire « dispatch », « representative » ou « human » pour parler à notre équipe.",
+  "es": "Para conocer las áreas de servicio y el horario de atención actuales, visite nexusmt punto com. También puede decir « dispatch », « representative » o « human » para hablar con nuestro equipo."
+ },
+ "I will connect you with Nexus dispatch for further assistance.": {
+  "fr": "Je vais vous mettre en relation avec la répartition de Nexus pour plus d'aide.",
+  "es": "Lo conectaré con el despacho de Nexus para más ayuda."
+ },
+ "I was unable to understand the request. Please leave a voicemail and we will return your call.": {
+  "fr": "Je n'ai pas pu comprendre la demande. Veuillez laisser un message vocal et nous vous rappellerons.",
+  "es": "No pude entender la solicitud. Por favor deje un mensaje de voz y le devolveremos la llamada."
+ },
+ "I was unable to understand the request. Please call back and say dispatch for a live representative.": {
+  "fr": "Je n'ai pas pu comprendre la demande. Veuillez rappeler et dire « dispatch » pour parler à un représentant en direct.",
+  "es": "No pude entender la solicitud. Por favor llame de nuevo y diga « dispatch » para hablar con un representante en vivo."
+ },
+ "Dispatch transfer is temporarily unavailable. Please call back shortly.": {
+  "fr": "Le transfert vers la répartition est temporairement indisponible. Veuillez rappeler sous peu.",
+  "es": "La transferencia a despacho no está disponible temporalmente. Por favor llame de nuevo en breve."
+ },
+ "The primary dispatch line is unavailable. Please hold while I try our secondary dispatch line.": {
+  "fr": "La ligne principale de répartition est indisponible. Veuillez patienter pendant que j'essaie notre ligne de répartition secondaire.",
+  "es": "La línea principal de despacho no está disponible. Por favor espere mientras intento con nuestra línea secundaria de despacho."
+ },
+ "We were unable to reach dispatch. Please leave a voicemail and we will return your call.": {
+  "fr": "Nous n'avons pas pu joindre la répartition. Veuillez laisser un message vocal et nous vous rappellerons.",
+  "es": "No pudimos comunicarnos con despacho. Por favor deje un mensaje de voz y le devolveremos la llamada."
+ },
+ "Before you go, here are two quicker options. Press 1, and I will text the booking link to this phone, so you can book your trip online anytime. Press 2 to hear how booking works. Or press 3 to leave a voicemail, and we will return your call.": {
+  "fr": "Avant de partir, voici deux options plus rapides. Appuyez sur le 1, et je vous enverrai le lien de réservation par texto sur ce téléphone, afin que vous puissiez réserver votre trajet en ligne en tout temps. Appuyez sur le 2 pour savoir comment fonctionne la réservation. Ou appuyez sur le 3 pour laisser un message vocal, et nous vous rappellerons.",
+  "es": "Antes de irse, aquí tiene dos opciones más rápidas. Presione 1, y le enviaré el enlace de reserva por mensaje de texto a este teléfono, para que pueda reservar su viaje en línea en cualquier momento. Presione 2 para escuchar cómo funciona la reserva. O presione 3 para dejar un mensaje de voz, y le devolveremos la llamada."
+ },
+ "You can book a trip anytime on our website. The address is m-y-n-e-x-u-s-r-i-d-e dot com. Tap Book a Ride to start.": {
+  "fr": "Vous pouvez réserver un trajet en tout temps sur notre site web. L'adresse est m-y-n-e-x-u-s-r-i-d-e point com. Touchez Réserver un trajet pour commencer.",
+  "es": "Puede reservar un viaje en cualquier momento en nuestro sitio web. La dirección es m-y-n-e-x-u-s-r-i-d-e punto com. Toque Reservar un viaje para empezar."
+ },
+ "Have these ready: the pickup address, where you are going, the date and time, and the kind of ride you need — ambulatory, wheelchair, stretcher, or bariatric.": {
+  "fr": "Ayez ceci sous la main : l'adresse de prise en charge, votre destination, la date et l'heure, et le type de transport dont vous avez besoin — ambulatoire, fauteuil roulant, civière ou bariatrique.",
+  "es": "Tenga esto listo: la dirección de recogida, a dónde va, la fecha y la hora, y el tipo de viaje que necesita: ambulatorio, silla de ruedas, camilla o bariátrico."
+ },
+ "When you finish, you will get a confirmation by text and email. Please note that a trip is not confirmed until a Nexus representative confirms availability, pickup details, and pricing.": {
+  "fr": "Lorsque vous aurez terminé, vous recevrez une confirmation par texto et par courriel. Veuillez noter qu'un trajet n'est pas confirmé tant qu'un représentant de Nexus n'a pas confirmé la disponibilité, les détails de la prise en charge et le tarif.",
+  "es": "Cuando termine, recibirá una confirmación por mensaje de texto y correo electrónico. Tenga en cuenta que un viaje no está confirmado hasta que un representante de Nexus confirme la disponibilidad, los detalles de recogida y el precio."
+ },
+ "For non-urgent questions, you can also email us at contact at nexusmt dot com.": {
+  "fr": "Pour les questions non urgentes, vous pouvez aussi nous écrire à contact arobase nexusmt point com.",
+  "es": "Para preguntas no urgentes, también puede escribirnos a contact arroba nexusmt punto com."
+ },
+ "And remember, if this is an emergency, hang up and dial 9 1 1.": {
+  "fr": "Et rappelez-vous, en cas d'urgence, raccrochez et composez le 9 1 1.",
+  "es": "Y recuerde, si esto es una emergencia, cuelgue y marque el 9 1 1."
+ },
+ "Press 2 to hear how booking works, or press 3 to leave a voicemail. Or simply hang up.": {
+  "fr": "Appuyez sur le 2 pour savoir comment fonctionne la réservation, ou appuyez sur le 3 pour laisser un message vocal. Ou raccrochez simplement.",
+  "es": "Presione 2 para escuchar cómo funciona la reserva, o presione 3 para dejar un mensaje de voz. O simplemente cuelgue."
+ },
+ "Press 1, and I will text the booking link to this phone. Or press 3 to leave a voicemail. Or simply hang up.": {
+  "fr": "Appuyez sur le 1, et je vous enverrai le lien de réservation par texto sur ce téléphone. Ou appuyez sur le 3 pour laisser un message vocal. Ou raccrochez simplement.",
+  "es": "Presione 1, y le enviaré el enlace de reserva por mensaje de texto a este teléfono. O presione 3 para dejar un mensaje de voz. O simplemente cuelgue."
+ },
+ "I have sent the booking link to this phone by text message. Tap the link anytime to book your trip online.": {
+  "fr": "J'ai envoyé le lien de réservation à ce téléphone par texto. Touchez le lien en tout temps pour réserver votre trajet en ligne.",
+  "es": "He enviado el enlace de reserva a este teléfono por mensaje de texto. Toque el enlace en cualquier momento para reservar su viaje en línea."
+ },
+ "I could not text a link to this number. You can still book anytime at m-y-n-e-x-u-s-r-i-d-e dot com, or press 3 to leave a voicemail.": {
+  "fr": "Je n'ai pas pu envoyer de lien par texto à ce numéro. Vous pouvez toujours réserver en tout temps à m-y-n-e-x-u-s-r-i-d-e point com, ou appuyer sur le 3 pour laisser un message vocal.",
+  "es": "No pude enviar un enlace por mensaje de texto a este número. Aún puede reservar en cualquier momento en m-y-n-e-x-u-s-r-i-d-e punto com, o presione 3 para dejar un mensaje de voz."
+ },
+ "Thank you for calling Nexus Medical Transit. Goodbye.": {
+  "fr": "Merci d'avoir appelé Nexus Medical Transit. Au revoir.",
+  "es": "Gracias por llamar a Nexus Medical Transit. Adiós."
+ },
+ "Sorry, I did not catch that.": {
+  "fr": "Désolé, je n'ai pas bien compris.",
+  "es": "Lo siento, no entendí."
+ },
+ "You have reached Nexus ambulance services. If this is a medical emergency, hang up and dial 9 1 1. Press 1 to request a new ambulance transport. Press 2 for interfacility transfers and hospital discharges. Press 3 for the status of an ambulance trip in progress. Press 4 for ambulance billing and insurance. Press 5 for facility partnerships and contracts. Press 0 to return to the main menu.": {
+  "fr": "Vous avez joint les services d'ambulance de Nexus. S'il s'agit d'une urgence médicale, raccrochez et composez le 9 1 1. Appuyez sur le 1 pour demander un nouveau transport en ambulance. Appuyez sur le 2 pour les transferts entre établissements et les sorties d'hôpital. Appuyez sur le 3 pour l'état d'un transport en ambulance en cours. Appuyez sur le 4 pour la facturation et l'assurance ambulance. Appuyez sur le 5 pour les partenariats et les contrats avec les établissements. Appuyez sur le 0 pour revenir au menu principal.",
+  "es": "Ha llamado a los servicios de ambulancia de Nexus. Si esto es una emergencia médica, cuelgue y marque el 9 1 1. Presione 1 para solicitar un nuevo transporte en ambulancia. Presione 2 para traslados entre centros y altas hospitalarias. Presione 3 para el estado de un viaje en ambulancia en curso. Presione 4 para facturación y seguros de ambulancia. Presione 5 para alianzas y contratos con centros. Presione 0 para volver al menú principal."
+ },
+ "For a new ambulance transport request, I will connect you with Nexus dispatch now.": {
+  "fr": "Pour une nouvelle demande de transport en ambulance, je vous mets en relation avec la répartition de Nexus dès maintenant.",
+  "es": "Para una nueva solicitud de transporte en ambulancia, lo conectaré con el despacho de Nexus ahora."
+ },
+ "For interfacility transfers and hospital discharges, I will connect you with Nexus dispatch for coordination.": {
+  "fr": "Pour les transferts entre établissements et les sorties d’hôpital, je vous mets en relation avec la répartition de Nexus pour la coordination.",
+  "es": "Para traslados entre centros y altas hospitalarias, lo conectaré con el despacho de Nexus para la coordinación."
+ },
+ "For the status of an ambulance trip in progress, I will connect you with Nexus dispatch now.": {
+  "fr": "Pour l'état d'un transport en ambulance en cours, je vous mets en relation avec la répartition de Nexus dès maintenant.",
+  "es": "Para el estado de un viaje en ambulancia en curso, lo conectaré con el despacho de Nexus ahora."
+ },
+ "For ambulance billing and insurance questions, I will connect you with a Nexus representative now.": {
+  "fr": "Pour les questions de facturation et d'assurance ambulance, je vous mets en relation avec un représentant de Nexus dès maintenant.",
+  "es": "Para preguntas de facturación y seguros de ambulancia, lo conectaré con un representante de Nexus ahora."
+ },
+ "For facility partnerships and contracts, I will connect you with our team now.": {
+  "fr": "Pour les partenariats et les contrats avec les établissements, je vous mets en relation avec notre équipe dès maintenant.",
+  "es": "Para alianzas y contratos con centros, lo conectaré con nuestro equipo ahora."
+ },
+ "Please leave your name, your callback number, and a brief message after the tone. Please don't share medical details in your message. We will return your call as soon as possible.": {
+  "fr": "Veuillez laisser votre nom, votre numéro de rappel et un bref message après le signal sonore. Veuillez ne pas communiquer de détails médicaux dans votre message. Nous vous rappellerons dès que possible.",
+  "es": "Por favor deje su nombre, su número de teléfono para devolverle la llamada y un mensaje breve después del tono. Por favor no comparta detalles médicos en su mensaje. Le devolveremos la llamada lo antes posible."
+ },
+ "Thank you. Your message has been recorded. We will return your call as soon as possible.": {
+  "fr": "Merci. Votre message a été enregistré. Nous vous rappellerons dès que possible.",
+  "es": "Gracias. Su mensaje ha sido grabado. Le devolveremos la llamada lo antes posible."
+ },
+ "We were unable to record your message. Please hold while I connect you to voicemail.": {
+  "fr": "Nous n’avons pas pu enregistrer votre message. Veuillez patienter pendant que je vous connecte à la messagerie vocale.",
+  "es": "No pudimos grabar su mensaje. Por favor espere mientras lo conecto con el buzón de voz."
+ },
+ "Our automated system is unavailable. Please hold while I connect you with Nexus dispatch.": {
+  "fr": "Notre système automatisé est indisponible. Veuillez patienter pendant que je vous mets en relation avec la répartition de Nexus.",
+  "es": "Nuestro sistema automatizado no está disponible. Por favor espere mientras lo conecto con el despacho de Nexus."
+ },
+ "Our phone system is temporarily unavailable. Please call back shortly.": {
+  "fr": "Notre système téléphonique est temporairement indisponible. Veuillez rappeler sous peu.",
+  "es": "Nuestro sistema telefónico no está disponible temporalmente. Por favor llame de nuevo en breve."
+ },
+ "Connecting you to the caller through the Nexus business line.": {
+  "fr": "Je vous mets en relation avec l'appelant via la ligne professionnelle Nexus.",
+  "es": "Conectándolo con la persona que llama a través de la línea comercial de Nexus."
+ }
+};
+function normVoiceLang(value){const v=clean(value).toLowerCase();return v==='fr'?'fr':v==='es'?'es':'en'}
+function voiceLangFromDigits(digits){return digits==='2'?'fr':digits==='3'?'es':'en'}
+function voiceLangOf(config){return normVoiceLang(config?.lang||'en')}
+function voiceTrText(lang,text){const resolved=normVoiceLang(lang);if(resolved==='en')return text;const entry=VOICE_STRINGS[text];return (entry&&entry[resolved])||text}
+function getVoiceConfig(lang='en'){
+ const resolvedLang=normVoiceLang(lang);
+ const langVoice=resolvedLang==='fr'?{voiceName:'Polly.Celine',voiceLanguage:'fr-FR'}:resolvedLang==='es'?{voiceName:'Polly.Lucia',voiceLanguage:'es-ES'}:null;
  const tz=clean(process.env.BUSINESS_HOURS_TZ)||'America/New_York';
  const businessDaysRaw=clean(process.env.BUSINESS_HOURS_DAYS)||'1,2,3,4,5';
  const businessDays=new Set(businessDaysRaw.split(',').map((x)=>Number(x.trim())).filter((n)=>Number.isFinite(n)&&n>=1&&n<=7));
@@ -1798,8 +2026,9 @@ function getVoiceConfig(){
   supportPhoneE164,
   afterHoursVoicemail,
   streamUrl,
-  voiceName,
-  voiceLanguage,
+  voiceName:langVoice?.voiceName||voiceName,
+  voiceLanguage:langVoice?.voiceLanguage||voiceLanguage,
+  lang:resolvedLang,
   voiceMenuInitialPrompt,
   voiceMenuRetryPrompt,
   voiceMenuHelpPromptInitial,
@@ -1828,7 +2057,7 @@ function formatPhoneDisplay(value){
 function sayTag(text,config){
  const voice=xmlEscape(config?.voiceName||'Polly.Matthew-Neural');
  const language=xmlEscape(config?.voiceLanguage||'en-US');
- return `<Say voice="${voice}" language="${language}">${xmlEscape(text)}</Say>`;
+ return `<Say voice="${voice}" language="${language}">${xmlEscape(voiceTrText(config?.lang,text))}</Say>`;
 }
 function toE164(value){
  const digits=String(value||'').replace(/\D/g,'');
@@ -1836,9 +2065,11 @@ function toE164(value){
  if(digits.length===10)return `+1${digits}`;
  return clean(value);
 }
-function voiceRouteUrl(path,query=''){
+function voiceRouteUrl(path,query='',lang=''){
  const base=`${siteBase()}/api/voice/${path}`;
- return query?`${base}?${query}`:base;
+ const langPart=(lang==='fr'||lang==='es')?`lang=${lang}`:'';
+ const fullQuery=[query,langPart].filter(Boolean).join('&');
+ return fullQuery?`${base}?${fullQuery}`:base;
 }
 function callbackTokenHash(token){return crypto.createHash('sha256').update(String(token||'')).digest('hex')}
 async function createTwilioVoiceCall({to,from,url,statusCallback}){
@@ -1865,7 +2096,7 @@ function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary',regi
  const voiceConfig=config||getVoiceConfig();
  const actionParams=new URLSearchParams({attempt:String(attempt||'primary')});
  if(region)actionParams.set('region',String(region));
- const actionUrl=xmlEscape(voiceRouteUrl('dispatch-fallback',actionParams.toString()));
+ const actionUrl=xmlEscape(voiceRouteUrl('dispatch-fallback',actionParams.toString(),voiceConfig.lang));
  const dialNumber=xmlEscape(targetNumber);
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(message,voiceConfig)}\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
 }
@@ -1877,9 +2108,17 @@ const NEXUS_GREETING_URLS=[
 ];
 function voiceVoicemailTwiml(config,source=''){
  const sourceParam=clean(source)?`source=${encodeURIComponent(clean(source))}`:'';
- const recordAction=xmlEscape(voiceRouteUrl('voicemail-complete',sourceParam));
- const transcribeCallback=xmlEscape(voiceRouteUrl('voicemail-transcription',sourceParam));
- return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${NEXUS_GREETING_URLS.map(url=>`<Play>${url}</Play>`).join('\n  ')}\n  ${sayTag('Please leave your name, your callback number, and a brief message after the tone. Please don\'t share medical details in your message. We will return your call as soon as possible.',config)}\n  <Record action="${recordAction}" method="POST" transcribe="true" transcribeCallback="${transcribeCallback}" recordingStatusCallback="${transcribeCallback}" recordingStatusCallbackMethod="POST" maxLength="120" playBeep="true" />\n</Response>`;
+ const lang=voiceLangOf(config);
+ const recordAction=xmlEscape(voiceRouteUrl('voicemail-complete',sourceParam,lang));
+ const transcribeCallback=xmlEscape(voiceRouteUrl('voicemail-transcription',sourceParam,lang));
+ const greetingUrl=NEXUS_GREETING_URLS[lang==='fr'?1:lang==='es'?2:0];
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Play>${greetingUrl}</Play>\n  ${sayTag('Please leave your name, your callback number, and a brief message after the tone. Please don\'t share medical details in your message. We will return your call as soon as possible.',config)}\n  <Record action="${recordAction}" method="POST" transcribe="true" transcribeCallback="${transcribeCallback}" recordingStatusCallback="${transcribeCallback}" recordingStatusCallbackMethod="POST" maxLength="120" playBeep="true" />\n</Response>`;
+}
+function voiceEntryTwiml(){
+ const config=getVoiceConfig('en');
+ const action=xmlEscape(voiceRouteUrl('voice-lang'));
+ const fallthrough=xmlEscape(voiceRouteUrl('incoming-call','lang=en'));
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather numDigits="1" timeout="6" action="${action}" method="POST">\n    ${sayTag('Welcome to Nexus Medical Transit. For English, press 1.',config)}\n    <Say voice="Polly.Celine" language="fr-FR">Pour le français, appuyez sur le 2.</Say>\n    <Say voice="Polly.Lucia" language="es-ES">Para español, oprima el 3.</Say>\n  </Gather>\n  <Redirect method="POST">${fallthrough}</Redirect>\n</Response>`;
 }
 const SELF_SERVE_BOOKING_URL='https://mynexusride.com';
 const SELF_SERVE_BOOKING_SMS=`Nexus Medical Transit: Sorry we missed your call. You can book your trip anytime at ${SELF_SERVE_BOOKING_URL} and you'll get a confirmation by text and email. Questions? Call (888) 639-5766. Msg & data rates may apply. Reply HELP for help. Reply STOP to opt out.`;
@@ -1898,14 +2137,14 @@ function voiceSelfServeTwiml(config,source='dispatch-fallback',retryCount=0){
  const resolvedSource=selfServeSource(source);
  const query=new URLSearchParams({source:resolvedSource});
  if(retryCount>0)query.set('retry',String(retryCount));
- const actionUrl=xmlEscape(voiceRouteUrl('self-serve-handle',query.toString()));
- const voicemailUrl=xmlEscape(voiceRouteUrl('voicemail',`source=${encodeURIComponent(resolvedSource)}`));
+ const actionUrl=xmlEscape(voiceRouteUrl('self-serve-handle',query.toString(),config?.lang));
+ const voicemailUrl=xmlEscape(voiceRouteUrl('voicemail',`source=${encodeURIComponent(resolvedSource)}`,config?.lang));
  const gatherTimeout=Math.max(4,Number(config?.voiceMenuGatherTimeout||10));
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather input="dtmf" numDigits="1" timeout="${gatherTimeout}" action="${actionUrl}" method="POST">\n    ${sayTag(SELF_SERVE_MENU_PROMPT,config)}\n  </Gather>\n  <Redirect method="POST">${voicemailUrl}</Redirect>\n</Response>`;
 }
 function voiceSelfServeFollowupTwiml(config,source='dispatch-fallback',lines=[],optionsPrompt=''){
  const resolvedSource=selfServeSource(source);
- const actionUrl=xmlEscape(voiceRouteUrl('self-serve-handle',`source=${encodeURIComponent(resolvedSource)}`));
+ const actionUrl=xmlEscape(voiceRouteUrl('self-serve-handle',`source=${encodeURIComponent(resolvedSource)}`,config?.lang));
  const gatherTimeout=Math.max(4,Number(config?.voiceMenuGatherTimeout||10));
  const lineBlock=lines.map((line)=>`${sayTag(line,config)}\n  <Pause length="1" />\n  `).join('');
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${lineBlock}<Gather input="dtmf" numDigits="1" timeout="${gatherTimeout}" action="${actionUrl}" method="POST">\n    ${sayTag(optionsPrompt,config)}\n  </Gather>\n  ${sayTag('Thank you for calling Nexus Medical Transit. Goodbye.',config)}\n  <Hangup />\n</Response>`;
@@ -1919,8 +2158,8 @@ const AMBULANCE_DEPARTMENT_LINES={
  '5':'For facility partnerships and contracts, I will connect you with our team now.'
 };
 function voiceAmbulanceMenuTwiml(config,retryCount=0){
- const actionUrl=xmlEscape(voiceRouteUrl('ambulance-menu-handle',`retry=${encodeURIComponent(String(retryCount))}`));
- const redirectUrl=xmlEscape(voiceRouteUrl('ambulance-menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`));
+ const actionUrl=xmlEscape(voiceRouteUrl('ambulance-menu-handle',`retry=${encodeURIComponent(String(retryCount))}`,config?.lang));
+ const redirectUrl=xmlEscape(voiceRouteUrl('ambulance-menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`,config?.lang));
  const gatherTimeout=Math.max(4,Number(config?.voiceMenuGatherTimeout||10));
  const retryBlock=retryCount>0?`${sayTag('Sorry, I did not catch that.',config)}\n  `:'';
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${retryBlock}<Gather input="dtmf" numDigits="1" timeout="${gatherTimeout}" action="${actionUrl}" method="POST">\n    ${sayTag(AMBULANCE_MENU_PROMPT,config)}\n  </Gather>\n  <Redirect method="POST">${redirectUrl}</Redirect>\n</Response>`;
@@ -2112,7 +2351,7 @@ function wantsHumanTransfer(text){
  return /(dispatch|representative|human|agent|person|operator|someone)/.test(value);
 }
 function voiceMenuTwiml(config,retryCount=0,opts={}){
- const gatherAction=xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount))}`));
+ const gatherAction=xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount))}`,config?.lang));
  const introMessage=clean(opts.intro||'');
  const sayIntro=retryCount>0
   ?clean(config?.voiceMenuRetryPrompt||'')
@@ -2131,7 +2370,7 @@ function voiceMenuTwiml(config,retryCount=0,opts={}){
  const introBlock=(introMessage&&retryCount===0)
   ?`${sayTag(introMessage,config)}\n  <Pause length="1" />\n  `
   :'';
- return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${introBlock}${sayTag(sayIntro,config)}\n  <Pause length="${prePause}" />\n  <Gather input="speech dtmf" numDigits="1" timeout="${gatherTimeout}" speechTimeout="${speechTimeout}" action="${gatherAction}" method="POST">\n    ${sayTag(helpPrompt,config)}\n    <Pause length="1" />\n    ${sayTag(keypadPrompt,config)}\n    <Pause length="1" />\n    ${sayTag(listenPrompt,config)}\n  </Gather>\n  <Pause length="${postPause}" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`))}</Redirect>\n</Response>`;
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${introBlock}${sayTag(sayIntro,config)}\n  <Pause length="${prePause}" />\n  <Gather input="speech dtmf" numDigits="1" timeout="${gatherTimeout}" speechTimeout="${speechTimeout}" action="${gatherAction}" method="POST">\n    ${sayTag(helpPrompt,config)}\n    <Pause length="1" />\n    ${sayTag(keypadPrompt,config)}\n    <Pause length="1" />\n    ${sayTag(listenPrompt,config)}\n  </Gather>\n  <Pause length="${postPause}" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu-handle',`retry=${encodeURIComponent(String(retryCount+1))}`,config?.lang))}</Redirect>\n</Response>`;
 }
 async function createStripeCheckoutSession(amountCents,metadata){
  if(!envEnabled('STRIPE_SECRET_KEY'))throw Object.assign(new Error('Stripe is not configured'),{statusCode:503});
@@ -2591,7 +2830,11 @@ async function handler(event){
    return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?><Response />');
   }
   if(p[0]==='voice'&&p[1]==='incoming-call'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const rawLang=event.queryStringParameters?.lang;
+   if(rawLang===undefined||rawLang===null||clean(rawLang)===''){
+    return xmlResponse(200,voiceEntryTwiml());
+   }
+   const config=getVoiceConfig(rawLang);
     const params=parseWebhookBody(event);
     const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
    const calledNumber=clean(params.To||params.to||event.queryStringParameters?.To||event.queryStringParameters?.to||config.callerId);
@@ -2600,7 +2843,7 @@ async function handler(event){
     VALUES(NULLIF($1,''),'INBOUND',$2,$3,'RECEIVED') ON CONFLICT(twilio_call_sid) DO UPDATE SET call_status='RECEIVED',updated_at=now()`,[callSid,toE164(callerFrom),toE164(calledNumber)]).catch(error=>console.error('Unable to record inbound voice call',error.message));
    const openNow=isBusinessHoursOpen(config);
    if(!openNow&&config.afterHoursVoicemail){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. You\'ve reached Tony, the Nexus Medical Transit Virtual Assistant. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('self-serve','source=after-hours'))}</Redirect>\n</Response>`;
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you for calling Nexus Medical Transit. You\'ve reached Tony, the Nexus Medical Transit Virtual Assistant. Our dispatch team is currently unavailable. Please leave a voicemail after the tone and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('self-serve','source=after-hours',config.lang))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
   const opening=voiceOpeningScript(config);
@@ -2608,8 +2851,14 @@ async function handler(event){
    if(!config.streamUrl){
     return xmlResponse(200,voiceMenuTwiml(config,0,{intro:opening}));
    }
-  const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(opening,config)}\n  <Pause length="1" />\n  ${nonPhiNotice?`${sayTag(nonPhiNotice,config)}\n  <Pause length="1" />\n  `:''}<Connect>\n    <Stream url="${xmlEscape(config.streamUrl)}" />\n  </Connect>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
+  const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(opening,config)}\n  <Pause length="1" />\n  ${nonPhiNotice?`${sayTag(nonPhiNotice,config)}\n  <Pause length="1" />\n  `:''}<Connect>\n    <Stream url="${xmlEscape(config.streamUrl)}" />\n  </Connect>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu','',config.lang))}</Redirect>\n</Response>`;
    return xmlResponse(200,body);
+  }
+  if(p[0]==='voice'&&p[1]==='voice-lang'&&(method==='POST'||method==='GET')){
+   const params=parseWebhookBody(event);
+   const digits=clean(params.Digits||params.digits||'');
+   const lang=voiceLangFromDigits(digits);
+   return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('incoming-call',`lang=${lang}`))}</Redirect>\n</Response>`);
   }
   if(p[0]==='voice'&&p[1]==='assistant-instructions'&&method==='GET'){
   const knowledge=buildVoiceKnowledgePack();
@@ -2631,11 +2880,11 @@ async function handler(event){
   });
   }
   if(p[0]==='voice'&&p[1]==='menu'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
    return xmlResponse(200,voiceMenuTwiml(config,0));
   }
   if(p[0]==='voice'&&p[1]==='menu-handle'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
    const params=parseWebhookBody(event);
    const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
    const digits=clean(params.Digits||params.digits||'');
@@ -2650,7 +2899,8 @@ async function handler(event){
       targetNumber:targets.primary,
       callerId:config.callerId,
       attempt:'primary',
-      region:targets.region
+      region:targets.region,
+      config
      }));
     }
     if(config.afterHoursVoicemail){
@@ -2660,27 +2910,27 @@ async function handler(event){
       return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(`Dispatch is temporarily unavailable. Please call us at ${config.supportPhone}.`,config)}\n</Response>`);
    }
    if(digits==='4'||/(ambulance)/i.test(speech)){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('ambulance-menu'))}</Redirect>\n</Response>`;
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('ambulance-menu','',config.lang))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
   if(/(trip\s*status|check\s*my\s*trip|where\s*is\s*my\s*ride|where\s*is\s*the\s*driver|eta)/i.test(intentText)){
-   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can help with trip status.',config)}\n  <Pause length="1" />\n  ${sayTag('For active trip issues or if a driver cannot be located, I will connect you with dispatch now.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch'))}</Redirect>\n</Response>`;
+   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can help with trip status.',config)}\n  <Pause length="1" />\n  ${sayTag('For active trip issues or if a driver cannot be located, I will connect you with dispatch now.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch','',config.lang))}</Redirect>\n</Response>`;
    return xmlResponse(200,body);
   }
   if(/(hospital|discharge|facility|nursing\s*home|social\s*worker|case\s*manager|facility\s*partner|partnership)/i.test(intentText)){
-   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you. I can route facility and hospital scheduling requests to the appropriate Nexus team.',config)}\n  <Pause length="1" />\n  ${sayTag('Please hold while I connect you with dispatch for time-sensitive coordination.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch'))}</Redirect>\n</Response>`;
+   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Thank you. I can route facility and hospital scheduling requests to the appropriate Nexus team.',config)}\n  <Pause length="1" />\n  ${sayTag('Please hold while I connect you with dispatch for time-sensitive coordination.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch','',config.lang))}</Redirect>\n</Response>`;
    return xmlResponse(200,body);
   }
   if(/(billing|invoice|payment|balance|statement|claim)/i.test(intentText)){
-   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can help with billing questions.',config)}\n  <Pause length="1" />\n  ${sayTag('For account-specific billing support, I can connect you with a Nexus representative now.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch'))}</Redirect>\n</Response>`;
+   const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can help with billing questions.',config)}\n  <Pause length="1" />\n  ${sayTag('For account-specific billing support, I can connect you with a Nexus representative now.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch','',config.lang))}</Redirect>\n</Response>`;
    return xmlResponse(200,body);
   }
   if(digits==='2'||/(book|booking|ride|transport|request|schedule|dialysis|wheelchair|stretcher|bariatric|ambulatory)/i.test(intentText)){
-      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can submit a general callback request, or you can book online at m-y-n-e-x-u-s-r-i-d-e dot com.',config)}\n  <Pause length="1" />\n  ${sayTag('Please note that this is not a confirmed reservation until a Nexus representative confirms availability, pickup details, and pricing.',config)}\n  <Pause length="1" />\n  ${sayTag('If you would like to speak to dispatch now, say dispatch or press 1.',config)}\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
+      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I can submit a general callback request, or you can book online at m-y-n-e-x-u-s-r-i-d-e dot com.',config)}\n  <Pause length="1" />\n  ${sayTag('Please note that this is not a confirmed reservation until a Nexus representative confirms availability, pickup details, and pricing.',config)}\n  <Pause length="1" />\n  ${sayTag('If you would like to speak to dispatch now, say dispatch or press 1.',config)}\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu','',config.lang))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
    if(digits==='3'||/(hours|service|area|location|coverage)/i.test(intentText)){
-      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Nexus Medical Transit provides ambulatory, wheelchair, stretcher, and bariatric transportation services.',config)}\n  <Pause length="1" />\n  ${sayTag('For current service areas and business hours, please visit nexusmt dot com. You can also say dispatch, representative, or human to speak with our team.',config)}\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`;
+      const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Nexus Medical Transit provides ambulatory, wheelchair, stretcher, and bariatric transportation services.',config)}\n  <Pause length="1" />\n  ${sayTag('For current service areas and business hours, please visit nexusmt dot com. You can also say dispatch, representative, or human to speak with our team.',config)}\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu','',config.lang))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
    if(retry>=1){
@@ -2691,7 +2941,8 @@ async function handler(event){
       targetNumber:targets.primary,
       callerId:config.callerId,
       attempt:'primary',
-      region:targets.region
+      region:targets.region,
+      config
      }));
     }
     if(config.afterHoursVoicemail){
@@ -2703,7 +2954,7 @@ async function handler(event){
    return xmlResponse(200,voiceMenuTwiml(config,retry+1));
   }
   if(p[0]==='voice'&&p[1]==='transfer-dispatch'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
     const params=parseWebhookBody(event);
     const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
     const preferredRegion=clean(event.queryStringParameters?.region||params.region||'').toUpperCase();
@@ -2715,12 +2966,13 @@ async function handler(event){
      targetNumber:targets.primary,
     callerId:config.callerId,
      attempt:'primary',
-     region:targets.region
+     region:targets.region,
+     config
    });
    return xmlResponse(200,body);
   }
   if(p[0]==='voice'&&p[1]==='dispatch-fallback'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
    const params=parseWebhookBody(event);
    const attempt=clean(event.queryStringParameters?.attempt||params.attempt||'primary').toLowerCase();
     const regionHint=clean(event.queryStringParameters?.region||params.region||'').toUpperCase();
@@ -2736,27 +2988,28 @@ async function handler(event){
       targetNumber:targets.secondary,
      callerId:config.callerId,
       attempt:'secondary',
-      region:targets.region
+      region:targets.region,
+      config
     });
     return xmlResponse(200,body);
    }
-   const selfServeBody=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('We were unable to reach dispatch. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('self-serve','source=dispatch-fallback'))}</Redirect>\n</Response>`;
+   const selfServeBody=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('We were unable to reach dispatch. Please leave a voicemail and we will return your call.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('self-serve','source=dispatch-fallback',config.lang))}</Redirect>\n</Response>`;
    return xmlResponse(200,selfServeBody);
   }
   if(p[0]==='voice'&&p[1]==='self-serve'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
    const source=selfServeSource(event.queryStringParameters?.source||'');
    const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
    return xmlResponse(200,voiceSelfServeTwiml(config,source,retry));
   }
   if(p[0]==='voice'&&p[1]==='self-serve-handle'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
    const params=parseWebhookBody(event);
    const source=selfServeSource(event.queryStringParameters?.source||params.source||'');
    const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
    const digits=clean(params.Digits||params.digits||'');
    const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
-   const voicemailUrl=xmlEscape(voiceRouteUrl('voicemail',`source=${encodeURIComponent(source)}`));
+   const voicemailUrl=xmlEscape(voiceRouteUrl('voicemail',`source=${encodeURIComponent(source)}`,config.lang));
    if(digits==='3'){
     return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${voicemailUrl}</Redirect>\n</Response>`);
    }
@@ -2782,26 +3035,26 @@ async function handler(event){
    if(retry>=1){
     return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${voicemailUrl}</Redirect>\n</Response>`);
    }
-   const retryUrl=xmlEscape(voiceRouteUrl('self-serve',`source=${encodeURIComponent(source)}&retry=${retry+1}`));
+   const retryUrl=xmlEscape(voiceRouteUrl('self-serve',`source=${encodeURIComponent(source)}&retry=${retry+1}`,config.lang));
    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Sorry, I did not catch that.',config)}\n  <Pause length="1" />\n  <Redirect method="POST">${retryUrl}</Redirect>\n</Response>`);
   }
   if(p[0]==='voice'&&p[1]==='ambulance-menu'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
    const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
    return xmlResponse(200,voiceAmbulanceMenuTwiml(config,retry));
   }
   if(p[0]==='voice'&&p[1]==='ambulance-menu-handle'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
    const params=parseWebhookBody(event);
    const retry=Math.max(0,Number(event.queryStringParameters?.retry||0)||0);
    const digits=clean(params.Digits||params.digits||'');
    const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
    if(digits==='0'){
-    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu'))}</Redirect>\n</Response>`);
+    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('menu','',config.lang))}</Redirect>\n</Response>`);
    }
    const departmentLine=AMBULANCE_DEPARTMENT_LINES[digits];
    if(departmentLine){
-    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(departmentLine,config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch'))}</Redirect>\n</Response>`;
+    const body=`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(departmentLine,config)}\n  <Pause length="1" />\n  <Redirect method="POST">${xmlEscape(voiceRouteUrl('transfer-dispatch','',config.lang))}</Redirect>\n</Response>`;
     return xmlResponse(200,body);
    }
    if(retry>=1){
@@ -2812,7 +3065,8 @@ async function handler(event){
       targetNumber:targets.primary,
       callerId:config.callerId,
       attempt:'primary',
-      region:targets.region
+      region:targets.region,
+      config
      }));
     }
     if(config.afterHoursVoicemail){
@@ -2824,12 +3078,12 @@ async function handler(event){
    return xmlResponse(200,voiceAmbulanceMenuTwiml(config,retry+1));
   }
   if(p[0]==='voice'&&p[1]==='voicemail'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
    const source=clean(event.queryStringParameters?.source||'');
    return xmlResponse(200,voiceVoicemailTwiml(config,source));
   }
   if(p[0]==='voice'&&p[1]==='voicemail-complete'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
    const params=parseWebhookBody(event);
    const source=clean(event.queryStringParameters?.source||params.source||'');
    const callSid=clean(params.CallSid||params.callSid||'');
@@ -2873,7 +3127,7 @@ async function handler(event){
    return xmlResponse(200,'<?xml version="1.0" encoding="UTF-8"?><Response />');
   }
   if(p[0]==='voice'&&p[1]==='primary-webhook-failure'&&(method==='POST'||method==='GET')){
-   const config=getVoiceConfig();
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
     const params=parseWebhookBody(event);
     const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
     const targets=getDispatchDialTargets(config,callerFrom);
@@ -2883,7 +3137,8 @@ async function handler(event){
       targetNumber:targets.primary,
      callerId:config.callerId,
       attempt:'primary',
-      region:targets.region
+      region:targets.region,
+      config
     });
     return xmlResponse(200,body);
    }
