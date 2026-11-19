@@ -3,11 +3,15 @@
 // Gather / Dial / Record action callback (step passed as a query param).
 // Menu: 1 = animal consultant (rings the consultant line), 2 = shop,
 // 3 = book pet care, 4 = membership, 5 = holiday, 6 = hours/info,
-// 7 = voicemail (24-hour callback promise), 9 = repeat menu.
+// 7 = voicemail, 9 = repeat menu.
+// Voicemail-bound callers are transferred to the voicemail line
+// (VOICEMAIL_NUMBER); if that line does not answer, the caller falls
+// back to leaving a recorded message here so no caller is lost.
 // No input anywhere falls through to voicemail so no caller is lost.
 const {verifyTwilioSignature}=require('./_shared/sms-consent.cjs');
 
 const CONSULTANT_NUMBER='+13015007946';
+const VOICEMAIL_NUMBER='+12272452912';
 const VOICE='Polly.Joanna';
 const PATH='/webhooks/pawluxe/ivr';
 
@@ -31,14 +35,23 @@ function voicemailTwiml(intro){
   +'<Hangup/>';
 }
 
+function voicemailTransferTwiml(intro){
+ return say(intro)
+  +`<Dial timeout="25" action="${selfUrl('aftervm')}" method="POST">${VOICEMAIL_NUMBER}</Dial>`;
+}
+
 function buildTwiml({digits,step,dialCallStatus,base}={}){
  BASE=String(base||'').replace(/\/$/,'');
  if(step==='afterdial'){
   if(dialCallStatus==='completed')return '<Hangup/>';
+  return voicemailTransferTwiml('Sorry we missed you. Please hold while we connect you.');
+ }
+ if(step==='aftervm'){
+  if(dialCallStatus==='completed')return '<Hangup/>';
   return voicemailTwiml('Sorry we missed you. Please leave your name, your phone number, and how we can help after the tone. We will return your call within 24 hours.');
  }
  if(step==='voicemail'){
-  return voicemailTwiml('Please leave your name, your phone number, and how we can help after the tone. We will return your call within 24 hours.');
+  return voicemailTransferTwiml('Please hold while we connect you.');
  }
  if(step==='thanks'){
   return say('Thank you for calling Pawluxe Club. Your message is in, and we will call you back within 24 hours. In the meantime, shop new arrivals and book care anytime at pawluxe dot club. Happy Howlidays!')+'<Hangup/>';
