@@ -190,7 +190,17 @@ exports.handler=async event=>{
  const lang=event.queryStringParameters?.lang||'';
  const params=parseParams(event);
  const signature=event.headers?.['x-twilio-signature']||event.headers?.['X-Twilio-Signature']||'';
- if(!verifyTwilioSignature({url:webhookUrl(event,step,lang),params,signature,token:process.env.TWILIO_AUTH_TOKEN}))return {statusCode:403,body:'Invalid Twilio signature'};
+ const token=process.env.TWILIO_AUTH_TOKEN;
+ // Twilio signs POST webhook URLs that carry a query string in one of two
+ // ways: the full URL (query included) plus the body params, or the bare
+ // URL with the query params merged into the signed parameter list.
+ // Accept either construction; both require the real auth token to forge.
+ const mergedParams={...params};
+ if(step)mergedParams.step=step;
+ if(lang)mergedParams.lang=lang;
+ const signatureValid=verifyTwilioSignature({url:webhookUrl(event,step,lang),params,signature,token})
+  ||verifyTwilioSignature({url:webhookUrl(event,'',''),params:mergedParams,signature,token});
+ if(!signatureValid)return {statusCode:403,body:'Invalid Twilio signature'};
  const site=String(process.env.URL||'https://nexusmt.com').replace(/\/$/,'');
  return xml(buildTwiml({digits:params.Digits||'',step,dialCallStatus:params.DialCallStatus||'',base:site,lang}));
 };
