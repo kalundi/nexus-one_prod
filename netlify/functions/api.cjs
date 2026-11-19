@@ -1870,11 +1870,16 @@ function dispatchDialTwiml({message,targetNumber,callerId,attempt='primary',regi
  return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag(message,voiceConfig)}\n  <Dial callerId="${xmlEscape(callerId)}" timeout="20" action="${actionUrl}" method="POST">\n    ${dialNumber}\n  </Dial>\n</Response>`;
 }
 
+const NEXUS_GREETING_URLS=[
+ 'https://nexusmt.com/assets/voicemail/nexus-voicemail-greeting-holiday-en.mp3',
+ 'https://nexusmt.com/assets/voicemail/nexus-voicemail-greeting-holiday-fr.mp3',
+ 'https://nexusmt.com/assets/voicemail/nexus-voicemail-greeting-holiday-es.mp3'
+];
 function voiceVoicemailTwiml(config,source=''){
  const sourceParam=clean(source)?`source=${encodeURIComponent(clean(source))}`:'';
  const recordAction=xmlEscape(voiceRouteUrl('voicemail-complete',sourceParam));
  const transcribeCallback=xmlEscape(voiceRouteUrl('voicemail-transcription',sourceParam));
- return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('Please leave your name, your callback number, and a brief message after the tone. Please don\'t share medical details in your message. We will return your call as soon as possible.',config)}\n  <Record action="${recordAction}" method="POST" transcribe="true" transcribeCallback="${transcribeCallback}" recordingStatusCallback="${transcribeCallback}" recordingStatusCallbackMethod="POST" maxLength="120" playBeep="true" />\n</Response>`;
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${NEXUS_GREETING_URLS.map(url=>`<Play>${url}</Play>`).join('\n  ')}\n  ${sayTag('Please leave your name, your callback number, and a brief message after the tone. Please don\'t share medical details in your message. We will return your call as soon as possible.',config)}\n  <Record action="${recordAction}" method="POST" transcribe="true" transcribeCallback="${transcribeCallback}" recordingStatusCallback="${transcribeCallback}" recordingStatusCallbackMethod="POST" maxLength="120" playBeep="true" />\n</Response>`;
 }
 const SELF_SERVE_BOOKING_URL='https://mynexusride.com';
 const SELF_SERVE_BOOKING_SMS=`Nexus Medical Transit: Sorry we missed your call. You can book your trip anytime at ${SELF_SERVE_BOOKING_URL} and you'll get a confirmation by text and email. Questions? Call (888) 639-5766. Msg & data rates may apply. Reply HELP for help. Reply STOP to opt out.`;
