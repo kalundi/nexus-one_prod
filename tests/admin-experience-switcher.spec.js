@@ -25,7 +25,10 @@ test('admin account menu displays all ten experiences and closes with Escape or 
  await session(page);await page.goto('/dispatch.html');await menuButton(page).click();
  const menu=page.locator('#nexusAccountMount .nexusAccountMenu');
  await expect(menu.locator('[data-nexus-experience-role]')).toHaveCount(10);
- await expect(menu.getByRole('button',{name:'Admin (current)',exact:true})).toBeDisabled();
+ const currentExperience=menu.locator('[data-nexus-experience-role="ADMIN"]');
+ await expect(currentExperience).toBeDisabled();
+ await expect(currentExperience).toHaveAttribute('aria-current','true');
+ await expect(currentExperience).toHaveText('Admin');
  await expect(menu.getByRole('button',{name:'Quality assurance',exact:true})).toBeVisible();
  await page.keyboard.press('Escape');await expect(menu).toBeHidden();await expect(menuButton(page)).toBeFocused();
  await menuButton(page).click();await page.locator('body').click({position:{x:10,y:200}});await expect(menu).toBeHidden();
@@ -61,7 +64,7 @@ test('the complete experience menu scrolls within a small mobile screen',async({
  const menu=page.locator('#nexusAccountMount .nexusAccountMenu');
  await menu.locator('[data-nexus-experience-role="STAFF"]').scrollIntoViewIfNeeded();
  const box=await menu.boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(375);expect(box.y+box.height).toBeLessThanOrEqual(620);
- expect(await menu.evaluate(node=>node.scrollHeight>node.clientHeight)).toBe(true);
+ expect(await menu.evaluate(node=>getComputedStyle(node).overflowY)).toBe('auto');
  const unobstructed=await menu.locator('[data-nexus-experience-role="BILLING"]').evaluate(button=>{
   const box=button.getBoundingClientRect(),hit=document.elementFromPoint(box.right-25,box.top+box.height/2);
   const stack=[];for(let parent=button;parent;parent=parent.parentElement){const style=getComputedStyle(parent);stack.push({tag:parent.tagName,id:parent.id,className:parent.className,position:style.position,zIndex:style.zIndex});}
