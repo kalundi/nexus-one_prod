@@ -128,6 +128,11 @@ function createUserManager({query,getPool,requireUser,audit}){
    const changed=(await q('UPDATE users SET display_name=$2,phone=$3,role=$4,scope_id=$5,functions=$6,active=$7,access_title=$8,updated_at=now() WHERE id=$1 RETURNING *',[current.id,next.display_name,next.phone,next.role,next.scope_id,next.functions,next.active,next.access_title])).rows[0];
    // Also update approved scopes and every live session's access on its next request.
    if(next.role===current.role&&next.scope_id!==current.scope_id)await q("UPDATE user_role_requests SET scope_id=$3 WHERE user_id=$1 AND role=$2 AND status='APPROVED'",[current.id,next.role,next.scope_id]);
+   // Keep the multi-facility link set in step with the primary scope, so a
+   // manager granted or moved here can open that facility alongside any
+   // others already linked. The demo scope is not a facilities row, so it
+   // never gets a link.
+   if(next.role==='FACILITY'&&next.scope_id&&!DemoAccount.isDemoUser(current))await q('INSERT INTO user_facilities(user_id,facility_code) VALUES($1,$2) ON CONFLICT DO NOTHING',[current.id,next.scope_id]);
    if(!next.active)await q('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',[current.id]);
    if(DemoAccount.isDemoUser(current)&&Object.hasOwn(body,'active'))await DemoAccount.revokeDemoSessions(q);
    if(Object.hasOwn(body,'active'))await q('UPDATE employees SET active=$2,updated_at=now() WHERE user_id=$1',[current.id,next.active]);

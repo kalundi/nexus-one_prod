@@ -1,3 +1,4 @@
+const {facilityCodesForUser}=require('./facility-access.cjs');
 const clean=value=>String(value??'').trim();
 const error=(message,statusCode=400)=>Object.assign(Error(message),{statusCode});
 const realBooking="upper(COALESCE(b.booking_source,'CUSTOMER')) NOT IN ('MOCK','DEMO') AND upper(COALESCE(b.status,''))<>'MOCK'";
@@ -8,13 +9,21 @@ function createHandler({query,requireUser,bearer,json,parseBody}){
   if(p[0]!=='facility-portal')return null;
   const user=await requireUser(bearer(event),['FACILITY','ADMIN','DISPATCHER']);
   const params=event.queryStringParameters||{},isManager=user.role==='FACILITY';
-  if(isManager&&!clean(user.scope_id))throw error('Your manager account needs an assigned facility. Contact Nexus.',409);
-  if(isManager&&params.facility&&params.facility!==clean(user.scope_id))throw error('This facility is outside your account.',403);
-  const facilities=(await query(`SELECT facility_code AS id,name,address FROM facilities WHERE active=true${isManager?' AND facility_code=$1':''} ORDER BY name`,isManager?[user.scope_id]:[])).rows;
+  // A manager's allowed set is their scope facility plus every facility
+  // linked in user_facilities; naming a facility outside the set is the
+  // same 403 a single-facility manager gets for another facility.
+  const allowed=isManager?await facilityCodesForUser(query,user):null,scope=clean(user.scope_id);
+  if(isManager&&!allowed.length)throw error('Your manager account needs an assigned facility. Contact Nexus.',409);
+  if(isManager&&params.facility&&!allowed.includes(clean(params.facility)))throw error('This facility is outside your account.',403);
+  const facilities=(await query(isManager
+   ?`SELECT facility_code AS id,name,address FROM facilities WHERE active=true AND facility_code=ANY($1::text[]) ORDER BY (facility_code=$2) DESC,name`
+   :'SELECT facility_code AS id,name,address FROM facilities WHERE active=true ORDER BY name',isManager?[allowed,scope]:[])).rows;
   if(isManager&&!facilities.length)throw error('Your assigned facility is inactive or unavailable. Contact Nexus.',409);
   if(p[1]==='context'&&method==='GET')return json(200,{facilities,manager:isManager,today:easternDate()});
-  const id=isManager?clean(user.scope_id):clean(params.facility);
-  if(isManager&&params.facility&&params.facility!==id)throw error('This facility is outside your account.',403);
+  // The working facility is the one named, else the scope facility when
+  // it is active, else the first facility in the set (the query returns
+  // the primary first).
+  const id=isManager?(clean(params.facility)||(facilities.some(f=>f.id===scope)?scope:facilities[0].id)):clean(params.facility);
   const facility=facilities.find(f=>f.id===id);
   if(!facility)throw error(isManager?'Your assigned facility is inactive or unavailable.':'Select an active facility.',409);
   const base={facility,bookingUrl:'/booking-app.html?facility='+encodeURIComponent(id)};

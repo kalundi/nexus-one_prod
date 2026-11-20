@@ -13,6 +13,7 @@ async function fixture(){
  CREATE TABLE sessions(user_id uuid,revoked_at timestamptz);
  CREATE TABLE facilities(facility_code text PRIMARY KEY,name text,address text,active boolean);
  INSERT INTO facilities VALUES('FC-A','Care Facility A','100 Facility Lane',true),('FC-B','Care Facility B','200 Facility Lane',true),('FC-X','Closed facility','300 Facility Lane',false);
+ CREATE TABLE user_facilities(user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,facility_code text NOT NULL REFERENCES facilities(facility_code) ON DELETE CASCADE,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,facility_code));
  CREATE TABLE bookings(reference text PRIMARY KEY,driver_name text,driver_scope_id text,trip_date date,email text,phone text,name text);
  ${fs.readFileSync('database/migrations/048.001_workforce_employee_tables.sql','utf8').split('CREATE TABLE IF NOT EXISTS trip_work_assignments')[0]}`);
  await db.query("INSERT INTO users(id,email,display_name,role,scope_id,phone) VALUES($1,'admin@test.test','Test Admin','ADMIN',NULL,'+12405550101'),($2,'driver@test.test','Test Driver','DRIVER','legacy-driver','+12405550102')",[ADMIN,DRIVER]);
@@ -32,6 +33,7 @@ test('facility manager grants require an active assigned facility and edits sync
   const granted=await f.call(`admin/users/${DRIVER}`,'PATCH',{role:'FACILITY',scopeId:'FC-A'});assert.equal(granted.user.scopeId,'FC-A');
   await f.db.query("INSERT INTO user_role_requests(user_id,role,status,scope_id) VALUES($1,'FACILITY','APPROVED','FC-A')",[DRIVER]);
   await f.call(`admin/users/${DRIVER}`,'PATCH',{scopeId:'FC-B'});assert.equal((await f.db.query("SELECT scope_id FROM user_role_requests WHERE user_id=$1 AND role='FACILITY'",[DRIVER])).rows[0].scope_id,'FC-B');
+  assert.deepEqual((await f.db.query('SELECT facility_code FROM user_facilities WHERE user_id=$1 ORDER BY facility_code',[DRIVER])).rows.map(r=>r.facility_code),['FC-A','FC-B'],'Admin grants and scope moves keep the manager linked to each facility');
   await f.call(`admin/users/${DRIVER}`,'PATCH',{active:false});assert.equal((await f.db.query('SELECT active FROM users WHERE id=$1',[DRIVER])).rows[0].active,false);
  }finally{await f.close();}
 });

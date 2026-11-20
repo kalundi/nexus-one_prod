@@ -21,6 +21,7 @@ async function fixture(){
  CREATE TABLE bookings(reference text PRIMARY KEY,driver_name text,driver_scope_id text,trip_date date,email text,phone text,name text);
  INSERT INTO organizations(name) VALUES('Nexus Medical Transit');
  INSERT INTO facilities(facility_code,name,address,active) VALUES('FC-A','Care Facility A','100 Facility Lane',true),('FC-B','Care Facility B','200 Facility Lane',true);
+ CREATE TABLE user_facilities(user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,facility_code text NOT NULL REFERENCES facilities(facility_code) ON DELETE CASCADE,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,facility_code));
  ${fs.readFileSync('database/migrations/048.001_workforce_employee_tables.sql','utf8').split('CREATE TABLE IF NOT EXISTS trip_work_assignments')[0]}`);
  await db.query("INSERT INTO users(id,email,display_name,role,phone) VALUES($1,'admin@test.test','Hub Admin','ADMIN','+12405550101')",[ADMIN]);
  await db.exec(fs.readFileSync('database/migrations/086.001_user_identifiers.sql','utf8'));
