@@ -18,10 +18,10 @@ async function install(page){
   else if(path==='/api/admin/actors'&&method==='GET')json={actors:[{id:LINKED,display_name:'Linked Driver',active:true,classifications:[{category:'EMPLOYEE',subtype:'DRIVER'}]}],hasMore:false};
   else if(path.startsWith('/api/admin/actors/'))json={actor:{id:LINKED,kind:'PERSON',display_name:'Linked Driver',active:true},classifications:[],relationships:[],records:[],management:{relationshipCount:0,sources:[],canRemove:true,blockers:[]}};
   else if(path==='/api/admin/users'&&method==='GET')json={users:[],functions:{}};
-  else if(path==='/api/admin/users'&&method==='POST'){captured.created.push(body);json={user:{id:'user-2',email:body.email,userCode:'N2002',facilityName:'Care Facility A'},tempPassword:'Temp-1234',tempPasswordExpiresAt:new Date(Date.now()+2*60*60*1000).toISOString(),emailDeliveryStatus:'sent'};status=201;}
+  else if(path==='/api/admin/users'&&method==='POST'){captured.created.push(body);const names={'FC-A':'Care Facility A','FC-B':'Care Facility B'};const codes=body.role==='FACILITY'?[body.scopeId,...(body.additionalFacilityCodes||[])]:[];json={user:{id:'user-2',email:body.email,userCode:'N2002',facilityName:'Care Facility A',facilityCodes:codes,facilityNames:codes.map(c=>names[c])},tempPassword:'Temp-1234',tempPasswordExpiresAt:new Date(Date.now()+2*60*60*1000).toISOString(),emailDeliveryStatus:'sent'};status=201;}
   else if(path==='/api/admin/role-requests'&&method==='GET')json={requests};
   else if(path.startsWith('/api/admin/role-requests/')){captured.decided.push({id:path.split('/')[4],body});const found=requests.find(r=>r.id===path.split('/')[4]);if(found)found.status=body.decision;json={request:found};}
-  else if(path==='/api/facilities')json={facilities:[{facility_code:'FC-A',name:'Care Facility A',address:'100 Facility Lane',active:true},{facility_code:'FC-X',name:'Closed facility',address:'',active:false}]};
+  else if(path==='/api/facilities')json={facilities:[{facility_code:'FC-A',name:'Care Facility A',address:'100 Facility Lane',active:true},{facility_code:'FC-B',name:'Care Facility B',address:'200 Facility Lane',active:true},{facility_code:'FC-X',name:'Closed facility',address:'',active:false}]};
   return route.fulfill({status,json});
  });
  return captured;
@@ -43,7 +43,25 @@ test('creating a facility manager in Enterprise requires selecting the assigned 
  await page.getByRole('button',{name:'Create user'}).click();
  await expect.poll(()=>captured.created.length).toBe(1);
  expect(captured.created[0].scopeId).toBe('FC-A');
- await expect(page.locator('#hubResult')).toContainText('Assigned facility: Care Facility A.');
+ await expect(page.locator('#hubResult')).toContainText('Assigned facilities: Care Facility A.');
+});
+
+test('creating a facility manager with additional facilities sends them all',async({page})=>{
+ const captured=await install(page);
+ await page.goto('/enterprise.html');await expect(page.locator('#workspace')).toBeVisible();
+ await page.locator('#addUserBtn').click();
+ await page.locator('#userForm input[name="name"]').fill('Multi Home Manager');
+ await page.locator('#userForm input[name="email"]').fill('multi@example.com');
+ await page.locator('#userForm input[name="phone"]').fill('+12405550101');
+ await page.locator('#userRole').selectOption('FACILITY');
+ await expect(page.locator('#userAdditionalFacilitiesField')).toBeVisible();
+ await page.locator('#userFacility').selectOption('FC-A');
+ await expect(page.locator('#userAdditionalFacilities input[value="FC-A"]')).toHaveCount(0);
+ await page.locator('#userAdditionalFacilities input[value="FC-B"]').check();
+ await page.getByRole('button',{name:'Create user'}).click();
+ await expect.poll(()=>captured.created.length).toBe(1);
+ expect(captured.created[0]).toEqual({email:'multi@example.com',phone:'+1 (240) 555-0101',name:'Multi Home Manager',role:'FACILITY',scopeId:'FC-A',additionalFacilityCodes:['FC-B']});
+ await expect(page.locator('#hubResult')).toContainText('Assigned facilities: Care Facility A, Care Facility B.');
 });
 
 test('approving a facility role request in Enterprise requires selecting the assigned facility',async({page})=>{
