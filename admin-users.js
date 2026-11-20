@@ -35,7 +35,7 @@
   const u=selectedUser;$('userAccountTitle').textContent=u.name||'Manage account';$('userAccountIdentity').textContent=`${u.userCode||'ID pending'} · ${u.email}`;
   $('editUserName').value=u.name||'';$('editUserPhone').value=u.phone||'';$('editUserPhone').required=!u.demoOnly;$('editUserRole').value=u.role;$('editUserScope').value=u.scopeId||'';
   $('editUserRole').disabled=!!u.demoOnly;$('editUserScope').readOnly=!!u.demoOnly;$('resendUserAccount').textContent=u.demoOnly?'Issue demo password':'Reissue credentials';
-  window.NexusAdminFacilityAccess.syncEdit(!!u.demoOnly);
+  window.NexusAdminFacilityAccess.syncEdit(!!u.demoOnly,u.facilityCodes||null);
   $('editUserFunctions').innerHTML='<legend>Operational functions</legend>'+Object.entries(functions).map(([key,label])=>`<label class="functionChoice"><input type="checkbox" value="${key}" ${u.functions?.includes(key)?'checked':''}>${esc(label)}</label>`).join('');
   $('userAccountAccess').textContent=u.demoOnly?'Demo-only access: FutureCare Annapolis presentation. Credentials use the production user directory. No production trip, patient, billing, or dispatch access.':`Experiences: ${(u.roles||[u.role]).map(roleLabel).join(', ')}. Functions label responsibilities; role access controls permissions.`;
   $('userAccountCreated').textContent=`Account created ${u.createdAt?new Date(u.createdAt).toLocaleDateString('en-US'):'—'}. Nexus ID stays the same across all experiences.`;
@@ -56,7 +56,7 @@
    await loadUsers();openUser(id);message('userAccountMsg','Account updated. Availability and access use the updated account.');await loadDriverSchedule({silent:true});
   }catch(e){message('userAccountMsg',e.message,true);}finally{saveInProgress=false;['saveUserAccount','toggleUserAccount'].forEach(key=>$(key).disabled=false);}
  }
- if($('userAccountForm'))$('userAccountForm').addEventListener('submit',e=>{e.preventDefault();updateAccount({name:$('editUserName').value.trim(),phone:$('editUserPhone').value.trim(),role:$('editUserRole').value,scopeId:window.NexusAdminFacilityAccess.editScope(),functions:[...$('editUserFunctions').querySelectorAll('input:checked')].map(el=>el.value)});});
+ if($('userAccountForm'))$('userAccountForm').addEventListener('submit',e=>{e.preventDefault();const payload={name:$('editUserName').value.trim(),phone:$('editUserPhone').value.trim(),role:$('editUserRole').value,scopeId:window.NexusAdminFacilityAccess.editScope(),functions:[...$('editUserFunctions').querySelectorAll('input:checked')].map(el=>el.value)};if(payload.role==='FACILITY')payload.additionalFacilityCodes=window.NexusAdminFacilityAccess.editAdditional();updateAccount(payload);});
  if($('toggleUserAccount'))$('toggleUserAccount').addEventListener('click',()=>updateAccount({active:!(selectedUser.active&&selectedUser.employeeActive!==false)}));
  if($('userAccountSchedule'))$('userAccountSchedule').addEventListener('click',()=>{
   const email=selectedUser.email;$('userAccountDialog').close();document.querySelector('[data-user-module-open="driverSchedulePanel"]').click();$('scheduleDriverEmail').value=email;resetSchedule();loadDriverSchedule();

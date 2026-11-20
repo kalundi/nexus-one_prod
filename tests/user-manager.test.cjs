@@ -37,6 +37,32 @@ test('facility manager grants require an active assigned facility and edits sync
   await f.call(`admin/users/${DRIVER}`,'PATCH',{active:false});assert.equal((await f.db.query('SELECT active FROM users WHERE id=$1',[DRIVER])).rows[0].active,false);
  }finally{await f.close();}
 });
+test('facility manager additional facilities sync the link set and read back in full',async()=>{
+ const f=await fixture();try{
+  await f.db.query("INSERT INTO facilities VALUES('FC-C','Care Facility C','400 Facility Lane',true)");
+  const links=async()=>(await f.db.query('SELECT facility_code FROM user_facilities WHERE user_id=$1 ORDER BY facility_code',[DRIVER])).rows.map(r=>r.facility_code);
+  // Grant with a primary plus two additionals; duplicates and the primary
+  // itself in the additional list are dropped.
+  const granted=await f.call(`admin/users/${DRIVER}`,'PATCH',{role:'FACILITY',scopeId:'FC-A',additionalFacilityCodes:['FC-B','FC-C','FC-A','FC-B']});
+  assert.equal(granted.user.scopeId,'FC-A');
+  assert.deepEqual(await links(),['FC-A','FC-B','FC-C'],'Create/grant links exactly the primary plus the additionals');
+  assert.deepEqual(granted.user.facilityCodes,['FC-A','FC-B','FC-C'],'Update response reads back the full set, primary first');
+  const listed=(await f.call('admin/users')).users.find(u=>u.id===DRIVER);
+  assert.deepEqual(listed.facilityCodes,['FC-A','FC-B','FC-C'],'List read-back shows every linked facility (the Nimmi Perera case)');
+  // Removing one additional deletes only that link; the primary stays.
+  const trimmed=await f.call(`admin/users/${DRIVER}`,'PATCH',{additionalFacilityCodes:['FC-C']});
+  assert.deepEqual(await links(),['FC-A','FC-C'],'Update with a smaller additional set removes the dropped link');
+  assert.deepEqual(trimmed.user.facilityCodes,['FC-A','FC-C']);
+  // Unknown or inactive additional facilities are rejected and change nothing.
+  await assert.rejects(f.call(`admin/users/${DRIVER}`,'PATCH',{additionalFacilityCodes:['NOPE']}),/Select.*facility/);
+  await assert.rejects(f.call(`admin/users/${DRIVER}`,'PATCH',{additionalFacilityCodes:['FC-X']}),/Select.*facility/);
+  assert.equal((await f.call(`admin/users/${DRIVER}`,'PATCH',{additionalFacilityCodes:'FC-B'})).status,400,'A non-array additional list is a 400');
+  assert.deepEqual(await links(),['FC-A','FC-C'],'Rejected updates leave the link set untouched');
+  // An empty additional list clears every link except the primary.
+  await f.call(`admin/users/${DRIVER}`,'PATCH',{additionalFacilityCodes:[]});
+  assert.deepEqual(await links(),['FC-A']);
+ }finally{await f.close();}
+});
 test('random memorable IDs backfill accounts, stay unique and survive role/status/profile edits',async()=>{
  const f=await fixture();try{
   const before=(await f.call('admin/users')).users;assert.equal(before.length,2);before.forEach(u=>assert.match(u.userCode,/^N\d{4}$/));

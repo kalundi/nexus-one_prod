@@ -23,7 +23,12 @@ function parseSchedule(body){
  if(!weekdays.length||weekdays.some(day=>!Number.isInteger(day)||day<1||day>7))fail('Select at least one valid weekday.');
  return {startTime,endTime,effectiveStartDate,effectiveEndDate,weekdays};
 }
-function mapUser(u){const demoOnly=DemoAccount.isDemoUser(u),roles=demoOnly?['FACILITY']:[...new Set([u.access_title||u.role,u.role,...(u.approved_roles||[]),'PATIENT'])];return {id:String(u.id),userCode:u.user_code,email:u.email,name:u.display_name,phone:u.phone||'',role:u.access_title||u.role,accessRole:u.role,scopeId:u.scope_id||'',demoOnly,loginUrl:demoOnly?'/facility-demo.html':EMS.access[u.access_title]?.url||null,functions:u.functions||[],roles:roles.includes('ADMIN')?ROLES:roles,active:u.active,employeeActive:u.employee_active??null,createdAt:u.created_at};}
+function mapUser(u){const demoOnly=DemoAccount.isDemoUser(u),roles=demoOnly?['FACILITY']:[...new Set([u.access_title||u.role,u.role,...(u.approved_roles||[]),'PATIENT'])];
+ // Facility managers carry their full facility set for admin read-back:
+ // primary scope first, then the user_facilities links (the list query and
+ // the update path supply them name-ordered in linked_facilities).
+ const facilityCodes=[];if(u.role==='FACILITY'){if(u.scope_id)facilityCodes.push(u.scope_id);if(Array.isArray(u.linked_facilities))for(const code of u.linked_facilities){const c=clean(code);if(c&&!facilityCodes.includes(c))facilityCodes.push(c);}}
+ return {id:String(u.id),userCode:u.user_code,email:u.email,name:u.display_name,phone:u.phone||'',role:u.access_title||u.role,accessRole:u.role,scopeId:u.scope_id||'',facilityCodes,demoOnly,loginUrl:demoOnly?'/facility-demo.html':EMS.access[u.access_title]?.url||null,functions:u.functions||[],roles:roles.includes('ADMIN')?ROLES:roles,active:u.active,employeeActive:u.employee_active??null,createdAt:u.created_at};}
 function createUserManager({query,getPool,requireUser,audit}){
  async function transaction(work){
   const client=await getPool().connect();
@@ -108,8 +113,9 @@ function createUserManager({query,getPool,requireUser,audit}){
   return json(200,{ok:true,...result});
  }
  async function updateUser(key,body,me){
-  const allowed=['name','phone','role','scopeId','functions','active'];
+  const allowed=['name','phone','role','scopeId','additionalFacilityCodes','functions','active'];
   if(!allowed.some(k=>Object.hasOwn(body,k)))return json(400,{error:'No account changes supplied.'});
+  if(Object.hasOwn(body,'additionalFacilityCodes')&&(!Array.isArray(body.additionalFacilityCodes)||body.additionalFacilityCodes.some(c=>typeof c!=='string')))return json(400,{error:'Choose valid additional facilities.'});
   if(Object.hasOwn(body,'active')&&typeof body.active!=='boolean')return json(400,{error:'Active status must be true or false.'});
   if(Object.hasOwn(body,'name')&&(!clean(body.name)||clean(body.name).length>160))return json(400,{error:'Enter a name of up to 160 characters.'});
   if(Object.hasOwn(body,'phone')&&!normalizeE164(body.phone))return json(400,{error:'Enter a valid international phone number.'});
@@ -125,14 +131,32 @@ function createUserManager({query,getPool,requireUser,audit}){
    next.role=EMS.access[next.role]?.role||next.role;
    if(next.role==='DRIVER'&&!next.scope_id)next.scope_id=(await q("SELECT scope_id FROM user_role_requests WHERE user_id=$1 AND role='DRIVER' AND status='APPROVED' LIMIT 1",[current.id])).rows[0]?.scope_id||current.user_code;
    if(next.role==='FACILITY'&&next.active&&!DemoAccount.isDemoUser(current))await requireActiveFacility(q,next.scope_id);
+   // Additional facilities are validated like the primary: every code must
+   // name an active facility. The primary itself is dropped from the list.
+   const hasAdditionals=Object.hasOwn(body,'additionalFacilityCodes');
+   let additionals=null;
+   if(hasAdditionals&&next.role==='FACILITY'&&!DemoAccount.isDemoUser(current)){
+    additionals=[...new Set(body.additionalFacilityCodes.map(clean).filter(Boolean))].filter(code=>code!==next.scope_id);
+    for(const code of additionals)await requireActiveFacility(q,code);
+   }
    const changed=(await q('UPDATE users SET display_name=$2,phone=$3,role=$4,scope_id=$5,functions=$6,active=$7,access_title=$8,updated_at=now() WHERE id=$1 RETURNING *',[current.id,next.display_name,next.phone,next.role,next.scope_id,next.functions,next.active,next.access_title])).rows[0];
    // Also update approved scopes and every live session's access on its next request.
    if(next.role===current.role&&next.scope_id!==current.scope_id)await q("UPDATE user_role_requests SET scope_id=$3 WHERE user_id=$1 AND role=$2 AND status='APPROVED'",[current.id,next.role,next.scope_id]);
    // Keep the multi-facility link set in step with the primary scope, so a
    // manager granted or moved here can open that facility alongside any
    // others already linked. The demo scope is not a facilities row, so it
-   // never gets a link.
-   if(next.role==='FACILITY'&&next.scope_id&&!DemoAccount.isDemoUser(current))await q('INSERT INTO user_facilities(user_id,facility_code) VALUES($1,$2) ON CONFLICT DO NOTHING',[current.id,next.scope_id]);
+   // never gets a link. When the caller supplies additionalFacilityCodes the
+   // link set is synchronized to exactly the primary plus those facilities;
+   // when the field is absent the links are left as they are (the primary
+   // link insert below still applies on a grant or scope move).
+   if(next.role==='FACILITY'&&!DemoAccount.isDemoUser(current)){
+    if(additionals){
+     const keep=[...new Set([next.scope_id,...additionals].filter(Boolean))];
+     await q('DELETE FROM user_facilities WHERE user_id=$1 AND NOT (facility_code=ANY($2::text[]))',[current.id,keep]);
+     for(const code of keep)await q('INSERT INTO user_facilities(user_id,facility_code) VALUES($1,$2) ON CONFLICT DO NOTHING',[current.id,code]);
+    }else if(next.scope_id)await q('INSERT INTO user_facilities(user_id,facility_code) VALUES($1,$2) ON CONFLICT DO NOTHING',[current.id,next.scope_id]);
+    changed.linked_facilities=(await q('SELECT uf.facility_code FROM user_facilities uf JOIN facilities f ON f.facility_code=uf.facility_code WHERE uf.user_id=$1 ORDER BY f.name,uf.facility_code',[current.id])).rows.map(r=>r.facility_code);
+   }
    if(!next.active)await q('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',[current.id]);
    if(DemoAccount.isDemoUser(current)&&Object.hasOwn(body,'active'))await DemoAccount.revokeDemoSessions(q);
    if(Object.hasOwn(body,'active'))await q('UPDATE employees SET active=$2,updated_at=now() WHERE user_id=$1',[current.id,next.active]);
@@ -175,7 +199,7 @@ function createUserManager({query,getPool,requireUser,audit}){
   }
   if(p[1]==='users'&&method==='GET'&&p.length===2){
    await requireUser(bearer(event),['ADMIN']);
-   const r=await query(`SELECT u.*,(SELECT e.active FROM employees e WHERE e.user_id=u.id) AS employee_active,COALESCE((SELECT array_agg(rr.role ORDER BY rr.role) FROM user_role_requests rr WHERE rr.user_id=u.id AND rr.status='APPROVED'),'{}') AS approved_roles FROM users u ORDER BY u.display_name,u.created_at LIMIT 5000`);
+   const r=await query(`SELECT u.*,(SELECT e.active FROM employees e WHERE e.user_id=u.id) AS employee_active,COALESCE((SELECT array_agg(rr.role ORDER BY rr.role) FROM user_role_requests rr WHERE rr.user_id=u.id AND rr.status='APPROVED'),'{}') AS approved_roles,COALESCE((SELECT array_agg(uf.facility_code ORDER BY f.name,uf.facility_code) FROM user_facilities uf JOIN facilities f ON f.facility_code=uf.facility_code WHERE uf.user_id=u.id),'{}') AS linked_facilities FROM users u ORDER BY u.display_name,u.created_at LIMIT 5000`);
    return json(200,{users:r.rows.map(mapUser),functions:FUNCTIONS});
   }
   if(p[1]==='users'&&p.length===3&&method==='PATCH')return updateUser(decodeURIComponent(p[2]),parseBody(event),await requireUser(bearer(event),['ADMIN']));

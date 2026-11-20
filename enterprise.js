@@ -155,7 +155,8 @@
   if(user.employeeActive===false)section.append(accountRow('Employee record','Inactive'));
   section.append(accountRow('Role',roleLabel(user.role)));
   section.append(accountRow('Approved roles',user.roles&&user.roles.length?user.roles.map(roleLabel).join(', '):'—'));
-  if(user.scopeId)section.append(accountRow('Scope',user.scopeId));
+  if(Array.isArray(user.facilityCodes)&&user.facilityCodes.length){const names=user.facilityCodes.map(code=>{const f=facilities.find(x=>x.facility_code===code);return f?`${f.name} (${code})`:code;});section.append(accountRow('Facilities',names.join(', ')));}
+  else if(user.scopeId)section.append(accountRow('Scope',user.scopeId));
   const pending=requests.filter(r=>String(r.userId)===String(user.id)&&r.status==='PENDING');
   section.append(accountRow('Pending role requests',pending.length?pending.map(r=>roleLabel(r.role)).join(', '):'None'));
   section.append(accountRow('Account created',user.createdAt?new Date(user.createdAt).toLocaleString():'—'));
@@ -163,24 +164,40 @@
   const roleField=node('label','Change role');const roleSelect=node('select');fillRoleSelect(roleSelect,false);
   if(user.role&&![...roleSelect.options].some(o=>o.value===user.role)){const current=node('option',roleLabel(user.role)+' (current)');current.value=user.role;roleSelect.append(current);}
   roleSelect.value=user.role||'';roleField.append(roleSelect);
-  const facilityField=node('label','Assigned facility *');const facilitySelect=node('select');
+  const facilityField=node('label','Primary facility *');const facilitySelect=node('select');
   const blankFacility=node('option','Select the manager’s facility');blankFacility.value='';facilitySelect.append(blankFacility);
   for(const f of facilities){const option=node('option',`${f.name} (${f.facility_code})`);option.value=f.facility_code;facilitySelect.append(option);}
   if(user.scopeId)facilitySelect.value=user.scopeId;
-  const facilityHelp=node('small','This manager can access only the selected facility.');facilityField.append(facilitySelect,facilityHelp);
+  const facilityHelp=node('small','This manager can access the primary facility and any additional facilities selected.');facilityField.append(facilitySelect,facilityHelp);
+  const additionalField=node('label','Additional facilities');const additionalList=node('div');
+  additionalList.style.cssText='max-height:150px;overflow:auto;border:1px solid #d7e3f0;border-radius:8px;padding:6px;display:grid;gap:4px';
+  additionalField.append(additionalList);
+  const buildAdditional=checkedCodes=>{
+   additionalList.replaceChildren();
+   for(const f of facilities){
+    if(f.facility_code===facilitySelect.value)continue;
+    const row=node('label');row.style.cssText='display:flex;gap:6px;align-items:center;font-weight:400';
+    const box=node('input');box.type='checkbox';box.value=f.facility_code;box.checked=checkedCodes.includes(f.facility_code);
+    row.append(box,document.createTextNode(` ${f.name} (${f.facility_code})`));additionalList.append(row);
+   }
+   if(!additionalList.childNodes.length)additionalList.append(node('span','No other active facilities.'));
+  };
+  buildAdditional((Array.isArray(user.facilityCodes)?user.facilityCodes:[]).filter(code=>code!==user.scopeId));
+  facilitySelect.addEventListener('change',()=>buildAdditional([...additionalList.querySelectorAll('input:checked')].map(box=>box.value)));
   facilityField.hidden=roleSelect.value!=='FACILITY';
-  roleSelect.addEventListener('change',()=>{facilityField.hidden=roleSelect.value!=='FACILITY';});
+  additionalField.hidden=facilityField.hidden;
+  roleSelect.addEventListener('change',()=>{facilityField.hidden=roleSelect.value!=='FACILITY';additionalField.hidden=facilityField.hidden;});
   const saveRole=node('button','Save role');saveRole.type='button';
   saveRole.addEventListener('click',async()=>{
    const role=roleSelect.value;
    if(!role||(role===user.role&&role!=='FACILITY')){accountMsg='Choose a different role to change it.';show(selected);return;}
    const body={role};
-   if(role==='FACILITY'){if(!facilitySelect.value){accountMsg='Select the facility this manager is authorized to access.';show(selected);return;}body.scopeId=facilitySelect.value;}
+   if(role==='FACILITY'){if(!facilitySelect.value){accountMsg='Select the facility this manager is authorized to access.';show(selected);return;}body.scopeId=facilitySelect.value;body.additionalFacilityCodes=[...additionalList.querySelectorAll('input:checked')].map(box=>box.value);}
    saveRole.disabled=true;
    try{await apiJson('/api/admin/users/'+encodeURIComponent(user.id),{method:'PATCH',body});usersById=null;accountMsg=`Role updated for ${user.email}.`;await show(selected);}
    catch(e){accountMsg=e.message;await show(selected);}
   });
-  controls.append(roleField,facilityField,saveRole);section.append(controls);
+  controls.append(roleField,facilityField,additionalField,saveRole);section.append(controls);
   const actions=node('div');actions.className='manageActions';
   const accessButton=node('button',user.active?'Deactivate account access':'Reactivate account access');accessButton.type='button';if(user.active)accessButton.className='danger';
   if(mine){accessButton.disabled=true;}
@@ -211,20 +228,36 @@
  function openUserDialog(prefill={}){
   dialogActorId=prefill.actorId||'';
   const form=$('userForm');form.reset();$('userFormError').textContent='';
+  $('userAdditionalFacilities')?.querySelectorAll('input:checked').forEach(box=>{box.checked=false;});
   fillRoleSelect(form.elements.role,true);
   form.elements.name.value=prefill.name||'';
   $('userDialogTitle').textContent=prefill.actorId?'Create account':'Add user';
   syncUserFacilityField();
   $('userDialog').showModal();
  }
+ function renderUserAdditionalFacilities(){
+  const form=$('userForm'),list=$('userAdditionalFacilities');if(!list)return;
+  const primary=form.elements.scopeId.value,checked=new Set([...list.querySelectorAll('input:checked')].map(box=>box.value));
+  list.replaceChildren();
+  for(const f of (facilitiesCache||[])){
+   if(f.facility_code===primary)continue;
+   const row=node('label');row.style.cssText='display:flex;gap:6px;align-items:center;font-weight:400';
+   const box=node('input');box.type='checkbox';box.value=f.facility_code;box.checked=checked.has(f.facility_code);
+   row.append(box,document.createTextNode(` ${f.name} (${f.facility_code})`));list.append(row);
+  }
+  if(!list.childNodes.length)list.append(node('span','No other active facilities.'));
+ }
  async function syncUserFacilityField(){
   const form=$('userForm'),field=$('userFacilityField'),select=form.elements.scopeId;
   const show=form.elements.role.value==='FACILITY';
   field.hidden=!show;
-  if(show&&!select.options.length){
-   try{const facilities=await loadFacilities();const blank=node('option','Select the manager’s facility');blank.value='';select.append(blank);for(const f of facilities){const option=node('option',`${f.name} (${f.facility_code})`);option.value=f.facility_code;select.append(option);}}
-   catch(e){$('userFormError').textContent=e.message;}
-  }
+  const additionalField=$('userAdditionalFacilitiesField');if(additionalField)additionalField.hidden=!show;
+  if(!show)return;
+  try{
+   const facilities=await loadFacilities();
+   if(!select.options.length){const blank=node('option','Select the manager’s facility');blank.value='';select.append(blank);for(const f of facilities){const option=node('option',`${f.name} (${f.facility_code})`);option.value=f.facility_code;select.append(option);}}
+   renderUserAdditionalFacilities();
+  }catch(e){$('userFormError').textContent=e.message;}
  }
  async function renderRequests(){
   const list=await loadRequests(true);
@@ -272,19 +305,21 @@
  $('addUserBtn').addEventListener('click',()=>openUserDialog());
  $('cancelUser').addEventListener('click',()=>$('userDialog').close());
  $('userForm').elements.role.addEventListener('change',syncUserFacilityField);
+ $('userForm').elements.scopeId.addEventListener('change',renderUserAdditionalFacilities);
  $('userForm').addEventListener('submit',async event=>{
   event.preventDefault();const form=$('userForm'),button=$('createUserSubmit');
   const email=form.elements.email.value.trim(),phone=form.elements.phone.value.trim(),name=form.elements.name.value.trim(),role=form.elements.role.value;
   if(!email||!phone||!name||!role){$('userFormError').textContent='All fields are required.';return;}
   const body={email,phone,name,role};
-  if(role==='FACILITY'){const scopeId=form.elements.scopeId.value;if(!scopeId){$('userFormError').textContent='Select the facility this manager is authorized to access.';return;}body.scopeId=scopeId;}
+  if(role==='FACILITY'){const scopeId=form.elements.scopeId.value;if(!scopeId){$('userFormError').textContent='Select the facility this manager is authorized to access.';return;}body.scopeId=scopeId;const additionalFacilityCodes=[...document.querySelectorAll('#userAdditionalFacilities input:checked')].map(box=>box.value);if(additionalFacilityCodes.length)body.additionalFacilityCodes=additionalFacilityCodes;}
   button.disabled=true;
   try{
    const data=await apiJson('/api/admin/users',{method:'POST',body});
    const expiresText=data.tempPasswordExpiresAt?new Date(data.tempPasswordExpiresAt).toLocaleString():'2 hours';
    const emailText=data.emailDeliveryStatus==='sent'?' Credential email sent to the user.':' Credential email was not sent automatically.';
    const policyText=data.warning?` ${data.warning}`:' User must change it on first sign-in.';
-   const message=`User ${data.user.email} created. Nexus ID: ${data.user.userCode}.${data.user.facilityName?' Assigned facility: '+data.user.facilityName+'.':''} Temporary password: ${data.tempPassword}. Expires: ${expiresText}.${emailText}${policyText}`;
+   const facilityNames=data.user.facilityNames?.length?data.user.facilityNames:(data.user.facilityName?[data.user.facilityName]:[]);
+   const message=`User ${data.user.email} created. Nexus ID: ${data.user.userCode}.${facilityNames.length?' Assigned facilities: '+facilityNames.join(', ')+'.':''} Temporary password: ${data.tempPassword}. Expires: ${expiresText}.${emailText}${policyText}`;
    $('userDialog').close();usersById=null;
    if(dialogActorId){accountMsg=message;const actorId=dialogActorId;dialogActorId='';await load();await show(actorId);}
    else{hubMessage(message);await load();}

@@ -4994,7 +4994,7 @@ async function handler(event){
    await ensureMultiRoleSchema();
    const me=await requireUser(bearer(event),['ADMIN']),requestId=decodeURIComponent(p[2]),b=parseBody(event),decision=String(b.decision||'').toUpperCase();
    if(!['APPROVED','REJECTED'].includes(decision))return json(400,{error:'Decision must be APPROVED or REJECTED'});
-   const client=await getPool().connect();let request,scopeId,updated;
+   const client=await getPool().connect();let request,scopeId,updated,additionalCodes=null;
    try{
     await client.query('BEGIN');const q=client.query.bind(client);
     request=(await q(`SELECT rr.*,u.email FROM user_role_requests rr JOIN users u ON u.id=rr.user_id WHERE rr.id=$1 LIMIT 1 FOR UPDATE OF rr`,[requestId])).rows[0];
@@ -5002,12 +5002,25 @@ async function handler(event){
     scopeId=clean(b.scopeId)||request.scope_id||null;
     if(decision==='APPROVED'&&request.role==='DRIVER'&&!scopeId)throw Object.assign(Error('Driver approval requires a driver scope ID'),{statusCode:400});
     if(decision==='APPROVED'&&request.role==='FACILITY')await requireActiveFacility(q,scopeId);
+    // Optional additional facilities, applied only when the approve payload
+    // carries them: each must be an active facility, like the primary.
+    if(decision==='APPROVED'&&request.role==='FACILITY'&&b.additionalFacilityCodes!==undefined){
+     if(!Array.isArray(b.additionalFacilityCodes)||b.additionalFacilityCodes.some(c=>typeof c!=='string'))throw Object.assign(Error('Choose valid additional facilities.'),{statusCode:400});
+     additionalCodes=[...new Set(b.additionalFacilityCodes.map(clean).filter(Boolean))].filter(code=>code!==scopeId);
+     for(const code of additionalCodes)await requireActiveFacility(q,code);
+    }
     updated=await q(`UPDATE user_role_requests SET status=$2,scope_id=$3,reviewed_at=now(),reviewed_by=$4,notes=$5 WHERE id=$1 RETURNING *`,[requestId,decision,scopeId,me.id,clean(b.notes)||null]);
     if(decision==='APPROVED'&&request.role==='FACILITY')await q("UPDATE users SET scope_id=$2,updated_at=now() WHERE id=$1 AND role='FACILITY'",[request.user_id,scopeId]);
-    if(decision==='APPROVED'&&request.role==='FACILITY')await q('INSERT INTO user_facilities(user_id,facility_code) VALUES($1,$2) ON CONFLICT DO NOTHING',[request.user_id,scopeId]);
+    if(decision==='APPROVED'&&request.role==='FACILITY'){
+     if(additionalCodes){
+      const keep=[scopeId,...additionalCodes];
+      await q('DELETE FROM user_facilities WHERE user_id=$1 AND NOT (facility_code=ANY($2::text[]))',[request.user_id,keep]);
+      for(const code of keep)await q('INSERT INTO user_facilities(user_id,facility_code) VALUES($1,$2) ON CONFLICT DO NOTHING',[request.user_id,code]);
+     }else await q('INSERT INTO user_facilities(user_id,facility_code) VALUES($1,$2) ON CONFLICT DO NOTHING',[request.user_id,scopeId]);
+    }
     await client.query('COMMIT');
    }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
-   await audit('USER_ROLE',requestId,decision,{userId:request.user_id,email:request.email,role:request.role,scopeId,by:me.email});
+   await audit('USER_ROLE',requestId,decision,{userId:request.user_id,email:request.email,role:request.role,scopeId,...(additionalCodes?{facilityCodes:[scopeId,...additionalCodes]}:{}),by:me.email});
    return json(200,{request:updated.rows[0]});
   }
   // Admin: emergency password reset by email (manual support fallback)
@@ -5123,6 +5136,17 @@ async function handler(event){
    const validRoles=['STAFF','ADMIN','DISPATCHER','FACILITY','DRIVER','BILLING','QA','EXECUTIVE','PATIENT','CARETAKER',...EMS_ROLES];
    if(!validRoles.includes(String(b.role).toUpperCase()))return json(400,{error:'Invalid role'});
    const assignedFacility=String(b.role).toUpperCase()==='FACILITY'?await requireActiveFacility(query,b.scopeId):null;
+   // Optional additional facilities for a facility manager: each must name
+   // an active facility, validated exactly like the primary. Absent field
+   // means primary only.
+   const additionalFacilities=[];
+   if(assignedFacility&&b.additionalFacilityCodes!==undefined){
+    if(!Array.isArray(b.additionalFacilityCodes)||b.additionalFacilityCodes.some(c=>typeof c!=='string'))return json(400,{error:'Choose valid additional facilities.'});
+    for(const code of [...new Set(b.additionalFacilityCodes.map(clean).filter(Boolean))])if(code!==assignedFacility.facility_code)additionalFacilities.push(await requireActiveFacility(query,code));
+   }
+   const orderedAdditionals=[...additionalFacilities].sort((x,y)=>x.name.localeCompare(y.name));
+   const assignedCodes=assignedFacility?[assignedFacility.facility_code,...orderedAdditionals.map(f=>f.facility_code)]:[];
+   const assignedNames=assignedFacility?[assignedFacility.name,...orderedAdditionals.map(f=>f.name)]:[];
    const phoneDigits=normalizeE164(b.phone);
    if(!phoneDigits)return json(400,{error:'Enter a valid international phone number with country code, such as +1 240 555 0101'});
    const existing=await query('SELECT id FROM users WHERE lower(email)=lower($1)',[b.email]);
@@ -5191,6 +5215,14 @@ async function handler(event){
    }
    const createdIdentity=(await query('SELECT user_code FROM users WHERE id=$1',[userId])).rows[0];
    if(normalizedRole==='DRIVER')await query('UPDATE users SET scope_id=COALESCE(scope_id,user_code) WHERE id=$1',[userId]);
+   // Record the manager's facility links (primary plus any additionals).
+   // Like the optional-column fallbacks above, a link failure on a legacy
+   // schema must not fail the account creation; it is reported as a warning.
+   if(assignedFacility){
+    let linksFailed=false;
+    for(const code of assignedCodes)await query('INSERT INTO user_facilities(user_id,facility_code) VALUES($1,$2) ON CONFLICT DO NOTHING',[userId,code]).catch(()=>{linksFailed=true;});
+    if(linksFailed)warning=`${warning?`${warning} `:''}User created, but the facility links could not be saved in this environment. Run migrations so the manager can open every assigned facility.`.trim();
+   }
    let emailDeliveryStatus='skipped';
    try{
     const appBase=(process.env.APP_BASE_URL||'https://nexusmt.com').replace(/\/$/,'');
@@ -5215,8 +5247,8 @@ async function handler(event){
     emailDeliveryStatus='failed';
     warning=`${warning?`${warning} `:''}Credential email failed to send. Share the temporary password securely with the user.`.trim();
    }
-   await audit('USER',userId,'CREATED',{userCode:createdIdentity.user_code,role:b.role,scopeId:assignedFacility?.facility_code||null,by:me.user_code||me.email,emailDeliveryStatus});
-    return json(201,{user:{id:userId,userCode:createdIdentity?.user_code,email:b.email,name:b.name,phone:phoneDigits,role:b.role,scopeId:assignedFacility?.facility_code||null,facilityName:assignedFacility?.name||null,active:true,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,warning,emailDeliveryStatus});
+   await audit('USER',userId,'CREATED',{userCode:createdIdentity.user_code,role:b.role,scopeId:assignedFacility?.facility_code||null,facilityCodes:assignedCodes,by:me.user_code||me.email,emailDeliveryStatus});
+    return json(201,{user:{id:userId,userCode:createdIdentity?.user_code,email:b.email,name:b.name,phone:phoneDigits,role:b.role,scopeId:assignedFacility?.facility_code||null,facilityName:assignedFacility?.name||null,facilityCodes:assignedCodes,facilityNames:assignedNames,active:true,mustChangePassword:policyEnforced},tempPassword,tempPasswordExpiresAt,warning,emailDeliveryStatus});
    }catch(err){
     const message=clean(err?.message||'Failed to create user');
     return json(err?.statusCode||500,{error:err?.statusCode?message:`Create user failed: ${message}`});

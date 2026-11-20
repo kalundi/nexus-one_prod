@@ -2,10 +2,11 @@ const {test,expect}=require('@playwright/test');
 const LINKED='11111111-1111-4111-8111-111111111111',UNLINKED='22222222-2222-4222-8222-222222222222';
 const NAMES={[LINKED]:'Linked Driver',[UNLINKED]:'Directory Only Person'};
 
-async function install(page,{meRole='ADMIN'}={}){
+async function install(page,{meRole='ADMIN',facilityManager=false}={}){
  await page.addInitScript(()=>sessionStorage.setItem('nexusAccessToken','fixture'));
  const captured={patched:[],created:[],decided:[],resent:0};
  const user={id:'user-1',userCode:'N1001',email:'driver@example.com',name:'Linked Driver',phone:'+12405550111',role:'DRIVER',accessRole:'DRIVER',scopeId:'driver-scope-0',demoOnly:false,loginUrl:'',functions:[],roles:['DRIVER','PATIENT'],active:true,employeeActive:true,createdAt:'2026-10-01T12:00:00.000Z'};
+ if(facilityManager)Object.assign(user,{role:'FACILITY',accessRole:'FACILITY',scopeId:'FC-A',facilityCodes:['FC-A','FC-B'],roles:['FACILITY','PATIENT']});
  const requests=[
   {id:'req-1',userId:'user-9',email:'hopeful@example.com',name:'Hopeful Driver',phone:'',role:'DRIVER',status:'PENDING',scopeId:null,requestedAt:'2026-11-01T10:00:00.000Z',reviewedAt:null},
   {id:'req-2',userId:'user-8',email:'manager@example.com',name:'Hopeful Manager',phone:'',role:'FACILITY',status:'PENDING',scopeId:null,requestedAt:'2026-11-01T11:00:00.000Z',reviewedAt:null},
@@ -22,12 +23,12 @@ async function install(page,{meRole='ADMIN'}={}){
   else if(path==='/api/admin/actors'&&method==='GET')json={actors:[LINKED,UNLINKED].map(id=>({id,display_name:NAMES[id],active:true,classifications:[{category:'EMPLOYEE',subtype:'DRIVER'}]})),hasMore:false};
   else if(path.startsWith('/api/admin/actors/'))json=detail(path.split('/')[4]);
   else if(path==='/api/admin/users'&&method==='GET')json={users:[user],functions:{}};
-  else if(path==='/api/admin/users'&&method==='POST'){captured.created.push(body);json={user:{id:'user-2',email:body.email,userCode:'N2002',facilityName:body.role==='FACILITY'?'Care Facility A':null},tempPassword:'Temp-1234',tempPasswordExpiresAt:new Date(Date.now()+2*60*60*1000).toISOString(),emailDeliveryStatus:'sent'};status=201;}
+  else if(path==='/api/admin/users'&&method==='POST'){captured.created.push(body);json={user:{id:'user-2',email:body.email,userCode:'N2002',facilityName:body.role==='FACILITY'?'Care Facility A':null,facilityNames:body.role==='FACILITY'?['Care Facility A']:[]},tempPassword:'Temp-1234',tempPasswordExpiresAt:new Date(Date.now()+2*60*60*1000).toISOString(),emailDeliveryStatus:'sent'};status=201;}
   else if(path==='/api/admin/users/user-1/resend-credentials'){captured.resent++;json={emailDeliveryStatus:'sent'};}
-  else if(path==='/api/admin/users/user-1'&&method==='PATCH'){captured.patched.push(body);if(body.role){user.role=body.role;user.accessRole=body.role;}if(body.active!==undefined)user.active=body.active;if(body.scopeId!==undefined)user.scopeId=body.scopeId;json={user};}
+  else if(path==='/api/admin/users/user-1'&&method==='PATCH'){captured.patched.push(body);if(body.role){user.role=body.role;user.accessRole=body.role;}if(body.active!==undefined)user.active=body.active;if(body.scopeId!==undefined)user.scopeId=body.scopeId;if(body.additionalFacilityCodes)user.facilityCodes=[body.scopeId,...body.additionalFacilityCodes];json={user};}
   else if(path==='/api/admin/role-requests'&&method==='GET')json={requests};
   else if(path.startsWith('/api/admin/role-requests/')){const id=path.split('/')[4];captured.decided.push({id,body});const found=requests.find(r=>r.id===id);if(found)found.status=body.decision;json={request:found};}
-  else if(path==='/api/facilities')json={facilities:[{facility_code:'FC-A',name:'Care Facility A',address:'100 Facility Lane',active:true}]};
+  else if(path==='/api/facilities')json={facilities:[{facility_code:'FC-A',name:'Care Facility A',address:'100 Facility Lane',active:true},{facility_code:'FC-B',name:'Care Facility B',address:'200 Facility Lane',active:true},{facility_code:'FC-C',name:'Care Facility C',address:'400 Facility Lane',active:true}]};
   return route.fulfill({status,json});
  });
  return captured;
@@ -122,7 +123,26 @@ test('add user from the hub creates a facility account with its assigned facilit
  await expect.poll(()=>captured.created.length).toBe(1);
  expect(captured.created[0]).toEqual({email:'mgr2@example.com',phone:'+1 (240) 555-0198',name:'New Manager',role:'FACILITY',scopeId:'FC-A'});
  await expect(page.locator('#hubResult')).toContainText('User mgr2@example.com created. Nexus ID: N2002.');
- await expect(page.locator('#hubResult')).toContainText('Assigned facility: Care Facility A.');
+ await expect(page.locator('#hubResult')).toContainText('Assigned facilities: Care Facility A.');
+});
+
+test('manage account editor pre-checks a facility manager’s additional facilities and saves the new set',async({page})=>{
+ const captured=await install(page,{facilityManager:true});
+ await page.goto('/enterprise.html');await expect(page.locator('#workspace')).toBeVisible();
+ await page.locator('#actorList button',{hasText:'Linked Driver'}).click();
+ const section=page.locator('#accountSection');
+ await expect(section).toBeVisible();
+ await expect(section).toContainText('Care Facility A (FC-A), Care Facility B (FC-B)');
+ await expect(section.locator('select').nth(1)).toHaveValue('FC-A');
+ await expect(section.locator('input[type="checkbox"][value="FC-B"]')).toBeChecked();
+ await expect(section.locator('input[type="checkbox"][value="FC-C"]')).not.toBeChecked();
+ await expect(section.locator('input[type="checkbox"][value="FC-A"]')).toHaveCount(0);
+ await section.locator('input[type="checkbox"][value="FC-B"]').uncheck();
+ await section.locator('input[type="checkbox"][value="FC-C"]').check();
+ await section.getByRole('button',{name:'Save role'}).click();
+ await expect.poll(()=>captured.patched.length).toBe(1);
+ expect(captured.patched[0]).toEqual({role:'FACILITY',scopeId:'FC-A',additionalFacilityCodes:['FC-C']});
+ await expect(section).toContainText('Role updated for driver@example.com.');
 });
 
 test('non-administrators never see account controls',async({page})=>{
