@@ -1335,9 +1335,13 @@ async function sendPatientEmailCopies(booking,content){
  if(!emails.length)return {status:'skipped'};
  const alternate=alternateEmailOf(booking).toLowerCase();
  const primary=emails.filter(e=>e.toLowerCase()!==alternate);
+ // Optional attachments ride along only when the content builder supplied
+ // them (today: the confirmation's calendar file). Other patient messages
+ // pass no attachments and are unchanged.
+ const emailOptions=content.attachments?.length?{attachments:content.attachments}:{};
  const sends=[];
- if(primary.length)sends.push(sendEmail(primary,content.subject,content.html));
- if(alternate&&emails.some(e=>e.toLowerCase()===alternate))sends.push(sendEmail([alternateEmailOf(booking)],content.subject,content.alternateHtml||content.html));
+ if(primary.length)sends.push(sendEmail(primary,content.subject,content.html,emailOptions));
+ if(alternate&&emails.some(e=>e.toLowerCase()===alternate))sends.push(sendEmail([alternateEmailOf(booking)],content.subject,content.alternateHtml||content.html,emailOptions));
  const results=await Promise.allSettled(sends);
  const sent=results.find(r=>r.status==='fulfilled'&&r.value?.status==='sent');
  if(sent)return sent.value;
@@ -1355,6 +1359,32 @@ async function sendPatientSmsCopies(booking,text){
 async function sendPatientNotification(booking,content){
  const [sms,email]=await Promise.all([sendPatientSmsCopies(booking,content.sms),sendPatientEmailCopies(booking,content)]);
  return {sms,email};
+}
+// Price clarity for self-pay bookings: the confirmation states the estimated
+// fare and when the payment link arrives. Facility-billed and broker-billed
+// bookings never carry a patient fare line — their payer relationship is with
+// the facility/broker. Returns '' when no line applies.
+function confirmationPaymentLine(b){
+ const fare=Number(b?.estimatedFare??b?.estimated_fare??0);
+ if(!(fare>0))return '';
+ const payer=clean(b?.payerType??b?.payer_type).toUpperCase();
+ const source=clean(b?.bookingSource??b?.booking_source).toUpperCase();
+ if(payer&&payer!=='SELF_PAY')return '';
+ if(source==='FACILITY'||source==='BROKER'||b?.facilityId||b?.facility_id)return '';
+ return `Estimated fare $${fare.toFixed(2)} — a secure payment link will be sent to you 60 to 30 minutes before pickup.`;
+}
+// Build the full patient confirmation payload (primary + alternate copy plus
+// the calendar attachment) exactly as the booking-created send uses it, so a
+// staff resend delivers the identical message.
+function buildPatientConfirmation(b){
+ const pickupLine=b.pickupTime||b.time;
+ const v=PatientNotify.view({...b,pickupTime:pickupLine});
+ const paymentLine=confirmationPaymentLine(b);
+ const options=paymentLine?{paymentLine}:{};
+ const content=PatientNotify.confirmationContent(v,options);
+ const alternate=PatientNotify.confirmationContent(v,{...options,forAlternate:true});
+ const attachment=PatientNotify.tripCalendarAttachment({...b,pickupTime:pickupLine});
+ return {...content,alternateHtml:alternate.html,...(attachment?{attachments:[attachment]}:{})};
 }
 // New patient message (approved draft §4.5): thank-you + rebook after a
 // completed trip. The review ask renders only when a review link is
@@ -1389,10 +1419,7 @@ async function notifyBooking(b){
  const pickupLine=b.pickupTime||b.time;
  // Patient copy: branded confirmation (approved draft §4.1) to the primary
  // contact plus the alternate contact on the booking.
- const v=PatientNotify.view({...b,pickupTime:pickupLine});
- const content=PatientNotify.confirmationContent(v);
- const alternate=PatientNotify.confirmationContent(v,{forAlternate:true});
- const patient=await sendPatientNotification(b,{...content,alternateHtml:alternate.html});
+ const patient=await sendPatientNotification(b,buildPatientConfirmation(b));
  // Internal copy: ops recipients keep the previous operational format.
  const text=`Nexus Medical Transit: Your trip ${b.reference} is confirmed for ${b.date} at ${pickupLine}.${driverLine} Questions? Call (888) 760-4990. Msg & data rates may apply. Reply HELP for help or STOP to opt out.`;
  const html=`<h2 style="color:#082f49">Trip Confirmed — ${b.reference}</h2><table style="width:100%;border-collapse:collapse;margin:16px 0">${b.driverName?`<tr><td style="padding:8px;font-weight:600;color:#62758a">Driver</td><td style="padding:8px"><strong>${b.driverName}</strong></td></tr>`:''}<tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup Time</td><td style="padding:8px"><strong>${pickupLine}</strong></td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Date</td><td style="padding:8px">${b.date}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Pickup</td><td style="padding:8px">${b.pickup}</td></tr><tr><td style="padding:8px;font-weight:600;color:#62758a">Destination</td><td style="padding:8px">${b.destination}</td></tr><tr style="background:#f3f8fb"><td style="padding:8px;font-weight:600;color:#62758a">Service</td><td style="padding:8px">${b.service||'—'}</td></tr></table><p>Questions? Call <strong>(888) 760-4990</strong></p>`;
@@ -4441,12 +4468,37 @@ async function handler(event){
    if(intakePickupTime)mappedBooking.pickupTime=intakePickupTime;
   }
   mappedBooking.intakePayload=intakeAudit?.parsedPayload||{};
+  // Staff-only field (this route is role-gated): the recorded customer
+  // message results, so Dispatch can show what the patient was sent.
+  mappedBooking.notificationStatus=r.rows[0].notification_status||null;
   const estimateSettings=await readPlatformSettings();
   const [routedBooking]=await RouteFares.hydrate([mappedBooking],estimateSettings,query);
   const [timedBooking]=await TripTiming.hydrate([routedBooking],estimateSettings,query);
   const estimatedBooking=withCurrentEstimate(timedBooking,estimateSettings);
   const [staffBooking]=await TripTiming.loadInstructions([estimatedBooking],query);
   return json(200,{booking:staffBooking,intakeAudit});
+  }
+  if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&p[3]==='resend-confirmation'&&method==='POST'){
+   const u=await requireUser(bearer(event),['ADMIN','DISPATCHER','EXECUTIVE','BILLING','QA']);
+   const ref=decodeURIComponent(p[2]);
+   const r=await query('SELECT * FROM bookings WHERE reference=$1 LIMIT 1',[ref]);
+   if(!r.rows[0])return json(404,{error:'Booking not found'});
+   if(ref.startsWith('MOCK-')||clean(r.rows[0].status).toUpperCase()==='MOCK')return json(409,{error:'Mock trips do not send customer messages'});
+   const booking=mapBooking(r.rows[0]);
+   // Patient copy only — the resend never re-sends the internal ops copies.
+   const patient=await sendPatientNotification(booking,buildPatientConfirmation(booking));
+   let existing=r.rows[0].notification_status;
+   if(typeof existing==='string'){try{existing=JSON.parse(existing);}catch{existing=null;}}
+   existing=existing&&typeof existing==='object'?existing:{};
+   const confirmationResent={at:new Date().toISOString(),sms:patient.sms?.status||'unknown',email:patient.email?.status||'unknown'};
+   const patch={
+    sms:{...(existing.sms||{}),patient:patient.sms,status:patient.sms?.status==='sent'||existing.sms?.internal?.status==='sent'?'sent':(patient.sms?.status||existing.sms?.status||'unknown')},
+    email:{...(existing.email||{}),patient:patient.email,status:patient.email?.status==='sent'||existing.email?.internal?.status==='sent'?'sent':(patient.email?.status||existing.email?.status||'unknown')},
+    confirmationResent
+   };
+   await query(`UPDATE bookings SET notification_status=COALESCE(notification_status,'{}')::jsonb || $2::jsonb,updated_at=now() WHERE reference=$1`,[ref,JSON.stringify(patch)]);
+   await audit('BOOKING',ref,'CONFIRMATION_RESENT',{actor:u.email||u.display_name||u.role,sms:confirmationResent.sms,email:confirmationResent.email});
+   return json(200,{notificationStatus:{...existing,...patch},confirmationResent,result:{sms:patient.sms,email:patient.email}});
   }
   if(p[0]==='admin'&&p[1]==='bookings'&&p[2]&&method==='DELETE'){
    const u=await requireUser(bearer(event),['ADMIN','DISPATCHER']);

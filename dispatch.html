@@ -2584,6 +2584,10 @@ $('saveCustomCompany').addEventListener('click',()=>{
         <div class="formField" id="dispatchEditBrokerRow" hidden><label for="dispatchEditBrokerCompany">Broker company</label><select id="dispatchEditBrokerCompany"><option value="">Select company</option></select></div>
       </div>
     </details>
+    <details class="editorFoldout" id="dispatchEditCustomerMessages"><summary>Customer messages</summary>
+      <div id="dispatchEditNotificationStatus" aria-live="polite"></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap"><button id="dispatchEditResendConfirmation" class="button ghost" type="button">Resend confirmation</button><span id="dispatchEditResendMsg" class="subtle" aria-live="polite"></span></div>
+    </details>
     <div id="dispatchEditDetails"></div>
     <details class="editorFoldout" id="dispatchTimingOverride"><summary>Keep entered times / timing override</summary>
       <p>Reviewed the timing warning? Keep your entered times and record the reason for this trip.</p>
@@ -3649,10 +3653,55 @@ $('saveCustomCompany').addEventListener('click',()=>{
     await ensureEditorAddressAutocomplete();
     markEditorBaseline();
     toggleBrokerFields();
+    renderCustomerMessages(b);
     updateEditorDetails(b);
     if(b.appointmentMissing && !get('dispatchEditAppointmentTime').value){
       setMsg('Warning: Appointment time is missing from submitter data. Enter appointment time and save before any further actions.','err');
     }
+  }
+
+  function customerMessageStatusLabel(status){
+    const key=String(status||'').toLowerCase();
+    if(key==='sent')return 'Sent';
+    if(key==='failed')return 'Failed';
+    if(key==='skipped')return 'Skipped (no contact on file)';
+    return 'Not sent';
+  }
+
+  function renderCustomerMessages(b){
+    const box=get('dispatchEditNotificationStatus');
+    if(!box)return;
+    const resendMsg=get('dispatchEditResendMsg');
+    if(resendMsg)resendMsg.textContent='';
+    let ns=b?.notificationStatus??b?.notification_status??null;
+    if(typeof ns==='string'){try{ns=JSON.parse(ns);}catch{ns=null;}}
+    if(!ns||typeof ns!=='object'){
+      box.innerHTML='<div style="font-size:13px;color:#667085">No customer message recorded.</div>';
+      return;
+    }
+    const escapeHtml=(value)=>String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    const patientStatus=(group)=>{
+      const entry=ns[group];
+      if(!entry||typeof entry!=='object')return '';
+      return entry.patient?.status||entry.status||'';
+    };
+    const formatWhen=(value)=>{
+      const when=value?new Date(value):null;
+      return when&&!Number.isNaN(when.getTime())?when.toLocaleString():'';
+    };
+    const rows=[
+      {label:'Confirmation email',value:customerMessageStatusLabel(patientStatus('email'))},
+      {label:'Confirmation text (SMS)',value:customerMessageStatusLabel(patientStatus('sms'))}
+    ];
+    if(ns.confirmationResent&&typeof ns.confirmationResent==='object'){
+      const when=formatWhen(ns.confirmationResent.at);
+      rows.push({label:'Confirmation resent',value:`${when?`${when} — `:''}Email: ${customerMessageStatusLabel(ns.confirmationResent.email)} · Text: ${customerMessageStatusLabel(ns.confirmationResent.sms)}`});
+    }
+    if(ns.patientCompleted&&typeof ns.patientCompleted==='object'){
+      const when=formatWhen(ns.patientCompleted.sentAt);
+      rows.push({label:'Completed-trip message',value:`${when?`${when} — `:''}Email: ${customerMessageStatusLabel(ns.patientCompleted.email)} · Text: ${customerMessageStatusLabel(ns.patientCompleted.sms)}`});
+    }
+    box.innerHTML=`<dl class="editorRecordGrid">${rows.map(row=>`<div><dt>${escapeHtml(row.label)}</dt><dd>${escapeHtml(row.value)}</dd></div>`).join('')}</dl>`;
   }
 
   function updateEditorDetails(b){
@@ -3899,6 +3948,27 @@ $('saveCustomCompany').addEventListener('click',()=>{
     currentBookingIntakeAudit=null;
     editorHasUnsavedChanges=false;
     editorBaselineSnapshot='';
+  });
+
+  get('dispatchEditResendConfirmation')?.addEventListener('click',async()=>{
+    const ref=get('dispatchEditRef')?.value||currentRef;
+    const msg=get('dispatchEditResendMsg');
+    const button=get('dispatchEditResendConfirmation');
+    if(!ref){if(msg)msg.textContent='Open a trip first.';return;}
+    const token=sessionStorage.getItem('nexusAccessToken')||'';
+    if(button)button.disabled=true;
+    if(msg)msg.textContent='Resending confirmation...';
+    try{
+      const res=await fetch(`/api/admin/bookings/${encodeURIComponent(ref)}/resend-confirmation`,{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'}});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(data.error||'Unable to resend confirmation');
+      renderCustomerMessages({notificationStatus:data.notificationStatus||null});
+      if(msg)msg.textContent=`Confirmation resent — email: ${customerMessageStatusLabel(data.confirmationResent?.email)}, text: ${customerMessageStatusLabel(data.confirmationResent?.sms)}.`;
+    }catch(err){
+      if(msg)msg.textContent=err.message||'Unable to resend confirmation.';
+    }finally{
+      if(button)button.disabled=false;
+    }
   });
 
   get('dispatchEditSave').addEventListener('click',async()=>{
