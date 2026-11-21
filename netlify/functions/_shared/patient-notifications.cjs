@@ -81,6 +81,9 @@ function confirmationContent(v, options = {}) {
   const returnRow = clean(v.tripType).toUpperCase() === 'ROUND_TRIP' && (v.returnTripDate || v.returnTripTime)
     ? ['Return trip', `${v.returnTripDate || v.date} at ${v.returnTripTime || 'TBD'}`]
     : null;
+  const rideHome = clean(v.tripType).toUpperCase() === 'ONE_WAY'
+    ? `<p>Need a ride back after your appointment? Call <strong>${PRIMARY_PHONE}</strong> and we'll bring you home.</p>`
+    : '';
   const body = `${greeting(v, options)}<p>Your ride with Nexus Medical Transit is confirmed. Here are your trip details:</p>${detailTable([
     ['Booking reference', v.reference, true],
     ['Passenger', v.name],
@@ -93,10 +96,10 @@ function confirmationContent(v, options = {}) {
     driverRow,
     ...(returnRow ? [returnRow] : []),
     ...(options.paymentLine ? [['Payment', options.paymentLine]] : [])
-  ])}<p>Please be ready at your pickup time. Your driver provides door-through-door support — they'll come to the door and help you to the vehicle.</p><p>Need to change or cancel? Call us at <strong>${PRIMARY_PHONE}</strong> as early as you can.</p>`;
+  ])}<p>Please be ready at your pickup time. Your driver provides door-through-door support — they'll come to the door and help you to the vehicle. Your driver will text or call when on the way.</p>${rideHome}<p>Need to change or cancel? Call us at <strong>${PRIMARY_PHONE}</strong> as early as you can.</p>`;
   return {
     subject: `Trip confirmed — ${v.reference} | Nexus Medical Transit`,
-    sms: `Nexus Medical Transit: Hi ${v.firstName || 'there'}, your trip ${v.reference} is confirmed for ${v.date} at ${v.pickupTime}. Pickup: ${v.pickup}. Destination: ${v.destination}. Questions or to book again: ${PRIMARY_PHONE}. Reply STOP to opt out, HELP for help.`,
+    sms: `Nexus Medical Transit: Hi ${v.firstName || 'there'}, your trip ${v.reference} is confirmed for ${v.date} at ${v.pickupTime}. Pickup: ${v.pickup}. Destination: ${v.destination}. Your driver will text when on the way. Questions or to book again: ${PRIMARY_PHONE}. Reply STOP to opt out, HELP for help.`,
     html: emailShell(v, body)
   };
 }
@@ -201,6 +204,105 @@ function rescheduleContent(v, options = {}) {
   return statusUpdateContent(v, { summary: `your trip has been rescheduled to ${v.date} at ${v.pickupTime || v.time}` }, options);
 }
 
+// iCalendar (.ics) attachment for the confirmation email, so the trip lands
+// on the patient's own calendar. Times are the trip's local wall-clock times
+// in America/New_York, carried with a VTIMEZONE block (the form Apple,
+// Google and Outlook calendars accept). Returns the sendEmail attachment
+// shape ({filename, content: base64, type}) or null when the booking lacks a
+// usable reference, date or pickup time.
+const CALENDAR_TIMEZONE = 'America/New_York';
+const CALENDAR_VTIMEZONE = [
+  'BEGIN:VTIMEZONE',
+  `TZID:${CALENDAR_TIMEZONE}`,
+  `X-LIC-LOCATION:${CALENDAR_TIMEZONE}`,
+  'BEGIN:DAYLIGHT',
+  'TZOFFSETFROM:-0500',
+  'TZOFFSETTO:-0400',
+  'TZNAME:EDT',
+  'DTSTART:19700308T020000',
+  'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU',
+  'END:DAYLIGHT',
+  'BEGIN:STANDARD',
+  'TZOFFSETFROM:-0400',
+  'TZOFFSETTO:-0500',
+  'TZNAME:EST',
+  'DTSTART:19701101T020000',
+  'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU',
+  'END:STANDARD',
+  'END:VTIMEZONE'
+];
+
+function calendarEscape(value) {
+  return clean(value).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}
+
+function calendarFold(line) {
+  // RFC 5545: content lines should not exceed 75 octets; fold as CRLF + space.
+  const chunks = [];
+  let current = '';
+  for (const char of line) {
+    const candidate = current + char;
+    if (current && Buffer.byteLength(candidate, 'utf8') > 75) { chunks.push(current); current = ` ${char}`; }
+    else current = candidate;
+  }
+  chunks.push(current);
+  return chunks.join('\r\n');
+}
+
+function calendarLocalParts(date, time) {
+  const d = clean(date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const t = clean(time).match(/^(\d{1,2}):(\d{2})/);
+  if (!d || !t) return null;
+  return { year: +d[1], month: +d[2], day: +d[3], hour: +t[1], minute: +t[2] };
+}
+
+function calendarFormat(parts) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${parts.year}${pad(parts.month)}${pad(parts.day)}T${pad(parts.hour)}${pad(parts.minute)}00`;
+}
+
+function calendarAddMinutes(parts, minutes) {
+  const dt = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute + minutes));
+  return { year: dt.getUTCFullYear(), month: dt.getUTCMonth() + 1, day: dt.getUTCDate(), hour: dt.getUTCHours(), minute: dt.getUTCMinutes() };
+}
+
+function calendarDurationMinutes(booking) {
+  const text = clean(booking?.estimatedDuration ?? booking?.estimated_duration);
+  const hours = /(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?\b/i.exec(text);
+  const minutes = /(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?\b/i.exec(text);
+  const total = (hours ? Number(hours[1]) * 60 : 0) + (minutes ? Number(minutes[1]) : 0);
+  return total > 0 ? Math.round(total) : 60;
+}
+
+function tripCalendarAttachment(booking) {
+  const b = booking || {};
+  const v = view(b);
+  const start = calendarLocalParts(v.date, v.pickupTime || v.time);
+  if (!v.reference || !start) return null;
+  const end = calendarAddMinutes(start, calendarDurationMinutes(b));
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Nexus Medical Transit//Trip Confirmation//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    ...CALENDAR_VTIMEZONE,
+    'BEGIN:VEVENT',
+    `UID:${v.reference}@nexusmt.com`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART;TZID=${CALENDAR_TIMEZONE}:${calendarFormat(start)}`,
+    `DTEND;TZID=${CALENDAR_TIMEZONE}:${calendarFormat(end)}`,
+    `SUMMARY:${calendarEscape(`Nexus Medical Transit ride ${v.reference}`)}`,
+    `LOCATION:${calendarEscape(v.pickup)}`,
+    `DESCRIPTION:${calendarEscape(`Destination: ${v.destination}\nService: ${v.service}\nQuestions: ${PRIMARY_PHONE}`)}`,
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ];
+  const ics = lines.map(calendarFold).join('\r\n') + '\r\n';
+  return { filename: `nexus-trip-${v.reference}.ics`, content: Buffer.from(ics, 'utf8').toString('base64'), type: 'text/calendar' };
+}
+
 const STATUS_SUMMARIES = {
   EN_ROUTE: 'your driver is on the way',
   ARRIVED_PICKUP: 'your driver has arrived',
@@ -258,6 +360,7 @@ module.exports = {
   emailShell,
   detailTable,
   confirmationContent,
+  tripCalendarAttachment,
   pendingContent,
   driverAssignedContent,
   reminderContent,
