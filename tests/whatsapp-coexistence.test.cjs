@@ -92,3 +92,24 @@ test('admin status requires a real ADMIN session and exposes no bodies',async()=
  });
  assert.equal((await noSession({httpMethod:'GET',headers:{}})).statusCode,403);
 });
+
+
+test('dashboard remains administrator-gated and cannot display or send message bodies',()=>{
+ const fs=require('node:fs');
+ const path=require('node:path');
+ const root=path.resolve(__dirname,'..');
+ const guard=fs.readFileSync(path.join(root,'auth-guard.js'),'utf8');
+ const html=fs.readFileSync(path.join(root,'nex-whatsapp-status.html'),'utf8');
+ const ui=fs.readFileSync(path.join(root,'nex-whatsapp-status.js'),'utf8');
+ assert.match(guard,/['"]\\/nex-whatsapp-status\\.html['"]\\s*:\\s*\\[['"]ADMIN['"]\\]/);
+ assert.match(html,/src="\\/auth-guard\\.js"/);
+ assert.match(html,/noindex,nofollow/);
+ assert.match(ui,/whatsapp-inbox-status/);
+ assert.doesNotMatch(ui,/(\\/messages|\\/send-message|\\/send-whatsapp)/i);
+ assert.match(html,/message metadata only/i);
+});
+test('malformed POST payload fails closed with 400',async()=>{
+ const handler=makeHandler({env,dbQuery:async()=>{throw Error('never called')}});
+ const response=await handler({httpMethod:'POST',headers,body:'{not valid JSON'});
+ assert.equal(response.statusCode,400);
+});
