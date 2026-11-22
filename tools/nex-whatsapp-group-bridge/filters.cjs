@@ -38,11 +38,18 @@ function normalizeMessage(message,{secret,allowlist,now=Date.now(),startedAt=now
  };
 }
 function validateConfig(env,discovery=false){
- if(env.NEX_GROUP_DEDICATED_ACCOUNT_CONFIRMED!=='true')throw Error('Dedicated account confirmation required');
+ const mode=env.NEX_GROUP_ACCOUNT_MODE;
+ if(mode==='dedicated'){
+  if(env.NEX_GROUP_DEDICATED_ACCOUNT_CONFIRMED!=='true')throw Error('Dedicated account confirmation required');
+ }else if(mode==='existing_business'){
+  if(env.NEX_GROUP_EXISTING_BUSINESS_OWNER_AUTHORIZED!=='true')throw Error('Current business account owner authorization required');
+  if(env.NEX_GROUP_EXISTING_BUSINESS_RISK_ACKNOWLEDGED!=='true')throw Error('Current business account restriction risk acknowledgement required');
+  if(env.NEX_GROUP_OTHER_CHAT_SYNC_RISK_ACKNOWLEDGED!=='true')throw Error('Linked-device synchronization of non-approved chats must be acknowledged');
+ }else throw Error('Select an explicit supported WhatsApp account mode');
  if(!env.NEX_GROUP_AUTH_DIR||!require('node:path').isAbsolute(env.NEX_GROUP_AUTH_DIR))throw Error('Use an absolute persistent auth directory');
+ if(!env.NEX_GROUP_SHARED_SECRET||env.NEX_GROUP_SHARED_SECRET.length<32)throw Error('Strong shared secret required');
  if(discovery)return;
  if(env.NEX_GROUP_BRIDGE_ENABLED!=='true'||env.NEX_GROUP_NOTICE_CONFIRMED!=='true')throw Error('Bridge and member notice must both be explicitly enabled');
- if(!env.NEX_GROUP_SHARED_SECRET||env.NEX_GROUP_SHARED_SECRET.length<32)throw Error('Strong shared secret required');
  if(allowedGroups(env).size===0)throw Error('At least one approved group JID required');
  const url=new URL(env.NEX_GROUP_INGEST_URL||'');
  if(url.protocol!=='https:'||url.hostname!=='nexusmt.com'||url.pathname!=='/.netlify/functions/nex-group-ingest'||url.search||url.hash)throw Error('Only the Nexus HTTPS group ingest endpoint is supported');
