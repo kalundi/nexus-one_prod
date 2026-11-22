@@ -28,6 +28,8 @@ WhatsApp linking will succeed or remain supported.
 
 - Inspect `tools/nex-whatsapp-group-bridge/deploy/nex-wa-bridge.service`.
 - Inspect `tools/nex-whatsapp-group-bridge/deploy/bridge.env.example`.
+- Confirm the service uses `LoadCredential` and contains no literal phone number
+  or HMAC key in `EnvironmentFile`.
 - Run the non-invasive `deploy/preflight.cjs` once an isolated service
   account and private environment exist.
 - Run `node --test tests/nex-wa-vps-readiness.test.cjs` from the repo root.
@@ -107,13 +109,34 @@ NEX_GROUP_DISCOVERY_MODE=false
 NEX_GROUP_NOTICE_CONFIRMED=false
 ```
 
-Set the expected account phone number **only in this private file** using
-`NEX_GROUP_EXPECTED_PHONE_E164=...` (E.164 international format). It is
-not committed, entered into the public application, or printed by preflight.
+**Do not place the phone number or HMAC signing key in this environment
+file.** The systemd service supplies both as protected credentials:
+- `LoadCredential=nex-expected-number:/etc/nex-wa/expected-number`
+- `LoadCredential=nex-shared-secret:/etc/nex-wa/shared-secret`
 
-Generate a strong, independent, random HMAC key locally. Never paste it in
-chat, GitHub, a support ticket, or a Netlify build log. Both future VPS and
-Netlify ingestion endpoints require matching keys.
+The expected-number file contains the current Nexus account number in E.164
+international format. The secret file contains a separate locally generated
+random signing key (32+ characters). Both files must be root-owned with mode
+0600, located outside the repository. For example, an authorized administrator
+can prepare empty protected files and generate the random key without printing
+it:
+
+```bash
+sudo install -m 0600 -o root -g root /dev/null /etc/nex-wa/shared-secret
+sudo install -m 0600 -o root -g root /dev/null /etc/nex-wa/expected-number
+openssl rand -hex 32 | sudo tee /etc/nex-wa/shared-secret >/dev/null
+```
+
+Enter the expected E.164 business number through a private shell prompt into
+`/etc/nex-wa/expected-number` without printing it to console or shell history.
+Do not copy private numbers or keys into this chat, a public issue, source
+code, support tickets or logs.
+
+The standalone `deploy/credentials.cjs` loader reads these files only via
+the systemd-provided `CREDENTIALS_DIRECTORY`. It holds values in a private
+runtime object, not `process.env`. The Netlify endpoint will eventually need
+the same signing key entered through its own protected secret settings; do
+not enable that endpoint during VPS preparation.
 
 The business owner must explicitly review and set the three existing-account
 authorization/risk acknowledgments **before any QR scan**:
@@ -129,9 +152,16 @@ risk.
 
 When an isolated service account and reviewed environment exist, run the
 preflight script as that **non-root** user, with the protected environment
-supplied through a suitable privileged service launcher. The included unit
-has an `ExecStartPre` that refuses to start monitoring unless all active
-mode safety switches are present.
+and two `LoadCredential` files supplied through a privileged systemd service
+launcher. The supplied unit has an `ExecStartPre` that refuses to start
+monitoring unless all active mode safety switches are present.
+
+For any subsequent *interactive pairing* step, a responsible operator must
+use a transient `systemd-run --pty` session that applies the same User,
+EnvironmentFile, and LoadCredential settings. This keeps sensitive values out
+of process command arguments and requires manual QR scanning in an authorized
+terminal. Do not run discovery while the device is connected to an untrusted
+server or with unauthorized groups.
 
 Do NOT `systemctl enable --now nex-wa-bridge` at this stage. Installing the
 unit file is not the same thing as activating the WhatsApp linked device.
@@ -164,8 +194,9 @@ removal. Never purge profiles without confirming backup/incident obligations.
 ## Operational controls
 
 The systemd template runs as `nex-wa`, denies privilege escalation, restricts
-filesystem writes to its dedicated profile tree, and fails preflight without
-explicit, non-default monitoring enablement. It does not manage or purchase
+filesystem writes to its dedicated profile tree, loads secrets through protected
+systemd credentials, and fails preflight without explicit, non-default
+monitoring enablement. It does not manage or purchase
 Hostinger services. It does not add your phone, create WhatsApp groups, or
 handle any QR codes.
 
