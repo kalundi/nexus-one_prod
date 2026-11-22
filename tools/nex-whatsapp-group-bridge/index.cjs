@@ -4,7 +4,7 @@
 const fs=require('node:fs');
 const crypto=require('node:crypto');
 const {Client,LocalAuth}=require('whatsapp-web.js');
-const {allowedGroups,normalizeMessage,validateConfig,hmac}=require('./filters.cjs');
+const {allowedGroups,normalizeMessage,validateConfig,matchesExpectedAccount,hmac}=require('./filters.cjs');
 const env=process.env;
 const discovery=env.NEX_GROUP_DISCOVERY_MODE==='true';
 validateConfig(env,discovery);
@@ -51,6 +51,15 @@ client.on('qr',qr=>{
  require('qrcode-terminal').generate(qr,{small:true});
 });
 client.on('ready',async()=>{
+ // Never process messages for the wrong number, even if a QR from another
+ // WhatsApp account was scanned. Do not log any account identifier.
+ if(!matchesExpectedAccount(client.info,env)){
+  ready=false;
+  console.error('[NEX GROUP] Linked account does not match the expected Nexus business number. No monitoring enabled; unlink the unexpected session from its phone.');
+  await client.destroy().catch(()=>{});
+  process.exitCode=1;
+  return;
+ }
  ready=true;
  monitorStartedAt=Date.now();
  if(discovery){
