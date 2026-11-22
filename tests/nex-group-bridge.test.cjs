@@ -7,7 +7,7 @@ const {makeHandler,configured}=require('../netlify/functions/nex-group-ingest.cj
 const G='12036333333333@g.us',OTHER='12036344444444@g.us';
 const secret='private-testing-secret-with-64-characters-0123456789abcdef';
 const now=Date.now();
-const base={NEX_GROUP_BRIDGE_ENABLED:'true',NEX_GROUP_DEDICATED_ACCOUNT_CONFIRMED:'true',
+const base={NEX_GROUP_ACCOUNT_MODE:'dedicated',NEX_GROUP_BRIDGE_ENABLED:'true',NEX_GROUP_DEDICATED_ACCOUNT_CONFIRMED:'true',
   NEX_GROUP_NOTICE_CONFIRMED:'true',NEX_GROUP_ALLOWLIST:G,NEX_GROUP_SHARED_SECRET:secret,
   NEX_GROUP_AUTH_DIR:'/var/lib/nex-wa/session',NEX_GROUP_INGEST_URL:'https://nexusmt.com/.netlify/functions/nex-group-ingest'};
 const serverEnv={NEX_GROUP_INGEST_ENABLED:'true',NEX_GROUP_SHARED_SECRET:secret,
@@ -25,6 +25,32 @@ test('all monitoring switches, notice, account, group list and HTTPS URL are req
   ['NEX_GROUP_INGEST_URL','http://nexusmt.com/.netlify/functions/nex-group-ingest']]){
   assert.throws(()=>validateConfig({...base,[key]:v},false));
  }
+});
+test('existing business account requires explicit owner and risk confirmations',()=>{
+ const existing={...base,NEX_GROUP_ACCOUNT_MODE:'existing_business',
+  NEX_GROUP_EXISTING_BUSINESS_OWNER_AUTHORIZED:'true',
+  NEX_GROUP_EXISTING_BUSINESS_RISK_ACKNOWLEDGED:'true',
+  NEX_GROUP_OTHER_CHAT_SYNC_RISK_ACKNOWLEDGED:'true'};
+ assert.doesNotThrow(()=>validateConfig(existing,true));
+ assert.doesNotThrow(()=>validateConfig(existing,false));
+ for(const key of [
+  'NEX_GROUP_EXISTING_BUSINESS_OWNER_AUTHORIZED',
+  'NEX_GROUP_EXISTING_BUSINESS_RISK_ACKNOWLEDGED',
+  'NEX_GROUP_OTHER_CHAT_SYNC_RISK_ACKNOWLEDGED'
+ ]) {
+  assert.throws(()=>validateConfig({...existing,[key]:'false'},true));
+  assert.throws(()=>validateConfig({...existing,[key]:undefined},false));
+ }
+ assert.throws(()=>validateConfig({...base,NEX_GROUP_ACCOUNT_MODE:'unknown'},true));
+ assert.throws(()=>validateConfig({...base,NEX_GROUP_ACCOUNT_MODE:undefined},true));
+ assert.throws(()=>validateConfig({...base,NEX_GROUP_DEDICATED_ACCOUNT_CONFIRMED:'false'},true));
+});
+test('existing-business LocalAuth profile differs from dedicated account profile',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const bridge=fs.readFileSync(path.join(__dirname,'../tools/nex-whatsapp-group-bridge/index.cjs'),'utf8');
+ assert.ok(bridge.includes("'nex-current-business'"));
+ assert.ok(bridge.includes("'nex-dedicated'"));
+ assert.ok(!bridge.includes('.sendMessage('));
 });
 test('only approved new inbound text from group is normalized',()=>{
  const allowlist=allowedGroups(base);
