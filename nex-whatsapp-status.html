@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Nex WhatsApp Connection Monitor | Nexus Medical Transit</title>
+<link rel="stylesheet" href="/platform.css?v=66"><link rel="stylesheet" href="/responsive.css?v=5">
+<script src="/auth-guard.js"></script><script src="/nex-whatsapp-status.js" defer></script>
+</head><body class="nexusStaff">
+<main class="shell" style="max-width:1050px;margin:40px auto;padding:20px">
+<a href="/nex-insights.html">← Nex Insights</a>
+<h1>WhatsApp connection monitor</h1>
+<p>This read-only dashboard shows <strong>message metadata only</strong>. It cannot display customer messages, access WhatsApp contacts, import chat history, make bookings or send WhatsApp replies.</p>
+<section class="card" style="padding:18px;margin:16px 0">
+<h2>Safety controls</h2>
+<p><strong>AI replies: disabled. Sending: disabled. Chat history import: disabled.</strong></p>
+<p>Customer phone numbers, names, message text and media are not collected by this integration. Your original conversations remain on your WhatsApp Business phone app.</p>
+</section>
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<button type="button" id="waRefresh">Refresh activity</button>
+<span id="waStatus" role="status" aria-live="polite">Waiting for verification…</span>
+</div>
+<section aria-label="Overview" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px">
+<div class="card" style="padding:20px;flex:1;min-width:155px">Recent events<strong id="waTotal" style="display:block;font-size:2em">—</strong></div>
+<div class="card" style="padding:20px;flex:1;min-width:155px">Received<strong id="waIncoming" style="display:block;font-size:2em">—</strong></div>
+<div class="card" style="padding:20px;flex:1;min-width:155px">Phone-app echoes<strong id="waEcho" style="display:block;font-size:2em">—</strong></div>
+</section>
+<section class="card" style="padding:20px;margin-top:20px">
+<h2>Recent delivery metadata</h2>
+<p>Last 100 recorded events, newest first. Conversation keys are shortened pseudonyms, not contact identities. Displayed event counts are not a comprehensive or verified count of all WhatsApp chats.</p>
+<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:480px" aria-label="WhatsApp activity metadata">
+<thead><tr><th scope="col">Received at</th><th scope="col">Direction</th><th scope="col">Message type</th><th scope="col">Conversation key</th></tr></thead>
+<tbody id="waRows"><tr><td colspan="4">No data loaded.</td></tr></tbody>
+</table></div>
+</section>
+<p><small>Only authorized Nexus administrators can retrieve activity from the protected endpoint. Connection requires provider setup and database migration.</small></p>
+</main><script src="/platform.js"></script></body></html>
