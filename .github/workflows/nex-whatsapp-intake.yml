@@ -1,0 +1,27 @@
+name: Nex WhatsApp coexistence intake tests
+
+on:
+  pull_request:
+    paths:
+      - 'netlify/functions/whatsapp-webhook.cjs'
+      - 'netlify/functions/whatsapp-inbox-status.cjs'
+      - 'database/migrations/999.005_nex_whatsapp_intake.sql'
+      - 'tests/whatsapp-coexistence.test.cjs'
+      - '.github/workflows/nex-whatsapp-intake.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --test tests/whatsapp-coexistence.test.cjs
