@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
-const {allowedGroups,signalFor,normalizeMessage,validateConfig,hmac}=require('../tools/nex-whatsapp-group-bridge/filters.cjs');
+const {allowedGroups,signalFor,normalizeMessage,validateConfig,matchesExpectedAccount,hmac}=require('../tools/nex-whatsapp-group-bridge/filters.cjs');
 const {makeHandler,configured}=require('../netlify/functions/nex-group-ingest.cjs');
 const G='12036333333333@g.us',OTHER='12036344444444@g.us';
 const secret='private-testing-secret-with-64-characters-0123456789abcdef';
@@ -30,7 +30,8 @@ test('existing business account requires explicit owner and risk confirmations',
  const existing={...base,NEX_GROUP_ACCOUNT_MODE:'existing_business',
   NEX_GROUP_EXISTING_BUSINESS_OWNER_AUTHORIZED:'true',
   NEX_GROUP_EXISTING_BUSINESS_RISK_ACKNOWLEDGED:'true',
-  NEX_GROUP_OTHER_CHAT_SYNC_RISK_ACKNOWLEDGED:'true'};
+  NEX_GROUP_OTHER_CHAT_SYNC_RISK_ACKNOWLEDGED:'true',
+  NEX_GROUP_EXPECTED_PHONE_E164:'+15551234567'};
  assert.doesNotThrow(()=>validateConfig(existing,true));
  assert.doesNotThrow(()=>validateConfig(existing,false));
  for(const key of [
@@ -41,6 +42,13 @@ test('existing business account requires explicit owner and risk confirmations',
   assert.throws(()=>validateConfig({...existing,[key]:'false'},true));
   assert.throws(()=>validateConfig({...existing,[key]:undefined},false));
  }
+ const expectedAccount={...existing};
+ assert.equal(matchesExpectedAccount({wid:{user:'15551234567'}},expectedAccount),true);
+ assert.equal(matchesExpectedAccount({wid:{user:'15557654321'}},expectedAccount),false);
+ assert.equal(matchesExpectedAccount({},expectedAccount),false);
+ assert.equal(matchesExpectedAccount(null,expectedAccount),false);
+ assert.throws(()=>validateConfig({...existing,NEX_GROUP_EXPECTED_PHONE_E164:undefined},true));
+ assert.throws(()=>validateConfig({...existing,NEX_GROUP_EXPECTED_PHONE_E164:'5551234567'},true));
  assert.throws(()=>validateConfig({...base,NEX_GROUP_ACCOUNT_MODE:'unknown'},true));
  assert.throws(()=>validateConfig({...base,NEX_GROUP_ACCOUNT_MODE:undefined},true));
  assert.throws(()=>validateConfig({...base,NEX_GROUP_DEDICATED_ACCOUNT_CONFIRMED:'false'},true));
