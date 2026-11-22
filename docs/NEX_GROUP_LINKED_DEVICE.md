@@ -62,6 +62,7 @@ NEX_GROUP_ACCOUNT_MODE=existing_business
 NEX_GROUP_EXISTING_BUSINESS_OWNER_AUTHORIZED=true
 NEX_GROUP_EXISTING_BUSINESS_RISK_ACKNOWLEDGED=true
 NEX_GROUP_OTHER_CHAT_SYNC_RISK_ACKNOWLEDGED=true
+NEX_GROUP_EXPECTED_PHONE_E164=<your-business-number-in-international-format>
 NEX_GROUP_AUTH_DIR=/var/lib/nex-wa/session
 NEX_GROUP_DISCOVERY_MODE=true
 NEX_GROUP_SHARED_SECRET=<generate-private-random-secret-at-least-32-chars>
@@ -93,6 +94,7 @@ NEX_GROUP_ACCOUNT_MODE=existing_business
 NEX_GROUP_EXISTING_BUSINESS_OWNER_AUTHORIZED=true
 NEX_GROUP_EXISTING_BUSINESS_RISK_ACKNOWLEDGED=true
 NEX_GROUP_OTHER_CHAT_SYNC_RISK_ACKNOWLEDGED=true
+NEX_GROUP_EXPECTED_PHONE_E164=<your-business-number-in-international-format>
 NEX_GROUP_BRIDGE_ENABLED=true
 NEX_GROUP_NOTICE_CONFIRMED=true
 NEX_GROUP_ALLOWLIST=<comma-separated-exact-approved-group-JIDs>
@@ -156,6 +158,14 @@ https://www.whatsapp.com/legal/WhatsApp-Terms-for-WhatsApp-Business-App
 To switch back to a dedicated Nex number (lower business-continuity risk),
 set `NEX_GROUP_ACCOUNT_MODE=dedicated` and
 `NEX_GROUP_DEDICATED_ACCOUNT_CONFIRMED=true` instead of the three
-existing-business acknowledgement flags. The two account modes use separate
+existing-business acknowledgement flags. **The exact business phone number belongs in the protected VPS environment only.**
+Do not commit it in the repository, write it in PR comments, or place it in
+browser-facing JavaScript. The bridge compares the signed-in account's
+`client.info.wid.user` against the configured E.164 number and refuses to
+monitor mismatched sessions. The expected account number must be checked
+in the phone app before pairing. A matching number does not make the unofficial
+link safe or approved by WhatsApp.
+
+The two account modes use separate
 `LocalAuth` browser profiles. Never share an active authentication profile
 between account modes.
