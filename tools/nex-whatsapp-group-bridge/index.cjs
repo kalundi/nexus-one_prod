@@ -28,7 +28,7 @@ async function drain(){
    for(let attempt=0;attempt<3;attempt++){
     try{
      const result=await fetch(env.NEX_GROUP_INGEST_URL,{
-      method:'POST',headers:{'content-type':'application/json','x-nex-group-timestamp':ts,'x-nex-group-signature':'sha256='+signature},
+      method:'POST',redirect:'error',headers:{'content-type':'application/json','x-nex-group-timestamp':ts,'x-nex-group-signature':'sha256='+signature},
       body,signal:AbortSignal.timeout(8000)
      });
      if(result.ok){ok=true;break;}
