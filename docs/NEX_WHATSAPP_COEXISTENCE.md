@@ -57,8 +57,10 @@ initiating history sync. Do not imply history has been imported.
 - Durable webhook ingestion queue that acknowledges quickly even for large
   batches; current database write is synchronous and must be load-tested for
   360dialog's five-second acknowledgement requirement.
-- Restriction to approved human-review conversations, admin inbox UI,
-  retention and deletion policies, and PHI escalation.
+- A metadata-only administrator monitor is included at
+  `/nex-whatsapp-status.html` (protected page and API); this is not a chat inbox.
+- A privacy-approved human-review inbox, retention and deletion policies,
+  and PHI escalation remain unimplemented.
 - A separate gated drafting workflow using only authorized data and approved
   Nex knowledge. No auto-send before explicit business approval and tests.
 - Opt-in history import only through a compliant, verified, encrypted pipeline.
@@ -67,3 +69,12 @@ Provider references:
 - https://docs.360dialog.com/docs/hub/embedded-signup/coexistence-onboarding
 - https://docs.360dialog.com/docs/messaging/webhook
 - https://docs.360dialog.com/docs/messaging/webhook/webhook-reference
+
+## Provider delivery detail (verified November 2026)
+The number-level endpoint receives inbound events in `changes[].value.messages`
+and app-originated echoes in `changes[].value.message_echoes` with
+`field=smb_message_echoes`. 360dialog supports a configured `Authorization`
+Basic header for the callback. Payloads must be acknowledged within 5 seconds.
+From January 12, 2027, `history`, `smb_app_state_sync`, and `user_preferences`
+stop being sent to partner webhook URLs; phone-number webhooks remain supported.
+The Nexus integration ignores the history and contact contents intentionally.
