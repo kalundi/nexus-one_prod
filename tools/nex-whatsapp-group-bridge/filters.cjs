@@ -15,7 +15,7 @@ function signalFor(text){
  if(body.includes('?'))return 'question';
  return 'other';
 }
-function normalizeMessage(message,{secret,allowlist,now=Date.now()}={}){
+function normalizeMessage(message,{secret,allowlist,now=Date.now(),startedAt=now}={}){
  if(!secret||String(secret).length<32||!(allowlist instanceof Set))return null;
  if(!message||message.fromMe===true||message.hasMedia===true||message.type!=='chat')return null;
  const group=String(message.from||'');
@@ -27,7 +27,7 @@ function normalizeMessage(message,{secret,allowlist,now=Date.now()}={}){
  if(!author||!id||id.length>512||!body.trim()||body.length>4096||!Number.isFinite(seconds))return null;
  const occurred=seconds*1000;
  // No historical backfill; skip stale or implausible timestamps.
- if(occurred<now-10*60*1000||occurred>now+60*1000)return null;
+ if(occurred<Math.max(now-10*60*1000,startedAt-3000)||occurred>now+60*1000)return null;
  return {
   event_digest:hmac('event:'+id,secret),
   group_digest:hmac('group:'+group,secret),
