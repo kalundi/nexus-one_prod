@@ -37,6 +37,13 @@ function normalizeMessage(message,{secret,allowlist,now=Date.now(),startedAt=now
   occurred_at:new Date(occurred).toISOString()
  };
 }
+function matchesExpectedAccount(clientInfo,env){
+ if(env.NEX_GROUP_ACCOUNT_MODE!=='existing_business')return true;
+ const expected=String(env.NEX_GROUP_EXPECTED_PHONE_E164||'').replace(/^\\+/,'');
+ const actual=String(clientInfo?.wid?.user||'');
+ // Fail closed if WhatsApp account metadata is unavailable.
+ return /^\\d{8,15}$/.test(actual)&&actual===expected;
+}
 function validateConfig(env,discovery=false){
  const mode=env.NEX_GROUP_ACCOUNT_MODE;
  if(mode==='dedicated'){
@@ -45,6 +52,7 @@ function validateConfig(env,discovery=false){
   if(env.NEX_GROUP_EXISTING_BUSINESS_OWNER_AUTHORIZED!=='true')throw Error('Current business account owner authorization required');
   if(env.NEX_GROUP_EXISTING_BUSINESS_RISK_ACKNOWLEDGED!=='true')throw Error('Current business account restriction risk acknowledgement required');
   if(env.NEX_GROUP_OTHER_CHAT_SYNC_RISK_ACKNOWLEDGED!=='true')throw Error('Linked-device synchronization of non-approved chats must be acknowledged');
+  if(!/^\\+[1-9][0-9]{7,14}$/.test(env.NEX_GROUP_EXPECTED_PHONE_E164||''))throw Error('A valid expected business phone number in E.164 format is required');
  }else throw Error('Select an explicit supported WhatsApp account mode');
  if(!env.NEX_GROUP_AUTH_DIR||!require('node:path').isAbsolute(env.NEX_GROUP_AUTH_DIR))throw Error('Use an absolute persistent auth directory');
  if(!env.NEX_GROUP_SHARED_SECRET||env.NEX_GROUP_SHARED_SECRET.length<32)throw Error('Strong shared secret required');
@@ -54,4 +62,4 @@ function validateConfig(env,discovery=false){
  const url=new URL(env.NEX_GROUP_INGEST_URL||'');
  if(url.protocol!=='https:'||url.hostname!=='nexusmt.com'||url.pathname!=='/.netlify/functions/nex-group-ingest'||url.search||url.hash)throw Error('Only the Nexus HTTPS group ingest endpoint is supported');
 }
-module.exports={allowedGroups,hmac,signalFor,normalizeMessage,validateConfig,SIGNALS,DIGEST_PATTERN};
+module.exports={allowedGroups,hmac,signalFor,normalizeMessage,validateConfig,matchesExpectedAccount,SIGNALS,DIGEST_PATTERN};
