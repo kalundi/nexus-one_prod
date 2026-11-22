@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const crypto=require('node:crypto');
 const {Client,LocalAuth}=require('whatsapp-web.js');
 const {allowedGroups,normalizeMessage,validateConfig,matchesExpectedAccount,hmac}=require('./filters.cjs');
-const env=process.env;
+const env=require('./deploy/credentials.cjs').loadRuntimeConfig(process.env);
 const discovery=env.NEX_GROUP_DISCOVERY_MODE==='true';
 validateConfig(env,discovery);
 if(typeof process.getuid==='function'&&process.getuid()===0)throw Error('Do not run bridge as root');
