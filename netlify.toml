@@ -27,7 +27,9 @@
 
 # Preview contexts simulate bookings and payments and skip database setup tasks.
 [context.deploy-preview]
-  command = "node scripts/build-static.mjs"
+  # Netlify preview runs the isolated WhatsApp tests even when GitHub Actions runners are unavailable.
+  # Fail the preview build if webhook, privacy, auth or dashboard tests fail.
+  command = "node --test tests/whatsapp-coexistence.test.cjs && node scripts/build-static.mjs"
   publish = "dist-preview"
 
 [context.deploy-preview.environment]
