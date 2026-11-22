@@ -14,6 +14,7 @@ fs.chmodSync(env.NEX_GROUP_AUTH_DIR,0o700);
 const client=new Client({authStrategy:new LocalAuth({clientId:'nex-dedicated',dataPath:env.NEX_GROUP_AUTH_DIR}),
  puppeteer:{headless:true,args:['--disable-dev-shm-usage']}});
 let ready=false;
+let monitorStartedAt=Number.POSITIVE_INFINITY;
 const backlog=[];
 let draining=false;
 async function drain(){
@@ -47,6 +48,7 @@ client.on('qr',qr=>{
 });
 client.on('ready',async()=>{
  ready=true;
+ monitorStartedAt=Date.now();
  if(discovery){
   if(!process.stdout.isTTY){console.error('[NEX GROUP] Discover groups from an interactive terminal only');return;}
   const chats=await client.getChats();
@@ -61,7 +63,7 @@ client.on('ready',async()=>{
 client.on('disconnected',()=>{ready=false;console.error('[NEX GROUP] Linked device disconnected; no processing')});
 client.on('message',message=>{
  if(discovery||!ready)return;
- const item=normalizeMessage(message,{secret:env.NEX_GROUP_SHARED_SECRET,allowlist:allowedGroups(env)});
+ const item=normalizeMessage(message,{secret:env.NEX_GROUP_SHARED_SECRET,allowlist:allowedGroups(env),startedAt:monitorStartedAt});
  if(!item)return;
  if(backlog.length>=100){console.error('[NEX GROUP] Metadata queue full; item discarded');return;}
  backlog.push(item);
