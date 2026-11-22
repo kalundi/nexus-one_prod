@@ -1,11 +1,10 @@
 # Nex Group Intelligence — unofficial linked-device pilot (disabled by default)
 
 ## What this is (and is NOT)
-An optional **unofficial WhatsApp Web linked device** for a separate, dedicated
-Nex account on a secured, persistent VPS. It is **not** Meta's official
+An optional **unofficial WhatsApp Web linked device** using the **existing Nexus WhatsApp Business account** as explicitly selected by the account owner, on a secured, persistent VPS. A separate dedicated account remains available as a safer fallback. It is **not** Meta's official
 WhatsApp Cloud API. It may violate WhatsApp's Business App terms, break at any
 time, or lead to restrictions or suspension of the dedicated account. Do not
-use your personal or existing Nexus customer-facing WhatsApp account.
+use the existing Nexus customer-facing WhatsApp account without explicitly accepting the risk that the number may be suspended or its business operation disrupted.
 
 This pilot tracks *new* messages in explicitly allowlisted, non-patient,
 business-only groups. It looks locally for heuristic action categories
@@ -23,8 +22,20 @@ has been obtained. If patient details appear, disconnect or stop monitoring,
 assess the data, and use an authorized communications channel.
 
 ## Deployment prerequisites
-- A NEW dedicated Nex WhatsApp number/account (not Nexus's existing business
-  number), invited as a normal group member by an authorized group admin.
+- The existing Nexus WhatsApp Business account remains primary on the iPhone.
+  The user has chosen to link this **existing business number**. No replacement
+  number, migration or 360dialog subscription is required. The account must
+  already be a member of every group being monitored.
+- **Critical risk:** the unofficial automation may breach WhatsApp Business App
+  terms, cause the **actual live Nexus customer-facing number** to be restricted,
+  and interrupt patient/transport operations. The account owner must review
+  and accept that risk outside of this repository before scanning a QR.
+- Linked-device browser synchronization and local session data may contain
+  messages from **all chats**, including DMs or unapproved groups, even when
+  Nexus uploads only approved-group signal categories. The software cannot
+  guarantee that unrelated chats never reach the VPS browser cache.
+- Back up the phone's WhatsApp Business chats first. Use a segregated, encrypted
+  VPS session and obtain authorization from the relevant group administrators.
 - A non-root Unix service account on Nexus's persistent VPS (not Netlify).
 - Restricted VPS access, full disk encryption where available, strong SSH
   authentication, OS patching, supervised process, protected backups.
@@ -47,7 +58,10 @@ Use a protected environment file readable only by the service account,
 never committed to Git. Example variable NAMES (not real values):
 
 ```dotenv
-NEX_GROUP_DEDICATED_ACCOUNT_CONFIRMED=true
+NEX_GROUP_ACCOUNT_MODE=existing_business
+NEX_GROUP_EXISTING_BUSINESS_OWNER_AUTHORIZED=true
+NEX_GROUP_EXISTING_BUSINESS_RISK_ACKNOWLEDGED=true
+NEX_GROUP_OTHER_CHAT_SYNC_RISK_ACKNOWLEDGED=true
 NEX_GROUP_AUTH_DIR=/var/lib/nex-wa/session
 NEX_GROUP_DISCOVERY_MODE=true
 NEX_GROUP_SHARED_SECRET=<generate-private-random-secret-at-least-32-chars>
@@ -55,8 +69,12 @@ NEX_GROUP_SHARED_SECRET=<generate-private-random-secret-at-least-32-chars>
 
 Run `node index.cjs` from an interactive SSH terminal. A QR code is displayed
 only when the process has an interactive terminal; do not stream it into
-persistent logs. On the DEDICATED phone, choose WhatsApp > Linked devices >
-Link a device and scan that QR. On connection, the process prints group
+persistent logs. On the **current Nexus WhatsApp Business iPhone**, choose WhatsApp Business >
+Settings > Linked Devices > Link a Device and scan that QR. This is a
+**high-risk action**, because the unofficial client connects to the real
+customer-facing number. Do not scan before the security and policy review.
+Keep WhatsApp Business installed on the iPhone; do not migrate or unregister
+its number. On connection, the process prints group
 names, group JIDs and corresponding HMAC digests to your terminal ONLY.
 Copy the JIDs and digests to secure administrative configuration. This pilot
 DOES NOT automatically read or publish conversation text.
@@ -71,7 +89,10 @@ source, or chat messages):
 
 ```dotenv
 NEX_GROUP_DISCOVERY_MODE=false
-NEX_GROUP_DEDICATED_ACCOUNT_CONFIRMED=true
+NEX_GROUP_ACCOUNT_MODE=existing_business
+NEX_GROUP_EXISTING_BUSINESS_OWNER_AUTHORIZED=true
+NEX_GROUP_EXISTING_BUSINESS_RISK_ACKNOWLEDGED=true
+NEX_GROUP_OTHER_CHAT_SYNC_RISK_ACKNOWLEDGED=true
 NEX_GROUP_BRIDGE_ENABLED=true
 NEX_GROUP_NOTICE_CONFIRMED=true
 NEX_GROUP_ALLOWLIST=<comma-separated-exact-approved-group-JIDs>
@@ -112,6 +133,9 @@ Data protections:
 ## Validation before starting
 1. `node --test tests/nex-group-bridge.test.cjs` from repo root.
 2. Check group-member notice/consent and allowed group IDs/digests.
+   Independently review the increased risk of using the **existing, active
+   Nexus business number**, its WhatsApp Business App terms, any customer data
+   accessible to browser cache, and the need for service continuity.
 3. Check server migration, endpoint disabled-by-default behavior and timestamp
    replay protection with nonpatient, controlled test messages.
 4. Confirm the dashboard at `/nex-group-monitor.html` is ADMIN-only.
@@ -127,3 +151,11 @@ VPS operating costs and significant maintenance risk.
 References:
 https://wwebjs.dev/guide/creating-your-bot/authentication.html
 https://www.whatsapp.com/legal/WhatsApp-Terms-for-WhatsApp-Business-App
+
+## Optional dedicated account instead
+To switch back to a dedicated Nex number (lower business-continuity risk),
+set `NEX_GROUP_ACCOUNT_MODE=dedicated` and
+`NEX_GROUP_DEDICATED_ACCOUNT_CONFIRMED=true` instead of the three
+existing-business acknowledgement flags. The two account modes use separate
+`LocalAuth` browser profiles. Never share an active authentication profile
+between account modes.
