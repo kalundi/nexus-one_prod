@@ -101,12 +101,12 @@ test('dashboard remains administrator-gated and cannot display or send message b
  const guard=fs.readFileSync(path.join(root,'auth-guard.js'),'utf8');
  const html=fs.readFileSync(path.join(root,'nex-whatsapp-status.html'),'utf8');
  const ui=fs.readFileSync(path.join(root,'nex-whatsapp-status.js'),'utf8');
- assert.match(guard,/['"]\\/nex-whatsapp-status\\.html['"]\\s*:\\s*\\[['"]ADMIN['"]\\]/);
- assert.match(html,/src="\\/auth-guard\\.js"/);
- assert.match(html,/noindex,nofollow/);
- assert.match(ui,/whatsapp-inbox-status/);
- assert.doesNotMatch(ui,/(\\/messages|\\/send-message|\\/send-whatsapp)/i);
- assert.match(html,/message metadata only/i);
+ assert.ok(guard.includes("'/nex-whatsapp-status.html':['ADMIN']"));
+ assert.ok(html.includes('src="/auth-guard.js"'));
+ assert.ok(html.includes('noindex,nofollow'));
+ assert.ok(ui.includes('whatsapp-inbox-status'));
+ assert.ok(!ui.includes('/messages')&&!ui.includes('/send-message')&&!ui.includes('/send-whatsapp'));
+ assert.ok(html.includes('message metadata only'));
 });
 test('malformed POST payload fails closed with 400',async()=>{
  const handler=makeHandler({env,dbQuery:async()=>{throw Error('never called')}});
