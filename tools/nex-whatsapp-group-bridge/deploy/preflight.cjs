@@ -2,6 +2,7 @@
 // Non-invasive VPS readiness inspection. Does not launch a browser or log secrets.
 const fs=require('node:fs');
 const {validateConfig}=require('../filters.cjs');
+const {loadRuntimeConfig}=require('./credentials.cjs');
 
 function inspect({
  env=process.env,
@@ -35,7 +36,10 @@ function inspect({
 }
 if(require.main===module){
  const service=process.argv.includes('--service');
- const result=inspect({service});
+ let config;
+ try{config=loadRuntimeConfig(process.env)}
+ catch{console.error('Nex WhatsApp VPS preflight: BLOCKED (protected systemd credentials missing or invalid)');process.exit(2)}
+ const result=inspect({service,env:config});
  console.log('Nex WhatsApp VPS preflight: '+(result.ok?'PASS':'BLOCKED'));
  for(const issue of result.issues)console.error(' - '+issue);
  console.log('This check never connects to WhatsApp, forwards messages or displays secrets.');
