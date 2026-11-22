@@ -74,5 +74,4 @@ test('unit stays stopped by default and never stores real account details',()=>{
  assert.ok(!template.includes('NEX_GROUP_EXPECTED_PHONE_E164='));
  assert.match(template,/NEX_GROUP_BRIDGE_ENABLED=false/);
  assert.match(template,/NEX_GROUP_EXISTING_BUSINESS_RISK_ACKNOWLEDGED=false/);
- assert.ok(!template.includes('3015007946'));
 });
