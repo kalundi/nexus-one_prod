@@ -29,7 +29,7 @@
 [context.deploy-preview]
   # Netlify preview runs the isolated WhatsApp tests even when GitHub Actions runners are unavailable.
   # Fail the preview build if webhook, privacy, auth or dashboard tests fail.
-  command = "node --test tests/whatsapp-coexistence.test.cjs && node scripts/build-static.mjs"
+  command = "node --test tests/whatsapp-coexistence.test.cjs tests/nex-group-bridge.test.cjs && node scripts/build-static.mjs"
   publish = "dist-preview"
 
 [context.deploy-preview.environment]
@@ -67,6 +67,9 @@
 # Nex reliability monitor: synthetic public answers and asset checks every 6 hours.
 # Optional NEX_MONITOR_ALERT_WEBHOOK_URL delivers only failed check identifiers.
 # Never invokes authenticated staff or patient endpoints.
+[functions.nex-group-retention]
+  schedule = "0 4 * * *"
+
 [functions.nex-monitor]
   schedule = "15 */6 * * *"
 
