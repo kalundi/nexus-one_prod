@@ -96,7 +96,8 @@ continuing to receive messages: **stop/unlink the device as well**.
 
 Data protections:
 - Deny non-group chats, history events, self messages, media, and unapproved JIDs.
-- Discard messages older than 10 minutes and do not bulk sync history.
+- Require messages to be newer than live monitor startup (3-second clock tolerance),
+  discard delayed messages over 10 minutes old, and never bulk import history.
 - HMAC pseudonyms, signed request timestamps, HTTP body size cap, server-side
   group allowlist, idempotent unique event digests.
 - Only aggregate event categories in admin UI; no names, user identifiers or
