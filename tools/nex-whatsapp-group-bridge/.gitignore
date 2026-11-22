@@ -1,0 +1,10 @@
+# Keep private configuration, auth and Chromium cache outside Git.
+bridge.env
+.env
+.env.local
+*.key
+*.pem
+.wwebjs_auth/
+.wwebjs_cache/
+session/
+.cache/
