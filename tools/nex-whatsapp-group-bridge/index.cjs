@@ -11,7 +11,8 @@ validateConfig(env,discovery);
 if(typeof process.getuid==='function'&&process.getuid()===0)throw Error('Do not run bridge as root');
 fs.mkdirSync(env.NEX_GROUP_AUTH_DIR,{recursive:true,mode:0o700});
 fs.chmodSync(env.NEX_GROUP_AUTH_DIR,0o700);
-const client=new Client({authStrategy:new LocalAuth({clientId:'nex-dedicated',dataPath:env.NEX_GROUP_AUTH_DIR}),
+const authClientId=env.NEX_GROUP_ACCOUNT_MODE==='existing_business'?'nex-current-business':'nex-dedicated';
+const client=new Client({authStrategy:new LocalAuth({clientId:authClientId,dataPath:env.NEX_GROUP_AUTH_DIR}),
  puppeteer:{headless:true,args:['--disable-dev-shm-usage']}});
 let ready=false;
 let monitorStartedAt=Number.POSITIVE_INFINITY;
@@ -41,6 +42,9 @@ async function drain(){
    backlog.shift();
   }
  }finally{draining=false}
+}
+if(env.NEX_GROUP_ACCOUNT_MODE==='existing_business'){
+ console.warn('[NEX GROUP] WARNING: Unofficial linked-device integration with the LIVE business number could result in account restrictions. Local browser storage may sync all chats, including non-approved groups and direct messages. Monitoring is not active until an approved allowlist and business notice are configured.');
 }
 client.on('qr',qr=>{
  if(!process.stdout.isTTY){console.warn('[NEX GROUP] QR available only on an interactive terminal; no QR written to system logs');return;}
