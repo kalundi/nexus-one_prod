@@ -17,6 +17,7 @@
     '/admin-maintenance.html':['ADMIN'],
     '/nex-insights.html':['ADMIN'],
     '/nex-whatsapp-status.html':['ADMIN'],
+    '/nex-group-monitor.html':['ADMIN'],
     '/ai-operations.html':['DISPATCHER','ADMIN'],
     '/operations.html':['DISPATCHER','ADMIN']
     ,'/keymark.html':['ADMIN','DISPATCHER','EXECUTIVE','QA','FACILITY']
