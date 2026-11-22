@@ -32,7 +32,8 @@ test('only approved new inbound text from group is normalized',()=>{
  assert.ok(item);assert.equal(item.signal_type,'deadline');assert.equal(item.message_type,'text');
  assert.equal(item.group_digest,hmac('group:'+G,secret));
  for(const patch of [{from:OTHER},{from:'15551112222@c.us'},{fromMe:true},{hasMedia:true},
-  {type:'image'},{timestamp:Math.floor((now-20*60*1000)/1000)},{body:''},{id:null}]){
+  {type:'image'},{timestamp:Math.floor((now-20*60*1000)/1000)},
+  {timestamp:Math.floor((now-60*1000)/1000)},{body:''},{id:null}]){
   assert.equal(normalizeMessage(msg(patch),{secret,allowlist,now}),null);
  }
  assert.doesNotMatch(JSON.stringify(item),/invoice|Friday|1234567890|12036333333|@g\.us/);
