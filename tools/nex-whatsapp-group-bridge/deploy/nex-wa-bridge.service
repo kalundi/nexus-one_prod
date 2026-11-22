@@ -17,6 +17,8 @@ Environment=NODE_ENV=production
 Environment=HOME=/var/lib/nex-wa
 Environment=PUPPETEER_CACHE_DIR=/var/lib/nex-wa/.cache/puppeteer
 EnvironmentFile=/etc/nex-wa/bridge.env
+LoadCredential=nex-shared-secret:/etc/nex-wa/shared-secret
+LoadCredential=nex-expected-number:/etc/nex-wa/expected-number
 ExecStartPre=/usr/bin/node /opt/nex-wa/deploy/preflight.cjs --service
 ExecStart=/usr/bin/node /opt/nex-wa/index.cjs
 Restart=on-failure
