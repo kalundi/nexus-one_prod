@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Nex Group Intelligence | Nexus Medical Transit</title>
+<link rel="stylesheet" href="/platform.css?v=66"><link rel="stylesheet" href="/responsive.css?v=5">
+<script src="/auth-guard.js"></script><script src="/nex-group-monitor.js" defer></script></head>
+<body class="nexusStaff"><main class="shell" style="max-width:1050px;margin:40px auto;padding:20px">
+<a href="/nex-insights.html">← Nex Insights</a><h1>Nex Group Intelligence</h1>
+<p>Read-only indicators from explicitly approved WhatsApp groups. No individual messages, authors, group member lists, media, phone numbers or historical chat transcripts are displayed or retained by this feature.</p>
+<section class="card" style="padding:18px;margin:16px 0">
+<h2>Connection and privacy</h2>
+<p id="groupHealth" role="status">Checking protected group metadata endpoint…</p>
+<p><strong>Automatic messages disabled. Only newly received text messages in allowlisted groups can produce signals. No AI or outbound replies are connected.</strong></p>
+<p>Group members must be informed before monitoring is enabled. Never use this connection for patient-related information.</p>
+</section>
+<button id="groupRefresh" type="button">Refresh seven-day activity</button>
+<section aria-label="Recent group signals" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px">
+<div class="card" style="padding:20px;flex:1;min-width:145px">Messages classified<strong id="groupTotal" style="display:block;font-size:2em">—</strong></div>
+<div class="card" style="padding:20px;flex:1;min-width:145px">Tasks and deadlines<strong id="groupTasks" style="display:block;font-size:2em">—</strong></div>
+<div class="card" style="padding:20px;flex:1;min-width:145px">Questions<strong id="groupQuestions" style="display:block;font-size:2em">—</strong></div>
+</section>
+<section class="card" style="padding:20px;margin-top:20px"><h2>Seven-day category breakdown</h2>
+<p>Group keys are pseudonymous identifiers. These counts are heuristic, not verified assignments or full conversation summaries.</p>
+<div style="overflow-x:auto"><table style="width:100%;min-width:440px;border-collapse:collapse">
+<thead><tr><th scope="col">Group key</th><th scope="col">Category</th><th scope="col">Count</th><th scope="col">Latest event</th></tr></thead>
+<tbody id="groupRows"><tr><td colspan="4">No group data loaded.</td></tr></tbody></table></div></section>
+<p><small>All event metadata expires after 30 days through the scheduled retention job. This dashboard only queries the last 7 days.</small></p>
+</main><script src="/platform.js"></script></body></html>
