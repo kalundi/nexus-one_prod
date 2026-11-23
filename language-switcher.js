@@ -1,31 +1,6 @@
-/* Nexus language switcher (Google Translate, Option A) — v2.
- *
- * Public marketing pages only. Replaces the dictionary-based language
- * <select> (i18n.js) with custom EN / ES / FR controls that drive the
- * Google Translate element, so the whole page converts to the chosen
- * language. Selection persists across pages via Google's googtrans
- * cookie.
- *
- * v2 fixes (mobile):
- * - The legacy <select> is hidden persistently: a CSS rule in
- *   language-switcher.css hides any [data-nexus-language] control
- *   wherever it appears (header AND footer), and the sweep below
- *   re-hides any instance re-created later (the home page header is
- *   rendered by the site JS bundle, which can re-create its label).
- * - At mobile widths the control collapses to a single 44px toggle
- *   button showing the current language; tapping it opens a menu with
- *   all three languages. In the adaptive mobile header it takes the
- *   language grid slot (column 2) the legacy control used to occupy.
- * - The googtrans cookie is written deterministically for both the
- *   exact host and the parent domain, so www and bare-domain visits
- *   (and the alias domains) always agree on the selected language.
- *
- * The legacy i18n.js dictionary system stays loaded (apps and other
- * pages still use it), but on these pages it is pinned to en-US, where
- * its dictionary is empty and it makes no text changes, so the two
- * systems never fight over the same text nodes.
- */
-(function () {
+/* Nexus language switcher: native English, Spanish and French dictionaries.
+ * No third-party Google widget is needed; NexusI18n persists selections.
+ */(function () {
   'use strict';
 
   var LANGS = [
@@ -34,42 +9,19 @@
     { code: 'fr', short: 'FR', name: 'Français', aria: 'Français (French)' }
   ];
 
-  /* --- Pin legacy dictionary i18n to en-US (inert) --- */
-  try { localStorage.setItem('nexusLocale', 'en-US'); } catch (e) { /* private mode */ }
-  if (window.NexusI18n && typeof window.NexusI18n.getLocale === 'function' &&
-      window.NexusI18n.getLocale() !== 'en-US' &&
-      typeof window.NexusI18n.setLocale === 'function') {
-    try { window.NexusI18n.setLocale('en-US'); } catch (e) { /* keep page as-is */ }
+  function getSelectedLanguage() {
+    var selected = '';
+    try {
+      selected = window.NexusI18n && typeof window.NexusI18n.getLocale === 'function'
+        ? window.NexusI18n.getLocale() : localStorage.getItem('nexusLocale');
+    } catch (e) { /* Storage can be unavailable in private mode. */ }
+    return selected === 'es' || selected === 'fr' ? selected : 'en';
   }
-
-  /* --- Current language from the googtrans cookie --- */
-  function cookieLanguage() {
-    var match = document.cookie.match(/(?:^|;\s*)googtrans=([^;]*)/);
-    if (!match) return 'en';
-    var parts = decodeURIComponent(match[1]).split('/');
-    var target = parts[parts.length - 1];
-    return (target === 'es' || target === 'fr') ? target : 'en';
-  }
-  var current = cookieLanguage();
+  var current = getSelectedLanguage();
 
   function langByCode(code) {
     for (var i = 0; i < LANGS.length; i++) if (LANGS[i].code === code) return LANGS[i];
     return LANGS[0];
-  }
-
-  /* Write the same value for the exact host and (when applicable) the
-     parent domain, so a stale domain-level cookie can never shadow the
-     host-level one or vice versa. '/en/en' is Google's "no translation"
-     value, so EN is written the same way rather than deleted. */
-  function writeCookie(lang) {
-    var value = '/en/' + lang;
-    var attrs = ';path=/;max-age=31536000;SameSite=Lax';
-    document.cookie = 'googtrans=' + value + attrs;
-    var host = location.hostname;
-    var dot = host.lastIndexOf('.', host.lastIndexOf('.') - 1);
-    if (dot > 0) {
-      document.cookie = 'googtrans=' + value + attrs + ';domain=.' + host.slice(dot + 1);
-    }
   }
 
   /* --- Hide legacy dictionary selectors (header, footer, anywhere) ---
@@ -198,52 +150,40 @@
     return true;
   }
 
-  /* --- Google Translate element --- */
-  function ensureHolder() {
-    if (document.getElementById('google_translate_element')) return;
-    var holder = document.createElement('div');
-    holder.id = 'google_translate_element';
-    holder.className = 'nexusGteHolder notranslate';
-    holder.setAttribute('translate', 'no');
-    holder.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(holder);
+  function showTranslationError() {
+    var error = document.querySelector('.nexusLangError');
+    if (!error) {
+      error = document.createElement('span');
+      error.className = 'nexusLangError';
+      error.setAttribute('role', 'alert');
+      var switcher = document.querySelector('.nexusLangSwitch');
+      if (switcher) switcher.appendChild(error);
+    }
+    if (error) error.textContent = 'Translation unavailable. Please refresh this page.';
   }
 
-  window.googleTranslateElementInit = function () {
-    if (!window.google || !google.translate) return;
-    new google.translate.TranslateElement({
-      pageLanguage: 'en',
-      includedLanguages: 'en,es,fr',
-      layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
-      autoDisplay: false
-    }, 'google_translate_element');
-  };
-
-  function loadGoogleTranslate() {
-    if (document.querySelector('script[src*="translate_a/element.js"]')) return;
-    var script = document.createElement('script');
-    script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
-    script.async = true;
-    document.head.appendChild(script);
-  }
-
-  /* --- Switching --- */
   function setLanguage(lang) {
     if (lang !== 'en' && lang !== 'es' && lang !== 'fr') return;
+    var next = lang === 'en' ? 'en-US' : lang;
+    var translator = window.NexusI18n;
+    if (!translator || typeof translator.setLocale !== 'function') {
+      showTranslationError();
+      return;
+    }
+    try {
+      translator.setLocale(next);
+      if (typeof translator.getLocale === 'function' && translator.getLocale() !== next) {
+        showTranslationError();
+        return;
+      }
+    } catch (e) {
+      showTranslationError();
+      return;
+    }
     current = lang;
-    writeCookie(lang);
-    document.documentElement.lang = lang;
+    document.querySelectorAll('.nexusLangError').forEach(function (el) { el.textContent = ''; });
     refreshState();
     closeMenus();
-    var combo = document.querySelector('.goog-te-combo');
-    if (combo) {
-      combo.value = lang;
-      combo.dispatchEvent(new Event('change', { bubbles: true }));
-    } else {
-      /* Google script not ready yet: the cookie alone is enough, but the
-         current page only converts after a reload. */
-      location.reload();
-    }
   }
 
   /* --- Sweep: keep the legacy control hidden and ours in place, even
@@ -268,9 +208,11 @@
 
   /* --- Boot --- */
   function boot() {
-    ensureHolder();
     sweep();
-    loadGoogleTranslate();
+    window.addEventListener('nexus:localechange', function () {
+      current = getSelectedLanguage();
+      refreshState();
+    });
     document.addEventListener('click', function (event) {
       if (!event.target.closest || !event.target.closest('.nexusLangSwitch')) closeMenus();
     });
