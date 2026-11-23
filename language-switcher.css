@@ -1,0 +1,99 @@
+/* Nexus language switcher (Google Translate, Option A).
+   Loaded only on public marketing pages. Hides Google Translate chrome
+   (top banner, gadget branding, tooltip) and styles the custom
+   EN / ES / FR header control to match the shared site nav. */
+
+/* --- Hide Google Translate UI chrome --- */
+.goog-te-banner-frame,
+.goog-te-banner-frame.skiptranslate {
+  display: none !important;
+  visibility: hidden !important;
+}
+body {
+  top: 0 !important;
+}
+#goog-gt-tt,
+.goog-te-balloon-frame {
+  display: none !important;
+}
+.goog-text-highlight {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+/* The Google gadget itself lives off-screen: it must stay rendered so the
+   language combo works, but its branding/dropdown are never shown. */
+.nexusGteHolder {
+  position: absolute !important;
+  left: -9999px !important;
+  top: 0 !important;
+  width: 220px !important;
+  height: 44px !important;
+  overflow: hidden !important;
+}
+
+/* --- Legacy dictionary selector: kept in the DOM (other shared scripts
+   look for it) but removed from view; the switcher replaces it. --- */
+header .nexusLangLegacyHidden {
+  display: none !important;
+}
+
+/* --- Custom switcher control (matches header pill styling) --- */
+.nexusLangSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid #d5e1ea;
+  border-radius: 12px;
+  padding: 3px;
+  margin-left: auto;
+  font-family: Manrope, system-ui, sans-serif;
+}
+.nexusLangSwitchCaption {
+  font-weight: 800;
+  font-size: 0.78rem;
+  line-height: 1;
+  color: #0f2744;
+  padding: 0 0.3rem 0 0.5rem;
+  white-space: nowrap;
+}
+.nexusLangBtn {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  color: #0f2744;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 0.82rem;
+  line-height: 1;
+  padding: 0.5rem 0.55rem;
+  min-height: 38px;
+  min-width: 44px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.nexusLangBtn:hover {
+  background: #eef4f9;
+}
+.nexusLangBtn[aria-pressed="true"] {
+  background: #0f2744;
+  color: #fff;
+}
+.nexusLangBtn:focus-visible {
+  outline: 3px solid #0ea5e9;
+  outline-offset: 2px;
+}
+@media (max-width: 760px) {
+  .nexusLangSwitchCaption {
+    display: none;
+  }
+  .nexusLangBtn {
+    padding: 0.5rem 0.45rem;
+  }
+}
+@media print {
+  .nexusLangSwitch {
+    display: none !important;
+  }
+}
