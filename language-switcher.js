@@ -1,10 +1,24 @@
-/* Nexus language switcher (Google Translate, Option A).
+/* Nexus language switcher (Google Translate, Option A) — v2.
  *
- * Public marketing pages only. Replaces the header's dictionary-based
- * language <select> with custom EN / ES / FR buttons that drive the
+ * Public marketing pages only. Replaces the dictionary-based language
+ * <select> (i18n.js) with custom EN / ES / FR controls that drive the
  * Google Translate element, so the whole page converts to the chosen
  * language. Selection persists across pages via Google's googtrans
  * cookie.
+ *
+ * v2 fixes (mobile):
+ * - The legacy <select> is hidden persistently: a CSS rule in
+ *   language-switcher.css hides any [data-nexus-language] control
+ *   wherever it appears (header AND footer), and the sweep below
+ *   re-hides any instance re-created later (the home page header is
+ *   rendered by the site JS bundle, which can re-create its label).
+ * - At mobile widths the control collapses to a single 44px toggle
+ *   button showing the current language; tapping it opens a menu with
+ *   all three languages. In the adaptive mobile header it takes the
+ *   language grid slot (column 2) the legacy control used to occupy.
+ * - The googtrans cookie is written deterministically for both the
+ *   exact host and the parent domain, so www and bare-domain visits
+ *   (and the alias domains) always agree on the selected language.
  *
  * The legacy i18n.js dictionary system stays loaded (apps and other
  * pages still use it), but on these pages it is pinned to en-US, where
@@ -15,9 +29,9 @@
   'use strict';
 
   var LANGS = [
-    { code: 'en', short: 'EN', aria: 'English' },
-    { code: 'es', short: 'ES', aria: 'Español (Spanish)' },
-    { code: 'fr', short: 'FR', aria: 'Français (French)' }
+    { code: 'en', short: 'EN', name: 'English', aria: 'English' },
+    { code: 'es', short: 'ES', name: 'Español', aria: 'Español (Spanish)' },
+    { code: 'fr', short: 'FR', name: 'Français', aria: 'Français (French)' }
   ];
 
   /* --- Pin legacy dictionary i18n to en-US (inert) --- */
@@ -38,25 +52,46 @@
   }
   var current = cookieLanguage();
 
+  function langByCode(code) {
+    for (var i = 0; i < LANGS.length; i++) if (LANGS[i].code === code) return LANGS[i];
+    return LANGS[0];
+  }
+
+  /* Write the same value for the exact host and (when applicable) the
+     parent domain, so a stale domain-level cookie can never shadow the
+     host-level one or vice versa. '/en/en' is Google's "no translation"
+     value, so EN is written the same way rather than deleted. */
   function writeCookie(lang) {
-    var value = (lang === 'en') ? '/en/en' : '/en/' + lang;
-    document.cookie = 'googtrans=' + value + ';path=/';
+    var value = '/en/' + lang;
+    var attrs = ';path=/;max-age=31536000;SameSite=Lax';
+    document.cookie = 'googtrans=' + value + attrs;
     var host = location.hostname;
     var dot = host.lastIndexOf('.', host.lastIndexOf('.') - 1);
     if (dot > 0) {
-      document.cookie = 'googtrans=' + value + ';path=/;domain=.' + host.slice(dot + 1);
-    }
-    if (lang === 'en') {
-      var past = ';expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      document.cookie = 'googtrans=;path=/' + past;
-      if (dot > 0) {
-        document.cookie = 'googtrans=;path=/;domain=.' + host.slice(dot + 1) + past;
-      }
-      document.cookie = 'googtrans=/en/en;path=/';
+      document.cookie = 'googtrans=' + value + attrs + ';domain=.' + host.slice(dot + 1);
     }
   }
 
-  /* --- Custom control --- */
+  /* --- Hide legacy dictionary selectors (header, footer, anywhere) ---
+     CSS in language-switcher.css does the persistent work; this adds
+     inline hiding as a second layer for instances the bundle or
+     platform.js re-create after load. The elements stay in the DOM:
+     platform.js and the homepage bundle look for them. */
+  function hideLegacyIn(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('.nexusLanguageControl, .headerLanguage, .headerLanguageGlobal')
+      .forEach(function (el) {
+        if (el.closest && el.closest('.nexusLangSwitch')) return;
+        if (!el.querySelector || !el.querySelector('[data-nexus-language]')) return;
+        if (!el.classList.contains('nexusLangLegacyHidden')) {
+          el.classList.add('nexusLangLegacyHidden');
+        }
+        el.style.setProperty('display', 'none', 'important');
+        el.setAttribute('aria-hidden', 'true');
+      });
+  }
+
+  /* --- Custom control: desktop pill + mobile toggle/menu --- */
   function buildControl() {
     var wrap = document.createElement('div');
     wrap.className = 'nexusLangSwitch notranslate';
@@ -69,44 +104,89 @@
     caption.textContent = 'Language';
     wrap.appendChild(caption);
 
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'nexusLangToggle';
+    toggle.setAttribute('aria-haspopup', 'true');
+    toggle.setAttribute('aria-expanded', 'false');
+    var toggleCode = document.createElement('span');
+    toggleCode.className = 'nexusLangToggleCode';
+    toggleCode.textContent = langByCode(current).short;
+    toggle.appendChild(toggleCode);
+    var caret = document.createElement('span');
+    caret.className = 'nexusLangToggleCaret';
+    caret.setAttribute('aria-hidden', 'true');
+    caret.textContent = '▾';
+    toggle.appendChild(caret);
+    toggle.addEventListener('click', function (event) {
+      event.stopPropagation();
+      setMenuOpen(wrap, !wrap.classList.contains('open'));
+    });
+    wrap.appendChild(toggle);
+
+    var menu = document.createElement('div');
+    menu.className = 'nexusLangMenu';
+    menu.setAttribute('role', 'group');
+    menu.setAttribute('aria-label', 'Choose language');
     LANGS.forEach(function (lang) {
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'nexusLangBtn';
       btn.dataset.lang = lang.code;
-      btn.textContent = lang.short;
       btn.setAttribute('aria-label', lang.aria);
       btn.setAttribute('aria-pressed', lang.code === current ? 'true' : 'false');
+      var code = document.createElement('span');
+      code.className = 'nexusLangBtnCode';
+      code.textContent = lang.short;
+      btn.appendChild(code);
+      var name = document.createElement('span');
+      name.className = 'nexusLangBtnName';
+      name.textContent = lang.name;
+      btn.appendChild(name);
       btn.addEventListener('click', function () { setLanguage(lang.code); });
-      wrap.appendChild(btn);
+      menu.appendChild(btn);
     });
+    wrap.appendChild(menu);
+    updateToggle(wrap);
     return wrap;
   }
 
-  function refreshPressed() {
-    document.querySelectorAll('.nexusLangBtn').forEach(function (btn) {
-      btn.setAttribute('aria-pressed', btn.dataset.lang === current ? 'true' : 'false');
+  function updateToggle(wrap) {
+    var lang = langByCode(current);
+    var code = wrap.querySelector('.nexusLangToggleCode');
+    if (code) code.textContent = lang.short;
+    var toggle = wrap.querySelector('.nexusLangToggle');
+    if (toggle) toggle.setAttribute('aria-label', 'Language: ' + lang.name + '. Choose language');
+  }
+
+  function setMenuOpen(wrap, open) {
+    wrap.classList.toggle('open', open);
+    var toggle = wrap.querySelector('.nexusLangToggle');
+    if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  function closeMenus() {
+    document.querySelectorAll('.nexusLangSwitch.open').forEach(function (wrap) {
+      setMenuOpen(wrap, false);
     });
   }
 
-  function hideLegacy(header) {
-    header.querySelectorAll('.nexusLanguageControl, .headerLanguage').forEach(function (el) {
-      if (el.querySelector && el.querySelector('[data-nexus-language]')) {
-        el.classList.add('nexusLangLegacyHidden');
-        el.style.setProperty('display', 'none', 'important');
-        el.setAttribute('aria-hidden', 'true');
-      }
+  function refreshState() {
+    document.querySelectorAll('.nexusLangSwitch').forEach(function (wrap) {
+      updateToggle(wrap);
+      wrap.querySelectorAll('.nexusLangBtn').forEach(function (btn) {
+        btn.setAttribute('aria-pressed', btn.dataset.lang === current ? 'true' : 'false');
+      });
     });
   }
 
   function placeControl() {
     var header = document.querySelector('header');
     if (!header) return false;
-    hideLegacy(header);
-    if (header.querySelector('.nexusLangSwitch')) { refreshPressed(); return true; }
+    if (header.querySelector('.nexusLangSwitch')) { refreshState(); return true; }
     var control = buildControl();
     var legacy = header.querySelector('[data-nexus-language]');
-    var label = legacy && (legacy.closest('.nexusLanguageControl, .headerLanguage') || legacy.parentElement);
+    var label = legacy && (legacy.closest('.nexusLanguageControl, .headerLanguage, .headerLanguageGlobal') || legacy.parentElement);
     if (label && label.parentNode) {
       label.parentNode.insertBefore(control, label.nextSibling);
     } else {
@@ -114,7 +194,7 @@
                  header.querySelector('.globalNav, .nav, .shell') || header;
       host.appendChild(control);
     }
-    refreshPressed();
+    refreshState();
     return true;
   }
 
@@ -153,7 +233,8 @@
     current = lang;
     writeCookie(lang);
     document.documentElement.lang = lang;
-    refreshPressed();
+    refreshState();
+    closeMenus();
     var combo = document.querySelector('.goog-te-combo');
     if (combo) {
       combo.value = lang;
@@ -165,23 +246,38 @@
     }
   }
 
+  /* --- Sweep: keep the legacy control hidden and ours in place, even
+     when the header/footer are re-rendered after load. --- */
+  var sweepQueued = false;
+  function sweep() {
+    sweepQueued = false;
+    var header = document.querySelector('header');
+    if (header) {
+      hideLegacyIn(header);
+      if (!header.querySelector('.nexusLangSwitch')) placeControl();
+    }
+    var footer = document.querySelector('footer');
+    if (footer) hideLegacyIn(footer);
+  }
+  function queueSweep() {
+    if (sweepQueued) return;
+    sweepQueued = true;
+    if (window.requestAnimationFrame) requestAnimationFrame(sweep);
+    else setTimeout(sweep, 50);
+  }
+
   /* --- Boot --- */
-  var placing = false;
   function boot() {
     ensureHolder();
-    placeControl();
+    sweep();
     loadGoogleTranslate();
-    /* Bundle-rendered headers (home page) and shared-header injection can
-       add or re-render the header after load; keep the control in place. */
-    var observer = new MutationObserver(function () {
-      if (placing) return;
-      var header = document.querySelector('header');
-      if (header && !header.querySelector('.nexusLangSwitch')) {
-        placing = true;
-        placeControl();
-        placing = false;
-      }
+    document.addEventListener('click', function (event) {
+      if (!event.target.closest || !event.target.closest('.nexusLangSwitch')) closeMenus();
     });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') closeMenus();
+    });
+    var observer = new MutationObserver(queueSweep);
     observer.observe(document.documentElement, { childList: true, subtree: true });
   }
 

@@ -1,7 +1,9 @@
-/* Nexus language switcher (Google Translate, Option A).
+/* Nexus language switcher (Google Translate, Option A) — v2.
    Loaded only on public marketing pages. Hides Google Translate chrome
-   (top banner, gadget branding, tooltip) and styles the custom
-   EN / ES / FR header control to match the shared site nav. */
+   (top banner, gadget branding, tooltip), permanently hides the legacy
+   dictionary language selector, and styles the custom EN / ES / FR
+   header control to match the shared site nav. On mobile the control
+   collapses to a single toggle button with a drop-down menu. */
 
 /* --- Hide Google Translate UI chrome --- */
 .goog-te-banner-frame,
@@ -31,14 +33,24 @@ body {
   overflow: hidden !important;
 }
 
-/* --- Legacy dictionary selector: kept in the DOM (other shared scripts
-   look for it) but removed from view; the switcher replaces it. --- */
-header .nexusLangLegacyHidden {
+/* --- Legacy dictionary selector: permanently hidden, wherever it is
+   rendered (header or footer) and however often it is re-created.
+   The elements stay in the DOM — platform.js and the homepage bundle
+   look for them — but they can never be seen or tapped. This replaces
+   the old JS-only hiding, which a re-render could undo. --- */
+select[data-nexus-language],
+.nexusLanguageControl,
+.headerLanguage,
+.headerLanguageGlobal,
+.nexusLangLegacyHidden {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 /* --- Custom switcher control (matches header pill styling) --- */
 .nexusLangSwitch {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -57,6 +69,11 @@ header .nexusLangLegacyHidden {
   padding: 0 0.3rem 0 0.5rem;
   white-space: nowrap;
 }
+/* Desktop: the menu is transparent to layout, so the three buttons sit
+   in the pill exactly like a normal segmented control. */
+.nexusLangMenu {
+  display: contents;
+}
 .nexusLangBtn {
   appearance: none;
   -webkit-appearance: none;
@@ -72,6 +89,10 @@ header .nexusLangLegacyHidden {
   min-width: 44px;
   border-radius: 9px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
 }
 .nexusLangBtn:hover {
   background: #eef4f9;
@@ -80,16 +101,107 @@ header .nexusLangLegacyHidden {
   background: #0f2744;
   color: #fff;
 }
-.nexusLangBtn:focus-visible {
+.nexusLangBtn:focus-visible,
+.nexusLangToggle:focus-visible {
   outline: 3px solid #0ea5e9;
   outline-offset: 2px;
 }
+.nexusLangBtnName {
+  display: none;
+}
+/* Toggle button: mobile only (desktop shows the full pill). */
+.nexusLangToggle {
+  display: none;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  color: #0f2744;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 0.82rem;
+  line-height: 1;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.5rem 0.45rem;
+  border-radius: 9px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.nexusLangToggleCaret {
+  font-size: 0.6rem;
+}
+
+/* --- Mobile: one 44px toggle; all three languages in the drop-down --- */
 @media (max-width: 760px) {
   .nexusLangSwitchCaption {
     display: none;
   }
-  .nexusLangBtn {
-    padding: 0.5rem 0.45rem;
+  .nexusLangToggle {
+    display: inline-flex;
+  }
+  .nexusLangMenu {
+    display: none;
+  }
+  .nexusLangSwitch.open .nexusLangMenu {
+    display: block;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 1000;
+    min-width: 196px;
+    background: #fff;
+    border: 1px solid #d5e1ea;
+    border-radius: 12px;
+    box-shadow: 0 18px 40px rgba(7, 31, 55, 0.18);
+    padding: 6px;
+  }
+  .nexusLangSwitch.open .nexusLangBtn {
+    display: flex;
+    width: 100%;
+    justify-content: flex-start;
+    min-height: 48px;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.95rem;
+  }
+  .nexusLangBtnName {
+    display: inline;
+    font-weight: 700;
+  }
+  .nexusLangBtnCode {
+    min-width: 30px;
+    text-align: left;
+  }
+
+  /* Adaptive mobile header (platform.js adds .nexusAdaptiveMobileHeader
+     at <=760px): the actions container becomes display:contents and the
+     nav is a 6-column grid. Take the language slot (column 2) the legacy
+     control used to occupy, as a bare 44px toggle. */
+  header.nexusAdaptiveMobileHeader .nexusLangSwitch {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    place-self: center !important;
+    margin: 0 !important;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  header.nexusAdaptiveMobileHeader .nexusLangToggle {
+    border: 1px solid #d5e1ea;
+    background: #fff;
+    border-radius: 12px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  header.nexusAdaptiveMobileHeader .nexusLangSwitch.open .nexusLangMenu {
+    top: calc(100% + 8px);
+    right: auto;
+    left: 0;
   }
 }
 @media print {
