@@ -1,37 +1,4 @@
-/* Nexus language switcher (Google Translate, Option A) — v2.
-   Loaded only on public marketing pages. Hides Google Translate chrome
-   (top banner, gadget branding, tooltip), permanently hides the legacy
-   dictionary language selector, and styles the custom EN / ES / FR
-   header control to match the shared site nav. On mobile the control
-   collapses to a single toggle button with a drop-down menu. */
-
-/* --- Hide Google Translate UI chrome --- */
-.goog-te-banner-frame,
-.goog-te-banner-frame.skiptranslate {
-  display: none !important;
-  visibility: hidden !important;
-}
-body {
-  top: 0 !important;
-}
-#goog-gt-tt,
-.goog-te-balloon-frame {
-  display: none !important;
-}
-.goog-text-highlight {
-  background: transparent !important;
-  box-shadow: none !important;
-}
-/* The Google gadget itself lives off-screen: it must stay rendered so the
-   language combo works, but its branding/dropdown are never shown. */
-.nexusGteHolder {
-  position: absolute !important;
-  left: -9999px !important;
-  top: 0 !important;
-  width: 220px !important;
-  height: 44px !important;
-  overflow: hidden !important;
-}
+/* Native Nexus EN / ES / FR switcher, desktop and mobile. */
 
 /* --- Legacy dictionary selector: permanently hidden, wherever it is
    rendered (header or footer) and however often it is re-created.
@@ -208,4 +175,12 @@ select[data-nexus-language],
   .nexusLangSwitch {
     display: none !important;
   }
+}
+
+.nexusLangError {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 1002;
+  width: max-content; max-width: min(270px, calc(100vw - 32px));
+  padding: 9px 12px; border: 1px solid #f1b9b9; border-radius: 9px;
+  background: #fff; color: #8b1d1d; font-size: 13px; font-weight: 700;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
 }
