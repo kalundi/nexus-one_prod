@@ -3,7 +3,10 @@
 // Gather / Dial / Record action callback (step passed as a query param).
 // Menu: 1 = animal consultant (rings the consultant line), 2 = shop,
 // 3 = book pet care, 4 = membership, 5 = holiday, 6 = hours/info,
-// 7 = voicemail, 9 = repeat menu.
+// 7 = voicemail, 9 = repeat menu. Hidden: when the caller is the owner
+// (OWNER_NUMBERS), pressing 9 at the main menu starts outbound dialing
+// from this line instead of repeating the menu; the option is never
+// announced, and every other caller keeps the repeat-menu behavior.
 // The caller chooses a language once, at the start of the call
 // (1 = English, 2 = French, 3 = Spanish; no input defaults to English).
 // The choice rides along as a lang query param on every callback, and
@@ -18,6 +21,22 @@ const {query}=require('./_shared/db.cjs');
 
 const CONSULTANT_NUMBER='+13015007946';
 const VOICEMAIL_NUMBER='+12272452912';
+// Owner outbound dialing: only these caller numbers get the hidden
+// main-menu option 9. Outbound calls show this line's own number.
+const OWNER_NUMBERS=['+13015007946','+12022702174'];
+const OUTBOUND_CALLER_ID='+18777295061';
+const isOwner=from=>{
+ const digits=String(from||'').replace(/\D/g,'');
+ if(digits.length<10)return false;
+ const last10=digits.slice(-10);
+ return OWNER_NUMBERS.some(n=>n.slice(-10)===last10);
+};
+const outboundDestination=raw=>{
+ const digits=String(raw||'').replace(/\D/g,'');
+ if(digits.length===10)return `+1${digits}`;
+ if(digits.length===11&&digits.startsWith('1'))return `+${digits}`;
+ return '';
+};
 const VOICE='Polly.Joanna';
 const PATH='/webhooks/pawluxe/ivr';
 const GREETING_URLS=[
@@ -134,11 +153,33 @@ function voicemailTransferTwiml(intro){
   +`<Dial timeout="25" action="${selfUrl('aftervm')}" method="POST">${VOICEMAIL_NUMBER}</Dial>`;
 }
 
-function buildTwiml({digits,step,dialCallStatus,base,lang}={}){
+function outboundPromptTwiml(retry){
+ return `<Gather finishOnKey="#" timeout="15" action="${selfUrl(retry?'outbound2':'outbound')}" method="POST">`
+  +(retry?say("That number doesn't look right.",'en'):'')
+  +say('Enter the number you want to call, then press pound.','en')
+  +'</Gather>'
+  +`<Redirect method="POST">${selfUrl('mainmenu')}</Redirect>`;
+}
+
+function buildTwiml({digits,step,dialCallStatus,base,lang,from}={}){
  BASE=String(base||'').replace(/\/$/,'');
  LANG=normLang(lang);
  if(step==='lang'){
   LANG=langFromDigits(digits);
+  return mainMenu();
+ }
+ if(step==='mainmenu'){
+  return mainMenu();
+ }
+ if(step==='outbound'||step==='outbound2'){
+  // Owner-only: anyone else landing here just gets the main menu.
+  if(!isOwner(from))return mainMenu();
+  const dest=outboundDestination(digits);
+  if(dest)return `<Dial callerId="${OUTBOUND_CALLER_ID}">${dest}</Dial>`;
+  // No digits entered (timeout / bare #): back to the main menu.
+  if(!digits)return mainMenu();
+  // Invalid number: re-prompt once, then back to the main menu.
+  if(step==='outbound')return outboundPromptTwiml(true);
   return mainMenu();
  }
  if(step==='afterdial'){
@@ -184,7 +225,10 @@ function buildTwiml({digits,step,dialCallStatus,base,lang}={}){
  if(digits==='7'){
   return `<Redirect method="POST">${selfUrl('voicemail')}</Redirect>`;
  }
- // Main menu: digit 9, or any unrecognized digit.
+ if(digits==='9'&&isOwner(from)){
+  return outboundPromptTwiml(false);
+ }
+ // Main menu: digit 9 (non-owner), or any unrecognized digit.
  return mainMenu();
 }
 
@@ -233,7 +277,7 @@ exports.handler=async event=>{
   const acc=await query(`SELECT call_sid FROM voice_dispatch_accepts WHERE call_sid=$1 OR call_sid=$2 LIMIT 1`,[params.CallSid||'',params.DialCallSid||'']).catch(()=>null);
   if(!(acc&&acc.rows&&acc.rows.length))dialCallStatus='no-answer';
  }
- return xml(buildTwiml({digits:params.Digits||'',step,dialCallStatus,base:site,lang}));
+ return xml(buildTwiml({digits:params.Digits||'',step,dialCallStatus,base:site,lang,from:params.From||''}));
 };
 
 module.exports.buildTwiml=buildTwiml;

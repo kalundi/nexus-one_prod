@@ -2204,6 +2204,32 @@ function toE164(value){
  if(digits.length===10)return `+1${digits}`;
  return clean(value);
 }
+// Owner outbound dialing (hidden main-menu option 9): only Anthony's own
+// caller numbers can start it, and the outbound leg shows the Nexus main
+// line as caller ID. The option is never announced in the spoken menu;
+// any other caller pressing 9 gets the normal invalid-input handling.
+const OWNER_DIAL_NUMBERS=['+13015007946','+12022702174'];
+const OWNER_OUTBOUND_CALLER_ID='+18886395766';
+function isOwnerCaller(from){
+ const digits=String(from||'').replace(/\D/g,'');
+ if(digits.length<10)return false;
+ const last10=digits.slice(-10);
+ return OWNER_DIAL_NUMBERS.some(n=>n.slice(-10)===last10);
+}
+function normalizeOutboundDialNumber(raw){
+ const digits=String(raw||'').replace(/\D/g,'');
+ if(digits.length===10)return `+1${digits}`;
+ if(digits.length===11&&digits.startsWith('1'))return `+${digits}`;
+ return '';
+}
+function voiceOutboundPromptTwiml(config,retry=false){
+ const action=xmlEscape(voiceRouteUrl('outbound-handle',`attempt=${retry?2:1}`,config?.lang));
+ const menuUrl=xmlEscape(voiceRouteUrl('menu','',config?.lang));
+ const prompt=retry
+  ?"That number doesn't look right. Enter the number you want to call, then press pound."
+  :'Enter the number you want to call, then press pound.';
+ return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather finishOnKey="#" timeout="15" action="${action}" method="POST">\n    ${sayTag(prompt,config)}\n  </Gather>\n  <Redirect method="POST">${menuUrl}</Redirect>\n</Response>`;
+}
 function voiceRouteUrl(path,query='',lang=''){
  const base=`${siteBase()}/api/voice/${path}`;
  const langPart=(lang==='fr'||lang==='es')?`lang=${lang}`:'';
@@ -3044,6 +3070,9 @@ async function handler(event){
    const speech=clean(params.SpeechResult||params.speechResult||'');
    const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
    const intentText=`${digits} ${speech}`.trim();
+   if(digits==='9'&&isOwnerCaller(callerFrom)){
+    return xmlResponse(200,voiceOutboundPromptTwiml(config,false));
+   }
    if(digits==='1'||wantsHumanTransfer(intentText)){
     const targets=getDispatchDialTargets(config,callerFrom);
     if(targets.primary){
@@ -3109,6 +3138,30 @@ async function handler(event){
     return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  ${sayTag('I was unable to understand the request. Please call back and press 1 to speak with someone from our team.',config)}\n</Response>`);
    }
    return xmlResponse(200,voiceMenuTwiml(config,retry+1));
+  }
+  if(p[0]==='voice'&&p[1]==='outbound-handle'&&(method==='POST'||method==='GET')){
+   const config=getVoiceConfig(event.queryStringParameters?.lang);
+   const params=parseWebhookBody(event);
+   const attempt=Math.max(1,Number(event.queryStringParameters?.attempt||1)||1);
+   const digits=clean(params.Digits||params.digits||'');
+   const callerFrom=clean(params.From||params.from||event.queryStringParameters?.From||event.queryStringParameters?.from||'');
+   // Owner-only endpoint: anyone else is returned to the main menu.
+   if(!isOwnerCaller(callerFrom)){
+    return xmlResponse(200,voiceMenuTwiml(config,0));
+   }
+   // No digits entered (timeout / bare #): back to the main menu.
+   if(!digits){
+    return xmlResponse(200,voiceMenuTwiml(config,0));
+   }
+   const destination=normalizeOutboundDialNumber(digits);
+   if(destination){
+    return xmlResponse(200,`<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Dial callerId="${OWNER_OUTBOUND_CALLER_ID}"><Number>${xmlEscape(destination)}</Number></Dial>\n</Response>`);
+   }
+   // Invalid number: re-prompt once, then back to the main menu.
+   if(attempt<2){
+    return xmlResponse(200,voiceOutboundPromptTwiml(config,true));
+   }
+   return xmlResponse(200,voiceMenuTwiml(config,0));
   }
   if(p[0]==='voice'&&p[1]==='transfer-dispatch'&&(method==='POST'||method==='GET')){
    const config=getVoiceConfig(event.queryStringParameters?.lang);
