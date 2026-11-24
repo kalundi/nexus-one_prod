@@ -2735,10 +2735,10 @@ async function handler(event){
    if(route==='integrations/config'&&method==='GET'){
     // A deploy preview may exercise the real read-only Maps service without
     // turning on live bookings, payments, messages or database mutations.
-    const previewMaps=process.env.NEXUS_PREVIEW_MAPS==='true'&&Boolean(GOOGLE_MAPS_BROWSER_KEY);
+    const previewMaps=Boolean(GOOGLE_MAPS_BROWSER_KEY)&&process.env.NEXUS_PREVIEW_MAPS!=='false';
     return json(200,{build:'test',testMode:true,googleMapsEnabled:previewMaps,googleMapsBrowserKey:previewMaps?GOOGLE_MAPS_BROWSER_KEY:'',stripeEnabled:true,stripePublishableKey:'',squareEnabled:false});
    }
-   if(route==='integrations/health'&&method==='GET')return json(200,{testMode:true,googleMaps:process.env.NEXUS_PREVIEW_MAPS==='true'&&GOOGLE_MAPS_BROWSER_KEY?'configured':'simulated',twilio:'disabled',emailProvider:'Postmark',postmark:'disabled',teams:'disabled',stripe:'simulated',square:'disabled',gps:'simulated',checkedAt:new Date().toISOString()});
+   if(route==='integrations/health'&&method==='GET')return json(200,{testMode:true,googleMaps:process.env.NEXUS_PREVIEW_MAPS!=='false'&&GOOGLE_MAPS_BROWSER_KEY?'configured':'simulated',twilio:'disabled',emailProvider:'Postmark',postmark:'disabled',teams:'disabled',stripe:'simulated',square:'disabled',gps:'simulated',checkedAt:new Date().toISOString()});
   if(route==='flights/lookup'&&method==='POST'){
    const b=parseBody(event),airportStop=clean(b.airportStop).toUpperCase();
    if(!['PICKUP','DESTINATION'].includes(airportStop))return json(400,{error:'Choose whether the airport is the pickup or destination.'});
