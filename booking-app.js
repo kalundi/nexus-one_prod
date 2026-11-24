@@ -1470,6 +1470,14 @@
 
   function syncSectionProgressUi(){
     syncPassengerName();
+    const patientQuick = window.parent!==window && new URLSearchParams(location.search).get('patientApp')==='1' && Boolean(currentUser?.id && token()) && currentUserRole==='PATIENT' && !new URLSearchParams(location.search).has('manageRide');
+    document.body.classList.toggle('patientQuickBooking',patientQuick);
+    const quickSummary=$('patientQuickSummary');
+    if(quickSummary){
+      quickSummary.hidden=!patientQuick||!riderDetailsConfirmed||journeyNavigationOverride==='riderDetailsSection'||bookingSubmitted||bookingSubmissionPending;
+      $('patientQuickName').textContent=String($('name')?.value||'');
+      $('patientQuickService').textContent=String(normalizeService($('service')?.value)||'Service not selected').replaceAll('_',' ');
+    }
     const progress = getProgressState();
     updateTelemetrySpotlight();
     if(fareSummaryAmount){
@@ -4443,6 +4451,12 @@
       isAdminUser = currentUserRole === 'ADMIN';
       applyRiderDetailsFromAuthUser();
       await applyPatientTransportationPreferences();
+      if(window.parent!==window && new URLSearchParams(location.search).get('patientApp')==='1' && currentUserRole==='PATIENT'){
+        const savedIdentity=Boolean(currentUser?.id && String(currentUser.displayName||currentUser.name||'').trim() && String(currentUser.phone||'').trim() && String(currentUser.email||'').trim());
+        riderDetailsConfirmed=Boolean(savedIdentity && passengerNameComplete() && $('phone')?.checkValidity() && $('email')?.checkValidity() && normalizeService($('service')?.value) && (String(payerType?.value||'').toUpperCase()!=='INSURANCE'||String(insuranceCarrier?.value||'').trim()));
+        if(riderDetailsConfirmed){expandedSections.delete('riderDetailsSection');riderDetailsInitiallyCollapsed.add('riderDetailsSection');}
+        else{expandedSections.add('riderDetailsSection');riderDetailsInitiallyCollapsed.delete('riderDetailsSection');}
+      }
       syncRiderIdentityMode();
       syncSectionProgressUi();
     }catch{
@@ -4872,6 +4886,7 @@
       window.setTimeout(syncMapViewport,280);
     });
     $('rideSchedulePill')?.addEventListener('click',()=>{journeyNavigationOverride='pickupDropoffSection';revealSectionForAction('pickupDropoffSection','tripDate');});
+    $('patientQuickEdit')?.addEventListener('click',()=>revealSectionForAction('riderDetailsSection','firstName'));
     $('rideRiderPill')?.addEventListener('click',()=>revealSectionForAction('riderDetailsSection','firstName'));
     if(payStripeBtn) payStripeBtn.addEventListener('click', () => startHostedPayment('stripe', 'full'));
     if(paySquareBtn) paySquareBtn.addEventListener('click', () => startHostedPayment('square', 'full'));
