@@ -4167,7 +4167,7 @@ async function handler(event){
    return json(200,{user:safeUser(refreshed)});
   }
   if((p[0]==='patient'&&p[1]==='trips'&&p[3]==='return-pickup')||(p[0]==='dispatch'&&p[1]==='return-pickups')){
-   const response=await require('./_shared/patient-return-pickups.cjs').createHandler({query,requireUser,bearer,json,audit})(event,p,method);
+   const response=await require('./_shared/patient-return-pickups.cjs').createHandler({query,requireUser,bearer,json,audit,notifyDispatch:request=>sendTeamsAlert('Return pickup requested: '+String(request.reference).replace(/[^a-zA-Z0-9_-]/g,'')+' — '+String(request.requestedAt),'Return pickup request — Nexus Dispatch')})(event,p,method);
    if(response)return response;
   }
   if(p[0]==='patient'&&p[1]==='dashboard'&&method==='GET'){
