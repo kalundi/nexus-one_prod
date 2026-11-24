@@ -87,14 +87,21 @@
    try{
     const result=await options.onQuote({...draft});
     if(!result||!result.signature||!(result.fare>0))throw Error('No valid estimate');
-    controls.replaceChildren();bubble('Your estimated fare is '+Number(result.fare).toLocaleString('en-US',{style:'currency',currency:'USD'})+(result.pickupTime?' and the estimated pickup time is '+result.pickupTime+'.':'.')+(draft.tripType==='RECURRING'?' This is the estimate for the displayed ride; recurring charges depend on the schedule.':''));
+    controls.replaceChildren();
     const routeCard=document.createElement('section');routeCard.className='nexRouteCard';routeCard.setAttribute('aria-label','Estimated driving route');
     const summary=document.createElement('p');summary.textContent=[Number.isFinite(result.distance)&&result.distance>0?result.distance.toFixed(1)+' miles':'',result.duration||''].filter(Boolean).join(' · ');routeCard.append(summary);
     const map=document.createElement('div');map.className='nexRouteMap';map.setAttribute('aria-label','Map from pickup to destination');routeCard.append(map);log.insertBefore(routeCard,controls);
     try{if(!options.renderRoute?.(map)){map.remove();const unavailable=document.createElement('p');unavailable.textContent='Route map is unavailable right now.';routeCard.append(unavailable);}}catch{map.remove();const unavailable=document.createElement('p');unavailable.textContent='Route map is unavailable right now.';routeCard.append(unavailable);}
     log.scrollTop=log.scrollHeight;
-    bubble('Would you like me to submit this ride request?');
-    button('Submit ride request',()=>submit(result));button('Change answers',()=>{routeCard.remove();chat('What would you like to change?');});
+    const fareCard=document.createElement('section');fareCard.className='nexFareReview';fareCard.setAttribute('aria-label','Estimated fare and ride confirmation');
+    const label=document.createElement('div');label.className='nexFareLabel';label.textContent='Estimated fare';
+    const amount=document.createElement('strong');amount.className='nexFareAmount';amount.textContent=Number(result.fare).toLocaleString(window.NexusI18n?.getLocale?.()||'en-US',{style:'currency',currency:'USD'});
+    fareCard.append(label,amount);
+    if(result.pickupTime){const pickup=document.createElement('p');pickup.className='nexFarePickup';const match=String(result.pickupTime).match(/^(\d{1,2}):(\d{2})$/);const time=match?Number(match[1])%12||12:null;pickup.textContent='Estimated pickup: '+(match?time+':'+match[2]+(Number(match[1])>=12?' PM':' AM'):result.pickupTime);fareCard.append(pickup);}
+    const note=document.createElement('p');note.className='nexFareNote';note.textContent=draft.tripType==='RECURRING'?'Estimate for the displayed ride. Recurring charges depend on the schedule.':'Please review your fare before submitting. Nothing has been booked yet.';fareCard.append(note);
+    log.insertBefore(fareCard,controls);
+    const submitButton=button('Submit ride request',()=>submit(result));submitButton.classList.add('nexConfirmRide');
+    button('Change answers',()=>{fareCard.remove();routeCard.remove();chat('What would you like to change?');});
    }catch(error){controls.replaceChildren();bubble('I couldn’t calculate your fare yet. '+(error?.message||'Please check the ride details.'));button('Try again',quote);button('Change pickup',()=>{delete draft.pickup;chat('Where should we pick you up?','pickup');});button('Change destination',()=>{delete draft.destination;chat('Where are you heading?','destination');});button('Contact Nexus',contact);}
    finally{lock(false);}
   }
