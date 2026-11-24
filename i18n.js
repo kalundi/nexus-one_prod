@@ -7542,6 +7542,7 @@ const originals=new WeakMap();
 const originalAttributes=new WeakMap();
 const originalTitle=document.title;
 let isTranslating=false;
+const sortedTranslationKeys={};
 function exact(value){const map=dictionary[locale]||{};return map[value]||value;}
 function escapeRegExp(value){return String(value).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
 function translateText(text){
@@ -7551,8 +7552,9 @@ function translateText(text){
  let out=map[core]||core;
  // Translate known phrases inside longer labels and sentences. Longest phrases run first.
  if(out===core && locale!=='en-US'){
-  Object.keys(map).sort((a,b)=>b.length-a.length).forEach(key=>{
-   if(!key || key.length<3)return;
+  const keys=sortedTranslationKeys[locale]||(sortedTranslationKeys[locale]=Object.keys(map).filter(key=>key.length>=3).sort((a,b)=>b.length-a.length));
+  keys.forEach(key=>{
+   if(!out.includes(key))return;
    out=out.replace(new RegExp(escapeRegExp(key),'g'),map[key]);
   });
  }
@@ -7665,6 +7667,7 @@ function addSelector(){
    }
   });
  });
+ if(updated){delete sortedTranslationKeys.es;delete sortedTranslationKeys.fr;}
  if(updated&&document.body&&locale!=='en-US'&&locale!=='en-GB')apply();
 }
 window.NexusI18n={setLocale,registerTranslations,getLocale:()=>locale,locales,t:(s)=>exact(s),formatCurrency:(n,c='USD')=>new Intl.NumberFormat(locale,{style:'currency',currency:c}).format(n),formatDate:(d,o)=>new Intl.DateTimeFormat(locale,o).format(new Date(d))};
