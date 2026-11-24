@@ -7542,6 +7542,7 @@ const originals=new WeakMap();
 const originalAttributes=new WeakMap();
 const originalTitle=document.title;
 let isTranslating=false;
+const sortedTranslationKeys={};
 function exact(value){const map=dictionary[locale]||{};return map[value]||value;}
 function escapeRegExp(value){return String(value).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
 function translateText(text){
@@ -7551,8 +7552,9 @@ function translateText(text){
  let out=map[core]||core;
  // Translate known phrases inside longer labels and sentences. Longest phrases run first.
  if(out===core && locale!=='en-US'){
-  Object.keys(map).sort((a,b)=>b.length-a.length).forEach(key=>{
-   if(!key || key.length<3)return;
+  const keys=sortedTranslationKeys[locale]||(sortedTranslationKeys[locale]=Object.keys(map).filter(key=>key.length>=3).sort((a,b)=>b.length-a.length));
+  keys.forEach(key=>{
+   if(!out.includes(key))return;
    out=out.replace(new RegExp(escapeRegExp(key),'g'),map[key]);
   });
  }
@@ -7570,7 +7572,7 @@ function translateNode(node){
     return;
  }
  if(node.nodeType!==1||['SCRIPT','STYLE','NOSCRIPT','CODE','PRE','TEXTAREA'].includes(node.tagName))return;
- ['aria-label','title','placeholder','value'].forEach(a=>{
+ ['aria-label','title','placeholder','value','alt','aria-description','aria-valuetext'].forEach(a=>{
   if(node.hasAttribute(a)){
    let attrs=originalAttributes.get(node);
    if(!attrs){attrs={};originalAttributes.set(node,attrs);}
@@ -7652,6 +7654,33 @@ function addSelector(){
     if(needsSync)syncLanguageSelectors();
  });
  function init(){addSelector();bindSelectors();apply();syncLanguageSelectors();observer.observe(document.body,{childList:true,subtree:true,characterData:true});}
- window.NexusI18n={setLocale,getLocale:()=>locale,locales,t:(s)=>exact(s),formatCurrency:(n,c='USD')=>new Intl.NumberFormat(locale,{style:'currency',currency:c}).format(n),formatDate:(d,o)=>new Intl.DateTimeFormat(locale,o).format(new Date(d))};
+ function registerTranslations(entries) {
+ if(!entries||typeof entries!=='object')return;
+ let updated=false;
+ ['es','fr'].forEach(lang=>{
+  const extra=entries[lang];
+  if(!extra||typeof extra!=='object')return;
+  Object.entries(extra).forEach(([source,translated])=>{
+   if(typeof source==='string'&&source.trim()&&typeof translated==='string'&&translated.trim()){
+    dictionary[lang][source]=translated;
+    updated=true;
+   }
+  });
+ });
+ if(updated){delete sortedTranslationKeys.es;delete sortedTranslationKeys.fr;}
+ if(updated&&document.body&&locale!=='en-US'&&locale!=='en-GB')apply();
+}
+window.NexusI18n={setLocale,registerTranslations,getLocale:()=>locale,locales,t:(s)=>exact(s),formatCurrency:(n,c='USD')=>new Intl.NumberFormat(locale,{style:'currency',currency:c}).format(n),formatDate:(d,o)=>new Intl.DateTimeFormat(locale,o).format(new Date(d))};
+ // Load curated translations for current public-site content on every page.
+ // If the bundle is unavailable, the base dictionary remains functional.
+ try {
+   if(!document.querySelector('script[data-nexus-locale-additions]')){
+     const extra=document.createElement('script');
+     extra.src='/locale-additions.js?v=1';
+     extra.async=true;
+     extra.dataset.nexusLocaleAdditions='true';
+     document.head.appendChild(extra);
+   }
+ } catch(error) { console.warn('Nexus supplementary translations unavailable:',error); }
  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
 })();
