@@ -4943,7 +4943,18 @@
     if(window.parent!==window&&params.get('patientApp')==='1'&&currentUserRole==='PATIENT'&&currentUser?.id&&token()&&riderDetailsConfirmed&&!params.has('manageRide')&&!params.has('payment')&&!params.has('bookingReference')&&!bookingSubmitted){
       const allowed=allowedServicesForRole(currentUserRole);
       const services=Array.from($('serviceTypeSelect')?.options||[]).filter(o=>o.value&&allowed.has(o.value)&&!o.disabled&&!o.hidden).map(o=>[o.value,o.textContent.trim()]);
-      if(services.length)window.NexusBookingConversation?.mount({firstName:$('firstName')?.value,pickup:$('pickup')?.value,service:normalizeService($('service')?.value),services,minDate:$('tripDate')?.min,onQuote:async draft=>{
+      const owner=currentUser.id;
+      const loadRecentRoutes=async()=>{
+        if(!token()||currentUser?.id!==owner||currentUserRole!=='PATIENT')return [];
+        const response=await fetch('/api/portal/trips',{headers:{authorization:'Bearer '+token()},cache:'no-store',signal:AbortSignal.timeout(8000)});
+        if(!response.ok||currentUser?.id!==owner||!token())return [];
+        const data=await response.json();
+        const routes=(Array.isArray(data.trips)?data.trips:[]).filter(t=>/^(completed|delivered)$/i.test(String(t.status||''))&&typeof t.pickup==='string'&&typeof t.destination==='string'&&t.pickup.trim()&&t.destination.trim()&&!t.multipleStops&&!t.multiple_stops&&!t.destination.includes(' ? ')).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+        const unique=new Map();
+        for(const t of routes){const key=JSON.stringify([t.pickup,t.destination,normalizeService(t.service)]);if(!unique.has(key))unique.set(key,{pickup:t.pickup,destination:t.destination,service:normalizeService(t.service)});}
+        return [...unique.values()].slice(0,5);
+      };
+      if(services.length)window.NexusBookingConversation?.mount({firstName:$('firstName')?.value,pickup:$('pickup')?.value,service:normalizeService($('service')?.value),services,loadRecentRoutes,minDate:$('tripDate')?.min,onQuote:async draft=>{
         const set=(id,value)=>{const field=$(id);if(field)field.value=value||'';};
         set('pickup',draft.pickup);set('destination',draft.destination);set('tripDate',draft.date);set('scheduleBasis',draft.basis);set('tripType',draft.tripType);
         syncTripScheduleUi();syncScheduleBasisUi();
