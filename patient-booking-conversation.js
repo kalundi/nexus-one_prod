@@ -3,13 +3,12 @@
  const labels={ONE_WAY:'One way',ROUND_TRIP:'Round trip',RECURRING:'Recurring'};
  window.NexusBookingConversation={mount(options){
   const host=document.createElement('section');host.className='nexusBookingConversation';host.setAttribute('aria-label','Nex booking conversation');
-  const head=document.createElement('header');head.innerHTML='<strong>Nex · Booking assistant</strong><small>Let’s arrange your ride.</small>';
   const log=document.createElement('div');log.className='nexBookingLog';log.setAttribute('role','log');log.setAttribute('aria-live','polite');
   const controls=document.createElement('div');controls.className='nexBookingControls';
   const footer=document.createElement('footer');
   const manual=document.createElement('button');manual.type='button';manual.className='ghost';manual.textContent='Use booking form instead';manual.addEventListener('click',()=>finish(false));
   const restart=document.createElement('button');restart.type='button';restart.className='ghost';restart.textContent='Start over';restart.addEventListener('click',reset);
-  footer.append(restart,manual);host.append(head,log,controls,footer);document.body.append(host);document.body.classList.add('nexBookingConversationOpen');
+  footer.append(restart,manual);host.append(log,controls,footer);document.body.append(host);document.body.classList.add('nexBookingConversationOpen');
   let draft={},closed=false,busy=false;
   function bubble(text,who='nex'){const el=document.createElement('p');el.className='nexBookingBubble '+who;const speaker=document.createElement('span');speaker.className='nexBookingSpeaker';speaker.textContent=who==='patient'?'You':'Nex';el.append(speaker,document.createTextNode(text));log.append(el);log.scrollTop=log.scrollHeight;}
   function button(text,fn){const b=document.createElement('button');b.type='button';b.className='ghost';b.textContent=text;b.addEventListener('click',fn);controls.append(b);return b;}
@@ -91,14 +90,13 @@
     if(!result||!result.signature||!(result.fare>0))throw Error('No valid estimate');
     controls.replaceChildren();bubble('Your estimated fare is '+Number(result.fare).toLocaleString('en-US',{style:'currency',currency:'USD'})+(result.pickupTime?' and the estimated pickup time is '+result.pickupTime+'.':'.')+(draft.tripType==='RECURRING'?' This is the estimate for the displayed ride; recurring charges depend on the schedule.':''));
     const routeCard=document.createElement('section');routeCard.className='nexRouteCard';routeCard.setAttribute('aria-label','Estimated driving route');
-    const heading=document.createElement('strong');heading.textContent='Your planned route';routeCard.append(heading);
     const summary=document.createElement('p');summary.textContent=[Number.isFinite(result.distance)&&result.distance>0?result.distance.toFixed(1)+' miles':'',result.duration||''].filter(Boolean).join(' · ');routeCard.append(summary);
     const map=document.createElement('div');map.className='nexRouteMap';map.setAttribute('aria-label','Map from pickup to destination');routeCard.append(map);log.append(routeCard);
     try{if(!options.renderRoute?.(map)){map.remove();const unavailable=document.createElement('p');unavailable.textContent='Route map is unavailable right now.';routeCard.append(unavailable);}}catch{map.remove();const unavailable=document.createElement('p');unavailable.textContent='Route map is unavailable right now.';routeCard.append(unavailable);}
     log.scrollTop=log.scrollHeight;
     bubble('Would you like me to submit this ride request?');
     button('Submit ride request',()=>submit(result));button('Change answers',()=>{routeCard.remove();chat('What would you like to change?');});
-   }catch{controls.replaceChildren();bubble('I couldn’t calculate a reliable fare yet. We can check the details together in the booking form.');button('Review booking form',()=>finish(false));button('Change answers',()=>chat('What would you like to change?'));}
+   }catch(error){controls.replaceChildren();bubble('I couldn’t calculate your fare yet. '+(error?.message||'Please check the ride details.'));button('Try again',quote);button('Change pickup',()=>{delete draft.pickup;chat('Where should we pick you up?','pickup');});button('Change destination',()=>{delete draft.destination;chat('Where are you heading?','destination');});button('Review booking form',()=>finish(false));}
    finally{lock(false);}
   }
   async function submit(quote){
