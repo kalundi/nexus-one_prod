@@ -277,9 +277,9 @@ a{text-decoration:none;color:var(--blue)}
 </style>
 <script src="./nexus-data.js"></script>
 <link rel="stylesheet" href="/responsive.css?v=5">
-<link rel="stylesheet" href="./patient-app.css?v=20261124-booking-focus-3"><script src="/i18n.js?v=4" defer></script></head>
+<link rel="stylesheet" href="./patient-app.css?v=20261124-layout-4"><script src="/i18n.js?v=5" defer></script></head>
 <body>
-<div id="loginView">
+<div id="loginView"><div class="patientLoginLocale"><select id="patientLoginLocale" class="patientLocaleSelect" data-nexus-language aria-label="Select language"><option value="en-US">English (US)</option><option value="en-GB">English (UK)</option><option value="fr">French</option><option value="es">Spanish</option></select></div>
   <div class="loginCard">
     <img class="loginLogo" src="./nexus-logo.png" alt="Nexus Medical Transit">
     <h1>Patient App</h1>
@@ -323,7 +323,7 @@ a{text-decoration:none;color:var(--blue)}
       <div class="topBarInner">
         <button class="brandLockup" type="button" data-patient-home aria-label="Patient app home"><img class="topLogo" src="./nexus-footer-logo.png" alt="Nexus Medical Transit"></button>
         <span class="topTitle" id="topViewTitle">Home</span>
-        <div class="topActions">
+        <div class="patientLocaleSlot" id="patientLocaleSlot"><select id="patientLocale" class="patientLocaleSelect" data-nexus-language aria-label="Select language"><option value="en-US">English (US)</option><option value="en-GB">English (UK)</option><option value="fr">French</option><option value="es">Spanish</option></select></div><div class="topActions">
           <button id="patientLogoutBtn" class="topAction" type="button">Sign out</button>
         </div>
       </div>
@@ -626,7 +626,7 @@ a{text-decoration:none;color:var(--blue)}
 <script src="./patient-service.js"></script>
 <script src="./build6-patient.js?v=20261124-phase2"></script>
 <script src="./nexus-experiences.js?v=20261011-user-manager"></script>
-<script src="./patient-app.js?v=20261124-booking-focus-3"></script>
+<script src="./patient-app.js?v=20261124-layout-4"></script>
 <script>
 (function(){
   const $ = (s)=>document.querySelector(s);
