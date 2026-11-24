@@ -7570,7 +7570,7 @@ function translateNode(node){
     return;
  }
  if(node.nodeType!==1||['SCRIPT','STYLE','NOSCRIPT','CODE','PRE','TEXTAREA'].includes(node.tagName))return;
- ['aria-label','title','placeholder','value'].forEach(a=>{
+ ['aria-label','title','placeholder','value','alt','aria-description','aria-valuetext'].forEach(a=>{
   if(node.hasAttribute(a)){
    let attrs=originalAttributes.get(node);
    if(!attrs){attrs={};originalAttributes.set(node,attrs);}
@@ -7652,6 +7652,21 @@ function addSelector(){
     if(needsSync)syncLanguageSelectors();
  });
  function init(){addSelector();bindSelectors();apply();syncLanguageSelectors();observer.observe(document.body,{childList:true,subtree:true,characterData:true});}
- window.NexusI18n={setLocale,getLocale:()=>locale,locales,t:(s)=>exact(s),formatCurrency:(n,c='USD')=>new Intl.NumberFormat(locale,{style:'currency',currency:c}).format(n),formatDate:(d,o)=>new Intl.DateTimeFormat(locale,o).format(new Date(d))};
+ function registerTranslations(entries) {
+ if(!entries||typeof entries!=='object')return;
+ let updated=false;
+ ['es','fr'].forEach(lang=>{
+  const extra=entries[lang];
+  if(!extra||typeof extra!=='object')return;
+  Object.entries(extra).forEach(([source,translated])=>{
+   if(typeof source==='string'&&source.trim()&&typeof translated==='string'&&translated.trim()){
+    dictionary[lang][source]=translated;
+    updated=true;
+   }
+  });
+ });
+ if(updated&&document.body&&locale!=='en-US'&&locale!=='en-GB')apply();
+}
+window.NexusI18n={setLocale,registerTranslations,getLocale:()=>locale,locales,t:(s)=>exact(s),formatCurrency:(n,c='USD')=>new Intl.NumberFormat(locale,{style:'currency',currency:c}).format(n),formatDate:(d,o)=>new Intl.DateTimeFormat(locale,o).format(new Date(d))};
  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
 })();
