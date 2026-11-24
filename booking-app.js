@@ -4730,6 +4730,14 @@
     const defaultDate = now.toISOString().slice(0,10);
     const maxRecurringDate=new Date(now.getTime()+84*86400000).toISOString().slice(0,10);
     bindManageTripActions(defaultDate, '');
+    document.querySelectorAll('[data-repeat-preset]').forEach(button=>button.addEventListener('click',()=>{
+      if(tripType?.value!=='RECURRING')return;
+      const days=new Set(button.dataset.repeatPreset.split(','));
+      document.querySelectorAll('input[name="recurrenceDay"]').forEach(input=>{
+        const checked=days.has(input.value);
+        if(input.checked!==checked){input.checked=checked;input.dispatchEvent(new Event('change',{bubbles:true}));}
+      });
+    }));
     if($('tripDate')) $('tripDate').min = defaultDate;
     if(returnTripDate)returnTripDate.min=defaultDate;
     if(recurrenceEndDate){recurrenceEndDate.min=defaultDate;recurrenceEndDate.max=maxRecurringDate;}
