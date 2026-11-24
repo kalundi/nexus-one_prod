@@ -8,6 +8,7 @@ on:
       - 'patient*.css'
       - 'build6-patient.js'
       - 'booking-app.html'
+      - 'booking-app.js'
       - 'tests/patient-app-journey.spec.js'
       - 'playwright.config.js'
       - 'scripts/local-test-server.cjs'
