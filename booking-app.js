@@ -4960,6 +4960,8 @@
         return [...unique.values()].slice(0,5);
       };
       if(services.length)window.NexusBookingConversation?.mount({firstName:$('firstName')?.value,pickup:$('pickup')?.value,service:normalizeService($('service')?.value),services,loadRecentRoutes,minDate:$('tripDate')?.min,
+      payerOptions:Array.from(payerType?.options||[]).filter(o=>o.value&&!o.disabled&&!o.hidden).map(o=>[o.value,o.textContent.trim()]),
+      insuranceOptions:Array.from(insuranceCarrier?.options||[]).filter(o=>o.value&&!o.disabled&&!o.hidden).map(o=>[o.value,o.textContent.trim()]),
       searchLocations:async(query,signal)=>{
         const q=String(query||'').trim();
         const local=previewPaymentsEnabled?getDefaultMarylandSuggestions(q):await fetchLocationSuggestions(q,signal);
@@ -4990,7 +4992,14 @@
         set(draft.basis==='PICKUP'?'tripTime':'appointmentTime',draft.time);
         if(draft.tripType==='ROUND_TRIP'){set('returnTripDate',draft.returnDate);set('returnTripTime',draft.returnTime);}
         if(draft.tripType==='RECURRING'){set('recurrenceEndDate',draft.endDate);document.querySelectorAll('input[name="recurrenceDay"]').forEach(input=>{input.checked=draft.days.includes(input.value);});}
-        selectService(draft.service);markDestinationUnconfirmed();rideChoiceConfirmed=false;
+        if(!Array.from(payerType?.options||[]).some(o=>o.value===draft.payerType&&!o.disabled&&!o.hidden))throw Error('Choose a valid payment type.');
+        if(draft.payerType==='INSURANCE'&&!Array.from(insuranceCarrier?.options||[]).some(o=>o.value&&o.value===draft.insuranceCarrier&&!o.disabled&&!o.hidden))throw Error('Choose your insurance provider.');
+        if(draft.payerType==='MEDICARE'&&['ambulatory','wheelchair','bariatric'].includes(draft.service))throw Error('Please choose an alternative payer for this transportation type.');
+        payerType.value=draft.payerType;syncInsuranceCarrierUi(false);
+        if(insuranceCarrier)insuranceCarrier.value=draft.payerType==='INSURANCE'?draft.insuranceCarrier:'';
+        selectService(draft.service);confirmRiderDetails();
+        if(!riderDetailsConfirmed)throw Error('Passenger or payer details need confirmation.');
+        markDestinationUnconfirmed();rideChoiceConfirmed=false;
         syncSectionProgressUi();
         autoEstimate.cancel();
         nexQuotedRoute=null;
@@ -5000,12 +5009,12 @@
         rideChoiceConfirmed=true;
         updateFareConfirmationState();
         if(!getProgressState().allRequiredComplete||!fareEstimateSignature)throw Error('Some required ride details are missing. Please review the passenger, route and schedule.');
-        return {fare:Number(estimateState.fare),pickupTime:$('tripTime').value,distance:Number(estimateState.miles),duration:estimateState.durationText,signature:fareEstimateSignature,details:JSON.stringify([scheduleBasisInput?.value,$('tripTime')?.value,appointmentTimeInput?.value,selectedRecurrenceDays(),recurrenceEndDate?.value])};
+        return {fare:Number(estimateState.fare),pickupTime:$('tripTime').value,distance:Number(estimateState.miles),duration:estimateState.durationText,signature:fareEstimateSignature,details:JSON.stringify([scheduleBasisInput?.value,$('tripTime')?.value,appointmentTimeInput?.value,selectedRecurrenceDays(),recurrenceEndDate?.value,payerType?.value,insuranceCarrier?.value])};
       },onSubmit:async quote=>{
         if(bookingSubmitted||bookingSubmissionPending||!token()||currentUserRole!=='PATIENT')throw Error('Booking unavailable');
         autoEstimate.cancel();routeEstimateVersion++;
         updateFareConfirmationState();
-        const details=JSON.stringify([scheduleBasisInput?.value,$('tripTime')?.value,appointmentTimeInput?.value,selectedRecurrenceDays(),recurrenceEndDate?.value]);
+        const details=JSON.stringify([scheduleBasisInput?.value,$('tripTime')?.value,appointmentTimeInput?.value,selectedRecurrenceDays(),recurrenceEndDate?.value,payerType?.value,insuranceCarrier?.value]);
         if(!quote.signature||quote.signature!==fareEstimateSignature||quote.details!==details||Number(quote.fare)!==Number(estimateState.fare))throw Error('Fare or schedule changed');
         confirmedFareSignature=fareEstimateSignature;fareSubmissionAuthorized=true;
         await submitBooking();
