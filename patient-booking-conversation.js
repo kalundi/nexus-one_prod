@@ -10,7 +10,7 @@
   const manual=document.createElement('button');manual.type='button';manual.className='ghost';manual.textContent='Use booking form instead';manual.addEventListener('click',()=>finish(false));
   const restart=document.createElement('button');restart.type='button';restart.className='ghost';restart.textContent='Start over';restart.addEventListener('click',reset);
   footer.append(restart,manual);host.append(head,log,controls,footer);document.body.append(host);document.body.classList.add('nexBookingConversationOpen');
-  let draft={},closed=false;
+  let draft={},closed=false,busy=false;
   function bubble(text,who='nex'){const el=document.createElement('p');el.className='nexBookingBubble '+who;el.textContent=text;log.append(el);log.scrollTop=log.scrollHeight;}
   function button(text,fn){const b=document.createElement('button');b.type='button';b.className='ghost';b.textContent=text;b.addEventListener('click',fn);controls.append(b);return b;}
   function choose(question,choices,next){controls.replaceChildren();bubble(question);for(const [value,label] of choices)button(label,()=>{bubble(label,'patient');next(value);});}
@@ -18,7 +18,7 @@
    controls.replaceChildren();bubble(question);const form=document.createElement('form');const input=document.createElement('input');input.type=type;input.required=true;input.maxLength=300;input.value=initial;input.setAttribute('aria-label',question);if(min)input.min=min;if(max)input.max=max;if(type==='text')input.placeholder='Type your answer…';const send=document.createElement('button');send.type='submit';send.textContent='Send';form.append(input,send);controls.append(form);
    form.addEventListener('submit',event=>{event.preventDefault();const value=input.value.trim();if(!value||!input.checkValidity()){input.reportValidity();return;}bubble(value,'patient');next(value);});input.focus();
   }
-  function reset(){draft={};log.replaceChildren();const name=String(options.firstName||'').trim();bubble(name?'Hi '+name+'! How can I help with your transportation today?':'Hi! How can I help with your transportation today?');chat('Tell me about the ride you need.');}
+  function reset(){if(busy)return;draft={};log.replaceChildren();const name=String(options.firstName||'').trim();bubble(name?'Hi '+name+'! How can I help with your transportation today?':'Hi! How can I help with your transportation today?');chat('Tell me about the ride you need.');}
   function chat(question,expected){
    ask(question,'text',value=>{
     const parsed=window.NexusBookingIntent?.extract(value,options.minDate)||{};
@@ -47,7 +47,36 @@
    review();
   }
   function repeatDays(){controls.replaceChildren();bubble('Which days should we arrange this ride?');const form=document.createElement('form');const group=document.createElement('fieldset');const legend=document.createElement('legend');legend.textContent='Repeat days';group.append(legend);for(const day of ['MON','TUE','WED','THU','FRI','SAT','SUN']){const l=document.createElement('label'),i=document.createElement('input');i.type='checkbox';i.value=day;l.append(i,document.createTextNode(' '+day));group.append(l);}const send=document.createElement('button');send.type='submit';send.textContent='Continue';form.append(group,send);controls.append(form);form.addEventListener('submit',e=>{e.preventDefault();const days=Array.from(group.querySelectorAll('input:checked'),i=>i.value);if(!days.length){bubble('Please select at least one day.');return;}draft.days=days;bubble(days.join(', '),'patient');const max=new Date(draft.date+'T12:00:00Z');max.setUTCDate(max.getUTCDate()+84);ask('When should the recurring rides end?','date',d=>{draft.endDate=d;next();},'',draft.date,max.toISOString().slice(0,10));});}
-  function review(){controls.replaceChildren();const selected=(options.services||[]).find(([v])=>v===draft.service)?.[1]||draft.service;bubble('Here is what I have:');bubble(['Pickup: '+draft.pickup,'Destination: '+draft.destination,'Date: '+draft.date,(draft.basis==='PICKUP'?'Pickup':'Appointment')+' time: '+draft.time,'Trip: '+labels[draft.tripType],'Transportation: '+selected,draft.returnDate?'Return: '+draft.returnDate+' at '+draft.returnTime:'',draft.days?'Repeats: '+draft.days.join(', ')+' through '+draft.endDate:''].filter(Boolean).join('\n'));bubble('I will send these details to the booking screen so you can review the fare and submit your ride. Nothing has been booked yet.');button('Review ride and fare',()=>finish(true));button('Change answers',()=>chat('What would you like to change?'));button('Start a different ride',reset);}
+  function review(){controls.replaceChildren();const selected=(options.services||[]).find(([v])=>v===draft.service)?.[1]||draft.service;bubble('Here is what I have:');bubble(['Pickup: '+draft.pickup,'Destination: '+draft.destination,'Date: '+draft.date,(draft.basis==='PICKUP'?'Pickup':'Appointment')+' time: '+draft.time,'Trip: '+labels[draft.tripType],'Transportation: '+selected,draft.returnDate?'Return: '+draft.returnDate+' at '+draft.returnTime:'',draft.days?'Repeats: '+draft.days.join(', ')+' through '+draft.endDate:''].filter(Boolean).join('\n'));bubble('Let me check the fare and pickup time for you. Nothing has been booked yet.');button('Check fare',quote);button('Change answers',()=>chat('What would you like to change?'));button('Start a different ride',reset);}
+  function lock(value){busy=value;restart.disabled=value;manual.disabled=value;controls.querySelectorAll('button,input').forEach(el=>el.disabled=value);}
+  async function quote(){
+   if(busy||closed)return;lock(true);bubble('I’m checking the route and current fare…');
+   try{
+    const result=await options.onQuote({...draft});
+    if(!result||!result.signature||!(result.fare>0))throw Error('No valid estimate');
+    controls.replaceChildren();bubble('Your estimated fare is {if(closed)return;closed=true;const result=useDraft?{...draft}:null;draft={};host.remove();document.body.classList.remove('nexBookingConversationOpen');if(result)options.onReview(result);}
+  reset();
+ }};
+})();
++Number(result.fare).toFixed(2)+(result.pickupTime?' and the estimated pickup time is '+result.pickupTime+'.':'.')+(draft.tripType==='RECURRING'?' This is the estimate for the displayed ride; recurring charges depend on the schedule.':''));
+    bubble('Would you like me to submit this ride request?');
+    button('Submit ride request',()=>submit(result));button('Change answers',()=>chat('What would you like to change?'));
+   }catch{controls.replaceChildren();bubble('I couldn’t calculate a reliable fare yet. We can check the details together in the booking form.');button('Review booking form',()=>finish(false));button('Change answers',()=>chat('What would you like to change?'));}
+   finally{lock(false);}
+  }
+  async function submit(quote){
+   if(busy||closed)return;lock(true);bubble('I’m submitting your ride request…');
+   try{
+    const result=await options.onSubmit(quote);
+    controls.replaceChildren();
+    if(!result?.reference)throw Error('Unconfirmed submission');
+    bubble((result.outcome||'Ride request received')+'. Reference: '+result.reference+'.');
+    if(result.paymentRequired){bubble('Your request requires a secure payment step.');button('Continue to secure payment',()=>finish(false));}
+    else{bubble('You can check the status under My rides.');button('View my rides',()=>{finish(false);options.onTrips?.();});}
+    restart.hidden=true;manual.hidden=true;
+   }catch{controls.replaceChildren();bubble('I couldn’t verify that the request was saved. Please check My rides before submitting again, or contact dispatch.');button('View my rides',()=>{finish(false);options.onTrips?.();});restart.hidden=true;manual.hidden=true;}
+   finally{lock(false);}
+  }
   function finish(useDraft){if(closed)return;closed=true;const result=useDraft?{...draft}:null;draft={};host.remove();document.body.classList.remove('nexBookingConversationOpen');if(result)options.onReview(result);}
   reset();
  }};
