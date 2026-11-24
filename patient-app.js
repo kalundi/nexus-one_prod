@@ -57,6 +57,15 @@
   if(activeView!=='map')returnView=activeView;
   mapReference=reference;navigate('map');mapPage.scrollTop=0;renderMap(trip,true);
  }
+ function openManageRide(reference){
+  if(sharedReference||!currentUser||!tripByReference(reference))return;
+  openBooking();
+  const frame=$('bookingFrame');
+  const url=new URL('/booking-app.html',location.origin);
+  url.searchParams.set('patientApp','1');
+  url.searchParams.set('manageRide',reference);
+  frame.src=url.href;
+ }
  function openBooking(){
   if(activeView!=='booking')returnView=activeView;
   if(!$('bookingFrame').getAttribute('src')){const url=new URL('/booking-app.html',location.origin);url.searchParams.set('patientApp','1');const params=new URLSearchParams(location.search);['payment','bookingReference','provider'].forEach(key=>{if(params.get(key))url.searchParams.set(key,params.get(key));});$('bookingFrame').src=url.href;}
@@ -256,6 +265,7 @@
   if(event.target.closest('[data-patient-profile]'))navigate(sharedReference?'map':'profile');
   if(event.target.closest('[data-patient-history]'))navigate('history');
   if(event.target.closest('[data-patient-book]'))openBooking();
+  const manage=event.target.closest('[data-patient-manage]');if(manage)openManageRide(manage.dataset.patientManage);
   if(event.target.closest('[data-patient-back]')){navigate(returnView==='map'||returnView==='booking'?'home':returnView);N.reload();}
   const link=event.target.closest('a[href]');if(!link)return;
   if(link.hash.startsWith('#map/')){event.preventDefault();openMap(decodeURIComponent(link.hash.slice(5)));}
@@ -271,6 +281,7 @@
   if(event.data?.type==='nexus:patient-view')navigate(event.data.view);
   if(event.data?.type==='nexus:patient-activity')lastActivity=Date.now();
   if(event.data?.type==='nexus:patient-checkout'){try{const url=new URL(event.data.url);if(url.protocol!=='https:'||!['checkout.stripe.com','square.link','checkout.square.site','connect.squareup.com'].includes(url.hostname))throw new Error('Invalid checkout URL');location.assign(url.href);}catch{notice('Checkout could not open. Please try again.');}}
+  if(event.data?.type==='nexus:booking-changed'&&!sharedReference&&currentUser){N.reload();}
   if(event.data?.type==='nexus:booking-saved'){N.reload();notice('Your ride request was saved. Track its status in My rides.');}
  });
  window.NexusPatientApp={sharedReference,navigate,shareTrip,updated,signedIn,signedOut,sessionExpired,showSharedAccess};
