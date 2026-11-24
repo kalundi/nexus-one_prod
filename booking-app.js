@@ -3689,20 +3689,26 @@
     }
     if(manageLookupBtn){
       manageLookupBtn.addEventListener('click', lookupManagedTrip);
-      manageLookupBtn.onclick = lookupManagedTrip;
+
     }
     if(manageRescheduleBtn){
       manageRescheduleBtn.addEventListener('click', rescheduleManagedTrip);
-      manageRescheduleBtn.onclick = rescheduleManagedTrip;
+
     }
     if(manageCancelBtn){
       manageCancelBtn.addEventListener('click', cancelManagedTrip);
-      manageCancelBtn.onclick = cancelManagedTrip;
+
     }
     if(manageDate && defaultDate) manageDate.value = defaultDate;
     if(manageDate && defaultDate) manageDate.min = defaultDate;
     if(manageTime && defaultTime) manageTime.value = defaultTime;
     manageActionsBound = true;
+    const patientParams=new URLSearchParams(location.search);
+    if(patientParams.get('patientApp')==='1'&&patientParams.get('manageRide')&&window.parent!==window&&manageReference&&manageTripPanel){
+      manageReference.value=patientParams.get('manageRide');
+      if(manageTripPanel.hidden)toggleManageTripBtn?.click();
+      requestAnimationFrame(()=>manageTripPanel.scrollIntoView({block:'start'}));
+    }
   }
 
   window.nexusEstimateFare = async () => {
@@ -4650,6 +4656,8 @@
       setManageTripMessage('Phone number is required to cancel.', true);
       return;
     }
+    if(manageCancelBtn?.disabled)return;
+    if(!window.confirm('Cancel this ride? This may affect your scheduled transportation.'))return;
     setBusy(manageCancelBtn, true, 'Cancelling...', 'Cancel Trip');
     setManageTripMessage('Submitting cancellation...');
     try{
@@ -4663,6 +4671,7 @@
       activeManagedBooking = data.booking || activeManagedBooking;
       renderManagedTripSummary(activeManagedBooking);
       setManageTripMessage('Trip cancelled successfully.');
+      if(new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window)window.parent.postMessage({type:'nexus:booking-changed'},location.origin);
     }catch(err){
       setManageTripMessage(err.message || 'Unable to cancel trip.', true);
     }finally{
@@ -4682,6 +4691,9 @@
       setManageTripMessage('Phone, new date, and new time are required.', true);
       return;
     }
+    if(manageRescheduleBtn?.disabled)return;
+    if(!manageDate.checkValidity()||!manageTime.checkValidity()){setManageTripMessage('Choose a valid new date and time.',true);return;}
+    if(!window.confirm('Request this new ride date and time?'))return;
     setBusy(manageRescheduleBtn, true, 'Rescheduling...', 'Reschedule');
     setManageTripMessage('Submitting reschedule...');
     try{
@@ -4695,6 +4707,7 @@
       activeManagedBooking = data.booking || activeManagedBooking;
       renderManagedTripSummary(activeManagedBooking);
       setManageTripMessage('Trip rescheduled successfully.');
+      if(new URLSearchParams(location.search).get('patientApp')==='1'&&window.parent!==window)window.parent.postMessage({type:'nexus:booking-changed'},location.origin);
     }catch(err){
       setManageTripMessage(err.message || 'Unable to reschedule trip.', true);
     }finally{
@@ -4717,6 +4730,14 @@
     const defaultDate = now.toISOString().slice(0,10);
     const maxRecurringDate=new Date(now.getTime()+84*86400000).toISOString().slice(0,10);
     bindManageTripActions(defaultDate, '');
+    document.querySelectorAll('[data-repeat-preset]').forEach(button=>button.addEventListener('click',()=>{
+      if(tripType?.value!=='RECURRING')return;
+      const days=new Set(button.dataset.repeatPreset.split(','));
+      document.querySelectorAll('input[name="recurrenceDay"]').forEach(input=>{
+        const checked=days.has(input.value);
+        if(input.checked!==checked){input.checked=checked;input.dispatchEvent(new Event('change',{bubbles:true}));}
+      });
+    }));
     if($('tripDate')) $('tripDate').min = defaultDate;
     if(returnTripDate)returnTripDate.min=defaultDate;
     if(recurrenceEndDate){recurrenceEndDate.min=defaultDate;recurrenceEndDate.max=maxRecurringDate;}

@@ -144,7 +144,7 @@
   }
  }
  function renderActiveRideItem(trip,vehicle){
-  return `<article class="manifestItem manifestItemRoute" data-active-route="${esc(trip.id)}"><div class="manifestMain"><div><strong>${esc(trip.pickup)} → ${esc(trip.destination)}</strong><small>${esc(trip.date)} ${esc(trip.time)} · ${esc(trip.service)} · ${esc(trip.id)}</small></div><div class="manifestMeta"><span class="status ${statusClass(trip.status)}">${esc(trip.statusLabel||trip.status)}</span><span class="toolbar"><a class="button compact" href="${livecareUrl(trip.id)}">View map</a><button class="button compact secondary" type="button" data-share-trip="${esc(trip.id)}">Share</button></span></div></div></article>`;
+  return `<article class="manifestItem manifestItemRoute" data-active-route="${esc(trip.id)}"><div class="manifestMain"><div><strong>${esc(trip.pickup)} → ${esc(trip.destination)}</strong><small>${esc(trip.date)} ${esc(trip.time)} · ${esc(trip.service)} · ${esc(trip.id)}</small></div><div class="manifestMeta"><span class="status ${statusClass(trip.status)}">${esc(trip.statusLabel||trip.status)}</span><span class="toolbar"><a class="button compact" href="${livecareUrl(trip.id)}">View map</a><button class="button compact secondary" type="button" data-share-trip="${esc(trip.id)}">Share</button>${/^(pending|confirmed|scheduled|requested|booked)$/i.test(String(trip.status||""))?`<button class="button compact secondary" type="button" data-patient-manage="${esc(trip.id)}">Manage ride</button>`:""}</span></div></div></article>`;
  }
  function refreshActiveRideMaps(activeTrips,vehicles){
   if(!Array.isArray(activeTrips))return;

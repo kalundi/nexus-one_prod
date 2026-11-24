@@ -8,7 +8,14 @@ on:
       - 'patient*.css'
       - 'build6-patient.js'
       - 'booking-app.html'
+      - 'booking-app.js'
       - 'tests/patient-app-journey.spec.js'
+      - 'tests/patient-return-pickups.test.cjs'
+      - 'netlify/functions/_shared/patient-return-pickups.cjs'
+      - 'netlify/functions/api.cjs'
+      - 'database/migrations/*patient_return_pickups.sql'
+      - 'dispatch.html'
+      - 'dispatch-return-pickups.js'
       - 'playwright.config.js'
       - 'scripts/local-test-server.cjs'
       - '.github/workflows/patient-member.yml'
@@ -58,6 +65,12 @@ jobs:
           const html=fs.readFileSync('patient.html','utf8');
           for(const match of html.matchAll(/<script>([\s\S]*?)<\/script>/gi)) new vm.Script(match[1]);
           NODE
+      - name: Return pickup backend regression
+        run: |
+          node --check netlify/functions/api.cjs
+          node --check dispatch-return-pickups.js
+          node --check booking-app.js
+          node --test tests/patient-return-pickups.test.cjs
       - name: Install Chromium and OS dependencies
         run: npx playwright install --with-deps chromium
       - name: Verify browser launch

@@ -222,3 +222,14 @@ test('track shortcut without a ride opens trip list',async({page})=>{
  await expect(page.locator('#historyPage')).toBeVisible();
  await expect(page.locator('#mapPage')).toBeHidden();
 });
+
+test('patient opens trip management with existing reference and must verify phone',async({page})=>{
+ await setup(page);await page.goto('/patient.html');
+ await page.locator('[data-footer-action="history"]').click();
+ await page.getByRole('button',{name:'Manage ride',exact:true}).first().click();
+ await expect(page.locator('#bookingPage')).toBeVisible();
+ const frame=page.frameLocator('#bookingFrame');
+ await expect(frame.locator('#manageTripPanel')).toBeVisible();
+ await expect(frame.locator('#manageReference')).toHaveValue('NMT-PATIENT-1');
+ await expect(frame.locator('#manageTripActions')).toBeHidden();
+});

@@ -4166,6 +4166,20 @@ async function handler(event){
    const refreshed=await requireUser(token);await audit('USER',String(u.id),'ROLE_SWITCHED',{from:u.role,to:nextRole});
    return json(200,{user:safeUser(refreshed)});
   }
+  if((p[0]==='patient'&&p[1]==='trips'&&p[3]==='return-pickup')||(p[0]==='dispatch'&&p[1]==='return-pickups')){
+   const response=await require('./_shared/patient-return-pickups.cjs').createHandler({query,requireUser,bearer,json,audit,notifyDispatch:request=>sendTeamsAlert('Return pickup requested: '+String(request.reference).replace(/[^a-zA-Z0-9_-]/g,'')+' — '+String(request.requestedAt),'Return pickup request — Nexus Dispatch'),notifyPatient:async request=>{
+    const result=await query(`SELECT u.email,u.phone,pr.communication_preference FROM bookings b JOIN users u ON u.id=b.patient_user_id
+      LEFT JOIN patient_transport_preferences pr ON pr.user_id=u.id
+      WHERE b.reference=$1 AND u.id=$2::uuid AND u.active=true AND upper(b.status) NOT IN ('CANCELLED','NO_SHOW')`,[request.reference,request.requestedBy]);
+    const recipient=result.rows[0];if(!recipient||isTestMode())return {status:'skipped'};
+    const preference=String(recipient.communication_preference||'').toUpperCase();
+    const message='Nexus Medical Transit: Dispatch has acknowledged your return pickup request. Pickup timing is not yet confirmed. Check your patient app or call (888) 639-5766.';
+    if(preference==='SMS'&&recipient.phone)return sendSms(recipient.phone,message+' Reply STOP to opt out.');
+    if(preference==='EMAIL'&&recipient.email)return sendEmail(recipient.email,'Your Nexus ride request update',PatientNotify.emailShell({},'<p>'+PatientNotify.esc(message)+'</p>'));
+    return {status:'skipped'};
+   }})(event,p,method);
+   if(response)return response;
+  }
   if(p[0]==='patient'&&p[1]==='dashboard'&&method==='GET'){
    const u=await requireUser(bearer(event),['PATIENT']);
    await ensurePatientPreferencesSchema();
@@ -4181,6 +4195,15 @@ async function handler(event){
    ]);
    const preferenceRow=preferencesResult.rows[0]||{};
    const trips=await Promise.all((await mapBookingsWithIntakeAudit(bookingsResult.rows)).map(mapPatientBooking));
+   const pickupRequests=await query('SELECT r.booking_reference,r.requested_at,r.acknowledged_at FROM patient_return_pickups r JOIN bookings b ON b.reference=r.booking_reference WHERE b.patient_user_id=$1::uuid',[u.id]).catch(error=>{if(error.code==='42P01')return {rows:[]};throw error;});
+   const pickupByRef=new Map(pickupRequests.rows.map(row=>[row.booking_reference,row]));
+   const ownedRefs=new Set(bookingsResult.rows.filter(row=>String(row.patient_user_id)===String(u.id)&&!row.duplicate_of).map(row=>row.reference));
+   const todayEastern=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+   for(const trip of trips){
+    const request=pickupByRef.get(trip.reference);
+    if(request)trip.returnPickupRequest={status:request.acknowledged_at?'ACKNOWLEDGED':'REQUESTED',requestedAt:request.requested_at,acknowledgedAt:request.acknowledged_at};
+    trip.returnPickupEligible=ownedRefs.has(trip.reference)&&String(trip.tripType).toUpperCase()==='ROUND_TRIP'&&!trip.returnTripTime&&String(trip.returnTripDate||trip.date).slice(0,10)===todayEastern&&/^(arrived|in-transit|completed|delivered)$/i.test(trip.status);
+   }
    const inactiveStatuses=new Set(['COMPLETED','CANCELLED','NO_SHOW','DELIVERED']);
    const upcoming=trips
     .filter(trip=>!inactiveStatuses.has(String(trip.status||'').toUpperCase())&&String(trip.date||trip.tripDate||trip.trip_date||'')>=new Date().toISOString().slice(0,10))
