@@ -51,8 +51,18 @@ test('identity, full ride list and countdown work; map and booking stay inside t
  await expect(page).toHaveURL(/patient\.html#booking$/);
  const frame=page.frameLocator('#bookingFrame');
  await expect(frame.locator('#pickup')).toHaveValue('9955 Forest View Place, Gaithersburg, MD');
- await expect(frame.locator('html')).toHaveClass(/patientEmbeddedBooking/);
- await frame.getByRole('link',{name:'Manage saved preferences'}).click();
+ await expect(frame.locator('html')).toHaveClass(/patientBookingContext/);
+ await expect(frame.locator('body')).toHaveClass(/patientQuickBooking/);
+ await expect(frame.locator('#patientQuickSummary')).toBeVisible();
+ await expect(frame.locator('#patientQuickName')).toHaveText('Anthony');
+ await expect(frame.locator('#bookingLoginSection')).toBeHidden();
+ await expect(frame.locator('#riderDetailsSection')).toBeHidden();
+ await expect(frame.locator('.appTabBar')).toBeHidden();
+ await expect(frame.locator('#pickupDropoffSection')).toBeVisible();
+ await frame.getByRole('button',{name:'Edit details',exact:true}).click();
+ await expect(frame.locator('#riderDetailsSection')).toBeVisible();
+ await expect(frame.locator('#email')).toHaveValue(user.email);
+ await page.getByRole('navigation',{name:'Patient navigation'}).getByRole('button',{name:'More',exact:true}).click();
  await expect(page.locator('#profilePage')).toBeVisible();
  await expect(page).toHaveURL(/patient\.html#profile$/);
  await page.locator('[data-footer-action="history"]').click();
@@ -232,4 +242,13 @@ test('patient opens trip management with existing reference and must verify phon
  await expect(frame.locator('#manageTripPanel')).toBeVisible();
  await expect(frame.locator('#manageReference')).toHaveValue('NMT-PATIENT-1');
  await expect(frame.locator('#manageTripActions')).toBeHidden();
+});
+
+test('public booking does not hide account or passenger entry using patient-only styling',async({page})=>{
+ await setup(page,[],false);
+ await page.goto('/booking-app.html');
+ await expect(page.locator('body')).not.toHaveClass(/patientQuickBooking/);
+ await expect(page.locator('#patientQuickSummary')).toBeHidden();
+ await expect(page.locator('#bookingLoginSection')).toBeVisible();
+ await expect(page.locator('#riderDetailsSection')).toBeVisible();
 });
