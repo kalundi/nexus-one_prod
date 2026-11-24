@@ -5,12 +5,12 @@
   const host=document.createElement('section');host.className='nexusBookingConversation';host.setAttribute('aria-label','Nex booking conversation');
   const log=document.createElement('div');log.className='nexBookingLog';log.setAttribute('role','log');log.setAttribute('aria-live','polite');
   const controls=document.createElement('div');controls.className='nexBookingControls';
-  const footer=document.createElement('footer');
+  const footer=document.createElement('div');footer.className='nexBookingActions';
   const restart=document.createElement('button');restart.type='button';restart.className='ghost';restart.textContent='Start over';restart.addEventListener('click',reset);
-  footer.append(restart);host.append(log,controls,footer);document.body.append(host);document.body.classList.add('nexBookingConversationOpen');
+  footer.append(restart);log.append(controls,footer);host.append(log);document.body.append(host);document.body.classList.add('nexBookingConversationOpen');
   let draft={},closed=false,busy=false;
-  function bubble(text,who='nex'){const el=document.createElement('p');el.className='nexBookingBubble '+who;const speaker=document.createElement('span');speaker.className='nexBookingSpeaker';speaker.textContent=who==='patient'?'You':'Nex';el.append(speaker,document.createTextNode(text));log.append(el);log.scrollTop=log.scrollHeight;}
-  function button(text,fn){const b=document.createElement('button');b.type='button';b.className='ghost';b.textContent=text;b.addEventListener('click',fn);controls.append(b);return b;}
+  function bubble(text,who='nex'){const el=document.createElement('p');el.className='nexBookingBubble '+who;const speaker=document.createElement('span');speaker.className='nexBookingSpeaker';speaker.textContent=who==='patient'?'You':'Nex';el.append(speaker,document.createTextNode(text));log.insertBefore(el,controls);log.scrollTop=log.scrollHeight;}
+  function button(text,fn){const b=document.createElement('button');b.type='button';b.className='ghost';b.textContent=text;b.addEventListener('click',fn);controls.append(b);requestAnimationFrame(()=>{if(b.isConnected)log.scrollTop=log.scrollHeight;});return b;}
   function choose(question,choices,next){controls.replaceChildren();bubble(question);for(const [value,label] of choices)button(label,()=>{bubble(label,'patient');next(value);});}
   function ask(question,type,next,initial='',min='',max=''){
    controls.replaceChildren();bubble(question);const form=document.createElement('form');const input=document.createElement('input');input.type=type;input.required=true;input.maxLength=300;input.value=initial;input.setAttribute('aria-label',question);if(min)input.min=min;if(max)input.max=max;if(type==='text')input.placeholder='Type your answer…';const send=document.createElement('button');send.type='submit';send.textContent='Send';form.append(input,send);controls.append(form);
@@ -25,7 +25,7 @@
    input.addEventListener('input',search);input.addEventListener('focus',()=>{if(!input.value.trim())render(options.defaultLocations?.()||[]);});
    if(!input.value.trim())render(options.defaultLocations?.()||[]);
   }
-  function reset(){if(busy)return;draft={};log.replaceChildren();const name=String(options.firstName||'').trim();bubble(name?'Hi '+name+'! How can I help with your transportation today?':'Hi! How can I help with your transportation today?');choose('Are we arranging a ride for you or for someone else?',[['self','For me'],['other','For someone else']],v=>{if(v==='self'){draft.rider='self';if(options.pickup){draft.pickup=options.pickup;bubble('I have your saved pickup ready: '+options.pickup+'. You can change it if needed.');}chat('Of course. Tell me where you need to go and when.');}else{bubble('Absolutely. Let’s make sure we have the right passenger details.');button('Contact our transportation team',()=>contact());button('Actually, it’s for me',reset);}});}
+  function reset(){if(busy)return;draft={};log.replaceChildren(controls,footer);const name=String(options.firstName||'').trim();bubble(name?'Hi '+name+'! How can I help with your transportation today?':'Hi! How can I help with your transportation today?');choose('Are we arranging a ride for you or for someone else?',[['self','For me'],['other','For someone else']],v=>{if(v==='self'){draft.rider='self';if(options.pickup){draft.pickup=options.pickup;bubble('I have your saved pickup ready: '+options.pickup+'. You can change it if needed.');}chat('Of course. Tell me where you need to go and when.');}else{bubble('Absolutely. Let’s make sure we have the right passenger details.');button('Contact our transportation team',()=>contact());button('Actually, it’s for me',reset);}});}
   function chat(question,expected){
    ask(question,'text',(value,selectedLocation)=>{
     if(selectedLocation){if(expected==='pickup')draft.pickup=value;else draft.destination=value;next();return;}
@@ -90,7 +90,7 @@
     controls.replaceChildren();bubble('Your estimated fare is '+Number(result.fare).toLocaleString('en-US',{style:'currency',currency:'USD'})+(result.pickupTime?' and the estimated pickup time is '+result.pickupTime+'.':'.')+(draft.tripType==='RECURRING'?' This is the estimate for the displayed ride; recurring charges depend on the schedule.':''));
     const routeCard=document.createElement('section');routeCard.className='nexRouteCard';routeCard.setAttribute('aria-label','Estimated driving route');
     const summary=document.createElement('p');summary.textContent=[Number.isFinite(result.distance)&&result.distance>0?result.distance.toFixed(1)+' miles':'',result.duration||''].filter(Boolean).join(' · ');routeCard.append(summary);
-    const map=document.createElement('div');map.className='nexRouteMap';map.setAttribute('aria-label','Map from pickup to destination');routeCard.append(map);log.append(routeCard);
+    const map=document.createElement('div');map.className='nexRouteMap';map.setAttribute('aria-label','Map from pickup to destination');routeCard.append(map);log.insertBefore(routeCard,controls);
     try{if(!options.renderRoute?.(map)){map.remove();const unavailable=document.createElement('p');unavailable.textContent='Route map is unavailable right now.';routeCard.append(unavailable);}}catch{map.remove();const unavailable=document.createElement('p');unavailable.textContent='Route map is unavailable right now.';routeCard.append(unavailable);}
     log.scrollTop=log.scrollHeight;
     bubble('Would you like me to submit this ride request?');
