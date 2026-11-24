@@ -4954,7 +4954,28 @@
         for(const t of routes){const key=JSON.stringify([t.pickup,t.destination,normalizeService(t.service)]);if(!unique.has(key))unique.set(key,{pickup:t.pickup,destination:t.destination,service:normalizeService(t.service)});}
         return [...unique.values()].slice(0,5);
       };
-      if(services.length)window.NexusBookingConversation?.mount({firstName:$('firstName')?.value,pickup:$('pickup')?.value,service:normalizeService($('service')?.value),services,loadRecentRoutes,minDate:$('tripDate')?.min,onQuote:async draft=>{
+      if(services.length)window.NexusBookingConversation?.mount({firstName:$('firstName')?.value,pickup:$('pickup')?.value,service:normalizeService($('service')?.value),services,loadRecentRoutes,minDate:$('tripDate')?.min,
+      attachAddress:async input=>{
+        try{
+          await loadMaps();if(!input.isConnected||!window.google?.maps?.places?.Autocomplete)return;
+          const autocomplete=new google.maps.places.Autocomplete(input,{fields:['formatted_address','place_id','name'],componentRestrictions:{country:'us'}});
+          autocomplete.addListener('place_changed',()=>{const place=autocomplete.getPlace();if(input.isConnected&&place?.formatted_address)input.value=place.formatted_address;});
+        }catch{}
+      },
+      onOtherRider:()=>{
+        setRiderFormValues({});
+        if($('pickup'))$('pickup').value='';
+        if($('destination'))$('destination').value='';
+        if($('payerType'))$('payerType').value='SELF_PAY';
+        if(insuranceCarrier)insuranceCarrier.value='';
+        document.querySelectorAll('input[name="remainsInWheelchair"]').forEach(i=>i.checked=false);
+        currentPatientPreferences=null;
+        if(patientDefaultsBanner)patientDefaultsBanner.hidden=true;
+        selectService('');riderDetailsConfirmed=false;markDestinationUnconfirmed();
+        revealSectionForAction('riderDetailsSection','firstName');
+      },
+      onQuote:async draft=>{
+        if(draft.rider!=='self'||currentUser?.id!==owner||!token())throw Error('Confirm the rider first');
         const set=(id,value)=>{const field=$(id);if(field)field.value=value||'';};
         set('pickup',draft.pickup);set('destination',draft.destination);set('tripDate',draft.date);set('scheduleBasis',draft.basis);set('tripType',draft.tripType);
         syncTripScheduleUi();syncScheduleBasisUi();
