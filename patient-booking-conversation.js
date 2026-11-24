@@ -11,7 +11,7 @@
   const restart=document.createElement('button');restart.type='button';restart.className='ghost';restart.textContent='Start over';restart.addEventListener('click',reset);
   footer.append(restart,manual);host.append(head,log,controls,footer);document.body.append(host);document.body.classList.add('nexBookingConversationOpen');
   let draft={},closed=false,busy=false;
-  function bubble(text,who='nex'){const el=document.createElement('p');el.className='nexBookingBubble '+who;el.textContent=text;log.append(el);log.scrollTop=log.scrollHeight;}
+  function bubble(text,who='nex'){const el=document.createElement('p');el.className='nexBookingBubble '+who;const speaker=document.createElement('span');speaker.className='nexBookingSpeaker';speaker.textContent=who==='patient'?'You':'Nex';el.append(speaker,document.createTextNode(text));log.append(el);log.scrollTop=log.scrollHeight;}
   function button(text,fn){const b=document.createElement('button');b.type='button';b.className='ghost';b.textContent=text;b.addEventListener('click',fn);controls.append(b);return b;}
   function choose(question,choices,next){controls.replaceChildren();bubble(question);for(const [value,label] of choices)button(label,()=>{bubble(label,'patient');next(value);});}
   function ask(question,type,next,initial='',min='',max=''){
