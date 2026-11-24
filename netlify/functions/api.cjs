@@ -2732,8 +2732,13 @@ async function handler(event){
     if(!valid)return json(400,{error:'This coupon is not valid for the selected ride type and date.'});
     return json(200,{valid:true,total:1995,savings:Math.max(0,Number(b.currentFare||0)-1995),description:'Negotiated stretcher ride total'});
    }
-   if(route==='integrations/config'&&method==='GET')return json(200,{build:'test',testMode:true,googleMapsEnabled:false,googleMapsBrowserKey:'',stripeEnabled:true,stripePublishableKey:'',squareEnabled:false});
-   if(route==='integrations/health'&&method==='GET')return json(200,{testMode:true,googleMaps:'simulated',twilio:'disabled',emailProvider:'Postmark',postmark:'disabled',teams:'disabled',stripe:'simulated',square:'disabled',gps:'simulated',checkedAt:new Date().toISOString()});
+   if(route==='integrations/config'&&method==='GET'){
+    // A deploy preview may exercise the real read-only Maps service without
+    // turning on live bookings, payments, messages or database mutations.
+    const previewMaps=Boolean(GOOGLE_MAPS_BROWSER_KEY)&&process.env.NEXUS_PREVIEW_MAPS!=='false';
+    return json(200,{build:'test',testMode:true,googleMapsEnabled:previewMaps,googleMapsBrowserKey:previewMaps?GOOGLE_MAPS_BROWSER_KEY:'',stripeEnabled:true,stripePublishableKey:'',squareEnabled:false});
+   }
+   if(route==='integrations/health'&&method==='GET')return json(200,{testMode:true,googleMaps:process.env.NEXUS_PREVIEW_MAPS!=='false'&&GOOGLE_MAPS_BROWSER_KEY?'configured':'simulated',twilio:'disabled',emailProvider:'Postmark',postmark:'disabled',teams:'disabled',stripe:'simulated',square:'disabled',gps:'simulated',checkedAt:new Date().toISOString()});
   if(route==='flights/lookup'&&method==='POST'){
    const b=parseBody(event),airportStop=clean(b.airportStop).toUpperCase();
    if(!['PICKUP','DESTINATION'].includes(airportStop))return json(400,{error:'Choose whether the airport is the pickup or destination.'});
@@ -2747,7 +2752,10 @@ async function handler(event){
    if(p[0]==='bookings'&&method==='POST'&&p.length===1){
     const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
     const ref=`TEST-${Date.now().toString(36).toUpperCase()}-${crypto.randomInt(100,999)}`;
-    return json(201,{testMode:true,persisted:false,booking:{reference:ref,name:clean(b.name),service:clean(b.service),pickup:clean(b.pickup),destination:clean(b.destination),date:clean(b.date),time:clean(b.time),estimatedFare:Number(b.estimatedFare||0),flightInfo:b.flightInfo||null,status:'PENDING_PAYMENT'},requiresOnlinePayment:true,depositRequired:true,clientMessage:`Test booking created. Reference: ${ref}. No live booking was saved.`});
+    if(clean(b.payerType).toUpperCase()==='INSURANCE'&&!clean(b.insuranceCarrier))return json(400,{error:'Private insurance provider is required'});
+    const testPolicy=bookingPaymentPolicy({authenticated:Boolean(bearer(event)),payerType:b.payerType,service:b.service});
+    const status=testPolicy.requiresDeposit?'PENDING_PAYMENT':testPolicy.requiresApproval?'PENDING_APPROVAL':'SUBMITTED';
+    return json(testPolicy.requiresApproval?202:201,{testMode:true,persisted:false,booking:{reference:ref,name:clean(b.name),service:clean(b.service),pickup:clean(b.pickup),destination:clean(b.destination),date:clean(b.date),time:clean(b.time),estimatedFare:Number(b.estimatedFare||0),flightInfo:b.flightInfo||null,payerType:testPolicy.payerType,status},requiresOnlinePayment:testPolicy.requiresDeposit,depositRequired:testPolicy.requiresDeposit,pendingApproval:testPolicy.requiresApproval,coverageStatus:testPolicy.coverageStatus,coverageNotAvailable:testPolicy.coverageNotAvailable,clientMessage:`Test booking created. Reference: ${ref}. No live booking was saved. ${testPolicy.coverageMessage}`});
    }
    if(p[0]==='bookings'&&p[1]&&p[2]==='update'&&method==='POST'){
     const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);

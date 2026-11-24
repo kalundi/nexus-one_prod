@@ -7670,6 +7670,7 @@ function addSelector(){
  if(updated){delete sortedTranslationKeys.es;delete sortedTranslationKeys.fr;}
  if(updated&&document.body&&locale!=='en-US'&&locale!=='en-GB')apply();
 }
+window.addEventListener('storage',event=>{if(event.key===STORAGE&&locales[event.newValue]&&event.newValue!==locale){locale=event.newValue;apply();}});
 window.NexusI18n={setLocale,registerTranslations,getLocale:()=>locale,locales,t:(s)=>exact(s),formatCurrency:(n,c='USD')=>new Intl.NumberFormat(locale,{style:'currency',currency:c}).format(n),formatDate:(d,o)=>new Intl.DateTimeFormat(locale,o).format(new Date(d))};
  // Load curated translations for current public-site content on every page.
  // If the bundle is unavailable, the base dictionary remains functional.

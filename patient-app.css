@@ -76,3 +76,43 @@ button.brandLockup{border:0;padding:0;background:none;cursor:pointer;text-align:
 .bookRideSign:active{transform:translateY(0);filter:brightness(.98)}
 .bookRideSign span[aria-hidden="true"]{display:none!important}
 @media(max-width:620px){.bookRideSign{min-height:50px;padding:11px 17px!important;border-radius:16px!important;font-size:13px}}
+
+/* Booking is a focused workspace, not a card inside the patient dashboard. */
+#appShell.patientBookingFocus{height:100dvh;min-height:0;background:#fafbfc}
+#appShell.patientBookingFocus>.phone{width:100%;max-width:960px;height:100dvh;min-height:0;padding:0 clamp(8px,2vw,24px);gap:0;box-sizing:border-box}
+#appShell.patientBookingFocus .topBar,#appShell.patientBookingFocus .bottomNav{display:none!important}
+#appShell.patientBookingFocus #bookingPage:not([hidden]){flex:1 1 0;min-height:0;max-height:none;padding:0;gap:0}
+#appShell.patientBookingFocus #bookingPage>.patientScreenHead{flex:none;justify-content:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid #e5ebe8;background:#fafbfc}
+.patientBookingTitle{font-size:15px;font-weight:650;color:#344d4b}
+#appShell.patientBookingFocus #bookingFrame{flex:1 1 0;min-height:0;height:0;border-radius:0;background:#fafbfc}
+
+/* Focused booking must escape the dashboard's desktop columns and seasonal chrome. */
+html:has(#appShell.patientBookingFocus),body:has(#appShell.patientBookingFocus){height:100%;margin:0!important;overflow:hidden!important;background:#fafbfc!important}
+body:has(#appShell.patientBookingFocus) > .xmas-app-strip,body:has(#appShell.patientBookingFocus) > #xmas-snow,body:has(#appShell.patientBookingFocus) #nvaTab,body:has(#appShell.patientBookingFocus) #nvaBubble,body:has(#appShell.patientBookingFocus) #nvaPanel{display:none!important}
+#appShell.patientBookingFocus{position:fixed!important;inset:0!important;width:100%!important;height:100dvh!important;display:flex!important;justify-content:center!important;align-items:stretch!important;padding:0!important;margin:0!important;overflow:hidden!important}
+#appShell.patientBookingFocus>.phone{position:relative!important;inset:auto!important;transform:none!important;display:flex!important;flex-direction:column!important;float:none!important;width:min(100%,960px)!important;max-width:960px!important;margin:0 auto!important;padding:0 clamp(8px,2vw,24px)!important;height:100%!important;min-height:0!important}
+#appShell.patientBookingFocus #bookingPage:not([hidden]){display:flex!important;position:relative!important;inset:auto!important;flex:1 1 0!important;min-height:0!important;width:100%!important;overflow:hidden!important}
+#appShell.patientBookingFocus #bookingFrame{display:block!important;position:static!important;flex:1 1 0!important;min-height:0!important;height:0!important;width:100%!important;margin:0!important}
+
+#appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl{position:static!important;inset:auto!important;transform:none!important;display:flex!important;flex:none!important;width:auto!important;max-width:145px!important;margin:0 0 0 auto!important;padding:0!important;background:transparent!important;box-shadow:none!important;border:0!important}
+#appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl select{position:static!important;width:auto!important;max-width:145px!important;min-height:34px!important;font-size:13px!important;color:#344d4b!important;background:#fff!important;border:1px solid #dce5e2!important;border-radius:8px!important}
+body:has(#appShell.patientBookingFocus)> .nexusLanguageControl{display:none!important}
+
+/* Keep only the select in normal layout; retain accessible label and status. */
+#appShell.patientBookingFocus .patientScreenHead{position:relative;min-height:52px;align-items:center;box-sizing:border-box}
+#appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl{position:relative!important;display:block!important;width:132px!important;max-width:42vw!important;height:36px!important;flex:0 0 auto!important}
+#appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl .srOnly{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
+#appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl select{display:block!important;width:100%!important;height:36px!important;min-height:36px!important;max-height:36px!important;padding:0 6px!important;box-sizing:border-box!important;margin:0!important}
+
+/* App-owned native selectors: never allow language controls to enter the body flow. */
+body:has(#appShell){overflow:hidden;margin:0}
+body:has(#appShell)> .nexusLanguageControl{display:none!important}
+#appShell .topBarInner{grid-template-columns:minmax(72px,1fr) auto auto auto;gap:8px}
+.patientLocaleSlot{display:flex;align-items:center;min-width:0}
+.patientLocaleSelect{appearance:auto!important;display:block!important;position:static!important;opacity:1!important;transform:none!important;width:126px!important;max-width:100%!important;min-width:0!important;height:36px!important;min-height:36px!important;margin:0!important;padding:0 6px!important;background:#fff!important;color:#263b43!important;border:1px solid #d5e0e6!important;border-radius:8px;font:13px/1.2 system-ui,sans-serif!important}
+.patientLoginLocale{width:126px;margin:0 auto 12px}
+#bookingPage .patientScreenHead>.patientLocaleSelect{margin-left:auto!important;flex:none}
+#appShell:not(.patientBookingFocus){height:100dvh;overflow:hidden}
+#appShell:not(.patientBookingFocus)>.phone{margin-inline:auto;max-height:100%;height:100%;box-sizing:border-box}
+body:has(#appShell)> .xmas-app-strip{display:none!important}
+@media(max-width:520px){#appShell .topBarInner{grid-template-columns:minmax(60px,1fr) auto auto;gap:6px}#appShell .topTitle{display:none}#appShell .topLogo{width:90px}.patientLocaleSelect{width:110px!important;font-size:12px!important}}

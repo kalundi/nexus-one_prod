@@ -22,7 +22,7 @@
  $('patientMap').before($('mapItinerary'));
  const bookingPage=document.createElement('section');
  bookingPage.id='bookingPage';bookingPage.className='viewportStack';bookingPage.hidden=true;
- bookingPage.innerHTML='<div class="patientScreenHead"><button type="button" class="button secondary compact" data-patient-back>‹ Back</button><h2>Book transportation</h2></div><iframe id="bookingFrame" title="Book your Nexus ride" allow="payment"></iframe>';
+ bookingPage.innerHTML='<div class="patientScreenHead"><button type="button" class="button secondary compact" data-patient-back>‹ Back</button><span class="patientBookingTitle">Book a ride</span></div><iframe id="bookingFrame" title="Book your Nexus ride" allow="payment"></iframe>';
  phone.insertBefore(bookingPage,nav);
  const shareDialog=document.createElement('dialog');shareDialog.id='rideShareDialog';shareDialog.className='portalDialog';shareDialog.setAttribute('aria-labelledby','rideShareTitle');
  shareDialog.innerHTML='<button class="dialogClose" type="button" data-close aria-label="Close sharing">×</button><h2 id="rideShareTitle">Share this ride</h2><p id="shareRideReference" class="muted"></p><p>Family or caregivers can open this link in the patient app. They must enter the phone number used for the booking to see the ride.</p><label for="rideShareLink">Private tracking link</label><input id="rideShareLink" class="shareLink" readonly><div class="toolbar"><button class="button" type="button" id="nativeShareBtn">Share ride</button><button class="button secondary" type="button" id="copyRideLinkBtn">Copy link</button></div><p id="rideShareStatus" class="shareStatus" role="status"></p>';
@@ -48,6 +48,10 @@
   if(!['home','profile','history','support','map','booking'].includes(view))view='home';
   if(sharedReference&&!['home','support','map'].includes(view))view='home';
   activeView=view;N.navigate(view);
+  $('appShell').classList.toggle('patientBookingFocus',view==='booking');
+  const language=$('patientLocale');
+  if(language){if(view==='booking')bookingPage.querySelector('.patientScreenHead').append(language);else $('patientLocaleSlot').append(language);}
+
   if(writeHistory){const hash=view==='map'?`#map/${encodeURIComponent(mapReference)}`:`#${view}`;if(location.hash!==hash)history.pushState({patientView:view},'',hash);}
   if(view==='home')countdown();
  }

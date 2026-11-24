@@ -28,6 +28,16 @@ for(const item of await readdir(dist,{withFileTypes:true})){
   await writeFile(file,html);
  }
 }
+// Netlify's injected collaboration drawer must not obscure patient testing.
+ // Keep this preview-only; do not change the production security policy or map frames.
+if(process.env.NEXUS_TEST_MODE==='true'){
+ const previewDrawerStyle='<style id="nexus-preview-no-drawer">body [data-netlify-deploy-id][data-netlify-site-id],body iframe[src^="https://app.netlify.com/"],body iframe[src^="https://netlify-cdp-loader.netlify.app/"]{display:none!important;visibility:hidden!important;pointer-events:none!important}</style>';
+ for(const name of ['patient.html','booking-app.html']){
+  const file=path.join(dist,name);
+  const html=await readFile(file,'utf8');
+  await writeFile(file,html.replace(/<\/head>/i,previewDrawerStyle+'</head>'));
+ }
+}
 console.log('Static application copied to dist.');
 // Patch Google Maps API key configuration
 try{await new Promise((resolve,reject)=>{const proc=spawn('node',['scripts/patch-google-maps.mjs'],{cwd:root,stdio:'inherit'});proc.on('exit',code=>code===0?resolve():reject(new Error(`Patch script exited with code ${code}`)))});}catch(e){console.warn('Note: Google Maps patching incomplete -',e.message);}

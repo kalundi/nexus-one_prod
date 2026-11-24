@@ -606,7 +606,7 @@
   }
 
   const autoEstimate = debounce(async() => {
-    if(bookingSubmitted || bookingSubmissionPending) return;
+    if(bookingSubmitted || bookingSubmissionPending || document.body.classList.contains('nexBookingConversationOpen')) return;
     const pickup = $('pickup').value.trim();
     const destination = $('destination').value.trim();
     if(!pickup || !destination){
@@ -1854,6 +1854,7 @@
     const savingsNote=[savings>0?`Discount applied: $${savings.toFixed(2)}.`:'',!token()?'You are not receiving the 5% member discount. Sign up or sign in to receive it.':''].filter(Boolean).join(' ');
     if($('fareConfirmFuel')){$('fareConfirmFuel').textContent=savingsNote;$('fareConfirmFuel').hidden=!savingsNote;}
     if(fareConfirmAmount)fareConfirmAmount.textContent=`$${Number(estimateState.fare||0).toFixed(2)}`;
+    if(document.body.classList.contains('nexBookingConversationOpen'))return;
     if(fareConfirmDialog?.showModal)fareConfirmDialog.showModal();
   }
 
@@ -2734,6 +2735,7 @@
   }
 
   function clearCustomerRoute(){
+    nexQuotedRoute=null;
     if(customerRoutePolyline) customerRoutePolyline.setMap(null);
     if(customerPickupMarker) customerPickupMarker.setMap(null);
     if(customerDestinationMarker) customerDestinationMarker.setMap(null);
@@ -2887,7 +2889,9 @@
     if(hasBounds) telemetryMap.fitBounds(bounds, 48);
   }
 
+  let nexQuotedRoute=null;
   function renderCustomerRoute(result, pickupLabel, destinationLabels){
+    if(result?.routes?.[0])nexQuotedRoute=result;
     if(!telemetryMap || !result?.routes?.[0]) return;
     if(customerRoutePolyline) customerRoutePolyline.setMap(null);
     if(customerPickupMarker) customerPickupMarker.setMap(null);
@@ -3458,9 +3462,11 @@
       yardToPickupTrafficDurationMinutes=measured.deadheadRoutes[0].trafficDurationMinutes;
       deadheadRouteMiles={toPickup:measured.deadheadSegments[0],fromDestination:measured.deadheadSegments[1],fromReturn:measured.deadheadSegments[1]};
       if(timedOutboundResult)result=timedOutboundResult;
-      renderCustomerRoute(result, pickup, destinations);
+      nexQuotedRoute=result;
+      if(!document.body.classList.contains('nexBookingConversationOpen'))renderCustomerRoute(result, pickup, destinations);
       renderMultiStopFeasibility();
     }catch(err){
+      if(document.body.classList.contains('nexBookingConversationOpen')){nexQuotedRoute=null;resetEstimateUi();markDestinationUnconfirmed();const reason=String(err?.message||'');const code=reason.match(/\b(REQUEST_DENIED|ZERO_RESULTS|NOT_FOUND|OVER_QUERY_LIMIT|INVALID_REQUEST|UNKNOWN_ERROR)\b/)?.[1];const message=!mapsEnabled||!mapsBrowserKey?'Maps is not enabled in this environment.':code==='REQUEST_DENIED'?'The map provider denied the route request. Please contact Nexus support.':code==='ZERO_RESULTS'||code==='NOT_FOUND'?'No driving route was found. Select a full pickup and destination address.':code==='OVER_QUERY_LIMIT'?'The map service is temporarily busy. Please try again.':/timed out/i.test(reason)?'The map service timed out. Please try again.':'The driving route could not be verified. Check the pickup and destination addresses or try again.';setStatus(message,'err');return estimateState;}
       const fallbackLegTravelMinutes = [];
       const fallbackLegMetrics=[];
       const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations], undefined, [], fallbackLegTravelMinutes,fallbackLegMetrics);
@@ -4759,6 +4765,7 @@
 
     await loadIntegrationConfig();
     try{await loadPlatformSettings();}catch(error){
+      const loading=$('nexBookingLoading');if(loading)loading.querySelector('p').textContent='Nex could not load current booking settings. Please try again.';
       setStatus(error.message,'err');
       if(submitBtn)submitBtn.disabled=true;
       return;
@@ -4938,6 +4945,93 @@
     void initAddressAutocomplete();
     void initTelemetry();
     await restoreCheckoutBooking();
+    const params=new URLSearchParams(location.search);
+    if(window.parent!==window&&params.get('patientApp')==='1'&&currentUserRole==='PATIENT'&&currentUser?.id&&token()&&riderDetailsConfirmed&&!params.has('manageRide')&&!params.has('payment')&&!params.has('bookingReference')&&!bookingSubmitted){
+      const allowed=allowedServicesForRole(currentUserRole);
+      const services=Array.from($('serviceTypeSelect')?.options||[]).filter(o=>o.value&&allowed.has(o.value)&&!o.disabled&&!o.hidden).map(o=>[o.value,o.textContent.trim()]);
+      const owner=currentUser.id;
+      const loadRecentRoutes=async()=>{
+        if(!token()||currentUser?.id!==owner||currentUserRole!=='PATIENT')return [];
+        const response=await fetch('/api/portal/trips',{headers:{authorization:'Bearer '+token()},cache:'no-store',signal:AbortSignal.timeout(8000)});
+        if(!response.ok||currentUser?.id!==owner||!token())return [];
+        const data=await response.json();
+        const routes=(Array.isArray(data.trips)?data.trips:[]).filter(t=>/^(completed|delivered)$/i.test(String(t.status||''))&&typeof t.pickup==='string'&&typeof t.destination==='string'&&t.pickup.trim()&&t.destination.trim()&&!t.multipleStops&&!t.multiple_stops&&!t.destination.includes(' ? ')).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+        const unique=new Map();
+        for(const t of routes){const key=JSON.stringify([t.pickup,t.destination,normalizeService(t.service)]);if(!unique.has(key))unique.set(key,{pickup:t.pickup,destination:t.destination,service:normalizeService(t.service)});}
+        return [...unique.values()].slice(0,5);
+      };
+      if(services.length)window.NexusBookingConversation?.mount({firstName:$('firstName')?.value,pickup:$('pickup')?.value,service:normalizeService($('service')?.value),services,loadRecentRoutes,minDate:$('tripDate')?.min,
+      payerOptions:Array.from(payerType?.options||[]).filter(o=>o.value&&!o.disabled&&!o.hidden).map(o=>[o.value,o.textContent.trim()]),
+      insuranceOptions:Array.from(insuranceCarrier?.options||[]).filter(o=>o.value&&!o.disabled&&!o.hidden).map(o=>[o.value,o.textContent.trim()]),
+      searchLocations:async(query,signal)=>{
+        const q=String(query||'').trim();
+        const local=previewPaymentsEnabled?getDefaultMarylandSuggestions(q):await fetchLocationSuggestions(q,signal);
+        if(signal?.aborted)return [];
+        try{
+          await loadMaps();
+          if(signal?.aborted||!google.maps.places?.AutocompleteService)return local;
+          const service=new google.maps.places.AutocompleteService();
+          const predictions=await Promise.race([new Promise(resolve=>service.getPlacePredictions({input:q,componentRestrictions:{country:'us'}},(items,status)=>resolve(status==='OK'&&Array.isArray(items)?items.map(item=>item.description).filter(Boolean):[]))),new Promise(resolve=>setTimeout(()=>resolve([]),4000))]);
+          return [...new Set([...local,...predictions])].slice(0,8);
+        }catch{return local;}
+      },
+      defaultLocations:()=>getDefaultMarylandSuggestions('Maryland'),
+      renderRoute:(container)=>{
+        if(!nexQuotedRoute?.routes?.[0]||!window.google?.maps?.DirectionsRenderer)return false;
+        const map=new google.maps.Map(container,{mapTypeControl:false,streetViewControl:false,fullscreenControl:false,gestureHandling:'cooperative'});
+        const renderer=new google.maps.DirectionsRenderer({map,suppressMarkers:false,polylineOptions:{strokeColor:'#087e83',strokeWeight:5}});
+        renderer.setDirections(nexQuotedRoute);
+        return true;
+      },
+      onQuote:async draft=>{
+        if(draft.rider!=='self'||currentUser?.id!==owner||!token())throw Error('Confirm the rider first');
+        autoEstimate.cancel();routeEstimateVersion++;resetEstimateUi();confirmedFareSignature='';fareSubmissionAuthorized=false;
+        const set=(id,value)=>{const field=$(id);if(field)field.value=value||'';};
+        const address=value=>String(value||'').trim().split(' - ').pop().trim();
+        set('pickup',address(draft.pickup));set('destination',address(draft.destination));set('tripDate',draft.date);set('scheduleBasis',draft.basis);set('tripType',draft.tripType);
+        syncTripScheduleUi();syncScheduleBasisUi();
+        set(draft.basis==='PICKUP'?'tripTime':'appointmentTime',draft.time);
+        if(draft.tripType==='ROUND_TRIP'){set('returnTripDate',draft.returnDate);set('returnTripTime',draft.returnTime);}
+        if(draft.tripType==='RECURRING'){set('recurrenceEndDate',draft.endDate);document.querySelectorAll('input[name="recurrenceDay"]').forEach(input=>{input.checked=draft.days.includes(input.value);});}
+        if(!Array.from(payerType?.options||[]).some(o=>o.value===draft.payerType&&!o.disabled&&!o.hidden))throw Error('Choose a valid payment type.');
+        if(draft.payerType==='INSURANCE'&&!Array.from(insuranceCarrier?.options||[]).some(o=>o.value&&o.value===draft.insuranceCarrier&&!o.disabled&&!o.hidden))throw Error('Choose your insurance provider.');
+        if(draft.payerType==='MEDICARE'&&['ambulatory','wheelchair','bariatric'].includes(draft.service))throw Error('Please choose an alternative payer for this transportation type.');
+        payerType.value=draft.payerType;syncInsuranceCarrierUi(false);
+        if(insuranceCarrier)insuranceCarrier.value=draft.payerType==='INSURANCE'?draft.insuranceCarrier:'';
+        selectService(draft.service);confirmRiderDetails();
+        if(!riderDetailsConfirmed)throw Error('Passenger or payer details need confirmation.');
+        markDestinationUnconfirmed();rideChoiceConfirmed=false;
+        syncSectionProgressUi();
+        autoEstimate.cancel();
+        nexQuotedRoute=null;
+        await confirmPickupDropoffDetails();
+        autoEstimate.cancel();
+        if(!destinationConfirmed||!nexQuotedRoute?.routes?.[0]||!Number(estimateState.miles)||!Number(estimateState.fare)||!$('tripTime')?.value||!isTripScheduleComplete())throw Error(statusMsg?.classList.contains('err')?statusMsg.textContent:'Please check the route and appointment time before requesting a fare.');
+        rideChoiceConfirmed=true;
+        updateFareConfirmationState();
+        if(!getProgressState().allRequiredComplete||!fareEstimateSignature)throw Error('Some required ride details are missing. Please review the passenger, route and schedule.');
+        return {fare:Number(estimateState.fare),pickupTime:$('tripTime').value,distance:Number(estimateState.miles),duration:estimateState.durationText,signature:fareEstimateSignature,details:JSON.stringify([scheduleBasisInput?.value,$('tripTime')?.value,appointmentTimeInput?.value,selectedRecurrenceDays(),recurrenceEndDate?.value,payerType?.value,insuranceCarrier?.value])};
+      },onSubmit:async quote=>{
+        if(bookingSubmitted||bookingSubmissionPending||!token()||currentUserRole!=='PATIENT')throw Error('Booking unavailable');
+        autoEstimate.cancel();routeEstimateVersion++;
+        updateFareConfirmationState();
+        const details=JSON.stringify([scheduleBasisInput?.value,$('tripTime')?.value,appointmentTimeInput?.value,selectedRecurrenceDays(),recurrenceEndDate?.value,payerType?.value,insuranceCarrier?.value]);
+        if(!quote.signature||quote.signature!==fareEstimateSignature||quote.details!==details||Number(quote.fare)!==Number(estimateState.fare))throw Error('Fare or schedule changed');
+        confirmedFareSignature=fareEstimateSignature;fareSubmissionAuthorized=true;
+        await submitBooking();
+        if(!bookingSubmitted||!currentBookingReference||currentBookingReference==='N/A'||currentBookingReference.startsWith('LOCAL-'))throw Error('Booking not verified');
+        return {reference:currentBookingReference,outcome:bookingOutcomeStatus?.textContent||'Ride request received',paymentRequired:paymentRequiredForBooking,paymentAvailable:Boolean(stripeEnabled||squareEnabled),fare:currentBookingFare,deposit:Math.round(Math.round(currentBookingFare*100)/4)/100};
+      },onPayment:async mode=>{
+        if(!bookingSubmitted||!currentBookingReference||!paymentRequiredForBooking||!token())throw Error('Payment unavailable');
+        const provider=resolvePaymentProvider('stripe');
+        if(!provider)throw Error('Payment unavailable');
+        await startHostedPayment(provider,mode);
+        if(paymentStatusMsg?.style.color==='var(--err)')throw Error('Checkout unavailable');
+      },onTrips:()=>window.parent.postMessage({type:'nexus:patient-view',view:'history'},location.origin)});
+    }
+    if(document.documentElement.classList.contains('patientConversationOnly')&&!document.body.classList.contains('nexBookingConversationOpen')){
+      const loading=$('nexBookingLoading');if(loading)loading.querySelector('p').textContent='Nex could not start this booking. Please try again or return to your patient app.';
+    }
   }
 
   if(document.readyState === 'loading'){
@@ -4949,5 +5043,5 @@
     bindCoreActions();
     bindAuthActions();
   }
-  init();
+  init().catch(()=>{const loading=$('nexBookingLoading');if(loading)loading.querySelector('p').textContent='Nex could not start this booking. Please try again.';});
 })();
