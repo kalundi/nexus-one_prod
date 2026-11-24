@@ -608,9 +608,35 @@ const ESTIMATE_TOOL = {
   }
 };
 
+// Seasonal context for Nex's personable greetings (Anthony, 2026-11-24):
+// name the nearest holiday when today (America/New_York) falls in its
+// run-up window, so the model can offer one brief, natural seasonal line.
+function seasonalHint(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'long'
+  }).formatToParts(now).reduce((acc, p) => (acc[p.type] = p.value, acc), {});
+  const year = Number(parts.year), month = Number(parts.month), day = Number(parts.day);
+  // Thanksgiving: fourth Thursday of November.
+  const nov1Dow = new Date(Date.UTC(year, 10, 1)).getUTCDay();
+  const thanksgivingDay = 1 + ((4 - nov1Dow + 7) % 7) + 21;
+  if (month === 11 && day >= thanksgivingDay - 6 && day <= thanksgivingDay + 3) {
+    return `It is the Thanksgiving season — Thanksgiving Day is Thursday, November ${thanksgivingDay}. `;
+  }
+  if (month === 12 && day >= 18 && day <= 25) {
+    return 'It is the Christmas season — Christmas Day is December 25. ';
+  }
+  if ((month === 12 && day >= 26) || (month === 1 && day <= 2)) {
+    return 'It is the New Year season — New Year\'s Day is January 1. ';
+  }
+  return '';
+}
+
 function modelInstructions() {
   return (
     'You are Nex, the Nexus Medical Transit Virtual Assistant on the company website, continuing a conversation with a visitor. ' +
+    'Be warm and personable, like a friendly person at the front desk, not a machine: if the visitor greets you, greet them back the same way. ' +
+    seasonalHint() +
+    'When a holiday season is noted above, you may add ONE brief, natural seasonal line — wish the visitor well for the holiday and, if it fits, ask about their plans for it. Keep it to one line, never let it bury the answer, and skip it entirely when the visitor is reporting a problem, an urgent need, or bad news. ' +
     'Answer using ONLY the Nexus knowledge base information provided below and the results of the estimate_ride tool. ' +
     'The knowledge base is authoritative for Nexus services, coverage, hours, and booking, and its general NEMT explanations may be used as written; never add facts about Nexus that are not in it. ' +
     'Rules: never state or estimate a price, fare, rate, or discount except a displayTotal the estimate_ride tool returned in this conversation (or the stored estimate summarized below) — quote it exactly as a rough estimate, never as a final quote; ' +
