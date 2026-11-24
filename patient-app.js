@@ -49,8 +49,8 @@
   if(sharedReference&&!['home','support','map'].includes(view))view='home';
   activeView=view;N.navigate(view);
   $('appShell').classList.toggle('patientBookingFocus',view==='booking');
-  const language=document.querySelector('body > .nexusLanguageControl, .patientScreenHead > .nexusLanguageControl');
-  if(language){if(view==='booking')bookingPage.querySelector('.patientScreenHead').append(language);else document.body.append(language);}
+  const language=$('patientLocale');
+  if(language){if(view==='booking')bookingPage.querySelector('.patientScreenHead').append(language);else $('patientLocaleSlot').append(language);}
 
   if(writeHistory){const hash=view==='map'?`#map/${encodeURIComponent(mapReference)}`:`#${view}`;if(location.hash!==hash)history.pushState({patientView:view},'',hash);}
   if(view==='home')countdown();
