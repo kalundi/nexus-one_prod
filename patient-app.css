@@ -97,3 +97,9 @@ body:has(#appShell.patientBookingFocus) > .xmas-app-strip,body:has(#appShell.pat
 #appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl{position:static!important;inset:auto!important;transform:none!important;display:flex!important;flex:none!important;width:auto!important;max-width:145px!important;margin:0 0 0 auto!important;padding:0!important;background:transparent!important;box-shadow:none!important;border:0!important}
 #appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl select{position:static!important;width:auto!important;max-width:145px!important;min-height:34px!important;font-size:13px!important;color:#344d4b!important;background:#fff!important;border:1px solid #dce5e2!important;border-radius:8px!important}
 body:has(#appShell.patientBookingFocus)> .nexusLanguageControl{display:none!important}
+
+/* Keep only the select in normal layout; retain accessible label and status. */
+#appShell.patientBookingFocus .patientScreenHead{position:relative;min-height:52px;align-items:center;box-sizing:border-box}
+#appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl{position:relative!important;display:block!important;width:132px!important;max-width:42vw!important;height:36px!important;flex:0 0 auto!important}
+#appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl .srOnly{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
+#appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl select{display:block!important;width:100%!important;height:36px!important;min-height:36px!important;max-height:36px!important;padding:0 6px!important;box-sizing:border-box!important;margin:0!important}
