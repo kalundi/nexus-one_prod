@@ -103,3 +103,16 @@ body:has(#appShell.patientBookingFocus)> .nexusLanguageControl{display:none!impo
 #appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl{position:relative!important;display:block!important;width:132px!important;max-width:42vw!important;height:36px!important;flex:0 0 auto!important}
 #appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl .srOnly{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
 #appShell.patientBookingFocus .patientScreenHead .nexusLanguageControl select{display:block!important;width:100%!important;height:36px!important;min-height:36px!important;max-height:36px!important;padding:0 6px!important;box-sizing:border-box!important;margin:0!important}
+
+/* App-owned native selectors: never allow language controls to enter the body flow. */
+body:has(#appShell){overflow:hidden;margin:0}
+body:has(#appShell)> .nexusLanguageControl{display:none!important}
+#appShell .topBarInner{grid-template-columns:minmax(72px,1fr) auto auto auto;gap:8px}
+.patientLocaleSlot{display:flex;align-items:center;min-width:0}
+.patientLocaleSelect{appearance:auto!important;display:block!important;position:static!important;opacity:1!important;transform:none!important;width:126px!important;max-width:100%!important;min-width:0!important;height:36px!important;min-height:36px!important;margin:0!important;padding:0 6px!important;background:#fff!important;color:#263b43!important;border:1px solid #d5e0e6!important;border-radius:8px;font:13px/1.2 system-ui,sans-serif!important}
+.patientLoginLocale{width:126px;margin:0 auto 12px}
+#bookingPage .patientScreenHead>.patientLocaleSelect{margin-left:auto!important;flex:none}
+#appShell:not(.patientBookingFocus){height:100dvh;overflow:hidden}
+#appShell:not(.patientBookingFocus)>.phone{margin-inline:auto;max-height:100%;height:100%;box-sizing:border-box}
+body:has(#appShell)> .xmas-app-strip{display:none!important}
+@media(max-width:520px){#appShell .topBarInner{grid-template-columns:minmax(60px,1fr) auto auto;gap:6px}#appShell .topTitle{display:none}#appShell .topLogo{width:90px}.patientLocaleSelect{width:110px!important;font-size:12px!important}}
