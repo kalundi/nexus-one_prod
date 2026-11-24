@@ -739,7 +739,12 @@
     .authOptional{background:#fff}.authBadge{background:#e8f3f4;color:#066b75}
     .bookingNudge{border-radius:12px;border-color:#a9d7dc;background:rgba(255,255,255,.98)}.bookingNudgeIcon{background:#081a2c}
   </style>
-<link rel="stylesheet" href="/responsive.css?v=5"><script src="/i18n.js?v=4" defer></script></head>
+<link rel="stylesheet" href="/responsive.css?v=5"><script src="/i18n.js?v=4" defer></script><style>
+.patientQuickSummary:not([hidden]){display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin:8px 0;border:1px solid #d8e1e8;border-radius:12px;background:#fff}.patientQuickSummary>div{display:grid;gap:3px}.patientQuickSummary small,.patientQuickSummary span{font-size:12px}.patientQuickSummary span{text-transform:capitalize}
+.patientQuickBooking #bookingLoginSection,.patientQuickBooking #patientDefaultsBanner,.patientQuickBooking .top,.patientQuickBooking .bookingHelpCall{display:none!important}
+.patientQuickBooking #riderDetailsSection:not(.currentBookingCard){display:none!important}
+.patientQuickBooking #patientQuickSummary[hidden]{display:none!important}
+</style></head>
 <body>
   <main class="phone">
     <header class="top">
@@ -776,6 +781,7 @@
     </details>
 
     <form id="bookingForm" novalidate>
+      <div id="patientQuickSummary" class="patientQuickSummary" hidden><div><small>Booking for</small><strong id="patientQuickName"></strong><span id="patientQuickService"></span></div><button type="button" class="ghost" id="patientQuickEdit">Edit details</button></div>
       <div class="completedSectionsToggle" id="completedSectionsToggleWrap">
         <button type="button" class="ghost" id="toggleCompletedSectionsBtn">Show completed sections</button>
       </div>
@@ -1355,7 +1361,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=20261011-footer-spacing"></script>
   <script src="./booking-service-guidance.js?v=20261028-passenger"></script>
-<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261028-waiting-fix"></script><script src="./nexus-trip-timing.js?v=20261028-waiting-fix"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-facility.js?v=2"></script><script src="./booking-app.js?v=20261124-phase2"></script>
+<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261028-waiting-fix"></script><script src="./nexus-trip-timing.js?v=20261028-waiting-fix"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-facility.js?v=2"></script><script src="./booking-app.js?v=20261124-quick-booking"></script>
 <script src="./patient-booking-bridge.js?v=20261010"></script>
 </body>
 </html>
