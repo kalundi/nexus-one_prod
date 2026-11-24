@@ -4167,6 +4167,8 @@ async function handler(event){
    return json(200,{user:safeUser(refreshed)});
   }
   if((p[0]==='patient'&&p[1]==='trips'&&p[3]==='return-pickup')||(p[0]==='dispatch'&&p[1]==='return-pickups')){
+   // Deploy previews may share database configuration. Never write return requests from test mode.
+   if(isTestMode())return json(503,{error:'Return pickup requests are disabled in this preview. Use isolated regression fixtures.'});
    const response=await require('./_shared/patient-return-pickups.cjs').createHandler({query,requireUser,bearer,json,audit,notifyDispatch:request=>sendTeamsAlert('Return pickup requested: '+String(request.reference).replace(/[^a-zA-Z0-9_-]/g,'')+' — '+String(request.requestedAt),'Return pickup request — Nexus Dispatch'),notifyPatient:async request=>{
     const result=await query(`SELECT u.email,u.phone,pr.communication_preference FROM bookings b JOIN users u ON u.id=b.patient_user_id
       LEFT JOIN patient_transport_preferences pr ON pr.user_id=u.id
