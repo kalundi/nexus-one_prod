@@ -34,6 +34,7 @@
 
 [context.deploy-preview.environment]
   NEXUS_TEST_MODE = "true"
+  NEXUS_PREVIEW_MAPS = "true"
   APP_ENV = "test"
   ALLOW_FALLBACK_AUTH = "true"
   NEXUS_BUILD_DIR = "dist-preview"
