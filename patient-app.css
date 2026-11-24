@@ -76,3 +76,12 @@ button.brandLockup{border:0;padding:0;background:none;cursor:pointer;text-align:
 .bookRideSign:active{transform:translateY(0);filter:brightness(.98)}
 .bookRideSign span[aria-hidden="true"]{display:none!important}
 @media(max-width:620px){.bookRideSign{min-height:50px;padding:11px 17px!important;border-radius:16px!important;font-size:13px}}
+
+/* Booking is a focused workspace, not a card inside the patient dashboard. */
+#appShell.patientBookingFocus{height:100dvh;min-height:0;background:#fafbfc}
+#appShell.patientBookingFocus>.phone{width:100%;max-width:960px;height:100dvh;min-height:0;padding:0 clamp(8px,2vw,24px);gap:0;box-sizing:border-box}
+#appShell.patientBookingFocus .topBar,#appShell.patientBookingFocus .bottomNav{display:none!important}
+#appShell.patientBookingFocus #bookingPage:not([hidden]){flex:1 1 0;min-height:0;max-height:none;padding:0;gap:0}
+#appShell.patientBookingFocus #bookingPage>.patientScreenHead{flex:none;justify-content:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid #e5ebe8;background:#fafbfc}
+.patientBookingTitle{font-size:15px;font-weight:650;color:#344d4b}
+#appShell.patientBookingFocus #bookingFrame{flex:1 1 0;min-height:0;height:0;border-radius:0;background:#fafbfc}
