@@ -4938,6 +4938,22 @@
     void initAddressAutocomplete();
     void initTelemetry();
     await restoreCheckoutBooking();
+    const params=new URLSearchParams(location.search);
+    if(window.parent!==window&&params.get('patientApp')==='1'&&currentUserRole==='PATIENT'&&currentUser?.id&&token()&&riderDetailsConfirmed&&!params.has('manageRide')&&!params.has('payment')&&!params.has('bookingReference')&&!bookingSubmitted){
+      const allowed=allowedServicesForRole(currentUserRole);
+      const services=Array.from($('serviceTypeSelect')?.options||[]).filter(o=>o.value&&allowed.has(o.value)&&!o.disabled&&!o.hidden).map(o=>[o.value,o.textContent.trim()]);
+      if(services.length)window.NexusBookingConversation?.mount({firstName:$('firstName')?.value,pickup:$('pickup')?.value,service:normalizeService($('service')?.value),services,minDate:$('tripDate')?.min,onReview:draft=>{
+        const set=(id,value)=>{const field=$(id);if(field)field.value=value||'';};
+        set('pickup',draft.pickup);set('destination',draft.destination);set('tripDate',draft.date);set('scheduleBasis',draft.basis);set('tripType',draft.tripType);
+        syncTripScheduleUi();syncScheduleBasisUi();
+        set(draft.basis==='PICKUP'?'tripTime':'appointmentTime',draft.time);
+        if(draft.tripType==='ROUND_TRIP'){set('returnTripDate',draft.returnDate);set('returnTripTime',draft.returnTime);}
+        if(draft.tripType==='RECURRING'){set('recurrenceEndDate',draft.endDate);document.querySelectorAll('input[name="recurrenceDay"]').forEach(input=>{input.checked=draft.days.includes(input.value);});}
+        selectService(draft.service);markDestinationUnconfirmed();rideChoiceConfirmed=false;
+        syncSectionProgressUi();revealSectionForAction('pickupDropoffSection','confirmPickupDropoffBtn');
+        setStatus('Nex has prepared your trip. Confirm the route to calculate your fare, then review and submit.','ok');
+      }});
+    }
   }
 
   if(document.readyState === 'loading'){
