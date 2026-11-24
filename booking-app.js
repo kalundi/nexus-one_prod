@@ -2735,6 +2735,7 @@
   }
 
   function clearCustomerRoute(){
+    nexQuotedRoute=null;
     if(customerRoutePolyline) customerRoutePolyline.setMap(null);
     if(customerPickupMarker) customerPickupMarker.setMap(null);
     if(customerDestinationMarker) customerDestinationMarker.setMap(null);
@@ -2888,7 +2889,9 @@
     if(hasBounds) telemetryMap.fitBounds(bounds, 48);
   }
 
+  let nexQuotedRoute=null;
   function renderCustomerRoute(result, pickupLabel, destinationLabels){
+    if(result?.routes?.[0])nexQuotedRoute=result;
     if(!telemetryMap || !result?.routes?.[0]) return;
     if(customerRoutePolyline) customerRoutePolyline.setMap(null);
     if(customerPickupMarker) customerPickupMarker.setMap(null);
@@ -4962,6 +4965,13 @@
           autocomplete.addListener('place_changed',()=>{const place=autocomplete.getPlace();if(input.isConnected&&place?.formatted_address)input.value=place.formatted_address;});
         }catch{}
       },
+      renderRoute:(container)=>{
+        if(!nexQuotedRoute?.routes?.[0]||!window.google?.maps?.DirectionsRenderer)return false;
+        const map=new google.maps.Map(container,{mapTypeControl:false,streetViewControl:false,fullscreenControl:false,gestureHandling:'cooperative'});
+        const renderer=new google.maps.DirectionsRenderer({map,suppressMarkers:false,polylineOptions:{strokeColor:'#087e83',strokeWeight:5}});
+        renderer.setDirections(nexQuotedRoute);
+        return true;
+      },
       onOtherRider:()=>{
         setRiderFormValues({});
         if($('pickup'))$('pickup').value='';
@@ -4985,13 +4995,14 @@
         selectService(draft.service);markDestinationUnconfirmed();rideChoiceConfirmed=false;
         syncSectionProgressUi();
         autoEstimate.cancel();
+        nexQuotedRoute=null;
         await confirmPickupDropoffDetails();
         autoEstimate.cancel();
         if(!destinationConfirmed||!Number(estimateState.miles)||!Number(estimateState.fare)||!$('tripTime')?.value||!isTripScheduleComplete())throw Error('Incomplete route or schedule');
         rideChoiceConfirmed=true;
         updateFareConfirmationState();
         if(!getProgressState().allRequiredComplete||!fareEstimateSignature)throw Error('Incomplete booking');
-        return {fare:Number(estimateState.fare),pickupTime:$('tripTime').value,signature:fareEstimateSignature,details:JSON.stringify([scheduleBasisInput?.value,$('tripTime')?.value,appointmentTimeInput?.value,selectedRecurrenceDays(),recurrenceEndDate?.value])};
+        return {fare:Number(estimateState.fare),pickupTime:$('tripTime').value,distance:Number(estimateState.miles),duration:estimateState.durationText,signature:fareEstimateSignature,details:JSON.stringify([scheduleBasisInput?.value,$('tripTime')?.value,appointmentTimeInput?.value,selectedRecurrenceDays(),recurrenceEndDate?.value])};
       },onSubmit:async quote=>{
         if(bookingSubmitted||bookingSubmissionPending||!token()||currentUserRole!=='PATIENT')throw Error('Booking unavailable');
         autoEstimate.cancel();routeEstimateVersion++;
