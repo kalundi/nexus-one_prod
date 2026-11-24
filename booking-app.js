@@ -606,7 +606,7 @@
   }
 
   const autoEstimate = debounce(async() => {
-    if(bookingSubmitted || bookingSubmissionPending) return;
+    if(bookingSubmitted || bookingSubmissionPending || document.body.classList.contains('nexBookingConversationOpen')) return;
     const pickup = $('pickup').value.trim();
     const destination = $('destination').value.trim();
     if(!pickup || !destination){
@@ -3462,9 +3462,11 @@
       yardToPickupTrafficDurationMinutes=measured.deadheadRoutes[0].trafficDurationMinutes;
       deadheadRouteMiles={toPickup:measured.deadheadSegments[0],fromDestination:measured.deadheadSegments[1],fromReturn:measured.deadheadSegments[1]};
       if(timedOutboundResult)result=timedOutboundResult;
-      renderCustomerRoute(result, pickup, destinations);
+      nexQuotedRoute=result;
+      if(!document.body.classList.contains('nexBookingConversationOpen'))renderCustomerRoute(result, pickup, destinations);
       renderMultiStopFeasibility();
     }catch(err){
+      if(document.body.classList.contains('nexBookingConversationOpen')){nexQuotedRoute=null;resetEstimateUi();markDestinationUnconfirmed();setStatus('The driving route could not be verified. Check the pickup and destination addresses or try again.','err');return estimateState;}
       const fallbackLegTravelMinutes = [];
       const fallbackLegMetrics=[];
       const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations], undefined, [], fallbackLegTravelMinutes,fallbackLegMetrics);
@@ -4981,6 +4983,7 @@
       },
       onQuote:async draft=>{
         if(draft.rider!=='self'||currentUser?.id!==owner||!token())throw Error('Confirm the rider first');
+        autoEstimate.cancel();routeEstimateVersion++;resetEstimateUi();confirmedFareSignature='';fareSubmissionAuthorized=false;
         const set=(id,value)=>{const field=$(id);if(field)field.value=value||'';};
         set('pickup',draft.pickup);set('destination',draft.destination);set('tripDate',draft.date);set('scheduleBasis',draft.basis);set('tripType',draft.tripType);
         syncTripScheduleUi();syncScheduleBasisUi();
@@ -4993,10 +4996,10 @@
         nexQuotedRoute=null;
         await confirmPickupDropoffDetails();
         autoEstimate.cancel();
-        if(!destinationConfirmed||!Number(estimateState.miles)||!Number(estimateState.fare)||!$('tripTime')?.value||!isTripScheduleComplete())throw Error('Incomplete route or schedule');
+        if(!destinationConfirmed||!nexQuotedRoute?.routes?.[0]||!Number(estimateState.miles)||!Number(estimateState.fare)||!$('tripTime')?.value||!isTripScheduleComplete())throw Error(statusMsg?.classList.contains('err')?statusMsg.textContent:'Please check the route and appointment time before requesting a fare.');
         rideChoiceConfirmed=true;
         updateFareConfirmationState();
-        if(!getProgressState().allRequiredComplete||!fareEstimateSignature)throw Error('Incomplete booking');
+        if(!getProgressState().allRequiredComplete||!fareEstimateSignature)throw Error('Some required ride details are missing. Please review the passenger, route and schedule.');
         return {fare:Number(estimateState.fare),pickupTime:$('tripTime').value,distance:Number(estimateState.miles),duration:estimateState.durationText,signature:fareEstimateSignature,details:JSON.stringify([scheduleBasisInput?.value,$('tripTime')?.value,appointmentTimeInput?.value,selectedRecurrenceDays(),recurrenceEndDate?.value])};
       },onSubmit:async quote=>{
         if(bookingSubmitted||bookingSubmissionPending||!token()||currentUserRole!=='PATIENT')throw Error('Booking unavailable');
