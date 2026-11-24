@@ -4765,6 +4765,7 @@
 
     await loadIntegrationConfig();
     try{await loadPlatformSettings();}catch(error){
+      const loading=$('nexBookingLoading');if(loading)loading.querySelector('p').textContent='Nex could not load current booking settings. Please try again.';
       setStatus(error.message,'err');
       if(submitBtn)submitBtn.disabled=true;
       return;
@@ -5028,6 +5029,9 @@
         if(paymentStatusMsg?.style.color==='var(--err)')throw Error('Checkout unavailable');
       },onTrips:()=>window.parent.postMessage({type:'nexus:patient-view',view:'history'},location.origin)});
     }
+    if(document.documentElement.classList.contains('patientConversationOnly')&&!document.body.classList.contains('nexBookingConversationOpen')){
+      const loading=$('nexBookingLoading');if(loading)loading.querySelector('p').textContent='Nex could not start this booking. Please try again or return to your patient app.';
+    }
   }
 
   if(document.readyState === 'loading'){
@@ -5039,5 +5043,5 @@
     bindCoreActions();
     bindAuthActions();
   }
-  init();
+  init().catch(()=>{const loading=$('nexBookingLoading');if(loading)loading.querySelector('p').textContent='Nex could not start this booking. Please try again.';});
 })();
