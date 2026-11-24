@@ -2752,7 +2752,10 @@ async function handler(event){
    if(p[0]==='bookings'&&method==='POST'&&p.length===1){
     const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
     const ref=`TEST-${Date.now().toString(36).toUpperCase()}-${crypto.randomInt(100,999)}`;
-    return json(201,{testMode:true,persisted:false,booking:{reference:ref,name:clean(b.name),service:clean(b.service),pickup:clean(b.pickup),destination:clean(b.destination),date:clean(b.date),time:clean(b.time),estimatedFare:Number(b.estimatedFare||0),flightInfo:b.flightInfo||null,status:'PENDING_PAYMENT'},requiresOnlinePayment:true,depositRequired:true,clientMessage:`Test booking created. Reference: ${ref}. No live booking was saved.`});
+    if(clean(b.payerType).toUpperCase()==='INSURANCE'&&!clean(b.insuranceCarrier))return json(400,{error:'Private insurance provider is required'});
+    const testPolicy=bookingPaymentPolicy({authenticated:Boolean(bearer(event)),payerType:b.payerType,service:b.service});
+    const status=testPolicy.requiresDeposit?'PENDING_PAYMENT':testPolicy.requiresApproval?'PENDING_APPROVAL':'SUBMITTED';
+    return json(testPolicy.requiresApproval?202:201,{testMode:true,persisted:false,booking:{reference:ref,name:clean(b.name),service:clean(b.service),pickup:clean(b.pickup),destination:clean(b.destination),date:clean(b.date),time:clean(b.time),estimatedFare:Number(b.estimatedFare||0),flightInfo:b.flightInfo||null,payerType:testPolicy.payerType,status},requiresOnlinePayment:testPolicy.requiresDeposit,depositRequired:testPolicy.requiresDeposit,pendingApproval:testPolicy.requiresApproval,coverageStatus:testPolicy.coverageStatus,coverageNotAvailable:testPolicy.coverageNotAvailable,clientMessage:`Test booking created. Reference: ${ref}. No live booking was saved. ${testPolicy.coverageMessage}`});
    }
    if(p[0]==='bookings'&&p[1]&&p[2]==='update'&&method==='POST'){
     const b=parseBody(event);required(b,['name','phone','service','pickup','destination','date','time','appointmentTime']);
