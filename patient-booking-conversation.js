@@ -6,9 +6,8 @@
   const log=document.createElement('div');log.className='nexBookingLog';log.setAttribute('role','log');log.setAttribute('aria-live','polite');
   const controls=document.createElement('div');controls.className='nexBookingControls';
   const footer=document.createElement('footer');
-  const manual=document.createElement('button');manual.type='button';manual.className='ghost';manual.textContent='Use booking form instead';manual.addEventListener('click',()=>finish(false));
   const restart=document.createElement('button');restart.type='button';restart.className='ghost';restart.textContent='Start over';restart.addEventListener('click',reset);
-  footer.append(restart,manual);host.append(log,controls,footer);document.body.append(host);document.body.classList.add('nexBookingConversationOpen');
+  footer.append(restart);host.append(log,controls,footer);document.body.append(host);document.body.classList.add('nexBookingConversationOpen');
   let draft={},closed=false,busy=false;
   function bubble(text,who='nex'){const el=document.createElement('p');el.className='nexBookingBubble '+who;const speaker=document.createElement('span');speaker.className='nexBookingSpeaker';speaker.textContent=who==='patient'?'You':'Nex';el.append(speaker,document.createTextNode(text));log.append(el);log.scrollTop=log.scrollHeight;}
   function button(text,fn){const b=document.createElement('button');b.type='button';b.className='ghost';b.textContent=text;b.addEventListener('click',fn);controls.append(b);return b;}
@@ -26,7 +25,7 @@
    input.addEventListener('input',search);input.addEventListener('focus',()=>{if(!input.value.trim())render(options.defaultLocations?.()||[]);});
    if(!input.value.trim())render(options.defaultLocations?.()||[]);
   }
-  function reset(){if(busy)return;draft={};log.replaceChildren();const name=String(options.firstName||'').trim();bubble(name?'Hi '+name+'! How can I help with your transportation today?':'Hi! How can I help with your transportation today?');choose('Are we arranging a ride for you or for someone else?',[['self','For me'],['other','For someone else']],v=>{if(v==='self'){draft.rider='self';if(options.pickup){draft.pickup=options.pickup;bubble('I have your saved pickup ready: '+options.pickup+'. You can change it if needed.');}chat('Of course. Tell me where you need to go and when.');}else{bubble('Absolutely. Let’s make sure we have the right passenger details.');button('Enter passenger details securely',()=>{finish();options.onOtherRider?.();});button('Actually, it’s for me',reset);}});}
+  function reset(){if(busy)return;draft={};log.replaceChildren();const name=String(options.firstName||'').trim();bubble(name?'Hi '+name+'! How can I help with your transportation today?':'Hi! How can I help with your transportation today?');choose('Are we arranging a ride for you or for someone else?',[['self','For me'],['other','For someone else']],v=>{if(v==='self'){draft.rider='self';if(options.pickup){draft.pickup=options.pickup;bubble('I have your saved pickup ready: '+options.pickup+'. You can change it if needed.');}chat('Of course. Tell me where you need to go and when.');}else{bubble('Absolutely. Let’s make sure we have the right passenger details.');button('Contact our transportation team',()=>contact());button('Actually, it’s for me',reset);}});}
   function chat(question,expected){
    ask(question,'text',(value,selectedLocation)=>{
     if(selectedLocation){if(expected==='pickup')draft.pickup=value;else draft.destination=value;next();return;}
@@ -82,7 +81,7 @@
   }
   function repeatDays(){controls.replaceChildren();bubble('Which days should we arrange this ride?');const form=document.createElement('form');const group=document.createElement('fieldset');const legend=document.createElement('legend');legend.textContent='Repeat days';group.append(legend);for(const day of ['MON','TUE','WED','THU','FRI','SAT','SUN']){const l=document.createElement('label'),i=document.createElement('input');i.type='checkbox';i.value=day;l.append(i,document.createTextNode(' '+day));group.append(l);}const send=document.createElement('button');send.type='submit';send.textContent='Continue';form.append(group,send);controls.append(form);form.addEventListener('submit',e=>{e.preventDefault();const days=Array.from(group.querySelectorAll('input:checked'),i=>i.value);if(!days.length){bubble('Please select at least one day.');return;}draft.days=days;bubble(days.join(', '),'patient');const max=new Date(draft.date+'T12:00:00Z');max.setUTCDate(max.getUTCDate()+84);ask('When should the recurring rides end?','date',d=>{draft.endDate=d;next();},'',draft.date,max.toISOString().slice(0,10));});}
   function review(){controls.replaceChildren();const selected=(options.services||[]).find(([v])=>v===draft.service)?.[1]||draft.service;bubble('Perfect, let me make sure I have everything right.');bubble(['Riding: '+(options.firstName||'You'),'Pickup: '+draft.pickup,'Destination: '+draft.destination,'Date: '+draft.date,(draft.basis==='PICKUP'?'Pickup':'Appointment')+' time: '+draft.time,'Trip: '+labels[draft.tripType],'Transportation: '+selected,draft.returnDate?'Return: '+draft.returnDate+' at '+draft.returnTime:'',draft.days?'Repeats: '+draft.days.join(', ')+' through '+draft.endDate:''].filter(Boolean).join('\n'));bubble('Let me check the fare and pickup time for you. Nothing has been booked yet.');button('Check fare',quote);button('Change pickup',()=>{delete draft.pickup;chat('Where should we pick you up instead?','pickup');});button('Change destination',()=>{delete draft.destination;chat('Where are you heading instead?','destination');});button('Change answers',()=>chat('What would you like to change?'));button('Start a different ride',reset);}
-  function lock(value){busy=value;restart.disabled=value;manual.disabled=value;controls.querySelectorAll('button,input').forEach(el=>el.disabled=value);}
+  function lock(value){busy=value;restart.disabled=value;controls.querySelectorAll('button,input').forEach(el=>el.disabled=value);}
   async function quote(){
    if(busy||closed)return;lock(true);bubble('I’m checking the route and current fare…');
    try{
@@ -96,7 +95,7 @@
     log.scrollTop=log.scrollHeight;
     bubble('Would you like me to submit this ride request?');
     button('Submit ride request',()=>submit(result));button('Change answers',()=>{routeCard.remove();chat('What would you like to change?');});
-   }catch(error){controls.replaceChildren();bubble('I couldn’t calculate your fare yet. '+(error?.message||'Please check the ride details.'));button('Try again',quote);button('Change pickup',()=>{delete draft.pickup;chat('Where should we pick you up?','pickup');});button('Change destination',()=>{delete draft.destination;chat('Where are you heading?','destination');});button('Review booking form',()=>finish(false));}
+   }catch(error){controls.replaceChildren();bubble('I couldn’t calculate your fare yet. '+(error?.message||'Please check the ride details.'));button('Try again',quote);button('Change pickup',()=>{delete draft.pickup;chat('Where should we pick you up?','pickup');});button('Change destination',()=>{delete draft.destination;chat('Where are you heading?','destination');});button('Contact Nexus',contact);}
    finally{lock(false);}
   }
   async function submit(quote){
@@ -106,10 +105,25 @@
     controls.replaceChildren();
     if(!result?.reference)throw Error('Unconfirmed submission');
     bubble((result.outcome||'Ride request received')+'. Reference: '+result.reference+'.');
-    if(result.paymentRequired){bubble('Your request requires a secure payment step.');button('Continue to secure payment',()=>finish(false));}
-    else{bubble('You can check the status under My rides.');button('View my rides',()=>{finish(false);options.onTrips?.();});}
-    restart.hidden=true;manual.hidden=true;
-   }catch{controls.replaceChildren();bubble('I couldn’t verify that the request was saved. Please check My rides before submitting again, or contact dispatch.');button('View my rides',()=>{finish(false);options.onTrips?.();});restart.hidden=true;manual.hidden=true;}
+    if(result.paymentRequired){bubble('Your request requires a secure payment step.');paymentChoices(result);}
+    else{bubble('You can check the status under My rides.');button('View my rides',()=>{options.onTrips?.();});}
+    restart.hidden=true;
+   }catch{controls.replaceChildren();bubble('I couldn’t verify that the request was saved. Please check My rides before submitting again, or contact dispatch.');button('View my rides',()=>{options.onTrips?.();});restart.hidden=true;}
+   finally{lock(false);}
+  }
+  function contact(){controls.replaceChildren();bubble('Our transportation team can help you complete this request. Call (888) 760-4990.');const link=document.createElement('a');link.href='tel:8887604990';link.textContent='Call Nexus';controls.append(link);button('Return to conversation',next);}
+  function paymentChoices(result){
+   controls.replaceChildren();
+   const money=value=>Number(value).toLocaleString('en-US',{style:'currency',currency:'USD'});
+   if(result.paymentAvailable){
+    button('Pay 25% deposit · '+money(result.deposit),()=>pay('deposit',result));
+    button('Pay in full · '+money(result.fare),()=>pay('full',result));
+   }else bubble('Online payment is currently unavailable. Please contact Nexus for assistance.');
+   button('View my rides',()=>options.onTrips?.());
+  }
+  async function pay(mode,result){
+   if(busy||closed)return;lock(true);bubble('I’ll open secure checkout for you.');
+   try{await options.onPayment(mode);}catch{bubble('I couldn’t open checkout. Your ride request has already been received. You can try payment again without submitting another ride.');paymentChoices(result);}
    finally{lock(false);}
   }
   function finish(){if(closed||busy)return;closed=true;draft={};log.replaceChildren();host.remove();document.body.classList.remove('nexBookingConversationOpen');}
