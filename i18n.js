@@ -7668,5 +7668,16 @@ function addSelector(){
  if(updated&&document.body&&locale!=='en-US'&&locale!=='en-GB')apply();
 }
 window.NexusI18n={setLocale,registerTranslations,getLocale:()=>locale,locales,t:(s)=>exact(s),formatCurrency:(n,c='USD')=>new Intl.NumberFormat(locale,{style:'currency',currency:c}).format(n),formatDate:(d,o)=>new Intl.DateTimeFormat(locale,o).format(new Date(d))};
+ // Load curated translations for current public-site content on every page.
+ // If the bundle is unavailable, the base dictionary remains functional.
+ try {
+   if(!document.querySelector('script[data-nexus-locale-additions]')){
+     const extra=document.createElement('script');
+     extra.src='/locale-additions.js?v=1';
+     extra.async=true;
+     extra.dataset.nexusLocaleAdditions='true';
+     document.head.appendChild(extra);
+   }
+ } catch(error) { console.warn('Nexus supplementary translations unavailable:',error); }
  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
 })();
