@@ -4980,18 +4980,6 @@
         renderer.setDirections(nexQuotedRoute);
         return true;
       },
-      onOtherRider:()=>{
-        setRiderFormValues({});
-        if($('pickup'))$('pickup').value='';
-        if($('destination'))$('destination').value='';
-        if($('payerType'))$('payerType').value='SELF_PAY';
-        if(insuranceCarrier)insuranceCarrier.value='';
-        document.querySelectorAll('input[name="remainsInWheelchair"]').forEach(i=>i.checked=false);
-        currentPatientPreferences=null;
-        if(patientDefaultsBanner)patientDefaultsBanner.hidden=true;
-        selectService('');riderDetailsConfirmed=false;markDestinationUnconfirmed();
-        revealSectionForAction('riderDetailsSection','firstName');
-      },
       onQuote:async draft=>{
         if(draft.rider!=='self'||currentUser?.id!==owner||!token())throw Error('Confirm the rider first');
         autoEstimate.cancel();routeEstimateVersion++;resetEstimateUi();confirmedFareSignature='';fareSubmissionAuthorized=false;
@@ -5022,7 +5010,13 @@
         confirmedFareSignature=fareEstimateSignature;fareSubmissionAuthorized=true;
         await submitBooking();
         if(!bookingSubmitted||!currentBookingReference||currentBookingReference==='N/A'||currentBookingReference.startsWith('LOCAL-'))throw Error('Booking not verified');
-        return {reference:currentBookingReference,outcome:bookingOutcomeStatus?.textContent||'Ride request received',paymentRequired:paymentRequiredForBooking};
+        return {reference:currentBookingReference,outcome:bookingOutcomeStatus?.textContent||'Ride request received',paymentRequired:paymentRequiredForBooking,paymentAvailable:Boolean(stripeEnabled||squareEnabled),fare:currentBookingFare,deposit:Math.round(Math.round(currentBookingFare*100)/4)/100};
+      },onPayment:async mode=>{
+        if(!bookingSubmitted||!currentBookingReference||!paymentRequiredForBooking||!token())throw Error('Payment unavailable');
+        const provider=resolvePaymentProvider('stripe');
+        if(!provider)throw Error('Payment unavailable');
+        await startHostedPayment(provider,mode);
+        if(paymentStatusMsg?.style.color==='var(--err)')throw Error('Checkout unavailable');
       },onTrips:()=>window.parent.postMessage({type:'nexus:patient-view',view:'history'},location.origin)});
     }
   }
