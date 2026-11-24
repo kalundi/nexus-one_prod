@@ -4958,13 +4958,8 @@
         return [...unique.values()].slice(0,5);
       };
       if(services.length)window.NexusBookingConversation?.mount({firstName:$('firstName')?.value,pickup:$('pickup')?.value,service:normalizeService($('service')?.value),services,loadRecentRoutes,minDate:$('tripDate')?.min,
-      attachAddress:async input=>{
-        try{
-          await loadMaps();if(!input.isConnected||!window.google?.maps?.places?.Autocomplete)return;
-          const autocomplete=new google.maps.places.Autocomplete(input,{fields:['formatted_address','place_id','name'],componentRestrictions:{country:'us'}});
-          autocomplete.addListener('place_changed',()=>{const place=autocomplete.getPlace();if(input.isConnected&&place?.formatted_address)input.value=place.formatted_address;});
-        }catch{}
-      },
+      searchLocations:(query,signal)=>fetchLocationSuggestions(query,signal),
+      defaultLocations:()=>getDefaultMarylandSuggestions('Maryland'),
       renderRoute:(container)=>{
         if(!nexQuotedRoute?.routes?.[0]||!window.google?.maps?.DirectionsRenderer)return false;
         const map=new google.maps.Map(container,{mapTypeControl:false,streetViewControl:false,fullscreenControl:false,gestureHandling:'cooperative'});
