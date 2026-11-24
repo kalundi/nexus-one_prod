@@ -1,0 +1,40 @@
+name: Patient app regression
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'patient*.html'
+      - 'patient*.js'
+      - 'patient*.css'
+      - 'build6-patient.js'
+      - 'booking-app.html'
+      - 'tests/patient-app-journey.spec.js'
+      - 'playwright.config.js'
+      - 'scripts/local-test-server.cjs'
+      - '.github/workflows/patient-member.yml'
+permissions:
+  contents: read
+jobs:
+  patient-journey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run patient app journey regression
+        run: npx playwright test tests/patient-app-journey.spec.js --workers=1 --reporter=list,html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: patient-regression-results
+          path: |
+            playwright-report/
+            test-results/
+            output/patient-app-*.png
+          if-no-files-found: ignore
+          retention-days: 7
