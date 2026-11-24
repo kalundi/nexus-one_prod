@@ -4167,7 +4167,17 @@ async function handler(event){
    return json(200,{user:safeUser(refreshed)});
   }
   if((p[0]==='patient'&&p[1]==='trips'&&p[3]==='return-pickup')||(p[0]==='dispatch'&&p[1]==='return-pickups')){
-   const response=await require('./_shared/patient-return-pickups.cjs').createHandler({query,requireUser,bearer,json,audit,notifyDispatch:request=>sendTeamsAlert('Return pickup requested: '+String(request.reference).replace(/[^a-zA-Z0-9_-]/g,'')+' — '+String(request.requestedAt),'Return pickup request — Nexus Dispatch')})(event,p,method);
+   const response=await require('./_shared/patient-return-pickups.cjs').createHandler({query,requireUser,bearer,json,audit,notifyDispatch:request=>sendTeamsAlert('Return pickup requested: '+String(request.reference).replace(/[^a-zA-Z0-9_-]/g,'')+' — '+String(request.requestedAt),'Return pickup request — Nexus Dispatch'),notifyPatient:async request=>{
+    const result=await query(`SELECT u.email,u.phone,pr.communication_preference FROM bookings b JOIN users u ON u.id=b.patient_user_id
+      LEFT JOIN patient_transport_preferences pr ON pr.user_id=u.id
+      WHERE b.reference=$1 AND u.id=$2::uuid AND u.active=true AND upper(b.status) NOT IN ('CANCELLED','NO_SHOW')`,[request.reference,request.requestedBy]);
+    const recipient=result.rows[0];if(!recipient||isTestMode())return {status:'skipped'};
+    const preference=String(recipient.communication_preference||'').toUpperCase();
+    const message='Nexus Medical Transit: Dispatch has acknowledged your return pickup request. Pickup timing is not yet confirmed. Check your patient app or call (888) 639-5766.';
+    if(preference==='SMS'&&recipient.phone)return sendSms(recipient.phone,message+' Reply STOP to opt out.');
+    if(preference==='EMAIL'&&recipient.email)return sendEmail(recipient.email,'Your Nexus ride request update',PatientNotify.emailShell({},'<p>'+PatientNotify.esc(message)+'</p>'));
+    return {status:'skipped'};
+   }})(event,p,method);
    if(response)return response;
   }
   if(p[0]==='patient'&&p[1]==='dashboard'&&method==='GET'){
