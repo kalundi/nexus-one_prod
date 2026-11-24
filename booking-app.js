@@ -1854,6 +1854,7 @@
     const savingsNote=[savings>0?`Discount applied: $${savings.toFixed(2)}.`:'',!token()?'You are not receiving the 5% member discount. Sign up or sign in to receive it.':''].filter(Boolean).join(' ');
     if($('fareConfirmFuel')){$('fareConfirmFuel').textContent=savingsNote;$('fareConfirmFuel').hidden=!savingsNote;}
     if(fareConfirmAmount)fareConfirmAmount.textContent=`$${Number(estimateState.fare||0).toFixed(2)}`;
+    if(document.body.classList.contains('nexBookingConversationOpen'))return;
     if(fareConfirmDialog?.showModal)fareConfirmDialog.showModal();
   }
 
@@ -4942,7 +4943,7 @@
     if(window.parent!==window&&params.get('patientApp')==='1'&&currentUserRole==='PATIENT'&&currentUser?.id&&token()&&riderDetailsConfirmed&&!params.has('manageRide')&&!params.has('payment')&&!params.has('bookingReference')&&!bookingSubmitted){
       const allowed=allowedServicesForRole(currentUserRole);
       const services=Array.from($('serviceTypeSelect')?.options||[]).filter(o=>o.value&&allowed.has(o.value)&&!o.disabled&&!o.hidden).map(o=>[o.value,o.textContent.trim()]);
-      if(services.length)window.NexusBookingConversation?.mount({firstName:$('firstName')?.value,pickup:$('pickup')?.value,service:normalizeService($('service')?.value),services,minDate:$('tripDate')?.min,onReview:draft=>{
+      if(services.length)window.NexusBookingConversation?.mount({firstName:$('firstName')?.value,pickup:$('pickup')?.value,service:normalizeService($('service')?.value),services,minDate:$('tripDate')?.min,onQuote:async draft=>{
         const set=(id,value)=>{const field=$(id);if(field)field.value=value||'';};
         set('pickup',draft.pickup);set('destination',draft.destination);set('tripDate',draft.date);set('scheduleBasis',draft.basis);set('tripType',draft.tripType);
         syncTripScheduleUi();syncScheduleBasisUi();
@@ -4950,9 +4951,26 @@
         if(draft.tripType==='ROUND_TRIP'){set('returnTripDate',draft.returnDate);set('returnTripTime',draft.returnTime);}
         if(draft.tripType==='RECURRING'){set('recurrenceEndDate',draft.endDate);document.querySelectorAll('input[name="recurrenceDay"]').forEach(input=>{input.checked=draft.days.includes(input.value);});}
         selectService(draft.service);markDestinationUnconfirmed();rideChoiceConfirmed=false;
-        syncSectionProgressUi();revealSectionForAction('pickupDropoffSection','confirmPickupDropoffBtn');
-        setStatus('Nex has prepared your trip. Confirm the route to calculate your fare, then review and submit.','ok');
-      }});
+        syncSectionProgressUi();
+        autoEstimate.cancel();
+        await confirmPickupDropoffDetails();
+        autoEstimate.cancel();
+        if(!destinationConfirmed||!Number(estimateState.miles)||!Number(estimateState.fare)||!$('tripTime')?.value||!isTripScheduleComplete())throw Error('Incomplete route or schedule');
+        rideChoiceConfirmed=true;
+        updateFareConfirmationState();
+        if(!getProgressState().allRequiredComplete||!fareEstimateSignature)throw Error('Incomplete booking');
+        return {fare:Number(estimateState.fare),pickupTime:$('tripTime').value,signature:fareEstimateSignature,details:JSON.stringify([scheduleBasisInput?.value,$('tripTime')?.value,appointmentTimeInput?.value,selectedRecurrenceDays(),recurrenceEndDate?.value])};
+      },onSubmit:async quote=>{
+        if(bookingSubmitted||bookingSubmissionPending||!token()||currentUserRole!=='PATIENT')throw Error('Booking unavailable');
+        autoEstimate.cancel();routeEstimateVersion++;
+        updateFareConfirmationState();
+        const details=JSON.stringify([scheduleBasisInput?.value,$('tripTime')?.value,appointmentTimeInput?.value,selectedRecurrenceDays(),recurrenceEndDate?.value]);
+        if(!quote.signature||quote.signature!==fareEstimateSignature||quote.details!==details||Number(quote.fare)!==Number(estimateState.fare))throw Error('Fare or schedule changed');
+        confirmedFareSignature=fareEstimateSignature;fareSubmissionAuthorized=true;
+        await submitBooking();
+        if(!bookingSubmitted||!currentBookingReference||currentBookingReference==='N/A'||currentBookingReference.startsWith('LOCAL-'))throw Error('Booking not verified');
+        return {reference:currentBookingReference,outcome:bookingOutcomeStatus?.textContent||'Ride request received',paymentRequired:paymentRequiredForBooking};
+      },onTrips:()=>window.parent.postMessage({type:'nexus:patient-view',view:'history'},location.origin)});
     }
   }
 
