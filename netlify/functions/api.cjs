@@ -4185,6 +4185,15 @@ async function handler(event){
    ]);
    const preferenceRow=preferencesResult.rows[0]||{};
    const trips=await Promise.all((await mapBookingsWithIntakeAudit(bookingsResult.rows)).map(mapPatientBooking));
+   const pickupRequests=await query('SELECT r.booking_reference,r.requested_at,r.acknowledged_at FROM patient_return_pickups r JOIN bookings b ON b.reference=r.booking_reference WHERE b.patient_user_id=$1::uuid',[u.id]).catch(error=>{if(error.code==='42P01')return {rows:[]};throw error;});
+   const pickupByRef=new Map(pickupRequests.rows.map(row=>[row.booking_reference,row]));
+   const ownedRefs=new Set(bookingsResult.rows.filter(row=>String(row.patient_user_id)===String(u.id)&&!row.duplicate_of).map(row=>row.reference));
+   const todayEastern=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+   for(const trip of trips){
+    const request=pickupByRef.get(trip.reference);
+    if(request)trip.returnPickupRequest={status:request.acknowledged_at?'ACKNOWLEDGED':'REQUESTED',requestedAt:request.requested_at,acknowledgedAt:request.acknowledged_at};
+    trip.returnPickupEligible=ownedRefs.has(trip.reference)&&String(trip.tripType).toUpperCase()==='ROUND_TRIP'&&!trip.returnTripTime&&String(trip.returnTripDate||trip.date).slice(0,10)===todayEastern&&/^(arrived|in-transit|completed|delivered)$/i.test(trip.status);
+   }
    const inactiveStatuses=new Set(['COMPLETED','CANCELLED','NO_SHOW','DELIVERED']);
    const upcoming=trips
     .filter(trip=>!inactiveStatuses.has(String(trip.status||'').toUpperCase())&&String(trip.date||trip.tripDate||trip.trip_date||'')>=new Date().toISOString().slice(0,10))
