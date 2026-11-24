@@ -749,6 +749,13 @@
 .patientQuickBooking .phone{padding-bottom:110px}
 .patientQuickBooking .phone .bottomBar{bottom:0}
 .patientQuickBooking #patientQuickSummary{overflow-wrap:anywhere}
+</style><style>
+.nexBookingConversationOpen{overflow:hidden!important}.nexBookingConversationOpen>.phone{display:none!important}
+.nexusBookingConversation{position:fixed;inset:0;z-index:1000;background:#f4f7fb;color:#102d47;display:flex;flex-direction:column;padding:12px;gap:10px;box-sizing:border-box;font:inherit}
+.nexusBookingConversation>header{display:grid;gap:3px;padding:12px;background:#087e83;color:#fff;border-radius:12px}.nexusBookingConversation header small{color:#fff}
+.nexBookingLog{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:4px}
+.nexBookingBubble{max-width:88%;align-self:flex-start;background:#fff;border:1px solid #d8e1e8;padding:12px;border-radius:14px;margin:0;white-space:pre-line;overflow-wrap:anywhere}.nexBookingBubble.patient{align-self:flex-end;background:#d9f2ee}
+.nexBookingControls{display:flex;flex-wrap:wrap;gap:8px}.nexBookingControls form{display:flex;flex-wrap:wrap;gap:8px;width:100%}.nexBookingControls form>input{flex:1;min-width:0;padding:12px;font-size:16px;border:1px solid #b8c8d5;border-radius:10px}.nexBookingControls button{min-height:44px;padding:10px 14px;border-radius:10px}.nexBookingControls form>button{background:#087e83;color:#fff;border:0}.nexBookingControls fieldset{display:flex;flex-wrap:wrap;gap:12px;width:100%}.nexusBookingConversation footer{display:flex;justify-content:space-between;gap:8px}.nexusBookingConversation footer button{font-size:12px}
 </style></head>
 <body>
   <main class="phone">
@@ -1366,7 +1373,7 @@ Destination: -</p>
   <script src="./nexus-availability.js" defer></script>
   <script src="./platform.js?v=20261011-footer-spacing"></script>
   <script src="./booking-service-guidance.js?v=20261028-passenger"></script>
-<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261028-waiting-fix"></script><script src="./nexus-trip-timing.js?v=20261028-waiting-fix"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-facility.js?v=2"></script><script src="./booking-app.js?v=20261124-quick-booking-2"></script>
+<link rel="stylesheet" href="./smart-trip-timing.css?v=20261012-driver-guidance"><script src="./nexus-fare.js?v=20261028-waiting-fix"></script><script src="./nexus-trip-timing.js?v=20261028-waiting-fix"></script><script src="./nexus-route.js?v=20261012-smart-timing"></script>  <script src="./booking-facility.js?v=2"></script><script src="./patient-booking-conversation.js?v=1"></script><script src="./booking-app.js?v=20261124-conversation"></script>
 <script src="./patient-booking-bridge.js?v=20261010"></script>
 </body>
 </html>
