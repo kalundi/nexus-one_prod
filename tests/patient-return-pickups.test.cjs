@@ -77,3 +77,21 @@ test('acknowledgment notifies patient only once, including provider outage',asyn
   f.setRole('PATIENT');assert.equal((await f.handler({token:'x'},patientPath,'GET')).body.request.status,'ACKNOWLEDGED');
  }
 });
+
+test('return pickup migration protects its table without assuming Supabase roles',()=>{
+ const {readFileSync}=require('node:fs');
+ const {join}=require('node:path');
+ const sql=readFileSync(join(__dirname,'../database/migrations/999.020_patient_return_pickups.sql'),'utf8');
+ assert.match(sql,/ALTER TABLE patient_return_pickups ENABLE ROW LEVEL SECURITY;/);
+ assert.match(sql,/REVOKE ALL ON TABLE patient_return_pickups FROM PUBLIC;/);
+ const block=sql.match(/DO \$\$ BEGIN([\s\S]*?)END \$\$;/);
+ assert.ok(block,'valid dollar-quoted conditional block is required');
+ for(const role of ['anon','authenticated']){
+  const guarded="IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='"+role+"') THEN\n  REVOKE ALL ON TABLE patient_return_pickups FROM "+role+";\n END IF;";
+  assert.ok(block[1].includes(guarded),'missing independent role guard: '+role);
+  assert.equal(sql.split('FROM '+role+';').length-1,1);
+ }
+ assert.doesNotMatch(sql,/FROM\s+anon\s*,|CREATE\s+ROLE|GRANT\s+/i);
+ assert.match(sql,/INSERT INTO schema_migrations\(version,description\) VALUES \('999\.020'/);
+ assert.match(sql,/^BEGIN;[\s\S]*COMMIT;\s*$/);
+});
