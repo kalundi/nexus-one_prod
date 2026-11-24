@@ -4166,6 +4166,10 @@ async function handler(event){
    const refreshed=await requireUser(token);await audit('USER',String(u.id),'ROLE_SWITCHED',{from:u.role,to:nextRole});
    return json(200,{user:safeUser(refreshed)});
   }
+  if((p[0]==='patient'&&p[1]==='trips'&&p[3]==='return-pickup')||(p[0]==='dispatch'&&p[1]==='return-pickups')){
+   const response=await require('./_shared/patient-return-pickups.cjs').createHandler({query,requireUser,bearer,json,audit})(event,p,method);
+   if(response)return response;
+  }
   if(p[0]==='patient'&&p[1]==='dashboard'&&method==='GET'){
    const u=await requireUser(bearer(event),['PATIENT']);
    await ensurePatientPreferencesSchema();
