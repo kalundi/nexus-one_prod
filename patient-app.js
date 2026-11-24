@@ -68,7 +68,7 @@
  }
  function openBooking(){
   if(activeView!=='booking')returnView=activeView;
-  if(!$('bookingFrame').getAttribute('src')){const url=new URL('/booking-app.html',location.origin);url.searchParams.set('patientApp','1');const params=new URLSearchParams(location.search);['payment','bookingReference','provider'].forEach(key=>{if(params.get(key))url.searchParams.set(key,params.get(key));});$('bookingFrame').src=url.href;}
+  if(!$('bookingFrame').getAttribute('src')||new URL($('bookingFrame').src,location.origin).searchParams.has('manageRide')){const url=new URL('/booking-app.html',location.origin);url.searchParams.set('patientApp','1');const params=new URLSearchParams(location.search);['payment','bookingReference','provider'].forEach(key=>{if(params.get(key))url.searchParams.set(key,params.get(key));});$('bookingFrame').src=url.href;}
   navigate('booking');
  }
  function coordinates(location){
