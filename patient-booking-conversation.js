@@ -80,8 +80,14 @@
     const result=await options.onQuote({...draft});
     if(!result||!result.signature||!(result.fare>0))throw Error('No valid estimate');
     controls.replaceChildren();bubble('Your estimated fare is '+Number(result.fare).toLocaleString('en-US',{style:'currency',currency:'USD'})+(result.pickupTime?' and the estimated pickup time is '+result.pickupTime+'.':'.')+(draft.tripType==='RECURRING'?' This is the estimate for the displayed ride; recurring charges depend on the schedule.':''));
+    const routeCard=document.createElement('section');routeCard.className='nexRouteCard';routeCard.setAttribute('aria-label','Estimated driving route');
+    const heading=document.createElement('strong');heading.textContent='Your planned route';routeCard.append(heading);
+    const summary=document.createElement('p');summary.textContent=[Number.isFinite(result.distance)&&result.distance>0?result.distance.toFixed(1)+' miles':'',result.duration||''].filter(Boolean).join(' · ');routeCard.append(summary);
+    const map=document.createElement('div');map.className='nexRouteMap';map.setAttribute('aria-label','Map from pickup to destination');routeCard.append(map);log.append(routeCard);
+    try{if(!options.renderRoute?.(map)){map.remove();const unavailable=document.createElement('p');unavailable.textContent='Route map is unavailable right now.';routeCard.append(unavailable);}}catch{map.remove();const unavailable=document.createElement('p');unavailable.textContent='Route map is unavailable right now.';routeCard.append(unavailable);}
+    log.scrollTop=log.scrollHeight;
     bubble('Would you like me to submit this ride request?');
-    button('Submit ride request',()=>submit(result));button('Change answers',()=>chat('What would you like to change?'));
+    button('Submit ride request',()=>submit(result));button('Change answers',()=>{routeCard.remove();chat('What would you like to change?');});
    }catch{controls.replaceChildren();bubble('I couldn’t calculate a reliable fare yet. We can check the details together in the booking form.');button('Review booking form',()=>finish(false));button('Change answers',()=>chat('What would you like to change?'));}
    finally{lock(false);}
   }
