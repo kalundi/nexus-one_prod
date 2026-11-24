@@ -9,7 +9,17 @@ CREATE TABLE IF NOT EXISTS patient_return_pickups (
 );
 CREATE INDEX IF NOT EXISTS patient_return_pickups_pending_idx ON patient_return_pickups(requested_at) WHERE acknowledged_at IS NULL;
 ALTER TABLE patient_return_pickups ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE patient_return_pickups FROM anon, authenticated;
+-- The trusted server connection owns this table. Supabase client roles
+-- are optional on plain PostgreSQL; revoke each only when it exists.
+REVOKE ALL ON TABLE patient_return_pickups FROM PUBLIC;
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
+  REVOKE ALL ON TABLE patient_return_pickups FROM anon;
+ END IF;
+ IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
+  REVOKE ALL ON TABLE patient_return_pickups FROM authenticated;
+ END IF;
+END $$;
 
 INSERT INTO schema_migrations(version,description) VALUES ('999.020','Patient return pickup requests') ON CONFLICT(version) DO NOTHING;
 COMMIT;
