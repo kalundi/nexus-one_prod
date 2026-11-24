@@ -77,10 +77,21 @@
    if(draft.tripType==='RECURRING'&&!draft.days){repeatDays();return;}
    if(draft.tripType==='RECURRING'&&!draft.endDate){const max=new Date(draft.date+'T12:00:00Z');max.setUTCDate(max.getUTCDate()+84);ask('When should the recurring rides end?','date',d=>{draft.endDate=d;next();},'',draft.date,max.toISOString().slice(0,10));return;}
    if(!draft.service){const list=options.services||[];const saved=list.find(([v])=>v===options.service);choose('How can we make your ride comfortable? Would your usual transportation type work?',saved?[[saved[0],'Yes, '+saved[1]],['change','Change transportation type']]:list,v=>{if(v==='change')choose('What type of transportation do you need?',list,s=>{draft.service=s;next();});else{draft.service=v;next();}});return;}
+   if(!draft.payerType){choosePayer();return;}
+   if(draft.payerType==='INSURANCE'&&!draft.insuranceCarrier){choose('Which insurance provider should we verify for this ride?',options.insuranceOptions||[],v=>{draft.insuranceCarrier=v;next();});return;}
    review();
   }
+  function choosePayer(){
+   choose('How will this ride be paid for?',options.payerOptions||[],v=>{
+    draft.payerType=v;delete draft.insuranceCarrier;
+    if(v==='MEDICARE'&&['ambulatory','wheelchair','bariatric'].includes(draft.service)){
+     choose('Medicare generally does not cover this type of transportation. Would you like to use private pay or select another payer?',[['SELF_PAY','Private pay'],['change','Choose another payer']],choice=>{if(choice==='change'){delete draft.payerType;choosePayer();}else{draft.payerType=choice;next();}});return;
+    }
+    next();
+   });
+  }
   function repeatDays(){controls.replaceChildren();bubble('Which days should we arrange this ride?');const form=document.createElement('form');const group=document.createElement('fieldset');const legend=document.createElement('legend');legend.textContent='Repeat days';group.append(legend);for(const day of ['MON','TUE','WED','THU','FRI','SAT','SUN']){const l=document.createElement('label'),i=document.createElement('input');i.type='checkbox';i.value=day;l.append(i,document.createTextNode(' '+day));group.append(l);}const send=document.createElement('button');send.type='submit';send.textContent='Continue';form.append(group,send);controls.append(form);form.addEventListener('submit',e=>{e.preventDefault();const days=Array.from(group.querySelectorAll('input:checked'),i=>i.value);if(!days.length){bubble('Please select at least one day.');return;}draft.days=days;bubble(days.join(', '),'patient');const max=new Date(draft.date+'T12:00:00Z');max.setUTCDate(max.getUTCDate()+84);ask('When should the recurring rides end?','date',d=>{draft.endDate=d;next();},'',draft.date,max.toISOString().slice(0,10));});}
-  function review(){controls.replaceChildren();const selected=(options.services||[]).find(([v])=>v===draft.service)?.[1]||draft.service;bubble('Perfect, let me make sure I have everything right.');bubble(['Riding: '+(options.firstName||'You'),'Pickup: '+draft.pickup,'Destination: '+draft.destination,'Date: '+draft.date,(draft.basis==='PICKUP'?'Pickup':'Appointment')+' time: '+draft.time,'Trip: '+labels[draft.tripType],'Transportation: '+selected,draft.returnDate?'Return: '+draft.returnDate+' at '+draft.returnTime:'',draft.days?'Repeats: '+draft.days.join(', ')+' through '+draft.endDate:''].filter(Boolean).join('\n'));bubble('Let me check the fare and pickup time for you. Nothing has been booked yet.');button('Check fare',quote);button('Change pickup',()=>{delete draft.pickup;chat('Where should we pick you up instead?','pickup');});button('Change destination',()=>{delete draft.destination;chat('Where are you heading instead?','destination');});button('Change answers',()=>chat('What would you like to change?'));button('Start a different ride',reset);}
+  function review(){controls.replaceChildren();const selected=(options.services||[]).find(([v])=>v===draft.service)?.[1]||draft.service;bubble('Perfect, let me make sure I have everything right.');bubble(['Riding: '+(options.firstName||'You'),'Pickup: '+draft.pickup,'Destination: '+draft.destination,'Date: '+draft.date,(draft.basis==='PICKUP'?'Pickup':'Appointment')+' time: '+draft.time,'Trip: '+labels[draft.tripType],'Transportation: '+selected,'Payment: '+((options.payerOptions||[]).find(([v])=>v===draft.payerType)?.[1]||draft.payerType)+(draft.insuranceCarrier?' — '+draft.insuranceCarrier:''),draft.returnDate?'Return: '+draft.returnDate+' at '+draft.returnTime:'',draft.days?'Repeats: '+draft.days.join(', ')+' through '+draft.endDate:''].filter(Boolean).join('\n'));bubble('Let me check the fare and pickup time for you. Nothing has been booked yet.');button('Check fare',quote);button('Change payment type',()=>{delete draft.payerType;delete draft.insuranceCarrier;choosePayer();});button('Change pickup',()=>{delete draft.pickup;chat('Where should we pick you up instead?','pickup');});button('Change destination',()=>{delete draft.destination;chat('Where are you heading instead?','destination');});button('Change answers',()=>chat('What would you like to change?'));button('Start a different ride',reset);}
   function lock(value){busy=value;restart.disabled=value;controls.querySelectorAll('button,input').forEach(el=>el.disabled=value);}
   async function quote(){
    if(busy||closed)return;lock(true);bubble('I’m checking the route and current fare…');
@@ -98,10 +109,10 @@
     const amount=document.createElement('strong');amount.className='nexFareAmount';amount.textContent=Number(result.fare).toLocaleString(window.NexusI18n?.getLocale?.()||'en-US',{style:'currency',currency:'USD'});
     fareCard.append(label,amount);
     if(result.pickupTime){const pickup=document.createElement('p');pickup.className='nexFarePickup';const match=String(result.pickupTime).match(/^(\d{1,2}):(\d{2})$/);const time=match?Number(match[1])%12||12:null;pickup.textContent='Estimated pickup: '+(match?time+':'+match[2]+(Number(match[1])>=12?' PM':' AM'):result.pickupTime);fareCard.append(pickup);}
-    const note=document.createElement('p');note.className='nexFareNote';note.textContent=draft.tripType==='RECURRING'?'Estimate for the displayed ride. Recurring charges depend on the schedule.':'Please review your fare before submitting. Nothing has been booked yet.';fareCard.append(note);
+    const note=document.createElement('p');note.className='nexFareNote';note.textContent=draft.payerType!=='SELF_PAY'?'Transportation estimate only, not your confirmed out-of-pocket cost. Coverage and authorization must be verified before confirmation.':draft.tripType==='RECURRING'?'Estimate for the displayed ride. Recurring charges depend on the schedule.':'Please review your fare before submitting. Nothing has been booked yet.';fareCard.append(note);
     log.insertBefore(fareCard,controls);
     const submitButton=button('Submit ride request',()=>submit(result));submitButton.classList.add('nexConfirmRide');
-    button('Change answers',()=>{fareCard.remove();routeCard.remove();chat('What would you like to change?');});
+    button('Change answers',()=>{fareCard.remove();routeCard.remove();chat('What would you like to change?');});button('Change payment type',()=>{fareCard.remove();routeCard.remove();delete draft.payerType;delete draft.insuranceCarrier;choosePayer();});
    }catch(error){controls.replaceChildren();bubble('I couldn’t calculate your fare yet. '+(error?.message||'Please check the ride details.'));button('Try again',quote);button('Change pickup',()=>{delete draft.pickup;chat('Where should we pick you up?','pickup');});button('Change destination',()=>{delete draft.destination;chat('Where are you heading?','destination');});button('Contact Nexus',contact);}
    finally{lock(false);}
   }
@@ -113,7 +124,7 @@
     if(!result?.reference)throw Error('Unconfirmed submission');
     bubble((result.outcome||'Ride request received')+'. Reference: '+result.reference+'.');
     if(result.paymentRequired){bubble('Your request requires a secure payment step.');paymentChoices(result);}
-    else{bubble('You can check the status under My rides.');button('View my rides',()=>{options.onTrips?.();});}
+    else{bubble(draft.payerType!=='SELF_PAY'?'Your request will be reviewed for coverage and authorization. No card payment is requested now. You can check the status under My rides.':'You can check the status under My rides.');button('View my rides',()=>{options.onTrips?.();});}
     restart.hidden=true;
    }catch{controls.replaceChildren();bubble('I couldn’t verify that the request was saved. Please check My rides before submitting again, or contact dispatch.');button('View my rides',()=>{options.onTrips?.();});restart.hidden=true;}
    finally{lock(false);}
