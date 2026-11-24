@@ -21,6 +21,7 @@
   function reset(){if(busy)return;draft={};log.replaceChildren();const name=String(options.firstName||'').trim();bubble(name?'Hi '+name+'! How can I help with your transportation today?':'Hi! How can I help with your transportation today?');chat('Tell me about the ride you need.');}
   function chat(question,expected){
    ask(question,'text',value=>{
+    if(/\b(?:same (?:ride|trip|place|route)|usual (?:destination|hospital|dialysis(?: center)?|clinic|ride)|repeat (?:my |the )?(?:last|previous) (?:ride|trip)|last (?:ride|trip)|as last week)\b/i.test(value)){void recent(value);return;}
     const parsed=window.NexusBookingIntent?.extract(value,options.minDate)||{};
     if(parsed.savedPickup&&options.pickup)parsed.pickup=options.pickup;
     delete parsed.savedPickup;
@@ -34,6 +35,25 @@
     if(parsed.tripType&&parsed.tripType!==draft.tripType){delete draft.returnDate;delete draft.returnTime;delete draft.days;delete draft.endDate;}
     Object.assign(draft,parsed);next();
    });
+  }
+  async function recent(message){
+   if(busy||closed)return;lock(true);
+   bubble('Let me check the routes you have used before.');
+   try{
+    const routes=await options.loadRecentRoutes?.()||[];
+    if(!routes.length){bubble('I couldn’t find a completed ride to reuse. Could you tell me where you’re going?');return chat('Where are you heading?','destination');}
+    const parsed=window.NexusBookingIntent?.extract(message,options.minDate)||{};
+    delete parsed.destination;delete parsed.savedPickup;
+    if(parsed.service&&!(options.services||[]).some(([v])=>v===parsed.service))delete parsed.service;
+    Object.assign(draft,parsed);
+    choose('Which of these previous routes would you like to use?',routes.map((route,i)=>[i,route.destination+' — from '+route.pickup]).concat([['other','A different destination']]),i=>{
+     if(i==='other'){chat('Where are you heading?','destination');return;}
+     const route=routes[i];draft.pickup=route.pickup;draft.destination=route.destination;
+     if(!draft.service&&(options.services||[]).some(([v])=>v===route.service))draft.service=route.service;
+     next();
+    });
+   }catch{bubble('I can’t access your previous routes right now.');chat('Where are you heading?','destination');}
+   finally{lock(false);}
   }
   function next(){
    if(!draft.pickup){if(options.pickup)choose('Should I pick you up at your saved address?',[['saved','Yes, use my saved address'],['other','Different address']],v=>{if(v==='saved'){draft.pickup=options.pickup;next();}else chat('Where should I pick you up?', 'pickup');});else chat('Where should I pick you up?', 'pickup');return;}
