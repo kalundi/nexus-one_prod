@@ -228,14 +228,49 @@
   $('countdownValue').textContent=!Number.isFinite(minutes)?'Scheduled':minutes<=0?'Today':minutes>=1440?`${days} ${days===1?'day':'days'}`:minutes>=60?`${Math.floor(minutes/60)}h ${minutes%60}m`:`${minutes} min`;
   $('countdownMeta').textContent=Number.isFinite(when.getTime())?`Pickup at ${when.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`:'Pickup time will be confirmed by dispatch.';
  }
- function updated(){countdown();document.querySelectorAll('a[href^="#map/"]').forEach(link=>{if(link.textContent==='Open LiveCare')link.textContent='View map';});if(activeView==='map'){const trip=tripByReference(mapReference);if(trip)renderMap(trip);else{clearMap();$('patientMapStatus').textContent='This ride is no longer available.';}}}
+ const pickupPending=new Set();
+ function renderReturnPickups(){
+  for(const id of ['homePage','historyPage']){
+   const page=$(id);if(!page)continue;
+   let panel=page.querySelector('.returnPickupPanel');
+   if(!panel){panel=document.createElement('section');panel.className='card returnPickupPanel';panel.style.padding='16px';page.prepend(panel);}
+   panel.replaceChildren();panel.hidden=true;
+   if(sharedReference||!currentUser)return;
+   const trips=N.trips().filter(t=>t.returnPickupEligible||t.returnPickupRequest);
+   if(!trips.length)continue;
+   panel.hidden=false;
+   const title=document.createElement('h2');title.textContent='Return transportation';panel.append(title);
+   for(const trip of trips){
+    const ref=String(trip.reference||trip.id),row=document.createElement('div');row.style.margin='12px 0';
+    const label=document.createElement('p');label.textContent=ref+' · '+String(trip.destination||'Return ride');row.append(label);
+    const status=document.createElement('p');status.setAttribute('role','status');status.textContent=trip.returnPickupRequest?.status==='ACKNOWLEDGED'?'Dispatch acknowledged your request. Pickup timing is not yet confirmed.':trip.returnPickupRequest?'Request received. Waiting for dispatch acknowledgment.':'Finished with your appointment?';row.append(status);
+    if(trip.returnPickupEligible&&!trip.returnPickupRequest){
+     const btn=document.createElement('button');btn.type='button';btn.className='button';btn.textContent="I'm Ready for Pickup";btn.disabled=pickupPending.has(ref);
+     btn.addEventListener('click',async()=>{
+      if(sharedReference||!currentUser||pickupPending.has(ref)||!window.confirm('Tell dispatch you are ready for your return pickup?'))return;
+      const token=sessionStorage.getItem('nexusAccessToken');if(!token)return;
+      pickupPending.add(ref);btn.disabled=true;
+      try{
+       const res=await fetch('/api/patient/trips/'+encodeURIComponent(ref)+'/return-pickup',{method:'POST',headers:{authorization:'Bearer '+token},cache:'no-store'});
+       const data=await res.json();if(!res.ok||!data.request)throw Error(data.error||'Unable to submit pickup request');
+       if(sessionStorage.getItem('nexusAccessToken')!==token)return;
+       const current=N.trips();N.write('nexusTrips',current.map(t=>String(t.reference||t.id)===ref?{...t,returnPickupRequest:data.request}:t));renderReturnPickups();await N.reload();
+      }catch(e){status.textContent=e.message+' Please contact dispatch if you need assistance.';}
+      finally{pickupPending.delete(ref);btn.disabled=false;}
+     });row.append(btn);
+    }
+    panel.append(row);
+   }
+  }
+ }
+ function updated(){countdown();renderReturnPickups();document.querySelectorAll('a[href^="#map/"]').forEach(link=>{if(link.textContent==='Open LiveCare')link.textContent='View map';});if(activeView==='map'){const trip=tripByReference(mapReference);if(trip)renderMap(trip);else{clearMap();$('patientMapStatus').textContent='This ride is no longer available.';}}}
  async function signedIn(user){
   currentUser=user;const owner=String(user.id||user.email||'');
   if(localStorage.getItem('nexusPatientOwner')!==owner){Object.values(N.KEYS).forEach(key=>localStorage.removeItem(key));localStorage.removeItem('nexusTrips');N.seed();localStorage.setItem('nexusPatientOwner',owner);}
   const profile=N.read(N.KEYS.profile,{});N.write(N.KEYS.profile,{...profile,name:user.displayName||user.name||'',phone:user.phone||'',email:user.email||''});
   identity(user);await N.reload();updated();if(new URLSearchParams(location.search).has('payment'))openBooking();else routeFromHash();
  }
- function signedOut(){currentUser=null;sharedRide=null;sharedPhone='';clearMap();$('bookingFrame').removeAttribute('src');shareDialog.close();navigate('home',false);Object.values(N.KEYS).forEach(key=>localStorage.removeItem(key));localStorage.removeItem('nexusTrips');localStorage.removeItem('nexusPatientOwner');N.seed();N.render();identity(null);}
+ function signedOut(){currentUser=null;renderReturnPickups();sharedRide=null;sharedPhone='';clearMap();$('bookingFrame').removeAttribute('src');shareDialog.close();navigate('home',false);Object.values(N.KEYS).forEach(key=>localStorage.removeItem(key));localStorage.removeItem('nexusTrips');localStorage.removeItem('nexusPatientOwner');N.seed();N.render();identity(null);}
  function sessionExpired(){sessionStorage.removeItem('nexusAccessToken');sessionStorage.removeItem('nexusUser');signedOut();$('appShell').hidden=true;$('loginView').hidden=false;$('loginNotice').hidden=false;$('loginNotice').textContent='Your session expired. Please sign in again.';}
  function showSharedAccess(){
   $('appShell').hidden=true;$('loginView').hidden=false;
