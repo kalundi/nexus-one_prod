@@ -1,3 +1,4 @@
+BEGIN;
 CREATE TABLE IF NOT EXISTS patient_return_pickups (
  booking_reference text PRIMARY KEY REFERENCES bookings(reference) ON DELETE CASCADE,
  requested_by uuid NOT NULL REFERENCES users(id),
@@ -9,3 +10,6 @@ CREATE TABLE IF NOT EXISTS patient_return_pickups (
 CREATE INDEX IF NOT EXISTS patient_return_pickups_pending_idx ON patient_return_pickups(requested_at) WHERE acknowledged_at IS NULL;
 ALTER TABLE patient_return_pickups ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE patient_return_pickups FROM anon, authenticated;
+
+INSERT INTO schema_migrations(version,description) VALUES ('999.020','Patient return pickup requests') ON CONFLICT(version) DO NOTHING;
+COMMIT;
