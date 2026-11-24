@@ -30,6 +30,8 @@
     if(expected==='pickup'&&!parsed.pickup&&!Object.keys(parsed).length)parsed.pickup=value;
     if(expected==='destination'&&!parsed.destination&&!Object.keys(parsed).length)parsed.destination=value;
     if(!Object.keys(parsed).length){bubble('I want to make sure I get that right.');next();return;}
+    if(parsed.date&&draft.date&&parsed.date!==draft.date){delete draft.returnDate;delete draft.endDate;}
+    if(parsed.tripType&&parsed.tripType!==draft.tripType){delete draft.returnDate;delete draft.returnTime;delete draft.days;delete draft.endDate;}
     Object.assign(draft,parsed);next();
    });
   }
@@ -43,6 +45,7 @@
    if(draft.tripType==='ROUND_TRIP'&&(!draft.returnDate||draft.returnDate<draft.date)){ask('What date should we return to pick you up?','date',v=>{draft.returnDate=v;next();},draft.date,draft.date);return;}
    if(draft.tripType==='ROUND_TRIP'&&!draft.returnTime){ask('What time would you like us to pick you up afterward?','time',v=>{draft.returnTime=v;next();});return;}
    if(draft.tripType==='RECURRING'&&!draft.days){repeatDays();return;}
+   if(draft.tripType==='RECURRING'&&!draft.endDate){const max=new Date(draft.date+'T12:00:00Z');max.setUTCDate(max.getUTCDate()+84);ask('When should the recurring rides end?','date',d=>{draft.endDate=d;next();},'',draft.date,max.toISOString().slice(0,10));return;}
    if(!draft.service){const list=options.services||[];const saved=list.find(([v])=>v===options.service);choose('Can we use your usual transportation type?',saved?[[saved[0],'Yes, '+saved[1]],['change','Change transportation type']]:list,v=>{if(v==='change')choose('What type of transportation do you need?',list,s=>{draft.service=s;next();});else{draft.service=v;next();}});return;}
    review();
   }
@@ -54,11 +57,7 @@
    try{
     const result=await options.onQuote({...draft});
     if(!result||!result.signature||!(result.fare>0))throw Error('No valid estimate');
-    controls.replaceChildren();bubble('Your estimated fare is {if(closed)return;closed=true;const result=useDraft?{...draft}:null;draft={};host.remove();document.body.classList.remove('nexBookingConversationOpen');if(result)options.onReview(result);}
-  reset();
- }};
-})();
-+Number(result.fare).toFixed(2)+(result.pickupTime?' and the estimated pickup time is '+result.pickupTime+'.':'.')+(draft.tripType==='RECURRING'?' This is the estimate for the displayed ride; recurring charges depend on the schedule.':''));
+    controls.replaceChildren();bubble('Your estimated fare is '+Number(result.fare).toLocaleString('en-US',{style:'currency',currency:'USD'})+(result.pickupTime?' and the estimated pickup time is '+result.pickupTime+'.':'.')+(draft.tripType==='RECURRING'?' This is the estimate for the displayed ride; recurring charges depend on the schedule.':''));
     bubble('Would you like me to submit this ride request?');
     button('Submit ride request',()=>submit(result));button('Change answers',()=>chat('What would you like to change?'));
    }catch{controls.replaceChildren();bubble('I couldn’t calculate a reliable fare yet. We can check the details together in the booking form.');button('Review booking form',()=>finish(false));button('Change answers',()=>chat('What would you like to change?'));}
@@ -77,7 +76,7 @@
    }catch{controls.replaceChildren();bubble('I couldn’t verify that the request was saved. Please check My rides before submitting again, or contact dispatch.');button('View my rides',()=>{finish(false);options.onTrips?.();});restart.hidden=true;manual.hidden=true;}
    finally{lock(false);}
   }
-  function finish(useDraft){if(closed)return;closed=true;const result=useDraft?{...draft}:null;draft={};host.remove();document.body.classList.remove('nexBookingConversationOpen');if(result)options.onReview(result);}
+  function finish(){if(closed||busy)return;closed=true;draft={};log.replaceChildren();host.remove();document.body.classList.remove('nexBookingConversationOpen');}
   reset();
  }};
 })();
