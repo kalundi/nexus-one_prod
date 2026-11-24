@@ -335,8 +335,8 @@ a{text-decoration:none;color:var(--blue)}
     <section class="hero">
       <h1>Where can we take you?</h1>
       <p>Arrange your next medical ride or check an existing trip.</p>
-      <div class="toolbar heroActions"><button class="button" type="button" data-patient-book>Book a ride</button><button class="button secondary" type="button" data-patient-history>View my rides</button></div>
       <div class="memberShortcuts" aria-label="Ride shortcuts">
+<button type="button" data-patient-book><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8m-4-4v8"/></svg>Book a ride</button>
 <button type="button" data-patient-history><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/></svg>My trips</button>
 <button type="button" data-member-track><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2"/></svg>Track my ride</button>
 <button type="button" data-patient-profile><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>My account</button>
@@ -783,9 +783,6 @@ a{text-decoration:none;color:var(--blue)}
 #appShell .phone{max-width:760px}
 #homePage .hero{background:#fff;padding:18px;border-radius:20px}
 #homePage .hero h1{font-size:clamp(24px,5vw,32px);line-height:1.2}
-#homePage .heroActions{display:grid;grid-template-columns:1fr}
-#homePage .heroActions [data-patient-history]{display:none}
-#homePage .heroActions .button{min-height:52px;font-size:16px}
 .memberShortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0}
 .memberShortcuts button{display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-align:left;min-height:92px;padding:14px;border:1px solid #cbd9e5;border-radius:14px;background:#f5f9fc;color:#07142c;font:800 14px/1.4 'Nunito Sans',sans-serif;cursor:pointer}
 .memberShortcuts svg,.memberNav svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -798,7 +795,8 @@ a{text-decoration:none;color:var(--blue)}
 #appShell .memberNav button:focus-visible,.memberShortcuts button:focus-visible{outline:3px solid #0a6b99;outline-offset:-3px}
 #appShell[data-shared='true'] .memberNav{display:flex!important;justify-content:center}
 #appShell[data-shared='true'] .memberNav [data-patient-book],#appShell[data-shared='true'] .memberShortcuts{display:none!important}
-@media(min-width:600px){.memberShortcuts{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(min-width:600px){.memberShortcuts{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(max-width:599px){.memberShortcuts{grid-template-columns:repeat(2,minmax(0,1fr))}.memberShortcuts>button:last-child:nth-child(odd){grid-column:1/-1}}
 </style>
 <script>
 (function(){
