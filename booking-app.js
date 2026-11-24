@@ -3466,7 +3466,7 @@
       if(!document.body.classList.contains('nexBookingConversationOpen'))renderCustomerRoute(result, pickup, destinations);
       renderMultiStopFeasibility();
     }catch(err){
-      if(document.body.classList.contains('nexBookingConversationOpen')){nexQuotedRoute=null;resetEstimateUi();markDestinationUnconfirmed();setStatus('The driving route could not be verified. Check the pickup and destination addresses or try again.','err');return estimateState;}
+      if(document.body.classList.contains('nexBookingConversationOpen')){nexQuotedRoute=null;resetEstimateUi();markDestinationUnconfirmed();const reason=String(err?.message||'');const code=reason.match(/\b(REQUEST_DENIED|ZERO_RESULTS|NOT_FOUND|OVER_QUERY_LIMIT|INVALID_REQUEST|UNKNOWN_ERROR)\b/)?.[1];const message=!mapsEnabled||!mapsBrowserKey?'Maps is not enabled in this environment.':code==='REQUEST_DENIED'?'The map provider denied the route request. Please contact Nexus support.':code==='ZERO_RESULTS'||code==='NOT_FOUND'?'No driving route was found. Select a full pickup and destination address.':code==='OVER_QUERY_LIMIT'?'The map service is temporarily busy. Please try again.':/timed out/i.test(reason)?'The map service timed out. Please try again.':'The driving route could not be verified. Check the pickup and destination addresses or try again.';setStatus(message,'err');return estimateState;}
       const fallbackLegTravelMinutes = [];
       const fallbackLegMetrics=[];
       const fallbackMiles = await estimateFallbackRoute([pickup, ...destinations], undefined, [], fallbackLegTravelMinutes,fallbackLegMetrics);
@@ -4960,7 +4960,18 @@
         return [...unique.values()].slice(0,5);
       };
       if(services.length)window.NexusBookingConversation?.mount({firstName:$('firstName')?.value,pickup:$('pickup')?.value,service:normalizeService($('service')?.value),services,loadRecentRoutes,minDate:$('tripDate')?.min,
-      searchLocations:(query,signal)=>fetchLocationSuggestions(query,signal),
+      searchLocations:async(query,signal)=>{
+        const q=String(query||'').trim();
+        const local=previewPaymentsEnabled?getDefaultMarylandSuggestions(q):await fetchLocationSuggestions(q,signal);
+        if(signal?.aborted)return [];
+        try{
+          await loadMaps();
+          if(signal?.aborted||!google.maps.places?.AutocompleteService)return local;
+          const service=new google.maps.places.AutocompleteService();
+          const predictions=await Promise.race([new Promise(resolve=>service.getPlacePredictions({input:q,componentRestrictions:{country:'us'}},(items,status)=>resolve(status==='OK'&&Array.isArray(items)?items.map(item=>item.description).filter(Boolean):[]))),new Promise(resolve=>setTimeout(()=>resolve([]),4000))]);
+          return [...new Set([...local,...predictions])].slice(0,8);
+        }catch{return local;}
+      },
       defaultLocations:()=>getDefaultMarylandSuggestions('Maryland'),
       renderRoute:(container)=>{
         if(!nexQuotedRoute?.routes?.[0]||!window.google?.maps?.DirectionsRenderer)return false;
@@ -4985,7 +4996,8 @@
         if(draft.rider!=='self'||currentUser?.id!==owner||!token())throw Error('Confirm the rider first');
         autoEstimate.cancel();routeEstimateVersion++;resetEstimateUi();confirmedFareSignature='';fareSubmissionAuthorized=false;
         const set=(id,value)=>{const field=$(id);if(field)field.value=value||'';};
-        set('pickup',draft.pickup);set('destination',draft.destination);set('tripDate',draft.date);set('scheduleBasis',draft.basis);set('tripType',draft.tripType);
+        const address=value=>String(value||'').trim().split(' - ').pop().trim();
+        set('pickup',address(draft.pickup));set('destination',address(draft.destination));set('tripDate',draft.date);set('scheduleBasis',draft.basis);set('tripType',draft.tripType);
         syncTripScheduleUi();syncScheduleBasisUi();
         set(draft.basis==='PICKUP'?'tripTime':'appointmentTime',draft.time);
         if(draft.tripType==='ROUND_TRIP'){set('returnTripDate',draft.returnDate);set('returnTripTime',draft.returnTime);}
