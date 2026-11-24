@@ -1,9 +1,11 @@
 # Nex Group Intelligence — unofficial linked-device pilot (disabled by default)
 
+**Current VPS security setup:** Read [NEX_GROUP_VPS_DEPLOYMENT.md](NEX_GROUP_VPS_DEPLOYMENT.md) before attempting to run this bridge. The VPS now requires systemd `LoadCredential` for the business phone number and signing key; legacy instructions that embed these values in process environment variables are not supported.
+
 ## What this is (and is NOT)
 An optional **unofficial WhatsApp Web linked device** using the **existing Nexus WhatsApp Business account** as explicitly selected by the account owner, on a secured, persistent VPS. A separate dedicated account remains available as a safer fallback. It is **not** Meta's official
 WhatsApp Cloud API. It may violate WhatsApp's Business App terms, break at any
-time, or lead to restrictions or suspension of the dedicated account. Do not
+time, or lead to restrictions or suspension of the active business account. Do not
 use the existing Nexus customer-facing WhatsApp account without explicitly accepting the risk that the number may be suspended or its business operation disrupted.
 
 This pilot tracks *new* messages in explicitly allowlisted, non-patient,
@@ -54,39 +56,43 @@ assess the data, and use an authorized communications channel.
 
 ## One-time discovery (no forwarding)
 Install inside `tools/nex-whatsapp-group-bridge/` using `npm install`.
-Use a protected environment file readable only by the service account,
-never committed to Git. Example variable NAMES (not real values):
+Use the nonsecret, protected service settings template and separate root-owned
+systemd credential files. The values below are nonsecret configuration only;
+**do not** place the actual business phone number or signing key in an
+EnvironmentFile or command arguments:
 
 ```dotenv
 NEX_GROUP_ACCOUNT_MODE=existing_business
 NEX_GROUP_EXISTING_BUSINESS_OWNER_AUTHORIZED=true
 NEX_GROUP_EXISTING_BUSINESS_RISK_ACKNOWLEDGED=true
 NEX_GROUP_OTHER_CHAT_SYNC_RISK_ACKNOWLEDGED=true
-NEX_GROUP_EXPECTED_PHONE_E164=<your-business-number-in-international-format>
 NEX_GROUP_AUTH_DIR=/var/lib/nex-wa/session
 NEX_GROUP_DISCOVERY_MODE=true
-NEX_GROUP_SHARED_SECRET=<generate-private-random-secret-at-least-32-chars>
 ```
 
-Run `node index.cjs` from an interactive SSH terminal. A QR code is displayed
-only when the process has an interactive terminal; do not stream it into
-persistent logs. On the **current Nexus WhatsApp Business iPhone**, choose WhatsApp Business >
+Run the bridge for discovery **only using a protected interactive systemd-run
+session** supplying both `LoadCredential` files and the nonroot `nex-wa`
+user. See the VPS deployment guide. Calling `node index.cjs` directly without
+`CREDENTIALS_DIRECTORY` will intentionally fail. A QR code is displayed only
+when the process has an interactive terminal; do not stream it into persistent
+logs. On the **current Nexus WhatsApp Business iPhone**, choose WhatsApp Business >
 Settings > Linked Devices > Link a Device and scan that QR. This is a
 **high-risk action**, because the unofficial client connects to the real
 customer-facing number. Do not scan before the security and policy review.
 Keep WhatsApp Business installed on the iPhone; do not migrate or unregister
 its number. On connection, the process prints group
 names, group JIDs and corresponding HMAC digests to your terminal ONLY.
-Copy the JIDs and digests to secure administrative configuration. This pilot
-DOES NOT automatically read or publish conversation text.
+Copy the JIDs and digests to secure administrative configuration. This pilot locally reads new group message text for heuristic categorization,
+but does not forward or persist that text to the Nexus application.
 
 **Note:** WhatsApp Web or its session cache may synchronize information
 locally even in discovery mode. Do not use it with unapproved groups.
 Stop the discovery process before configuring continuous service.
 
 ## Production enablement (manual, after review)
-Set protected VPS service variables (DO NOT place secrets in Git, Netlify
-source, or chat messages):
+Set the following nonsecret VPS service variables **only after review**. The
+business number and signing key are provided separately through root-owned,
+protected systemd `LoadCredential` files, as documented in the VPS guide:
 
 ```dotenv
 NEX_GROUP_DISCOVERY_MODE=false
@@ -98,7 +104,6 @@ NEX_GROUP_EXPECTED_PHONE_E164=<your-business-number-in-international-format>
 NEX_GROUP_BRIDGE_ENABLED=true
 NEX_GROUP_NOTICE_CONFIRMED=true
 NEX_GROUP_ALLOWLIST=<comma-separated-exact-approved-group-JIDs>
-NEX_GROUP_SHARED_SECRET=<same-long-random-secret-as-Netlify>
 NEX_GROUP_INGEST_URL=https://nexusmt.com/.netlify/functions/nex-group-ingest
 NEX_GROUP_AUTH_DIR=/var/lib/nex-wa/session
 ```
@@ -127,8 +132,10 @@ Data protections:
   message text. A scheduled purge deletes metadata older than 30 days.
 - Limited in-memory queue (100), no persistent message queue. Some events may
   be lost on restarts, disconnects, retries or outages. No completeness SLA.
-- No network egress besides WhatsApp Web services and the approved Nexus
-  ingestion endpoint. No outbound WhatsApp sending functions.
+- The bridge code sends metadata only to the approved Nexus endpoint and
+  communicates with WhatsApp Web. This is not an OS-level egress restriction;
+  review firewall and browser network behavior separately. No outbound
+  WhatsApp sending functions are implemented.
 - A whitelist category detector may misclassify text; counts are indicators
   only, not confirmed obligations or dispatch decisions.
 
@@ -158,7 +165,8 @@ https://www.whatsapp.com/legal/WhatsApp-Terms-for-WhatsApp-Business-App
 To switch back to a dedicated Nex number (lower business-continuity risk),
 set `NEX_GROUP_ACCOUNT_MODE=dedicated` and
 `NEX_GROUP_DEDICATED_ACCOUNT_CONFIRMED=true` instead of the three
-existing-business acknowledgement flags. **The exact business phone number belongs in the protected VPS environment only.**
+existing-business acknowledgement flags. **The exact business phone number belongs in a root-owned protected systemd
+credential file only.**
 Do not commit it in the repository, write it in PR comments, or place it in
 browser-facing JavaScript. The bridge compares the signed-in account's
 `client.info.wid.user` against the configured E.164 number and refuses to

@@ -29,7 +29,7 @@
 [context.deploy-preview]
   # Netlify preview runs the isolated WhatsApp tests even when GitHub Actions runners are unavailable.
   # Fail the preview build if webhook, privacy, auth or dashboard tests fail.
-  command = "node --test tests/whatsapp-coexistence.test.cjs tests/nex-group-bridge.test.cjs && node scripts/build-static.mjs"
+  command = "node --test tests/whatsapp-coexistence.test.cjs tests/nex-group-bridge.test.cjs tests/nex-wa-vps-readiness.test.cjs && node scripts/build-static.mjs"
   publish = "dist-preview"
 
 [context.deploy-preview.environment]

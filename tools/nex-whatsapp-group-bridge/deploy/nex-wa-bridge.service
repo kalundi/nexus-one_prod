@@ -1,0 +1,45 @@
+# Nex WhatsApp Business linked-device pilot — intentionally NOT enabled by default.
+# Install this unit only after the account-continuity and privacy review.
+[Unit]
+Description=Nex Group Intelligence WhatsApp linked-device bridge (unofficial)
+Documentation=https://github.com/kalundi/nexus-one_prod/blob/main/docs/NEX_GROUP_LINKED_DEVICE.md
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=nex-wa
+Group=nex-wa
+WorkingDirectory=/opt/nex-wa
+Environment=NODE_ENV=production
+Environment=HOME=/var/lib/nex-wa
+Environment=PUPPETEER_CACHE_DIR=/var/lib/nex-wa/.cache/puppeteer
+EnvironmentFile=/etc/nex-wa/bridge.env
+LoadCredential=nex-shared-secret:/etc/nex-wa/shared-secret
+LoadCredential=nex-expected-number:/etc/nex-wa/expected-number
+ExecStartPre=/usr/bin/node /opt/nex-wa/deploy/preflight.cjs --service
+ExecStart=/usr/bin/node /opt/nex-wa/index.cjs
+Restart=on-failure
+RestartSec=30s
+TimeoutStopSec=30s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/nex-wa
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+SystemCallArchitectures=native
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
