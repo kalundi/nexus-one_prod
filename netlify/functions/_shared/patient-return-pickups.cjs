@@ -1,4 +1,4 @@
-function createHandler({query,requireUser,bearer,json,audit}){
+function createHandler({query,requireUser,bearer,json,audit,notifyDispatch=async()=>({status:'skipped'})}){
  const project=row=>row?{reference:row.booking_reference,requestedAt:row.requested_at,acknowledgedAt:row.acknowledged_at||null,status:row.acknowledged_at?'ACKNOWLEDGED':'REQUESTED'}:null;
  return async function handle(event,p,method){
   const patient=p[0]==='patient'&&p[1]==='trips'&&p[2]&&p[3]==='return-pickup'&&p.length===4;
@@ -20,6 +20,12 @@ function createHandler({query,requireUser,bearer,json,audit}){
       ON CONFLICT(booking_reference) DO NOTHING RETURNING *`,[ref,u.id]);
     if(created.rows[0]){
      await audit('BOOKING',ref,'RETURN_PICKUP_REQUESTED',{actor:u.id});
+     // The database queue is authoritative even if the external alert fails.
+     try{
+      const notice=await notifyDispatch({reference:ref,requestedAt:created.rows[0].requested_at});
+      await audit('BOOKING',ref,'RETURN_PICKUP_ALERT',{status:notice?.status||'unknown'});
+     }catch{await audit('BOOKING',ref,'RETURN_PICKUP_ALERT',{status:'failed'});}
+
      return json(201,{request:project(created.rows[0])});
     }
    }
