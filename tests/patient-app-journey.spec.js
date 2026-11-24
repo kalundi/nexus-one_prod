@@ -93,6 +93,8 @@ test('recipient verifies a shared ride inside the app; GPS marker disappears whe
  await expect(page.locator('#patientMapStatus')).toContainText('pickup is within one hour');
  expect(await page.evaluate(()=>window.__markers.filter(marker=>marker.map).length)).toBe(0);
  await expect(page.locator('[data-footer-action="profile"]')).toBeHidden();
+ await expect(page.locator('.memberNav [data-patient-book]')).toBeHidden();
+ await expect(page.locator('[data-footer-action="history"]')).toBeHidden();
  await page.getByRole('button',{name:'Close ride',exact:true}).click();
  await expect(page.locator('#appShell')).toBeHidden();
 });
@@ -186,4 +188,37 @@ test('main website links directly to the patient app and patient login opens it'
  await page.goto('/__deploy_temp/index.html');await page.locator('header .nexusAccountButton').click();
  await page.locator('#nexusLoginDialog input[name="email"]').fill(user.email);await page.locator('#nexusLoginDialog input[name="password"]').fill('test-password');await page.locator('#nexusLoginDialog button[type="submit"]').click();
  await expect(page).toHaveURL(/\/patient\.html$/);await expect(page.locator('#patientName')).toHaveText(user.displayName);
+});
+
+test('member navigation opens existing patient workflows and reflects selected tab',async({page})=>{
+ await setup(page);await page.goto('/patient.html');
+ const nav=page.getByRole('navigation',{name:'Patient navigation'});
+ await expect(nav).toBeVisible();
+ await expect(nav.getByRole('button')).toHaveCount(5);
+ await expect(nav.getByRole('button',{name:'Home',exact:true})).toHaveAttribute('aria-current','page');
+ await nav.getByRole('button',{name:'Trips',exact:true}).click();
+ await expect(page.locator('#historyPage')).toBeVisible();
+ await nav.getByRole('button',{name:'Track',exact:true}).click();
+ await expect(page.locator('#mapPage')).toBeVisible();
+ await expect(page).toHaveURL(/#map\/NMT-PATIENT-1$/);
+ await expect(nav.getByRole('button',{name:'Track',exact:true})).toHaveAttribute('aria-current','page');
+ await nav.getByRole('button',{name:'Book',exact:true}).click();
+ await expect(page.locator('#bookingPage')).toBeVisible();
+ await expect(nav.getByRole('button',{name:'Book',exact:true})).toHaveAttribute('aria-current','page');
+ await nav.getByRole('button',{name:'More',exact:true}).click();
+ await expect(page.locator('#profilePage')).toBeVisible();
+ await page.getByRole('button',{name:'Help and support',exact:true}).click();
+ await expect(page.locator('#supportPage')).toBeVisible();
+ await nav.getByRole('button',{name:'Home',exact:true}).click();
+ await expect(page.locator('#homePage')).toBeVisible();
+ for(const width of [320,390,768,1280]){
+  await page.setViewportSize({width,height:844});
+  const box=await nav.boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width+1);
+ }
+});
+test('track shortcut without a ride opens trip list',async({page})=>{
+ await setup(page,[]);await page.goto('/patient.html');
+ await page.getByRole('navigation',{name:'Patient navigation'}).getByRole('button',{name:'Track',exact:true}).click();
+ await expect(page.locator('#historyPage')).toBeVisible();
+ await expect(page.locator('#mapPage')).toBeHidden();
 });
