@@ -515,6 +515,7 @@ body.dispatchFocusMode .dispatchScopedTripBoard.focusVisible{display:block !impo
   </div>
   </div>
 </section>
+<section id="returnPickupQueue" class="card dispatchSection" style="margin-top:20px" hidden><div class="sectionHead"><div><p class="eyebrow">Patient self-service</p><h2>Return pickup requests</h2></div><button class="button secondary" id="refreshReturnPickups" type="button">Refresh</button></div><p id="returnPickupQueueStatus" role="status">Loading requests…</p><div id="returnPickupQueueRows"></div></section>
 <section id="tripBoard" class="card dispatchSection" style="margin-top:20px">
   <div class="toolbar">
     <div><div class="eyebrow">Live Operations</div><h2>Trip management</h2></div>
@@ -4344,7 +4345,7 @@ $('saveCustomCompany').addEventListener('click',()=>{
     },{passive:false});
   });
 })();
-</script><script src="/dispatch-demo-editor.js?v=1"></script></body></html>
+</script><script src="/dispatch-demo-editor.js?v=1"></script><script src="/dispatch-return-pickups.js" defer></script></body></html>
 
 
 
