@@ -1475,7 +1475,7 @@
     const quickSummary=$('patientQuickSummary');
     if(quickSummary){
       quickSummary.hidden=!patientQuick||!riderDetailsConfirmed||journeyNavigationOverride==='riderDetailsSection'||bookingSubmitted||bookingSubmissionPending;
-      $('patientQuickName').textContent=String($('name')?.value||'');
+      $('patientQuickName').textContent=String($('firstName')?.value||'You').trim()||'You';
       $('patientQuickService').textContent=String(normalizeService($('service')?.value)||'Service not selected').replaceAll('_',' ');
     }
     const progress = getProgressState();
