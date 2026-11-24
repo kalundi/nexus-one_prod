@@ -3,14 +3,15 @@ const assert=require('node:assert/strict');
 const {createHandler}=require('../netlify/functions/_shared/patient-return-pickups.cjs');
 const patientPath=['patient','trips','NMT-TEST','return-pickup'];
 const dispatchPath=['dispatch','return-pickups'];
-function fixture({role='PATIENT',owned=true,eligible=true,alertFails=false}={}){
- let request=null;const auditEvents=[],alerts=[],calls=[];
+function fixture({role='PATIENT',owned=true,eligible=true,alertFails=false,patientAlertFails=false}={}){
+ let request=null;const auditEvents=[],alerts=[],patientAlerts=[],calls=[];
  const handler=createHandler({
   bearer:e=>e.token,
   requireUser:async(token,roles)=>{if(!token||!roles.includes(role))throw Object.assign(Error('Forbidden'),{statusCode:token?403:401});return {id:'test-user'};},
   json:(status,body)=>({status,body}),
   audit:async(...args)=>auditEvents.push(args),
   notifyDispatch:async data=>{alerts.push(data);if(alertFails)throw Error('offline');return {status:'sent'};},
+  notifyPatient:async data=>{patientAlerts.push(data);if(patientAlertFails)throw Error('offline');return {status:'sent'};},
   query:async(sql,params)=>{
    calls.push({sql,params});
    if(sql.startsWith('SELECT reference FROM bookings'))return {rows:owned?[{reference:'NMT-TEST'}]:[]};
@@ -19,7 +20,7 @@ function fixture({role='PATIENT',owned=true,eligible=true,alertFails=false}={}){
     assert.match(sql,/return_trip_time IS NULL/);
     assert.match(sql,/ON CONFLICT\(booking_reference\) DO NOTHING/);
     if(!eligible||request)return {rows:[]};
-    request={booking_reference:'NMT-TEST',requested_at:'2026-11-24T12:00:00Z'};return {rows:[request]};
+    request={booking_reference:'NMT-TEST',requested_at:'2026-11-24T12:00:00Z',requested_by:'test-user'};return {rows:[request]};
    }
    if(sql.startsWith('UPDATE patient_return_pickups')){
     if(!request||request.acknowledged_at)return {rows:[]};
@@ -30,7 +31,7 @@ function fixture({role='PATIENT',owned=true,eligible=true,alertFails=false}={}){
    throw Error('Unexpected SQL');
   }
  });
- return {handler,alerts,auditEvents,calls,setRole:r=>role=r};
+ return {handler,alerts,patientAlerts,auditEvents,calls,setRole:r=>role=r};
 }
 test('unauthenticated and wrong-role requests cannot query bookings',async()=>{
  const f=fixture();await assert.rejects(f.handler({},patientPath,'POST'),{statusCode:401});
@@ -65,4 +66,14 @@ test('dispatch acknowledgment is restricted, repeatable and visible to patient',
  assert.deepEqual((await f.handler({token:'x'},[...dispatchPath,'NMT-TEST'],'PATCH')).body,ack.body);
  assert.equal((await f.handler({token:'x'},dispatchPath,'GET')).body.requests.length,0);
  f.setRole('PATIENT');assert.equal((await f.handler({token:'x'},patientPath,'GET')).body.request.status,'ACKNOWLEDGED');
+});
+
+test('acknowledgment notifies patient only once, including provider outage',async()=>{
+ for(const patientAlertFails of [false,true]){
+  const f=fixture({patientAlertFails});await f.handler({token:'x'},patientPath,'POST');f.setRole('DISPATCHER');
+  const path=[...dispatchPath,'NMT-TEST'];assert.equal((await f.handler({token:'x'},path,'PATCH')).status,200);
+  assert.equal((await f.handler({token:'x'},path,'PATCH')).status,200);
+  assert.deepEqual(f.patientAlerts,[{reference:'NMT-TEST',requestedBy:'test-user'}]);
+  f.setRole('PATIENT');assert.equal((await f.handler({token:'x'},patientPath,'GET')).body.request.status,'ACKNOWLEDGED');
+ }
 });
